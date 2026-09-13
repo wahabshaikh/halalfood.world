@@ -1,0 +1,19 @@
+{
+  "name": "Halalfood — find halal food anywhere in the world",
+  "short_name": "Halalfood",
+  "description": "A world map of halal restaurants, searchable by city or name.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#eceee9",
+  "theme_color": "#374b37",
+  "categories": ["food", "travel", "navigation"],
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/favicon-32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

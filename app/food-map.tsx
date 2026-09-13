@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   LocateFixed,
   Maximize,
@@ -20,6 +20,9 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
 type Results = { places: Place[]; total: number; limit: number };
+const VIEWPORT_LIMIT = 600;
+const DEFAULT_VIEW = { center: [72.8777, 19.055] as [number, number], zoom: 14 };
+
 const foodIcon =
   '<svg xmlns="http://www.w3.org/2000/svg" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v5a3 3 0 0 0 6 0V3M7 3v18M18 3c-3 3-3 8 0 8h2M20 3v18"/></svg>';
 const address = (p: Place) =>
@@ -37,17 +40,38 @@ function safeWebsite(value: string | null) {
   }
 }
 
+/** `?lat=&lng=&z=` overrides the default view; anything invalid is ignored. */
+function viewFromParams(params: URLSearchParams) {
+  const lat = Number(params.get("lat"));
+  const lng = Number(params.get("lng"));
+  const zoom = Number(params.get("z"));
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    Math.abs(lat) > 90 ||
+    Math.abs(lng) > 180 ||
+    !params.get("lat") ||
+    !params.get("lng")
+  )
+    return null;
+  return {
+    center: [lng, lat] as [number, number],
+    zoom: Number.isFinite(zoom) && zoom >= 1 && zoom <= 20 ? zoom : 14,
+  };
+}
+
 export default function FoodMap() {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapInstance | null>(null);
   const library = useRef<typeof import("maplibre-gl") | null>(null);
   const markers = useRef<Marker[]>([]);
   const popup = useRef<Popup | null>(null);
+  const styleReady = useRef(false);
   const [ready, setReady] = useState(false);
   const [results, setResults] = useState<Results>({
     places: [],
     total: 0,
-    limit: 600,
+    limit: VIEWPORT_LIMIT,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -62,69 +86,123 @@ export default function FoodMap() {
   const sheetRef = useRef<HTMLDialogElement>(null);
   const countRef = useRef<HTMLButtonElement>(null);
 
-  function selectPlace(place: Place) {
-    const m = map.current,
-      lib = library.current;
-    if (!m || !lib) return;
-    setSheet(false);
-    setSearchOpen(false);
-    m.flyTo({
-      duration: 1200,
-      center: [place.lng, place.lat],
-      zoom: Math.max(m.getZoom(), 13),
-    });
-    popup.current?.remove();
-    const content = document.createElement("div");
-    content.className = "place-popup";
-    const tag = document.createElement("span");
-    tag.className = "eyebrow";
-    tag.textContent = "HALAL FOOD";
-    content.append(tag);
-    const title = document.createElement("h2");
-    title.textContent = place.name;
-    content.append(title);
-    if (place.rating_value) {
-      const rating = document.createElement("p");
-      rating.className = "popup-rating";
-      rating.textContent =
-        "★ " +
-        place.rating_value +
-        (place.review_count ? " · " + place.review_count + " reviews" : "");
-      content.append(rating);
-    }
-    const location = document.createElement("p");
-    location.textContent = address(place);
-    content.append(location);
-    const note = document.createElement("p");
-    note.className = "approximate";
-    note.textContent = "Approximate pin. Confirm the address before visiting.";
-    content.append(note);
-    const links = document.createElement("div");
-    links.className = "popup-links";
-    if (place.telephone) {
-      const phone = document.createElement("a");
-      phone.href = "tel:" + place.telephone.replace(/[^+\d]/g, "");
-      phone.textContent = place.telephone;
-      links.append(phone);
-    }
-    const website = safeWebsite(place.website);
-    if (website) {
-      const link = document.createElement("a");
-      link.href = website;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = "Website ↗";
-      links.append(link);
-    }
-    content.append(links);
-    popup.current = new lib.Popup({ offset: 26, maxWidth: "320px" })
-      .setLngLat([place.lng, place.lat])
-      .setDOMContent(content)
-      .addTo(m);
-  }
+  /** Keep the address bar shareable without adding a history entry per pin. */
+  const syncUrl = useCallback((placeId: string | null) => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("city");
+    url.searchParams.delete("lat");
+    url.searchParams.delete("lng");
+    url.searchParams.delete("z");
+    if (placeId) url.searchParams.set("place", placeId);
+    else url.searchParams.delete("place");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, []);
+
+  const selectPlace = useCallback(
+    (place: Place, options: { fly?: boolean } = {}) => {
+      const m = map.current,
+        lib = library.current;
+      if (!m || !lib) return;
+      setSheet(false);
+      setSearchOpen(false);
+      if (options.fly !== false)
+        m.flyTo({
+          duration: 1200,
+          center: [place.lng, place.lat],
+          zoom: Math.max(m.getZoom(), 13),
+        });
+      popup.current?.remove();
+      syncUrl(place.id);
+
+      const placeUrl = "/place/" + place.id;
+      const content = document.createElement("div");
+      content.className = "place-popup";
+      const tag = document.createElement("span");
+      tag.className = "eyebrow";
+      tag.textContent = "HALAL FOOD";
+      content.append(tag);
+      const title = document.createElement("h2");
+      const titleLink = document.createElement("a");
+      titleLink.href = placeUrl;
+      titleLink.textContent = place.name;
+      title.append(titleLink);
+      content.append(title);
+      if (place.rating_value) {
+        const rating = document.createElement("p");
+        rating.className = "popup-rating";
+        rating.textContent =
+          "★ " +
+          place.rating_value +
+          (place.review_count ? " · " + place.review_count + " reviews" : "");
+        content.append(rating);
+      }
+      const location = document.createElement("p");
+      location.textContent = address(place);
+      content.append(location);
+      const note = document.createElement("p");
+      note.className = "approximate";
+      note.textContent = "Approximate pin. Confirm the address before visiting.";
+      content.append(note);
+
+      const links = document.createElement("div");
+      links.className = "popup-links";
+      const details = document.createElement("a");
+      details.href = placeUrl;
+      details.textContent = "Details";
+      links.append(details);
+      if (place.telephone) {
+        const phone = document.createElement("a");
+        phone.href = "tel:" + place.telephone.replace(/[^+\d]/g, "");
+        phone.textContent = "Call";
+        links.append(phone);
+      }
+      const website = safeWebsite(place.website);
+      if (website) {
+        const link = document.createElement("a");
+        link.href = website;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer nofollow";
+        link.textContent = "Website ↗";
+        links.append(link);
+      }
+      const share = document.createElement("button");
+      share.type = "button";
+      share.className = "popup-share";
+      share.textContent = "Share";
+      share.addEventListener("click", async () => {
+        const shareUrl = new URL(placeUrl, window.location.origin).href;
+        if (navigator.share) {
+          try {
+            await navigator.share({ title: place.name, url: shareUrl });
+            return;
+          } catch (e) {
+            if ((e as Error)?.name === "AbortError") return;
+          }
+        }
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          share.textContent = "Link copied";
+          setTimeout(() => (share.textContent = "Share"), 2400);
+        } catch {
+          setNotice("Copy the link from the address bar to share this place.");
+        }
+      });
+      links.append(share);
+      content.append(links);
+
+      popup.current = new lib.Popup({ offset: 26, maxWidth: "320px" })
+        .setLngLat([place.lng, place.lat])
+        .setDOMContent(content)
+        .addTo(m);
+      popup.current.once("close", () => syncUrl(null));
+    },
+    [syncUrl],
+  );
 
   useEffect(() => {
     let cancelled = false;
+    const params = new URLSearchParams(window.location.search);
+    const view = viewFromParams(params) ?? DEFAULT_VIEW;
     import("maplibre-gl")
       .then((lib) => {
         if (cancelled || !container.current) return;
@@ -134,18 +212,21 @@ export default function FoodMap() {
           container: container.current,
           style:
             "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-          center: [72.8777, 19.055],
-          zoom: 14,
+          center: view.center,
+          zoom: view.zoom,
           attributionControl: { compact: true },
         });
         map.current = m;
         m.on("load", () => {
+          styleReady.current = true;
           setReady(true);
           setMapError("");
         });
-        m.on("error", () =>
-          setMapError("The basemap could not load. Check your connection."),
-        );
+        // Tiles fail transiently all the time; only a dead style is fatal.
+        m.on("error", () => {
+          if (!styleReady.current)
+            setMapError("The basemap could not load. Check your connection.");
+        });
       })
       .catch(() => {
         setMapError("The map could not start. Please reload the page.");
@@ -155,8 +236,56 @@ export default function FoodMap() {
       cancelled = true;
       map.current?.remove();
       map.current = null;
+      styleReady.current = false;
     };
   }, []);
+
+  // Deep links: /?place=<id> opens a pin, /?city=<slug> frames a city.
+  useEffect(() => {
+    if (!ready) return;
+    const params = new URLSearchParams(window.location.search);
+    const placeId = params.get("place");
+    const citySlug = params.get("city");
+    if (!placeId && !citySlug) return;
+    const controller = new AbortController();
+    (async () => {
+      try {
+        if (placeId) {
+          const response = await fetch(
+            "/api/places/" + encodeURIComponent(placeId),
+            { signal: controller.signal },
+          );
+          if (!response.ok) throw new Error();
+          const place = (await response.json()) as Place;
+          if (typeof place.lat !== "number" || typeof place.lng !== "number")
+            throw new Error();
+          map.current?.jumpTo({ center: [place.lng, place.lat], zoom: 15 });
+          selectPlace(place, { fly: false });
+          return;
+        }
+        const response = await fetch(
+          "/api/cities/" + encodeURIComponent(citySlug!),
+          { signal: controller.signal },
+        );
+        if (!response.ok) throw new Error();
+        const city = (await response.json()) as {
+          center_lat: number | null;
+          center_lng: number | null;
+        };
+        if (city.center_lat === null || city.center_lng === null)
+          throw new Error();
+        map.current?.jumpTo({
+          center: [city.center_lng, city.center_lat],
+          zoom: 12,
+        });
+      } catch (e) {
+        if ((e as Error).name !== "AbortError")
+          setNotice("That link could not be opened. Showing the map instead.");
+      }
+    })();
+    return () => controller.abort();
+    // Runs once the map is live; later selections manage their own URL.
+  }, [ready, selectPlace]);
 
   useEffect(() => {
     if (!ready || !map.current) return;
@@ -179,7 +308,7 @@ export default function FoodMap() {
       ];
       try {
         const response = await fetch(
-          "/api/places?bbox=" + bbox.join(",") + "&limit=600",
+          "/api/places?bbox=" + bbox.join(",") + "&limit=" + VIEWPORT_LIMIT,
           { signal: controller.signal },
         );
         if (!response.ok)
@@ -189,7 +318,7 @@ export default function FoodMap() {
       } catch (e) {
         if ((e as Error).name !== "AbortError") {
           setError((e as Error).message);
-          setResults({ places: [], total: 0, limit: 600 });
+          setResults({ places: [], total: 0, limit: VIEWPORT_LIMIT });
           setLoading(false);
         }
       }
@@ -214,6 +343,7 @@ export default function FoodMap() {
     if (!ready || !map.current || !library.current) return;
     markers.current = results.places.map((place) => {
       const button = document.createElement("button");
+      button.type = "button";
       button.className = "food-marker";
       button.innerHTML = foodIcon;
       button.setAttribute("aria-label", place.name);
@@ -226,14 +356,14 @@ export default function FoodMap() {
         .setLngLat([place.lng, place.lat])
         .addTo(map.current!);
     });
-  }, [results, ready]);
+  }, [results, ready, selectPlace]);
 
   useEffect(() => {
     const query = q.trim();
     const controller = new AbortController();
     setSearchResults([]);
     if (query.length < 2) {
-      setSearchState(query ? "Type at least 2 characters" : "");
+      setSearchState(query ? "Keep typing — at least 2 characters." : "");
       return;
     }
     setSearchState("Searching…");
@@ -249,7 +379,7 @@ export default function FoodMap() {
         setSearchState(
           data.places.length
             ? ""
-            : "No places found. Try a city or another name.",
+            : "No halal places match that. Try a city or another name.",
         );
       } catch (e) {
         if ((e as Error).name !== "AbortError")
@@ -272,7 +402,7 @@ export default function FoodMap() {
 
   function locate() {
     if (!navigator.geolocation) {
-      setNotice("Location is unavailable in this browser.");
+      setNotice("This browser cannot share your location. Search for a city instead.");
       return;
     }
     setNotice("Finding your location…");
@@ -285,10 +415,24 @@ export default function FoodMap() {
         });
         setNotice("");
       },
-      () => setNotice("Location is unavailable. Search for your city instead."),
+      (positionError) =>
+        setNotice(
+          positionError.code === positionError.PERMISSION_DENIED
+            ? "Location permission is off. Turn it on, or search for your city."
+            : "We could not pin down your location. Search for your city instead.",
+        ),
       { timeout: 10000 },
     );
   }
+
+  const countLabel = loading
+    ? "Finding places…"
+    : error
+      ? "Places unavailable"
+      : results.total === 0
+        ? "No places here"
+        : results.total.toLocaleString() +
+          (results.total === 1 ? " place" : " places");
 
   return (
     <main className="map-app">
@@ -297,12 +441,19 @@ export default function FoodMap() {
         className="map-canvas"
         aria-label="Map of halal food places"
       />
-      <a className="brand pill" href="/" aria-label="Halalfood home">
-        <span className="brand-icon">
-          <Utensils size={21} />
-        </span>
-        <span>Halalfood</span>
-      </a>
+      <header className="map-chrome">
+        <a className="brand pill" href="/" aria-label="Halalfood home">
+          <span className="brand-icon">
+            <Utensils size={20} />
+          </span>
+          <span>Halalfood</span>
+        </a>
+        <nav className="chrome-nav" aria-label="Directory">
+          <a className="pill chrome-link" href="/cities">
+            Browse cities
+          </a>
+        </nav>
+      </header>
       <div className="search-area">
         <form
           className="search-pill pill"
@@ -312,10 +463,10 @@ export default function FoodMap() {
             if (searchResults[0]) selectPlace(searchResults[0]);
           }}
         >
-          <Search size={23} aria-hidden="true" />
+          <Search size={21} aria-hidden="true" />
           <input
             aria-label="Search for halal food"
-            placeholder={["Search for ", "halal", " food\u2026"].join("")}
+            placeholder="Search halal food or a city…"
             value={q}
             maxLength={120}
             onFocus={() => setSearchOpen(true)}
@@ -345,7 +496,11 @@ export default function FoodMap() {
           <div className="search-results">
             {searchState && <p role="status">{searchState}</p>}
             {searchResults.map((place) => (
-              <button key={place.id} onClick={() => selectPlace(place)}>
+              <button
+                type="button"
+                key={place.id}
+                onClick={() => selectPlace(place)}
+              >
                 <span className="result-icon">
                   <Utensils size={19} />
                 </span>
@@ -361,14 +516,18 @@ export default function FoodMap() {
       </div>
       {(error || mapError || notice) && (
         <div className="toast" role="status">
-          {error || mapError || notice}
+          <span>{error || mapError || notice}</span>
           {error && (
-            <button onClick={() => setRetry((value) => value + 1)}>
+            <button type="button" onClick={() => setRetry((value) => value + 1)}>
               Retry
             </button>
           )}
-          {notice && (
-            <button aria-label="Dismiss" onClick={() => setNotice("")}>
+          {!error && notice && (
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={() => setNotice("")}
+            >
               <X size={16} />
             </button>
           )}
@@ -376,17 +535,26 @@ export default function FoodMap() {
       )}
       <div className="map-controls" aria-label="Map controls">
         <div className="zoom-controls">
-          <button aria-label="Zoom in" onClick={() => map.current?.zoomIn()}>
-            <Plus />
+          <button
+            type="button"
+            aria-label="Zoom in"
+            onClick={() => map.current?.zoomIn()}
+          >
+            <Plus size={20} />
           </button>
-          <button aria-label="Zoom out" onClick={() => map.current?.zoomOut()}>
-            <Minus />
+          <button
+            type="button"
+            aria-label="Zoom out"
+            onClick={() => map.current?.zoomOut()}
+          >
+            <Minus size={20} />
           </button>
         </div>
-        <button aria-label="Locate me" onClick={locate}>
-          <LocateFixed />
+        <button type="button" aria-label="Find my location" onClick={locate}>
+          <LocateFixed size={20} />
         </button>
         <button
+          type="button"
           aria-label="Toggle fullscreen"
           onClick={() => {
             if (document.fullscreenElement) void document.exitFullscreen();
@@ -399,33 +567,29 @@ export default function FoodMap() {
             else setNotice("Fullscreen is unavailable in this browser.");
           }}
         >
-          <Maximize />
+          <Maximize size={20} />
         </button>
       </div>
       <div className="bottom-area">
         <button
+          type="button"
           ref={countRef}
-          className="count-pill"
+          className={loading ? "count-pill is-loading" : "count-pill"}
           onClick={() => setSheet(true)}
           aria-haspopup="dialog"
         >
-          <List size={22} />
-          <span>
-            {loading
-              ? "Finding places…"
-              : error
-                ? "Places unavailable"
-                : results.total.toLocaleString() + " places"}
-          </span>
+          <List size={20} />
+          <span>{countLabel}</span>
         </button>
-        <span className="map-note">
-          Discover halal food · Pins are approximate
-        </span>
+        <span className="map-note">Halal only · Pins are approximate</span>
       </div>
       <dialog
         ref={sheetRef}
         className="list-sheet"
-        onCancel={() => setSheet(false)}
+        onCancel={(event) => {
+          event.preventDefault();
+          setSheet(false);
+        }}
         onClick={(event) => {
           if (event.target === sheetRef.current) setSheet(false);
         }}
@@ -435,57 +599,84 @@ export default function FoodMap() {
         <header>
           <div>
             <span className="eyebrow">EXPLORE THIS AREA</span>
-            <h2 id="sheet-title">{results.total.toLocaleString()} places</h2>
+            <h2 id="sheet-title">{countLabel}</h2>
           </div>
           <button
+            type="button"
             className="close-sheet"
             aria-label="Close places list"
             onClick={() => setSheet(false)}
           >
-            <X />
+            <X size={20} />
           </button>
         </header>
         <p className="sheet-description">
           {results.total > results.places.length
-            ? "Showing " +
-              results.places.length +
-              " top-rated places. Zoom in to explore more."
-            : "Find something delicious nearby."}{" "}
-          Confirm addresses before visiting.
+            ? `Showing the ${results.places.length} best-rated of ${results.total.toLocaleString()} places here. Zoom in for the rest.`
+            : "Tap a place to see it on the map."}{" "}
+          Pins are approximate — confirm addresses before visiting.
         </p>
         <div className="place-list">
-          {loading && <p role="status">Loading places…</p>}
-          {error && <p role="alert">{error}</p>}
-          {!loading && !error && !results.places.length && (
-            <p>No places in this area yet. Zoom out or search for a city.</p>
+          {loading && (
+            <p className="sheet-status" role="status">
+              Loading places…
+            </p>
           )}
-          {results.places.map((place) => (
-            <button
-              className="place-row"
-              key={place.id}
-              onClick={() => selectPlace(place)}
-            >
-              <span className="list-food-icon">
-                <Utensils size={23} />
-              </span>
-              <span className="place-row-info">
-                <strong>{place.name}</strong>
-                <small>{address(place)}</small>
-                {place.rating_value && (
-                  <span className="rating">
-                    <Star size={13} fill="currentColor" />
-                    {place.rating_value}
-                    <span>
-                      {place.review_count
-                        ? " (" + place.review_count + ")"
-                        : ""}
-                    </span>
+          {error && (
+            <p className="sheet-status" role="alert">
+              {error}{" "}
+              <button
+                type="button"
+                className="inline-retry"
+                onClick={() => setRetry((value) => value + 1)}
+              >
+                Retry
+              </button>
+            </p>
+          )}
+          {!loading && !error && !results.places.length && (
+            <p className="sheet-status">
+              No halal places in this view yet. Zoom out, or{" "}
+              <a href="/cities">browse by city</a>.
+            </p>
+          )}
+          <ul>
+            {results.places.map((place) => (
+              <li className="place-row" key={place.id}>
+                <button
+                  type="button"
+                  className="place-row-main"
+                  onClick={() => selectPlace(place)}
+                >
+                  <span className="list-food-icon">
+                    <Utensils size={21} />
                   </span>
-                )}
-              </span>
-              <ArrowUpRight size={19} />
-            </button>
-          ))}
+                  <span className="place-row-info">
+                    <strong>{place.name}</strong>
+                    <small>{address(place)}</small>
+                    {place.rating_value && (
+                      <span className="rating">
+                        <Star size={13} fill="currentColor" />
+                        {place.rating_value}
+                        <span>
+                          {place.review_count
+                            ? " (" + place.review_count + ")"
+                            : ""}
+                        </span>
+                      </span>
+                    )}
+                  </span>
+                </button>
+                <a
+                  className="place-row-link"
+                  href={"/place/" + place.id}
+                  aria-label={"Details for " + place.name}
+                >
+                  <ArrowUpRight size={19} />
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
       </dialog>
     </main>

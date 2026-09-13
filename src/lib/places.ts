@@ -17,12 +17,41 @@ export type Place = {
   lat: number;
   lng: number;
 };
+
+/** The full row a place page renders. Coordinates may be missing. */
+export type PlaceDetail = Omit<Place, "lat" | "lng"> & {
+  address_region: string | null;
+  postal_code: string | null;
+  maps_url: string | null;
+  serves_cuisine: string[] | null;
+  source: string | null;
+  source_url: string | null;
+  scraped_at: string | Date | null;
+  lat: number | null;
+  lng: number | null;
+};
+
+export type City = {
+  city_slug: string;
+  place_count: number;
+  address_country: string | null;
+  /** Mean of the city's listed (approximate) coordinates — for map centring. */
+  center_lat: number | null;
+  center_lng: number | null;
+};
+
+/** Never let a caller ask for an unbounded slice of the table. */
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(Math.trunc(value) || min, min), max);
+
+const COORDS_PRESENT = sql`lat IS NOT NULL AND lng IS NOT NULL`;
+
 export async function findPlaces(options: {
   bbox?: ReturnType<typeof bboxParam>;
   q?: string;
   limit: number;
 }) {
-  const conditions = [sql`lat IS NOT NULL AND lng IS NOT NULL`];
+  const conditions = [COORDS_PRESENT];
   if (options.bbox) {
     const { west, south, east, north } = options.bbox;
     conditions.push(sql`lat BETWEEN ${south} AND ${north}`);
@@ -51,4 +80,105 @@ export async function findPlaces(options: {
     total: rows[0]?.total ?? 0,
     limit: options.limit,
   };
+}
+
+/** One place by id. The id must already have passed `placeIdParam`. */
+export async function getPlaceById(id: string): Promise<PlaceDetail | null> {
+  const result = await database().execute(sql`
+    SELECT id, name, city_slug, street_address, address_locality, address_region,
+      postal_code, address_country, telephone, website, maps_url, serves_cuisine,
+      rating_value, review_count, source, source_url, scraped_at, lat, lng
+    FROM places WHERE id = ${id}::uuid LIMIT 1
+  `);
+  return (result.rows[0] as unknown as PlaceDetail) ?? null;
+}
+
+/** Distinct cities, largest first, for the city index and city sitemap. */
+export async function listCities(
+  options: { limit?: number; offset?: number } = {},
+) {
+  const limit = clamp(options.limit ?? 500, 1, 2000);
+  const offset = clamp(options.offset ?? 0, 0, 100000);
+  const result = await database().execute(sql`
+    SELECT city_slug,
+      count(*)::integer AS place_count,
+      min(address_country) AS address_country,
+      avg(lat)::double precision AS center_lat,
+      avg(lng)::double precision AS center_lng
+    FROM places WHERE ${COORDS_PRESENT}
+    GROUP BY city_slug
+    ORDER BY count(*) DESC, city_slug
+    LIMIT ${limit} OFFSET ${offset}
+  `);
+  return result.rows as unknown as City[];
+}
+
+export async function countCities() {
+  const result = await database().execute(sql`
+    SELECT count(DISTINCT city_slug)::integer AS total
+    FROM places WHERE ${COORDS_PRESENT}
+  `);
+  return (result.rows[0] as unknown as { total: number } | undefined)?.total ?? 0;
+}
+
+/** Aggregate for one city, or `null` when the slug matches nothing. */
+export async function getCity(citySlug: string): Promise<City | null> {
+  const result = await database().execute(sql`
+    SELECT city_slug,
+      count(*)::integer AS place_count,
+      min(address_country) AS address_country,
+      avg(lat)::double precision AS center_lat,
+      avg(lng)::double precision AS center_lng
+    FROM places WHERE ${COORDS_PRESENT} AND city_slug = ${citySlug}
+    GROUP BY city_slug
+  `);
+  return (result.rows[0] as unknown as City) ?? null;
+}
+
+/** Places in one city, best rated first, paginated and capped. */
+export async function findPlacesByCity(
+  citySlug: string,
+  options: { limit?: number; offset?: number } = {},
+) {
+  const limit = clamp(options.limit ?? 60, 1, 200);
+  const offset = clamp(options.offset ?? 0, 0, 100000);
+  const result = await database().execute(sql`
+    SELECT id, name, city_slug, street_address, address_locality, address_country,
+      telephone, website, rating_value, review_count, lat, lng,
+      count(*) OVER()::integer AS total
+    FROM places WHERE ${COORDS_PRESENT} AND city_slug = ${citySlug}
+    ORDER BY rating_value DESC NULLS LAST, review_count DESC NULLS LAST, id
+    LIMIT ${limit} OFFSET ${offset}
+  `);
+  const rows = result.rows as unknown as (Place & { total: number })[];
+  return {
+    places: rows.map(({ total: _total, ...place }) => place),
+    total: rows[0]?.total ?? 0,
+    limit,
+    offset,
+  };
+}
+
+export async function countPlaces() {
+  const result = await database().execute(sql`
+    SELECT count(*)::integer AS total FROM places WHERE ${COORDS_PRESENT}
+  `);
+  return (result.rows[0] as unknown as { total: number } | undefined)?.total ?? 0;
+}
+
+/**
+ * Ordered id slice for the chunked place sitemaps. Ordering by id keeps the
+ * chunk boundaries stable between requests.
+ */
+export async function listPlaceRefs(options: { limit: number; offset: number }) {
+  const limit = clamp(options.limit, 1, 25000);
+  const offset = clamp(options.offset, 0, 1000000);
+  const result = await database().execute(sql`
+    SELECT id, scraped_at FROM places WHERE ${COORDS_PRESENT}
+    ORDER BY id LIMIT ${limit} OFFSET ${offset}
+  `);
+  return result.rows as unknown as {
+    id: string;
+    scraped_at: string | Date | null;
+  }[];
 }
