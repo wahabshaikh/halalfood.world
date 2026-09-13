@@ -1,0 +1,13 @@
+.database_url
+.dev.vars
+.env
+.env*
+node_modules
+.next
+.wrangler
+.open-next
+dist
+*.tsbuildinfo
+.test-artifacts
+.vinext
+next-env.d.ts
