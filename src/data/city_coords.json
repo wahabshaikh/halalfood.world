@@ -1,0 +1,818 @@
+{
+  "aarhus": {
+    "lat": 56.149628,
+    "lng": 10.213405,
+    "query": "Aarhus",
+    "source": "nominatim"
+  },
+  "abuja": {
+    "lat": 9.064331,
+    "lng": 7.489297,
+    "query": "Abuja",
+    "source": "nominatim"
+  },
+  "accra": {
+    "lat": 5.55711,
+    "lng": -0.201238,
+    "query": "Accra",
+    "source": "nominatim"
+  },
+  "addis-ababa": {
+    "lat": 9.035812,
+    "lng": 38.752432,
+    "query": "Addis Ababa, Ethiopia",
+    "source": "nominatim"
+  },
+  "adelaide": {
+    "lat": -34.928181,
+    "lng": 138.599931,
+    "query": "Adelaide",
+    "source": "nominatim"
+  },
+  "ahmedabad": {
+    "lat": 23.021537,
+    "lng": 72.580057,
+    "query": "Ahmedabad",
+    "source": "nominatim"
+  },
+  "albuquerque": {
+    "lat": 35.084103,
+    "lng": -106.650985,
+    "query": "Albuquerque",
+    "source": "nominatim"
+  },
+  "amsterdam": {
+    "lat": 52.37308,
+    "lng": 4.892453,
+    "query": "Amsterdam",
+    "source": "nominatim"
+  },
+  "antwerp": {
+    "lat": 51.22111,
+    "lng": 4.399708,
+    "query": "Antwerp",
+    "source": "nominatim"
+  },
+  "arequipa": {
+    "lat": -16.398867,
+    "lng": -71.536961,
+    "query": "Arequipa",
+    "source": "nominatim"
+  },
+  "athens": {
+    "lat": 33.959768,
+    "lng": -83.376398,
+    "query": "Athens",
+    "source": "nominatim"
+  },
+  "auckland": {
+    "lat": -36.852095,
+    "lng": 174.76318,
+    "query": "Auckland",
+    "source": "nominatim"
+  },
+  "austin": {
+    "lat": 30.271129,
+    "lng": -97.7437,
+    "query": "Austin",
+    "source": "nominatim"
+  },
+  "baltimore": {
+    "lat": 39.290882,
+    "lng": -76.610759,
+    "query": "Baltimore",
+    "source": "nominatim"
+  },
+  "bangalore": {
+    "lat": 12.976794,
+    "lng": 77.590082,
+    "query": "Bangalore",
+    "source": "nominatim"
+  },
+  "bangkok": {
+    "lat": 13.752494,
+    "lng": 100.493509,
+    "query": "Bangkok",
+    "source": "nominatim"
+  },
+  "barcelona": {
+    "lat": 41.38258,
+    "lng": 2.177073,
+    "query": "Barcelona",
+    "source": "nominatim"
+  },
+  "beijing": {
+    "lat": 39.905714,
+    "lng": 116.391297,
+    "query": "Beijing",
+    "source": "nominatim"
+  },
+  "bergen": {
+    "lat": 60.394306,
+    "lng": 5.325919,
+    "query": "Bergen",
+    "source": "nominatim"
+  },
+  "berlin": {
+    "lat": 52.517389,
+    "lng": 13.395131,
+    "query": "Berlin",
+    "source": "nominatim"
+  },
+  "birmingham": {
+    "lat": 52.494899,
+    "lng": -1.851844,
+    "query": "Birmingham, England, United Kingdom",
+    "source": "nominatim"
+  },
+  "bogota": {
+    "lat": 4.653382,
+    "lng": -74.083633,
+    "query": "Bogota",
+    "source": "nominatim"
+  },
+  "bologna": {
+    "lat": 44.49382,
+    "lng": 11.342633,
+    "query": "Bologna",
+    "source": "nominatim"
+  },
+  "bordeaux": {
+    "lat": 44.841225,
+    "lng": -0.580036,
+    "query": "Bordeaux",
+    "source": "nominatim"
+  },
+  "boston": {
+    "lat": 42.358834,
+    "lng": -71.05783,
+    "query": "Boston",
+    "source": "nominatim"
+  },
+  "brasilia": {
+    "lat": -10.333333,
+    "lng": -53.2,
+    "query": "Brasilia",
+    "source": "nominatim"
+  },
+  "brisbane": {
+    "lat": -27.468962,
+    "lng": 153.023501,
+    "query": "Brisbane",
+    "source": "nominatim"
+  },
+  "bristol": {
+    "lat": 51.443014,
+    "lng": -2.581662,
+    "query": "Bristol",
+    "source": "nominatim"
+  },
+  "brussels": {
+    "lat": 50.846737,
+    "lng": 4.352493,
+    "query": "Brussels",
+    "source": "nominatim"
+  },
+  "bucharest": {
+    "lat": 44.436141,
+    "lng": 26.102684,
+    "query": "Bucharest",
+    "source": "nominatim"
+  },
+  "budapest": {
+    "lat": 47.481849,
+    "lng": 19.144905,
+    "query": "Budapest",
+    "source": "nominatim"
+  },
+  "buenos-aires": {
+    "lat": -34.609558,
+    "lng": -58.38879,
+    "query": "Buenos Aires, Argentina",
+    "source": "nominatim"
+  },
+  "busan": {
+    "lat": 35.179953,
+    "lng": 129.075236,
+    "query": "Busan",
+    "source": "nominatim"
+  },
+  "calgary": {
+    "lat": 51.045606,
+    "lng": -114.057541,
+    "query": "Calgary",
+    "source": "nominatim"
+  },
+  "cali": {
+    "lat": 3.410843,
+    "lng": -76.581213,
+    "query": "Cali",
+    "source": "nominatim"
+  },
+  "canberra": {
+    "lat": -35.297591,
+    "lng": 149.101268,
+    "query": "Canberra",
+    "source": "nominatim"
+  },
+  "cape-town": {
+    "lat": -33.92883,
+    "lng": 18.41722,
+    "query": "Cape Town, South Africa",
+    "source": "nominatim"
+  },
+  "caracas": {
+    "lat": 10.506093,
+    "lng": -66.914601,
+    "query": "Caracas",
+    "source": "nominatim"
+  },
+  "cebu": {
+    "lat": 10.47,
+    "lng": 123.83,
+    "query": "Cebu",
+    "source": "nominatim"
+  },
+  "charlotte": {
+    "lat": 35.227209,
+    "lng": -80.843083,
+    "query": "Charlotte",
+    "source": "nominatim"
+  },
+  "chengdu": {
+    "lat": 30.659867,
+    "lng": 104.063315,
+    "query": "Chengdu",
+    "source": "nominatim"
+  },
+  "chennai": {
+    "lat": 13.083694,
+    "lng": 80.270186,
+    "query": "Chennai",
+    "source": "nominatim"
+  },
+  "chiang-mai": {
+    "lat": 18.788278,
+    "lng": 98.98588,
+    "query": "Chiang Mai, Thailand",
+    "source": "nominatim"
+  },
+  "chicago": {
+    "lat": 41.875562,
+    "lng": -87.624421,
+    "query": "Chicago",
+    "source": "nominatim"
+  },
+  "cologne": {
+    "lat": 50.938361,
+    "lng": 6.959974,
+    "query": "Cologne",
+    "source": "nominatim"
+  },
+  "colombo": {
+    "lat": 6.938861,
+    "lng": 79.854201,
+    "query": "Colombo",
+    "source": "nominatim"
+  },
+  "columbus": {
+    "lat": 39.96226,
+    "lng": -83.000707,
+    "query": "Columbus",
+    "source": "nominatim"
+  },
+  "copenhagen": {
+    "lat": 55.686724,
+    "lng": 12.570072,
+    "query": "Copenhagen",
+    "source": "nominatim"
+  },
+  "cordoba": {
+    "lat": -31.416687,
+    "lng": -64.183419,
+    "query": "C\u00f3rdoba, Argentina",
+    "source": "nominatim"
+  },
+  "curitiba": {
+    "lat": -25.429596,
+    "lng": -49.271272,
+    "query": "Curitiba",
+    "source": "nominatim"
+  },
+  "da-nang": {
+    "lat": 16.068501,
+    "lng": 108.224024,
+    "query": "Da Nang, Vietnam",
+    "source": "nominatim"
+  },
+  "dallas": {
+    "lat": 32.776272,
+    "lng": -96.796856,
+    "query": "Dallas",
+    "source": "nominatim"
+  },
+  "dar-es-salaam": {
+    "lat": -6.816084,
+    "lng": 39.280358,
+    "query": "Dar es Salaam, Tanzania",
+    "source": "nominatim"
+  },
+  "delhi": {
+    "lat": 28.666453,
+    "lng": 77.216978,
+    "query": "Delhi",
+    "source": "nominatim"
+  },
+  "denver": {
+    "lat": 39.739236,
+    "lng": -104.984862,
+    "query": "Denver",
+    "source": "nominatim"
+  },
+  "dire-dawa": {
+    "lat": 9.59122,
+    "lng": 41.979719,
+    "query": "Dire Dawa, Ethiopia",
+    "source": "nominatim"
+  },
+  "durban": {
+    "lat": -29.861815,
+    "lng": 31.009909,
+    "query": "Durban",
+    "source": "nominatim"
+  },
+  "dusseldorf": {
+    "lat": 51.225402,
+    "lng": 6.776314,
+    "query": "Dusseldorf",
+    "source": "nominatim"
+  },
+  "edmonton": {
+    "lat": 53.546205,
+    "lng": -113.491241,
+    "query": "Edmonton",
+    "source": "nominatim"
+  },
+  "el-paso": {
+    "lat": 31.7601,
+    "lng": -106.487048,
+    "query": "El Paso, Texas, USA",
+    "source": "nominatim"
+  },
+  "florence": {
+    "lat": 43.769796,
+    "lng": 11.25564,
+    "query": "Florence",
+    "source": "nominatim"
+  },
+  "fort-worth": {
+    "lat": 32.753177,
+    "lng": -97.332746,
+    "query": "Fort Worth, Texas, USA",
+    "source": "nominatim"
+  },
+  "fortaleza": {
+    "lat": -3.793217,
+    "lng": -38.528036,
+    "query": "Fortaleza",
+    "source": "nominatim"
+  },
+  "frankfurt": {
+    "lat": 50.110644,
+    "lng": 8.682092,
+    "query": "Frankfurt",
+    "source": "nominatim"
+  },
+  "fukuoka": {
+    "lat": 33.625124,
+    "lng": 130.618002,
+    "query": "Fukuoka",
+    "source": "nominatim"
+  },
+  "geneva": {
+    "lat": 46.201756,
+    "lng": 6.146601,
+    "query": "Geneva",
+    "source": "nominatim"
+  },
+  "ghent": {
+    "lat": 51.053829,
+    "lng": 3.725012,
+    "query": "Ghent",
+    "source": "nominatim"
+  },
+  "glasgow": {
+    "lat": 55.861155,
+    "lng": -4.250169,
+    "query": "Glasgow",
+    "source": "nominatim"
+  },
+  "gold-coast": {
+    "lat": -28.002373,
+    "lng": 153.414599,
+    "query": "Gold Coast, Queensland, Australia",
+    "source": "nominatim"
+  },
+  "gothenburg": {
+    "lat": 57.707233,
+    "lng": 11.967017,
+    "query": "Gothenburg",
+    "source": "nominatim"
+  },
+  "guadalajara": {
+    "lat": 20.672037,
+    "lng": -103.338396,
+    "query": "Guadalajara",
+    "source": "nominatim"
+  },
+  "guangzhou": {
+    "lat": 23.128843,
+    "lng": 113.258958,
+    "query": "Guangzhou",
+    "source": "nominatim"
+  },
+  "hamburg": {
+    "lat": 53.550172,
+    "lng": 10.001316,
+    "query": "Hamburg",
+    "source": "nominatim"
+  },
+  "hangzhou": {
+    "lat": 30.248963,
+    "lng": 120.205234,
+    "query": "Hangzhou",
+    "source": "nominatim"
+  },
+  "hanoi": {
+    "lat": 21.028333,
+    "lng": 105.854041,
+    "query": "Hanoi",
+    "source": "nominatim"
+  },
+  "helsinki": {
+    "lat": 60.16662,
+    "lng": 24.943541,
+    "query": "Helsinki",
+    "source": "nominatim"
+  },
+  "ho-chi-minh-city": {
+    "lat": 10.773726,
+    "lng": 106.716601,
+    "query": "Ho Chi Minh City, Vietnam",
+    "source": "nominatim"
+  },
+  "hong-kong": {
+    "lat": 22.281833,
+    "lng": 114.158283,
+    "query": "Hong Kong",
+    "source": "nominatim"
+  },
+  "houston": {
+    "lat": 29.758938,
+    "lng": -95.367697,
+    "query": "Houston",
+    "source": "nominatim"
+  },
+  "hyderabad": {
+    "lat": 17.360589,
+    "lng": 78.474061,
+    "query": "Hyderabad",
+    "source": "nominatim"
+  },
+  "ibadan": {
+    "lat": 7.378368,
+    "lng": 3.897233,
+    "query": "Ibadan",
+    "source": "nominatim"
+  },
+  "incheon": {
+    "lat": 37.456,
+    "lng": 126.7052,
+    "query": "Incheon",
+    "source": "nominatim"
+  },
+  "indianapolis": {
+    "lat": 39.768333,
+    "lng": -86.15835,
+    "query": "Indianapolis",
+    "source": "nominatim"
+  },
+  "jacksonville": {
+    "lat": 30.326225,
+    "lng": -81.657918,
+    "query": "Jacksonville",
+    "source": "nominatim"
+  },
+  "johannesburg": {
+    "lat": -26.205,
+    "lng": 28.049722,
+    "query": "Johannesburg",
+    "source": "nominatim"
+  },
+  "kampala": {
+    "lat": 0.317714,
+    "lng": 32.581354,
+    "query": "Kampala",
+    "source": "nominatim"
+  },
+  "kathmandu": {
+    "lat": 27.708317,
+    "lng": 85.320582,
+    "query": "Kathmandu",
+    "source": "nominatim"
+  },
+  "kinshasa": {
+    "lat": -4.319698,
+    "lng": 15.34242,
+    "query": "Kinshasa",
+    "source": "nominatim"
+  },
+  "kolkata": {
+    "lat": 22.572646,
+    "lng": 88.363895,
+    "query": "Kolkata",
+    "source": "nominatim"
+  },
+  "krakow": {
+    "lat": 50.046943,
+    "lng": 19.997153,
+    "query": "Krakow",
+    "source": "nominatim"
+  },
+  "kumasi": {
+    "lat": 6.698561,
+    "lng": -1.623309,
+    "query": "Kumasi",
+    "source": "nominatim"
+  },
+  "kyoto": {
+    "lat": 35.011575,
+    "lng": 135.768144,
+    "query": "Kyoto",
+    "source": "nominatim"
+  },
+  "lagos": {
+    "lat": 6.455057,
+    "lng": 3.394179,
+    "query": "Lagos",
+    "source": "nominatim"
+  },
+  "las-vegas": {
+    "lat": 36.167426,
+    "lng": -115.148413,
+    "query": "Las Vegas, Nevada, USA",
+    "source": "nominatim"
+  },
+  "leeds": {
+    "lat": 53.797418,
+    "lng": -1.543794,
+    "query": "Leeds",
+    "source": "nominatim"
+  },
+  "lima": {
+    "lat": -12.045981,
+    "lng": -77.030591,
+    "query": "Lima",
+    "source": "nominatim"
+  },
+  "lisbon": {
+    "lat": 38.707751,
+    "lng": -9.136592,
+    "query": "Lisbon",
+    "source": "nominatim"
+  },
+  "liverpool": {
+    "lat": 53.393341,
+    "lng": -2.916639,
+    "query": "Liverpool",
+    "source": "nominatim"
+  },
+  "london": {
+    "lat": 51.507446,
+    "lng": -0.127765,
+    "query": "London",
+    "source": "nominatim"
+  },
+  "los-angeles": {
+    "lat": 34.053691,
+    "lng": -118.242766,
+    "query": "Los Angeles, California, USA",
+    "source": "nominatim"
+  },
+  "louisville": {
+    "lat": 38.254238,
+    "lng": -85.759407,
+    "query": "Louisville",
+    "source": "nominatim"
+  },
+  "lyon": {
+    "lat": 45.757814,
+    "lng": 4.832011,
+    "query": "Lyon",
+    "source": "nominatim"
+  },
+  "madrid": {
+    "lat": 40.416782,
+    "lng": -3.703507,
+    "query": "Madrid",
+    "source": "nominatim"
+  },
+  "malaga": {
+    "lat": 36.764791,
+    "lng": -4.442201,
+    "query": "Malaga",
+    "source": "nominatim"
+  },
+  "malmo": {
+    "lat": 55.605293,
+    "lng": 13.000157,
+    "query": "Malmo",
+    "source": "nominatim"
+  },
+  "manchester": {
+    "lat": 53.442462,
+    "lng": -2.232455,
+    "query": "Manchester, England, United Kingdom",
+    "source": "nominatim"
+  },
+  "manila": {
+    "lat": 14.590449,
+    "lng": 120.980362,
+    "query": "Manila",
+    "source": "nominatim"
+  },
+  "marseille": {
+    "lat": 43.296399,
+    "lng": 5.377789,
+    "query": "Marseille",
+    "source": "nominatim"
+  },
+  "medellin": {
+    "lat": 6.269732,
+    "lng": -75.60256,
+    "query": "Medellin",
+    "source": "nominatim"
+  },
+  "melbourne": {
+    "lat": -37.814245,
+    "lng": 144.963173,
+    "query": "Melbourne",
+    "source": "nominatim"
+  },
+  "memphis": {
+    "lat": 35.146026,
+    "lng": -90.051779,
+    "query": "Memphis",
+    "source": "nominatim"
+  },
+  "mendoza": {
+    "lat": -34.597032,
+    "lng": -68.73048,
+    "query": "Mendoza",
+    "source": "nominatim"
+  },
+  "mexico-city": {
+    "lat": 19.320772,
+    "lng": -99.151468,
+    "query": "Mexico City, Mexico",
+    "source": "nominatim"
+  },
+  "milan": {
+    "lat": 45.464194,
+    "lng": 9.189635,
+    "query": "Milan",
+    "source": "nominatim"
+  },
+  "milwaukee": {
+    "lat": 43.038648,
+    "lng": -87.909075,
+    "query": "Milwaukee",
+    "source": "nominatim"
+  },
+  "mombasa": {
+    "lat": -4.05052,
+    "lng": 39.667169,
+    "query": "Mombasa",
+    "source": "nominatim"
+  },
+  "monterrey": {
+    "lat": 25.680202,
+    "lng": -100.315258,
+    "query": "Monterrey",
+    "source": "nominatim"
+  },
+  "montreal": {
+    "lat": 45.503182,
+    "lng": -73.569806,
+    "query": "Montreal",
+    "source": "nominatim"
+  },
+  "mumbai": {
+    "lat": 19.054999,
+    "lng": 72.869203,
+    "query": "Mumbai",
+    "source": "nominatim"
+  },
+  "munich": {
+    "lat": 48.137108,
+    "lng": 11.575382,
+    "query": "Munich",
+    "source": "nominatim"
+  },
+  "mwanza": {
+    "lat": -2.519691,
+    "lng": 32.901442,
+    "query": "Mwanza",
+    "source": "nominatim"
+  },
+  "nagoya": {
+    "lat": 35.185105,
+    "lng": 136.899844,
+    "query": "Nagoya",
+    "source": "nominatim"
+  },
+  "nairobi": {
+    "lat": -1.302398,
+    "lng": 36.828851,
+    "query": "Nairobi",
+    "source": "nominatim"
+  },
+  "naples": {
+    "lat": 40.835885,
+    "lng": 14.248768,
+    "query": "Naples, Italy",
+    "source": "nominatim"
+  },
+  "nashville": {
+    "lat": 36.162277,
+    "lng": -86.774298,
+    "query": "Nashville",
+    "source": "nominatim"
+  },
+  "new-york": {
+    "lat": 40.712728,
+    "lng": -74.006015,
+    "query": "New York City, New York, USA",
+    "source": "nominatim"
+  },
+  "nice": {
+    "lat": 43.700936,
+    "lng": 7.268391,
+    "query": "Nice",
+    "source": "nominatim"
+  },
+  "oklahoma-city": {
+    "lat": 35.472989,
+    "lng": -97.517054,
+    "query": "Oklahoma City, Oklahoma, USA",
+    "source": "nominatim"
+  },
+  "osaka": {
+    "lat": 34.693757,
+    "lng": 135.501454,
+    "query": "Osaka",
+    "source": "nominatim"
+  },
+  "oslo": {
+    "lat": 59.91333,
+    "lng": 10.73897,
+    "query": "Oslo",
+    "source": "nominatim"
+  },
+  "ottawa": {
+    "lat": 45.420878,
+    "lng": -75.690111,
+    "query": "Ottawa",
+    "source": "nominatim"
+  },
+  "paris": {
+    "lat": 48.85889,
+    "lng": 2.320041,
+    "query": "Paris",
+    "source": "nominatim"
+  },
+  "pattaya": {
+    "lat": 12.936692,
+    "lng": 100.8865,
+    "query": "Pattaya",
+    "source": "nominatim"
+  },
+  "perth": {
+    "lat": -31.955897,
+    "lng": 115.860578,
+    "query": "Perth",
+    "source": "nominatim"
+  },
+  "philadelphia": {
+    "lat": 39.952724,
+    "lng": -75.163526,
+    "query": "Philadelphia",
+    "source": "nominatim"
+  },
+  "phoenix": {
+    "lat": 33.448437,
+    "lng": -112.074141,
+    "query": "Phoenix",
+    "source": "nominatim"
+  }
+}
