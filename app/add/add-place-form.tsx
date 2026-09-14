@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ShareButton from "../../src/components/share-button";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
 type Mode = "google" | "manual";
@@ -74,6 +75,18 @@ export default function AddPlaceForm() {
       const draft = rawDraft ? record(JSON.parse(rawDraft)) : null;
       if (!draft) return;
       if (draft.mode === "google" || draft.mode === "manual") setMode(draft.mode);
+      const selectedDraft = record(draft.selected);
+      if (
+        typeof selectedDraft?.id === "string" &&
+        typeof selectedDraft.name === "string" &&
+        typeof selectedDraft.address === "string"
+      ) {
+        setSelected({
+          id: selectedDraft.id,
+          name: selectedDraft.name,
+          address: selectedDraft.address,
+        });
+      }
       if (typeof draft.query === "string") setQuery(draft.query);
       if (typeof draft.name === "string") setName(draft.name);
       if (typeof draft.address === "string") setAddress(draft.address);
@@ -89,7 +102,16 @@ export default function AddPlaceForm() {
     try {
       sessionStorage.setItem(
         draftKey,
-        JSON.stringify({ mode, query, name, address, city, manualPlaceId, halalConfirmed }),
+        JSON.stringify({
+          mode,
+          query,
+          name,
+          address,
+          city,
+          manualPlaceId,
+          halalConfirmed,
+          selected,
+        }),
       );
     } catch {
       // The form still works when storage is unavailable.
@@ -253,9 +275,15 @@ export default function AddPlaceForm() {
           with the restaurant before visiting.
         </p>
         <div className="detail-actions">
-          <a className="action primary" href={`/place/${successId}`}>
+          <a className="action primary" href={"/place/" + successId}>
             View the place
           </a>
+          <ShareButton
+            url={"/place/" + successId}
+            title={name || "A halal place on Halalfood"}
+            text={(name || "This halal place") + " is now on Halalfood."}
+            className="action share-button"
+          />
           <button type="button" className="action" onClick={reset}>
             Add another place
           </button>
