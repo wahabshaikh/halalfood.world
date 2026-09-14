@@ -27,6 +27,7 @@ function errorFrom(body: Record<string, unknown> | null, fallback: string) {
 }
 
 const loginUrl = "/login?returnTo=%2Fadd";
+const draftKey = "halalfood:add-place-draft";
 
 export default function AddPlaceForm() {
   const [authState, setAuthState] = useState<AuthState>("checking");
@@ -66,6 +67,42 @@ export default function AddPlaceForm() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    try {
+      const rawDraft = sessionStorage.getItem(draftKey);
+      const draft = rawDraft ? record(JSON.parse(rawDraft)) : null;
+      if (!draft) return;
+      if (draft.mode === "google" || draft.mode === "manual") setMode(draft.mode);
+      if (typeof draft.query === "string") setQuery(draft.query);
+      if (typeof draft.name === "string") setName(draft.name);
+      if (typeof draft.address === "string") setAddress(draft.address);
+      if (typeof draft.city === "string") setCity(draft.city);
+      if (typeof draft.manualPlaceId === "string") setManualPlaceId(draft.manualPlaceId);
+      if (draft.halalConfirmed === true) setHalalConfirmed(true);
+    } catch {
+      // Ignore a malformed or unavailable browser draft.
+    }
+  }, []);
+
+  const saveDraft = () => {
+    try {
+      sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({ mode, query, name, address, city, manualPlaceId, halalConfirmed }),
+      );
+    } catch {
+      // The form still works when storage is unavailable.
+    }
+  };
+
+  const clearDraft = () => {
+    try {
+      sessionStorage.removeItem(draftKey);
+    } catch {
+      // Ignore storage cleanup failures.
+    }
+  };
 
   const chooseMode = (nextMode: Mode) => {
     setMode(nextMode);
@@ -139,6 +176,12 @@ export default function AddPlaceForm() {
       return;
     }
 
+    if (authState === "signed-out") {
+      saveDraft();
+      window.location.assign(loginUrl);
+      return;
+    }
+
     setSubmitBusy(true);
     try {
       const response = await fetch("/api/places", {
@@ -168,6 +211,7 @@ export default function AddPlaceForm() {
         return;
       }
       setSuccessId(body.id);
+      clearDraft();
     } catch {
       setFormError("We could not add that place. Please try again.");
     } finally {
@@ -177,6 +221,7 @@ export default function AddPlaceForm() {
 
   const reset = () => {
     setSuccessId("");
+    clearDraft();
     setMode("google");
     setQuery("");
     setSearchResults([]);
@@ -195,20 +240,6 @@ export default function AddPlaceForm() {
       <section className="add-place-card" aria-live="polite">
         <p className="eyebrow">ADD A PLACE</p>
         <h1>Checking your sign-in…</h1>
-      </section>
-    );
-
-  if (authState === "signed-out")
-    return (
-      <section className="auth-card" aria-labelledby="add-auth-title">
-        <p className="eyebrow">ADD A PLACE</p>
-        <h1 id="add-auth-title">Sign in to add a place</h1>
-        <p className="lead">
-          A sign-in keeps submissions accountable. You can use a one-time email code.
-        </p>
-        <a className="action primary auth-submit" href={loginUrl}>
-          Sign in to continue
-        </a>
       </section>
     );
 
@@ -240,6 +271,11 @@ export default function AddPlaceForm() {
         Know a halal place missing from the map? Find it with Google Places or enter its
         details yourself.
       </p>
+      {authState === "signed-out" && (
+        <p className="contribution-auth-note">
+          You can prepare the listing now. We will ask you to sign in when you submit it.
+        </p>
+      )}
 
       <div className="mode-toggle" role="tablist" aria-label="Place entry method">
         <button
