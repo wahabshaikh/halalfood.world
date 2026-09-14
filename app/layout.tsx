@@ -3,13 +3,13 @@ import { SITE_NAME, SITE_URL, OG_IMAGE } from "../src/lib/seo";
 import "./globals.css";
 
 const DESCRIPTION =
-  "Find halal restaurants anywhere in the world on one fast map. Search nearly 12,000 halal places by city or name, with addresses, phone numbers and ratings.";
+  "Discover halal restaurants around the world, save the places you love, and help the community keep every listing useful.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Halalfood — find halal food anywhere in the world",
-    template: `%s · ${SITE_NAME}`,
+    default: "Halalfood — discover halal places worth sharing",
+    template: "%s · " + SITE_NAME,
   },
   description: DESCRIPTION,
   applicationName: SITE_NAME,
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     type: "website",
     siteName: SITE_NAME,
     url: SITE_URL,
-    title: "Halalfood — find halal food anywhere in the world",
+    title: "Halalfood — discover halal places worth sharing",
     description: DESCRIPTION,
     locale: "en_US",
     images: [
@@ -33,13 +33,13 @@ export const metadata: Metadata = {
         url: OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: "Halalfood — a world map of halal restaurants",
+        alt: "Halalfood — a community map of halal restaurants",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Halalfood — find halal food anywhere in the world",
+    title: "Halalfood — discover halal places worth sharing",
     description: DESCRIPTION,
     images: [OG_IMAGE],
   },
@@ -66,7 +66,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#374b37",
+  themeColor: "#f6f5ef",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
