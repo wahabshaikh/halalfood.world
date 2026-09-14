@@ -439,7 +439,7 @@ The repository includes `.github/workflows/preview.yml` for Vercel-style preview
 - Before upload, the deploy job applies every `migrations/*.sql` file to that branch in lexical filename order. A migration failure fails the preview.
 - The Cloudflare Worker is uploaded as a non-production version with a stable `pr-<number>` preview alias. The predicted URL is `https://pr-<number>-halalfood-world.wahabshaikh.workers.dev`.
 - The workflow creates or updates one GitHub Deployment in the `preview` environment and adds or updates one preview URL comment in the PR.
-- When the PR closes, all Cloudflare preview versions tagged for that PR are deleted so the alias no longer has a retained version target. The Neon branch is also deleted and expires after 14 days as a cleanup safeguard.
+- When the PR closes, all Cloudflare preview versions with the upload message `PR #<number>` are deleted so the alias no longer has a retained version target. The Neon branch is also deleted and expires after 14 days as a cleanup safeguard.
 
 Configure these GitHub Actions settings before opening a PR:
 
