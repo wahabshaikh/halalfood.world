@@ -14,7 +14,15 @@ node --version
 npm ci
 ```
 
-Create a **gitignored** `.dev.vars` in the repo root containing `DATABASE_URL=<your Neon connection string>`. Do not put it in a client variable or commit it. The Cloudflare Vite plugin loads this file; the Worker reads the binding through `process.env.DATABASE_URL` with Node compatibility enabled.
+Create a **gitignored** `.dev.vars` in the repo root containing the local-only database and email settings below. Do not put secrets in client variables or commit this file. The Cloudflare Vite plugin loads it; the Worker reads bindings through `process.env.*` with Node compatibility enabled.
+
+```dotenv
+DATABASE_URL=<your Neon connection string>
+RESEND_API_KEY=<your Resend API key>
+EMAIL_FROM=noreply@halalfood.world
+```
+
+Email delivery uses the Workers-compatible Resend REST API. `noreply@halalfood.world` is the preferred sender after the domain is verified in Resend. Until then, set `EMAIL_FROM=onboarding@resend.dev` in the relevant environment. `RESEND_API_KEY` is required only when sending mail; the email helper has no bulk-send behavior and is intended for low-volume transactional messages. Future OTP mail must account for Resend/provider rate limits before it is added.
 
 ```sh
 npm run dev
@@ -41,6 +49,7 @@ Use the URL printed by the dev server. Development and production API requests r
 | `/robots.txt`, `/sitemap.xml` | Metadata routes | See below. |
 | `/api/places`, `/api/places/search` | JSON | Viewport and search queries. |
 | `/api/places/[id]`, `/api/cities/[citySlug]` | JSON | Lookups behind the map deep links. |
+| `POST /api/admin/email/healthcheck` | JSON | Optional operator smoke check; disabled by default and bearer-token gated when enabled. |
 
 Dynamic segments are validated before they reach SQL: `citySlugParam` accepts only lowercase kebab-case, `placeIdParam` only UUIDs, and `pageParam` clamps the page index. An unparseable segment is a 404 and never costs a query.
 
@@ -101,15 +110,18 @@ Authenticate with `npx wrangler login`, or provide `CLOUDFLARE_API_TOKEN` and `C
 ```sh
 npm run build
 npx wrangler secret put DATABASE_URL
+npx wrangler secret put RESEND_API_KEY
 npm run deploy
 ```
 
-Enter the existing Neon connection string at Wrangler's secret prompt. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
+Enter the existing Neon connection string and Resend API key at their respective Wrangler secret prompts. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
 
 ```sh
 npx @vinext/cloudflare deploy --config dist/server/wrangler.json
 ```
 
-Wrangler prints the workers.dev URL on success. Configure the custom domain `halalfood.world` in Cloudflare after deployment if desired. Local `.dev.vars` does **not** upload production secrets. The only app secret is `DATABASE_URL`; no tile token is needed. Deployment also requires Cloudflare authentication.
+Wrangler prints the workers.dev URL on success. Configure the custom domain `halalfood.world` in Cloudflare after deployment if desired. Local `.dev.vars` does **not** upload production secrets. Set `EMAIL_FROM` as a Worker variable (or leave the preferred default), and use `onboarding@resend.dev` until the custom domain is verified. No tile token is needed. Deployment also requires Cloudflare authentication.
+
+The optional email smoke check is disabled unless `EMAIL_HEALTHCHECK_ENABLED=true`. To enable it, configure `EMAIL_HEALTHCHECK_TO` and store a long random bearer token as `EMAIL_HEALTHCHECK_TOKEN` (use `npx wrangler secret put EMAIL_HEALTHCHECK_TOKEN` for production), then send an authenticated `POST` to `/api/admin/email/healthcheck` with `Authorization: Bearer <token>`. The endpoint has no request-supplied recipient and returns 404 while disabled, so it cannot be used as an unauthenticated spam endpoint. Use it only for occasional operator checks; it is not a queue or mass-mailing mechanism.
 
 The framework deployment setup follows the [official vinext documentation](https://github.com/cloudflare/vinext). Basemap availability depends on CARTO; review its service terms before scaling traffic.
