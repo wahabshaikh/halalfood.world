@@ -375,7 +375,7 @@ EMAIL_FROM=noreply@halalfood.world
 
 `TURNSTILE_SITE_KEY` may be a normal public Worker variable (or a dashboard secret if preferred); only `TURNSTILE_SECRET_KEY` belongs in `wrangler secret put` and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `DATABASE_URL`, `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, and `GOOGLE_PLACES_API_KEY` are secret names only here; enter their values at the Wrangler prompts. Use `GOOGLE_MAPS_API_KEY` instead only when retaining an existing secret name.
 
-Enter the existing Neon connection string, Resend API key, Better Auth secret, and Turnstile server secret at their respective Wrangler prompts. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood.world-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
+Enter the existing Neon connection string, Resend API key, Better Auth secret, and Turnstile server secret at their respective Wrangler prompts. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
 
 ```sh
 npx @vinext/cloudflare deploy --config dist/server/wrangler.json
@@ -388,12 +388,12 @@ The optional email smoke check is disabled unless `EMAIL_HEALTHCHECK_ENABLED=tru
 ### Community verification R2 uploads
 
 The root [`wrangler.jsonc`](wrangler.jsonc) declares the `HALAL_EVIDENCE_R2`
-R2 binding and the bucket name `halalfood.world-world-evidence`. Create that bucket
+R2 binding and the bucket name `halalfood-world-evidence`. Create that bucket
 once in the target Cloudflare account, or change the bucket name in
 `wrangler.jsonc` before deployment:
 
 ```sh
-npx wrangler r2 bucket create halalfood.world-world-evidence
+npx wrangler r2 bucket create halalfood-world-evidence
 ```
 
 The upload path is a Worker-direct multipart upload; it does not need S3
@@ -405,7 +405,7 @@ served through the access-checked download route, so only approved evidence
 or the submitter's own pending evidence is readable.
 
 Place photos reuse this same `HALAL_EVIDENCE_R2` binding and
-`halalfood.world-world-evidence` bucket; no new Worker binding or bucket is needed.
+`halalfood-world-evidence` bucket; no new Worker binding or bucket is needed.
 Photo objects use the `photos/<hashed-owner>/<uuid>.<jpg|png|webp>` prefix and
 are readable through the same proxy only while their `place_photos` row belongs
 to a listed halal place. One multipart request performs the direct R2 write and
@@ -437,7 +437,7 @@ The repository includes `.github/workflows/preview.yml` for Vercel-style preview
 
 - Each PR creates or reuses a Neon branch named `pr-<number>`.
 - Before upload, the deploy job applies every SQL file under `migrations/` to that branch in lexical filename order. A migration failure fails the preview.
-- The Cloudflare Worker is uploaded as a non-production version with a stable `pr-<number>` preview alias. The predicted URL is `https://pr-<number>-halalfood.world-world.wahabshaikh.workers.dev`.
+- The Cloudflare Worker is uploaded as a non-production version with a stable `pr-<number>` preview alias. The predicted URL is `https://pr-<number>-halalfood-world.wahabshaikh.workers.dev`.
 - The workflow creates or updates one GitHub Deployment in the `preview` environment and adds or updates one preview URL comment in the PR.
 - When the PR closes, all Cloudflare preview versions with the upload message `PR #<number>` are deleted so the alias no longer has a retained version target. The Neon branch is also deleted and expires after 14 days as a cleanup safeguard.
 
@@ -452,6 +452,6 @@ Configure these GitHub Actions settings before opening a PR:
 
 The Neon GitHub integration can create the `NEON_API_KEY` secret and `NEON_PROJECT_ID` variable automatically. Fork pull requests are intentionally skipped because the preview deployment requires infrastructure credentials.
 
-The upload intentionally uses `--keep-vars`. It changes only the preview `DATABASE_URL` and `BETTER_AUTH_URL`; it reuses production Worker variables and secrets for Resend, Turnstile, Google Places, `BETTER_AUTH_SECRET`, and the R2 binding `halalfood.world-world-evidence`. Preview code can therefore send through production integrations and read or write the production R2 bucket. Future isolation could use a `preview/` key prefix or a separate bucket; that is not implemented here.
+The upload intentionally uses `--keep-vars`. It changes only the preview `DATABASE_URL` and `BETTER_AUTH_URL`; it reuses production Worker variables and secrets for Resend, Turnstile, Google Places, `BETTER_AUTH_SECRET`, and the R2 binding `halalfood-world-evidence`. Preview code can therefore send through production integrations and read or write the production R2 bucket. Future isolation could use a `preview/` key prefix or a separate bucket; that is not implemented here.
 
 Keep the production deployment configured to explicitly provide the production `DATABASE_URL` on every production deploy, and do not promote a preview version manually.
