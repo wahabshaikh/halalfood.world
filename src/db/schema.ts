@@ -236,6 +236,40 @@ export const placeReviews = pgTable(
   ],
 );
 
+export const placePhotos = pgTable(
+  "place_photos",
+  {
+    id: uuid("id").primaryKey(),
+    placeId: uuid("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    r2Key: text("r2_key").notNull().unique(),
+    contentType: text("content_type").notNull(),
+    byteSize: integer("byte_size").notNull(),
+    originalFileName: text("original_file_name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "place_photos_content_type_check",
+      sql`${table.contentType} IN ('image/jpeg', 'image/png', 'image/webp')`,
+    ),
+    check(
+      "place_photos_byte_size_check",
+      sql`${table.byteSize} BETWEEN 1 AND 8388608`,
+    ),
+    index("place_photos_place_id_created_at_idx").on(
+      table.placeId,
+      table.createdAt.desc(),
+    ),
+  ],
+);
+
 export const placeHalalVerifications = pgTable(
   "place_halal_verifications",
   {

@@ -119,6 +119,33 @@ export const REVIEW_RATE_LIMITS = {
 /** Descriptive alias for callers that group limits by feature. */
 export const PLACE_REVIEW_RATE_LIMITS = REVIEW_RATE_LIMITS;
 
+/** Durable budgets for place photo uploads and ownership mutations. */
+export const PLACE_PHOTO_RATE_LIMITS = {
+  uploadUser: {
+    windowMs: 24 * 60 * 60 * 1000,
+    maxCount: 20,
+    cooldownMs: 0,
+  },
+  uploadIp: {
+    windowMs: 24 * 60 * 60 * 1000,
+    maxCount: 60,
+    cooldownMs: 0,
+  },
+  mutationUser: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 120,
+    cooldownMs: 250,
+  },
+  mutationIp: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 300,
+    cooldownMs: 100,
+  },
+} as const;
+
+/** Descriptive alias for callers that use the shorter feature name. */
+export const PHOTO_RATE_LIMITS = PLACE_PHOTO_RATE_LIMITS;
+
 export type OtpRateLimitRule = {
   windowMs: number;
   maxCount: number;
@@ -494,6 +521,46 @@ export async function consumePlaceReviewLimits(
     [
       { key: userKey, rule: REVIEW_RATE_LIMITS.mutationUser },
       { key: ipKey, rule: REVIEW_RATE_LIMITS.mutationIp },
+    ],
+    store,
+    now,
+  );
+}
+
+export async function consumePlacePhotoUploadLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("place-photo:upload:user", userId),
+    identifierKey("place-photo:upload:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: PLACE_PHOTO_RATE_LIMITS.uploadUser },
+      { key: ipKey, rule: PLACE_PHOTO_RATE_LIMITS.uploadIp },
+    ],
+    store,
+    now,
+  );
+}
+
+export async function consumePlacePhotoMutationLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("place-photo:mutate:user", userId),
+    identifierKey("place-photo:mutate:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: PLACE_PHOTO_RATE_LIMITS.mutationUser },
+      { key: ipKey, rule: PLACE_PHOTO_RATE_LIMITS.mutationIp },
     ],
     store,
     now,
