@@ -1,0 +1,537 @@
+name: Pull request preview
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: halalfood-world-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: >
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check and build application
+        run: |
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Pack Cloudflare build
+        run: tar -czf preview-build.tgz dist migrations
+
+      - name: Upload Cloudflare build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: halalfood-world-preview-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: preview-build.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    needs: build
+    if: >
+      needs.build.result == 'success' &&
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      deployments: write
+
+    steps:
+      - name: Check out trusted deployment tooling
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install trusted deployment tooling
+        run: npm ci
+
+      - name: Download Cloudflare build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: halalfood-world-preview-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: .
+
+      - name: Restore Cloudflare build
+        run: |
+          test -f preview-build.tgz || { echo "::error::Missing preview build artifact"; exit 1; }
+          rm -rf dist migrations
+          tar -xzf preview-build.tgz
+          test -f dist/server/wrangler.json || { echo "::error::Generated Wrangler config is missing"; exit 1; }
+          test -d migrations || { echo "::error::Migrations directory is missing"; exit 1; }
+
+      - name: Validate deployment settings
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CLOUDFLARE_API_TOKEN repository secret"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CLOUDFLARE_ACCOUNT_ID repository secret"; exit 1; }
+          test -n "$NEON_API_KEY" || { echo "::error::Missing NEON_API_KEY repository secret"; exit 1; }
+          test -n "$NEON_PROJECT_ID" || { echo "::error::Missing NEON_PROJECT_ID repository variable"; exit 1; }
+
+      - name: Calculate Neon branch expiration
+        id: branch-expiry
+        run: |
+          echo "expires_at=$(date -u --date '+14 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Create or reuse Neon branch
+        id: neon
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch_name: pr-${{ github.event.pull_request.number }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          expires_at: ${{ steps.branch-expiry.outputs.expires_at }}
+
+      - name: Install PostgreSQL client
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes postgresql-client
+          fi
+
+      - name: Apply preview database migrations
+        env:
+          PREVIEW_DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+        run: |
+          test -n "$PREVIEW_DATABASE_URL" || { echo "::error::Neon did not return a database connection string"; exit 1; }
+          migration_count=0
+          while IFS= read -r -d '' migration; do
+            migration_count=$((migration_count + 1))
+            echo "Applying $migration"
+            psql "$PREVIEW_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+          done < <(find migrations -type f -name '*.sql' -print0 | LC_ALL=C sort -z)
+          echo "Applied $migration_count migration(s)"
+
+      - name: Predict Cloudflare preview URL
+        id: preview-url
+        run: |
+          # Cloudflare's stable alias format is <alias>-<worker>-<workers.dev subdomain>.
+          echo "preview_url=https://pr-${{ github.event.pull_request.number }}-halalfood-world.wahabshaikh.workers.dev" >> "$GITHUB_OUTPUT"
+
+      - name: Write preview database secret
+        env:
+          PREVIEW_DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
+        run: |
+          test -n "$PREVIEW_DATABASE_URL" || { echo "::error::Neon did not return a pooled connection string"; exit 1; }
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
+
+          const url = process.env.PREVIEW_DATABASE_URL;
+          if (!url) {
+            throw new Error("Missing preview database URL");
+          }
+
+          writeFileSync(
+            "preview-secrets.json",
+            JSON.stringify({ DATABASE_URL: url }),
+            { mode: 0o600 },
+          );
+          NODE
+
+      - name: Upload Cloudflare preview
+        id: upload
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIEW_ALIAS: pr-${{ github.event.pull_request.number }}
+          PREVIEW_URL: ${{ steps.preview-url.outputs.preview_url }}
+        run: |
+          test -n "$PREVIEW_URL" || { echo "::error::Missing predicted preview URL"; exit 1; }
+          set -o pipefail
+          npx wrangler versions upload \
+            --config dist/server/wrangler.json \
+            --preview-alias "$PREVIEW_ALIAS" \
+            --keep-vars \
+            --var "BETTER_AUTH_URL:$PREVIEW_URL" \
+            --secrets-file preview-secrets.json \
+            --message "PR #${{ github.event.pull_request.number }}" \
+            2>&1 | tee wrangler-upload.log
+
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from "node:fs";
+
+          const output = readFileSync("wrangler-upload.log", "utf8");
+          const expectedUrl = process.env.PREVIEW_URL?.replace(/\/+$/, '');
+          const aliasLine = output.split('\n').find((line) =>
+            line.trim().startsWith('Version Preview Alias URL:'),
+          );
+          const printedUrl = aliasLine
+            ? aliasLine.slice(aliasLine.indexOf(':') + 1).trim().replace(/\/+$/, '')
+            : undefined;
+          const versionLine = output.split('\n').find((line) =>
+            line.trim().startsWith('Worker Version ID:'),
+          );
+          const versionId = versionLine
+            ? versionLine.slice(versionLine.indexOf(':') + 1).trim()
+            : undefined;
+
+          if (!expectedUrl) {
+            throw new Error("Missing predicted preview URL");
+          }
+          if (!printedUrl) {
+            throw new Error(
+              "Wrangler did not print Version Preview Alias URL; cannot confirm the preview URL",
+            );
+          }
+          if (printedUrl !== expectedUrl) {
+            throw new Error(
+              "Wrangler preview alias URL mismatch. Expected " +
+                expectedUrl +
+                ", got " +
+                printedUrl,
+            );
+          }
+          if (!versionId || !/^[0-9a-f-]{36}$/i.test(versionId)) {
+            throw new Error("Wrangler did not print a valid Worker Version ID");
+          }
+
+          appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            [
+              "preview_url=" + expectedUrl,
+              "version_id=" + versionId,
+            ].join('\n') + '\n',
+          );
+          NODE
+
+      - name: Add preview URL to job summary
+        env:
+          PREVIEW_URL: ${{ steps.upload.outputs.preview_url }}
+        run: |
+          {
+            echo "## halalfood.world preview"
+            echo
+            echo "[Open the preview]($PREVIEW_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment preview URL on pull request
+        uses: actions/github-script@v8
+        env:
+          PREVIEW_URL: ${{ steps.upload.outputs.preview_url }}
+          NEON_BRANCH_NAME: pr-${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const marker = "<!-- halalfood-world-preview -->";
+            const previewUrl = process.env.PREVIEW_URL;
+            if (!previewUrl) {
+              throw new Error("Missing preview URL");
+            }
+
+            const body = [
+              marker,
+              "## halalfood.world preview",
+              "",
+              "[Open the preview](" + previewUrl + ")",
+              "",
+              "Neon branch: " + process.env.NEON_BRANCH_NAME,
+              "",
+              "_This preview is refreshed on every push to the PR._",
+            ].join("\n");
+
+            const { owner, repo } = context.repo;
+            const issueNumber = context.issue.number;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) =>
+              comment.body?.includes(marker),
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body,
+              });
+            }
+
+      - name: Publish GitHub preview deployment
+        uses: actions/github-script@v8
+        env:
+          PREVIEW_URL: ${{ steps.upload.outputs.preview_url }}
+          PREVIEW_ALIAS: pr-${{ github.event.pull_request.number }}
+          CF_VERSION_ID: ${{ steps.upload.outputs.version_id }}
+        with:
+          script: |
+            const previewUrl = process.env.PREVIEW_URL;
+            const versionId = process.env.CF_VERSION_ID;
+            if (!previewUrl || !versionId) {
+              throw new Error("Missing preview URL or Cloudflare version ID");
+            }
+
+            const { owner, repo } = context.repo;
+            const deploymentDescription =
+              "halalfood-world-preview PR #" + context.issue.number;
+            const deployments = await github.paginate(
+              github.rest.repos.listDeployments,
+              {
+                owner,
+                repo,
+                ref: context.payload.pull_request.head.ref,
+                environment: "preview",
+                per_page: 100,
+              },
+            );
+            let deployment = deployments
+              .filter((item) => item.description === deploymentDescription)
+              .sort(
+                (left, right) =>
+                  Date.parse(right.created_at) - Date.parse(left.created_at),
+              )[0];
+
+            if (!deployment) {
+              const response = await github.rest.repos.createDeployment({
+                owner,
+                repo,
+                ref: context.payload.pull_request.head.ref,
+                task: "preview",
+                auto_merge: false,
+                required_contexts: [],
+                environment: "preview",
+                description: deploymentDescription,
+                transient_environment: true,
+                production_environment: false,
+                payload: JSON.stringify({
+                  pull_request: context.issue.number,
+                  preview_alias: process.env.PREVIEW_ALIAS,
+                  cloudflare_version_id: versionId,
+                }),
+              });
+              deployment = response.data;
+            }
+
+            await github.rest.repos.createDeploymentStatus({
+              owner,
+              repo,
+              deployment_id: deployment.id,
+              state: "success",
+              description: "Preview ready for PR #" + context.issue.number,
+              environment_url: previewUrl,
+              target_url: previewUrl,
+            });
+
+      - name: Remove temporary deployment files
+        if: always()
+        run: rm -f preview-secrets.json preview-build.tgz wrangler-upload.log
+
+  cleanup:
+    if: >
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - name: Delete Cloudflare preview versions and alias
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PREVIEW_ALIAS: pr-${{ github.event.pull_request.number }}
+        run: |
+          node --input-type=module <<'NODE'
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const workerName = 'halalfood-world';
+          const message = 'PR #' + process.env.PR_NUMBER;
+
+          if (!accountId || !token) {
+            throw new Error('Missing Cloudflare cleanup credentials');
+          }
+
+          const baseUrl =
+            'https://api.cloudflare.com/client/v4/accounts/' +
+            encodeURIComponent(accountId) +
+            '/workers/workers/' +
+            encodeURIComponent(workerName);
+
+          async function api(path, options = {}) {
+            const response = await fetch(baseUrl + path, {
+              ...options,
+              headers: {
+                Authorization: 'Bearer ' + token,
+                Accept: 'application/json',
+                ...(options.headers ?? {}),
+              },
+            });
+            const raw = await response.text();
+            if (response.status === 404) {
+              return null;
+            }
+            let payload;
+            try {
+              payload = raw ? JSON.parse(raw) : {};
+            } catch {
+              throw new Error('Cloudflare API returned non-JSON for ' + path);
+            }
+            if (!response.ok || payload.success !== true) {
+              throw new Error(
+                'Cloudflare API ' +
+                  (options.method ?? 'GET') +
+                  ' ' +
+                  path +
+                  ' failed (' +
+                  response.status +
+                  '): ' +
+                  raw.slice(0, 500),
+              );
+            }
+            return payload;
+          }
+
+          const versions = [];
+          let page = 1;
+          while (true) {
+            const payload = await api('/versions?page=' + page + '&per_page=100');
+            if (payload === null) {
+              console.log('Worker or preview versions are already absent');
+              break;
+            }
+            if (!Array.isArray(payload.result)) {
+              throw new Error('Cloudflare version list did not return an array');
+            }
+            versions.push(...payload.result);
+            const totalPages = payload.result_info?.total_pages;
+            if (typeof totalPages === 'number' && page >= totalPages) {
+              break;
+            }
+            if (payload.result.length < 100) {
+              break;
+            }
+            page += 1;
+          }
+
+          const targetVersions = versions.filter((version) =>
+            typeof version?.id === 'string' &&
+            version.annotations?.['workers/message'] === message,
+          );
+
+          for (const version of targetVersions) {
+            const deleted = await api(
+              '/versions/' + encodeURIComponent(version.id),
+              { method: 'DELETE' },
+            );
+            if (deleted === null) {
+              console.log('Version ' + version.id + ' is already absent');
+            } else {
+              console.log('Deleted preview version ' + version.id);
+            }
+          }
+
+          console.log(
+            'Deleted ' +
+              targetVersions.length +
+              ' preview version(s) for ' +
+              message +
+              '; alias ' +
+              process.env.PREVIEW_ALIAS +
+              ' no longer has a retained version target.',
+          );
+          NODE
+
+      - name: Delete Neon branch
+        if: always()
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: pr-${{ github.event.pull_request.number }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Mark GitHub preview deployment inactive
+        if: always()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const deploymentDescription =
+              "halalfood-world-preview PR #" + context.issue.number;
+            const deployments = await github.paginate(
+              github.rest.repos.listDeployments,
+              {
+                owner,
+                repo,
+                ref: context.payload.pull_request.head.ref,
+                environment: "preview",
+                per_page: 100,
+              },
+            );
+            const deployment = deployments
+              .filter((item) => item.description === deploymentDescription)
+              .sort(
+                (left, right) =>
+                  Date.parse(right.created_at) - Date.parse(left.created_at),
+              )[0];
+
+            if (!deployment) {
+              core.info("No GitHub preview deployment found");
+              return;
+            }
+
+            await github.rest.repos.createDeploymentStatus({
+              owner,
+              repo,
+              deployment_id: deployment.id,
+              state: "inactive",
+              description: "Preview cleaned up after PR closed",
+            });
