@@ -133,4 +133,6 @@ export const places = pgTable("places", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
+  submittedByUserId: text("submitted_by_user_id"),
+  halalConfirmed: boolean("halal_confirmed").notNull().default(true),
 });

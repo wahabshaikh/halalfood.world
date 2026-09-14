@@ -23,6 +23,30 @@ export const OTP_RATE_LIMITS = {
   },
 } as const;
 
+/** Durable budgets for user-submitted places and paid Google searches. */
+export const PLACE_RATE_LIMITS = {
+  submissionUser: {
+    windowMs: 24 * 60 * 60 * 1000,
+    maxCount: 5,
+    cooldownMs: 60 * 1000,
+  },
+  submissionIp: {
+    windowMs: 24 * 60 * 60 * 1000,
+    maxCount: 30,
+    cooldownMs: 10 * 1000,
+  },
+  googleSearchUser: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 30,
+    cooldownMs: 1 * 1000,
+  },
+  googleSearchIp: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 120,
+    cooldownMs: 250,
+  },
+} as const;
+
 export type OtpRateLimitRule = {
   windowMs: number;
   maxCount: number;
@@ -298,6 +322,46 @@ export async function consumeOtpVerificationLimits(
     [
       { key: emailKey, rule: OTP_RATE_LIMITS.verifyEmail },
       { key: ipKey, rule: OTP_RATE_LIMITS.verifyIp },
+    ],
+    store,
+    now,
+  );
+}
+
+export async function consumePlaceSubmissionLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("place:submit:user", userId),
+    identifierKey("place:submit:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: PLACE_RATE_LIMITS.submissionUser },
+      { key: ipKey, rule: PLACE_RATE_LIMITS.submissionIp },
+    ],
+    store,
+    now,
+  );
+}
+
+export async function consumeGooglePlaceSearchLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("place:google-search:user", userId),
+    identifierKey("place:google-search:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: PLACE_RATE_LIMITS.googleSearchUser },
+      { key: ipKey, rule: PLACE_RATE_LIMITS.googleSearchIp },
     ],
     store,
     now,

@@ -2,12 +2,17 @@ import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   GOOGLE_PLACES_COORDINATE_FIELD_MASK,
+  GOOGLE_PLACES_ADD_FIELD_MASK,
   GOOGLE_PLACES_FIELD_MASK,
+  GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK,
   GOOGLE_PLACES_USEFUL_FIELD_MASK,
   enrichPlaceCoordinates,
   getGooglePlaceDetails,
   getGooglePlacesApiKey,
   googlePlaceDetailsUrl,
+  googlePlaceMapsUrl,
+  googlePlacesTextSearchUrl,
+  searchGooglePlaces,
 } from "../src/lib/google-places";
 
 const originalFetch = globalThis.fetch;
@@ -160,4 +165,54 @@ test("coordinate enrichment prefers persisted values and uses the small mask onl
     name: "Missing place",
   });
   assert.equal(fieldMask, GOOGLE_PLACES_COORDINATE_FIELD_MASK);
+});
+
+test("Google Text Search uses a small mask and returns selectable places", async () => {
+  setEnvironment({ GOOGLE_PLACES_API_KEY: "places-test-key", GOOGLE_MAPS_API_KEY: undefined });
+  let requestBody = "";
+  let requestedHeaders: Headers | undefined;
+  globalThis.fetch = async (_input, init) => {
+    requestBody = String(init?.body);
+    requestedHeaders = new Headers(init?.headers);
+    return new Response(
+      JSON.stringify({
+        places: [
+          {
+            id: "ChIJexample",
+            displayName: { text: "Example Halal Kitchen" },
+            formattedAddress: "1 Example Street, London",
+            location: { latitude: 51.5, longitude: -0.1 },
+          },
+          { id: "missing-address", displayName: { text: "Not complete" } },
+        ],
+      }),
+    );
+  };
+
+  const result = await searchGooglePlaces("Example Kitchen");
+  assert.deepEqual(result, {
+    ok: true,
+    places: [
+      {
+        id: "ChIJexample",
+        displayName: "Example Halal Kitchen",
+        formattedAddress: "1 Example Street, London",
+        location: { latitude: 51.5, longitude: -0.1 },
+      },
+    ],
+  });
+  assert.deepEqual(JSON.parse(requestBody), {
+    textQuery: "Example Kitchen",
+  });
+  assert.equal(requestedHeaders?.get("x-goog-api-key"), "places-test-key");
+  assert.equal(
+    requestedHeaders?.get("x-goog-fieldmask"),
+    GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK,
+  );
+  assert.ok(GOOGLE_PLACES_ADD_FIELD_MASK.includes("displayName"));
+  assert.equal(
+    googlePlacesTextSearchUrl(),
+    "https://places.googleapis.com/v1/places:searchText",
+  );
+  assert.match(googlePlaceMapsUrl("ChIJ/example"), /query_place_id=ChIJ%2Fexample/);
 });

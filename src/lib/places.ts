@@ -28,8 +28,24 @@ export type PlaceDetail = Omit<Place, "lat" | "lng"> & {
   source: string | null;
   source_url: string | null;
   scraped_at: string | Date | null;
+  halal_confirmed: boolean | null;
   lat: number | null;
   lng: number | null;
+};
+
+export type CreatePlaceInput = {
+  name: string;
+  citySlug: string;
+  cityUrl: string;
+  streetAddress: string;
+  addressLocality: string;
+  mapsUrl: string | null;
+  googlePlaceId: string | null;
+  sourceUrl: string;
+  lat: number | null;
+  lng: number | null;
+  submittedByUserId: string;
+  halalConfirmed: true;
 };
 
 export type City = {
@@ -45,7 +61,7 @@ export type City = {
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(Math.trunc(value) || min, min), max);
 
-const COORDS_PRESENT = sql`lat IS NOT NULL AND lng IS NOT NULL`;
+const COORDS_PRESENT = sql`halal_confirmed IS TRUE AND lat IS NOT NULL AND lng IS NOT NULL`;
 
 export async function findPlaces(options: {
   bbox?: ReturnType<typeof bboxParam>;
@@ -89,10 +105,38 @@ export async function getPlaceById(id: string): Promise<PlaceDetail | null> {
     SELECT id, name, city_slug, street_address, address_locality, address_region,
       postal_code, address_country, telephone, website, maps_url, google_place_id,
       serves_cuisine,
-      rating_value, review_count, source, source_url, scraped_at, lat, lng
-    FROM places WHERE id = ${id}::uuid LIMIT 1
+      rating_value, review_count, source, source_url, scraped_at,
+      halal_confirmed, lat, lng
+    FROM places WHERE id = ${id}::uuid AND halal_confirmed IS TRUE LIMIT 1
   `);
   return (result.rows[0] as unknown as PlaceDetail) ?? null;
+}
+
+/** Insert one authenticated, explicitly halal user submission. */
+export async function createPlace(input: CreatePlaceInput) {
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const result = await database().execute(sql`
+    INSERT INTO places (
+      id, name, city_slug, city_url, list_position, street_address,
+      address_locality, address_region, postal_code, address_country,
+      telephone, website, maps_url, google_place_id, serves_cuisine,
+      rating_value, review_count, source, source_url, scraped_at, created_at,
+      lat, lng, submitted_by_user_id, halal_confirmed
+    ) VALUES (
+      ${id}::uuid, ${input.name}, ${input.citySlug}, ${input.cityUrl}, NULL,
+      ${input.streetAddress}, ${input.addressLocality}, NULL, NULL, NULL,
+      NULL, NULL, ${input.mapsUrl}, ${input.googlePlaceId}, ARRAY['Halal']::text[],
+      NULL, NULL, 'user-submitted', ${input.sourceUrl}, ${now}::timestamptz,
+      ${now}::timestamptz, ${input.lat}, ${input.lng},
+      ${input.submittedByUserId}, ${input.halalConfirmed}
+    )
+    RETURNING id::text AS id
+  `);
+  const row = result.rows[0] as { id?: unknown } | undefined;
+  if (typeof row?.id !== "string" || !row.id)
+    throw new Error("Created place id was missing");
+  return { id: row.id };
 }
 
 export type PlaceCoordinateCandidate = {
@@ -114,7 +158,8 @@ export async function listPlacesNeedingCoordinateBackfill(options: {
   const result = await database().execute(sql`
     SELECT id, google_place_id, lat, lng
     FROM places
-    WHERE google_place_id IS NOT NULL AND (lat IS NULL OR lng IS NULL)
+    WHERE halal_confirmed IS TRUE
+      AND google_place_id IS NOT NULL AND (lat IS NULL OR lng IS NULL)
     ORDER BY id
     LIMIT ${limit}
   `);
@@ -146,6 +191,7 @@ export async function updatePlaceCoordinatesIfMissing(
     SET lat = ${coordinates.lat}, lng = ${coordinates.lng}
     WHERE id = ${id}::uuid
       AND google_place_id = ${googlePlaceId}
+      AND halal_confirmed IS TRUE
       AND (lat IS NULL OR lng IS NULL)
     RETURNING id
   `);

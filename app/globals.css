@@ -693,6 +693,15 @@ a {
   align-items: center;
   margin: 0 0 22px;
 }
+.submission-note {
+  margin: 0 0 20px;
+  padding: 11px 14px;
+  border-left: 3px solid var(--leaf-bright);
+  background: var(--leaf-wash);
+  color: #4c6046;
+  font-size: 13px;
+  line-height: 1.55;
+}
 .action {
   display: inline-flex;
   align-items: center;
@@ -1016,6 +1025,201 @@ a {
   background: var(--leaf-wash);
 }
 
+/* ------------------------------------------------------------ add a place */
+
+.add-place-card,
+.success-card {
+  width: min(100%, 640px);
+  margin: clamp(18px, 7vw, 70px) auto 0;
+  padding: clamp(24px, 5vw, 42px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: var(--shadow-m);
+}
+.add-place-card h1,
+.success-card h1 {
+  font-size: clamp(28px, 5vw, 38px);
+  line-height: 1.15;
+  letter-spacing: -1.4px;
+  margin: 7px 0 12px;
+}
+.add-place-card .lead,
+.success-card .lead {
+  font-size: 15px;
+  margin-bottom: 26px;
+}
+.mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin: 0 0 24px;
+  background: #f0f4eb;
+  border-radius: 13px;
+}
+.mode-option {
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 700;
+}
+.mode-option:hover,
+.mode-option.selected {
+  background: var(--surface);
+  color: var(--leaf);
+  box-shadow: var(--shadow-s);
+}
+.google-picker,
+.google-search-form,
+.add-place-form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.google-picker {
+  margin: 0 0 24px;
+}
+.google-search-form label,
+.field label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.search-row {
+  display: flex;
+  gap: 8px;
+}
+.search-row input,
+.field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 13px;
+  color: var(--ink);
+  background: #fbfcfa;
+  border: 1px solid #cfd8ca;
+  border-radius: 11px;
+}
+.search-row input:focus,
+.field input:focus {
+  border-color: var(--leaf-bright);
+  box-shadow: 0 0 0 3px #6e965452;
+  outline: 0;
+}
+.search-row .action {
+  flex-shrink: 0;
+  box-shadow: none;
+}
+.google-results {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px;
+  background: #f7faf4;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.google-results button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+}
+.google-results button:hover {
+  background: var(--leaf-wash);
+}
+.google-results strong {
+  font-size: 14px;
+}
+.google-results small,
+.selected-place span,
+.field-note,
+.form-help,
+.add-place-note {
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.selected-place {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 14px;
+  background: var(--leaf-wash);
+  border: 1px solid #d5e2c6;
+  border-radius: 14px;
+}
+.selected-place .eyebrow {
+  margin-bottom: 2px;
+}
+.selected-place strong {
+  font-size: 15px;
+}
+.selected-place .auth-secondary {
+  align-self: flex-start;
+  margin: 4px 0 0 -12px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.field label span {
+  color: var(--ink-faint);
+  font-weight: 500;
+}
+.field-note {
+  margin: -1px 0 2px;
+}
+.check-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0 2px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.check-field input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--leaf-bright);
+  flex-shrink: 0;
+}
+.form-help,
+.form-error {
+  margin: 4px 0 0;
+}
+.form-help {
+  color: #8a5d24;
+}
+.form-error {
+  color: #9a4036;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.add-submit {
+  justify-content: center;
+  min-height: 46px;
+  margin-top: 8px;
+}
+.add-place-note {
+  margin: 24px 0 0;
+  color: var(--ink-faint);
+}
+.success-card .detail-actions {
+  margin-bottom: 0;
+}
+
 @media (max-width: 640px) {
   :root {
     --chrome-top: 14px;
@@ -1091,6 +1295,12 @@ a {
   }
   .page-main {
     padding: 20px 18px 52px;
+  }
+  .search-row {
+    flex-direction: column;
+  }
+  .search-row .action {
+    justify-content: center;
   }
 }
 
