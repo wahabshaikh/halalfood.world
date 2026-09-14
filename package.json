@@ -4,8 +4,10 @@
   "private": true,
   "packageManager": "npm@10.9.8",
   "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.4",
     "@neondatabase/serverless": "^1.1.0",
     "@vinext/cloudflare": "latest",
+    "better-auth": "^1.7.4",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.45.0",
     "maplibre-gl": "^6.9.0",

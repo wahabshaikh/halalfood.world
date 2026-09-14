@@ -452,6 +452,9 @@ export default function FoodMap() {
           <a className="pill chrome-link" href="/cities">
             Browse cities
           </a>
+          <a className="pill chrome-link" href="/login">
+            Sign in
+          </a>
         </nav>
       </header>
       <div className="search-area">
