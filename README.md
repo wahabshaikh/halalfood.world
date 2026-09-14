@@ -436,7 +436,7 @@ The framework deployment setup follows the [official vinext documentation](https
 The repository includes `.github/workflows/preview.yml` for Vercel-style previews on same-repository pull requests:
 
 - Each PR creates or reuses a Neon branch named `pr-<number>`.
-- Before upload, the deploy job applies every `migrations/*.sql` file to that branch in lexical filename order. A migration failure fails the preview.
+- Before upload, the deploy job applies every SQL file under `migrations/` to that branch in lexical filename order. A migration failure fails the preview.
 - The Cloudflare Worker is uploaded as a non-production version with a stable `pr-<number>` preview alias. The predicted URL is `https://pr-<number>-halalfood-world.wahabshaikh.workers.dev`.
 - The workflow creates or updates one GitHub Deployment in the `preview` environment and adds or updates one preview URL comment in the PR.
 - When the PR closes, all Cloudflare preview versions with the upload message `PR #<number>` are deleted so the alias no longer has a retained version target. The Neon branch is also deleted and expires after 14 days as a cleanup safeguard.
