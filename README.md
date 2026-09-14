@@ -73,6 +73,7 @@ Use the URL printed by the dev server. Development and production API requests r
 | --- | --- | --- |
 | `/` | Client map + SSR `WebSite`/`FAQPage` JSON-LD | The map. Accepts the deep links below. |
 | `/cities` | SSR | Directory of every city, largest first. |
+| `/leaderboard` | SSR | Public halal community contributor leaderboard. |
 | `/city/[citySlug]` | SSR | Listings for one city, 60 per page, with `ItemList` + `BreadcrumbList` JSON-LD. |
 | `/place/[id]` | SSR | One place, with `Restaurant` + `BreadcrumbList` JSON-LD. |
 | `/saved` | Client list + SSR chrome | Authenticated user's saved halal places; unauthenticated visitors get a sign-in CTA. |
@@ -90,11 +91,31 @@ Use the URL printed by the dev server. Development and production API requests r
 | `PUT/POST/DELETE /api/places/[id]/reviews` | JSON | Authenticated, rate-limited create/update or delete of the current user's one review. |
 | `GET/POST /api/places/[id]/photos` | JSON/multipart | Public newest-first halal place photo gallery; authenticated image upload. |
 | `DELETE /api/places/[id]/photos/[photoId]` | JSON | Authenticated, ownership-checked deletion of the current user's photo. |
+| `GET /api/leaderboard` | JSON | Cacheable top-50 halal community contributor scores. |
 | `GET /api/places/google-search` | JSON | Authenticated, rate-limited Google Places (New) Text Search for the add form. |
 | `GET/POST /api/places/[id]/verifications` | JSON | Public approved evidence lookup; authenticated, rate-limited community halal verification submission. |
 | `POST/GET /api/uploads/r2` | Multipart/stream | Authenticated direct R2 upload and approved/own-pending evidence download. |
 | `/api/auth/*` | Better Auth catch-all | Email OTP request, verification, session, and sign-out endpoints. |
 | `POST /api/admin/email/healthcheck` | JSON | Optional operator smoke check; disabled by default and bearer-token gated when enabled. |
+
+### Feature 10: contributor leaderboard
+
+The public [`/leaderboard`](/leaderboard) page celebrates ummah contributions to
+the halal food map. It ranks users by five existing signals: places added
+(`places.submitted_by_user_id`), submitted halal verifications, reviews, photos
+and ratings. Saved places are intentionally not counted. Empty user names use a
+deterministic anonymized handle; public output never includes user ids or email
+addresses.
+
+The exact score weights are places added **10**, verifications submitted **8**,
+reviews **5**, photos **3**, and ratings **1**. The score is the sum of each
+count multiplied by its weight. The aggregation is one SQL query that unions
+the five sources, groups by user, joins `user` for the display name, and returns
+the top 50. Ties sort by score descending, then places added descending, then
+normalized name and a stable user-id tie-breaker.
+
+`GET /api/leaderboard` returns the same top 50 JSON payload with
+`Cache-Control: public, max-age=60, s-maxage=60`. No migration was needed.
 
 ## Google Places coordinate backfill
 
