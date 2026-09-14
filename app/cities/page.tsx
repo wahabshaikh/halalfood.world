@@ -22,7 +22,7 @@ import { loadOrDegrade } from "../../src/lib/load";
 
 const TITLE = "Explore halal food by city";
 const DESCRIPTION =
-  "Browse every city on the Halalfood map, then open a city to see its halal restaurants, addresses, ratings and contact details.";
+  "Browse every city on the halalfood.world map, then open a city to see its halal restaurants, addresses, ratings and contact details.";
 
 const loadDirectory = cache(() =>
   loadOrDegrade(async () => {
@@ -67,7 +67,7 @@ export default async function CitiesPage() {
 
   const { cities, total } = loaded.data;
   const trail = [
-    { name: "Halalfood", path: "/" },
+    { name: "halalfood.world", path: "/" },
     { name: "Cities", path: "/cities" },
   ];
 

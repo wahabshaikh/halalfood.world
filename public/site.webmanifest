@@ -1,6 +1,6 @@
 {
-  "name": "Halalfood — discover halal places worth sharing",
-  "short_name": "Halalfood",
+  "name": "halalfood.world — discover halal places worth sharing",
+  "short_name": "halalfood.world",
   "description": "A community map of halal restaurants, searchable by city or name.",
   "id": "/",
   "start_url": "/",
@@ -11,6 +11,7 @@
   "theme_color": "#116a4a",
   "categories": ["food", "travel", "navigation"],
   "icons": [
+    { "src": "/halalfood-world-logo.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any maskable" },
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "/favicon-32.png", "sizes": "32x32", "type": "image/png" },
     { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },

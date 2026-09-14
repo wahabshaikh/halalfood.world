@@ -108,7 +108,7 @@ export default async function CityPage({
   const lastPage = Math.max(Math.ceil(total / PAGE_SIZE) - 1, 0);
   const path = `/city/${city.city_slug}`;
   const trail = [
-    { name: "Halalfood", path: "/" },
+    { name: "halalfood.world", path: "/" },
     { name: "Cities", path: "/cities" },
     { name, path },
   ];

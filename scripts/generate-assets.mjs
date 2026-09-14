@@ -256,7 +256,7 @@ function drawOpenGraph() {
   ]);
   drawUtensils(canvas, markX + 26.5, markY + 26.5, 2.63, INK, 2);
 
-  const wordmark = "HALALFOOD.WORLD";
+  const wordmark = "halalfood.world";
   const wordmarkSize = fitSize(wordmark, 620, 54, 0.135);
   drawText(canvas, wordmark, 262, 142, {
     size: wordmarkSize,

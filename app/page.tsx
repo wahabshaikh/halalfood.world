@@ -28,15 +28,15 @@ export default function Home() {
               mainEntity: [
                 {
                   "@type": "Question",
-                  name: "How accurate are the pins on the Halalfood map?",
+                  name: "How accurate are the pins on the halalfood.world map?",
                   acceptedAnswer: { "@type": "Answer", text: APPROXIMATE_NOTE },
                 },
                 {
                   "@type": "Question",
-                  name: "Are all the restaurants on Halalfood halal?",
+                  name: "Are all the restaurants on halalfood.world halal?",
                   acceptedAnswer: {
                     "@type": "Answer",
-                    text: "Halalfood only lists places published as halal by the public directories it collects from. Certification varies by country, so check with the restaurant if that matters to you.",
+                    text: "halalfood.world only lists places published as halal by the public directories it collects from. Certification varies by country, so check with the restaurant if that matters to you.",
                   },
                 },
               ],
@@ -47,7 +47,7 @@ export default function Home() {
       <FoodMap />
       <noscript>
         <div className="noscript-fallback">
-          <h1>Halalfood — find halal food anywhere in the world</h1>
+          <h1>halalfood.world — find halal food anywhere in the world</h1>
           <p>
             The interactive map needs JavaScript. The full directory works
             without it:

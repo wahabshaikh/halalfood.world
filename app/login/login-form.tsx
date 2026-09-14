@@ -172,7 +172,7 @@ export default function LoginForm({
   return (
     <section className="auth-card" aria-labelledby="login-title">
       <p className="eyebrow">WELCOME BACK</p>
-      <h1 id="login-title">Sign in to Halalfood</h1>
+      <h1 id="login-title">Sign in to halalfood.world</h1>
       <p className="lead">
         Use your email to get a one-time code. No password to remember.
       </p>
