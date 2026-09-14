@@ -6,7 +6,6 @@ import {
   MapPin,
   Navigation,
   Phone,
-  Share2,
   Star,
   Utensils,
 } from "lucide-react";
