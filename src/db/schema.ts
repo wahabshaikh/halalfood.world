@@ -163,3 +163,61 @@ export const savedPlaces = pgTable(
     index("saved_places_place_id_idx").on(table.placeId),
   ],
 );
+
+export const placeHalalVerifications = pgTable(
+  "place_halal_verifications",
+  {
+    id: uuid("id").primaryKey(),
+    placeId: uuid("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    submittedByUserId: text("submitted_by_user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("pending"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("place_halal_verifications_place_status_created_idx").on(
+      table.placeId,
+      table.status,
+      table.createdAt,
+    ),
+    index("place_halal_verifications_submitter_idx").on(
+      table.submittedByUserId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const placeHalalVerificationEvidence = pgTable(
+  "place_halal_verification_evidence",
+  {
+    id: uuid("id").primaryKey(),
+    verificationId: uuid("verification_id")
+      .notNull()
+      .references(() => placeHalalVerifications.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    url: text("url"),
+    r2Key: text("r2_key"),
+    contentType: text("content_type"),
+    fileName: text("file_name"),
+    sizeBytes: integer("size_bytes"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("place_halal_verification_evidence_verification_idx").on(
+      table.verificationId,
+      table.createdAt,
+    ),
+    index("place_halal_verification_evidence_r2_key_idx").on(table.r2Key),
+  ],
+);

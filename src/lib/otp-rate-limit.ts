@@ -23,7 +23,7 @@ export const OTP_RATE_LIMITS = {
   },
 } as const;
 
-/** Durable budgets for user-submitted places, saves, and paid Google searches. */
+/** Durable budgets for user-submitted places, verifications, and Google searches. */
 export const PLACE_RATE_LIMITS = {
   submissionUser: {
     windowMs: 24 * 60 * 60 * 1000,
@@ -44,6 +44,30 @@ export const PLACE_RATE_LIMITS = {
     windowMs: 60 * 60 * 1000,
     maxCount: 120,
     cooldownMs: 250,
+  },
+} as const;
+
+/** Durable budgets for community halal verification submissions. */
+export const HALAL_VERIFICATION_RATE_LIMITS = {
+  submissionUser: {
+    windowMs: 24 * 60 * 60 * 1000,
+    maxCount: 5,
+    cooldownMs: 60 * 1000,
+  },
+  submissionIp: {
+    windowMs: 24 * 60 * 60 * 1000,
+    maxCount: 30,
+    cooldownMs: 10 * 1000,
+  },
+  uploadUser: {
+    windowMs: 24 * 60 * 60 * 1000,
+    maxCount: 20,
+    cooldownMs: 0,
+  },
+  uploadIp: {
+    windowMs: 24 * 60 * 60 * 1000,
+    maxCount: 60,
+    cooldownMs: 0,
   },
 } as const;
 
@@ -396,6 +420,49 @@ export async function consumeSavePlaceLimits(
     [
       { key: userKey, rule: SAVE_RATE_LIMITS.mutationUser },
       { key: ipKey, rule: SAVE_RATE_LIMITS.mutationIp },
+    ],
+    store,
+    now,
+  );
+}
+
+export async function consumeHalalVerificationLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("halal-verification:submit:user", userId),
+    identifierKey("halal-verification:submit:ip", ip),
+  ]);
+  return consumePair(
+    [
+      {
+        key: userKey,
+        rule: HALAL_VERIFICATION_RATE_LIMITS.submissionUser,
+      },
+      { key: ipKey, rule: HALAL_VERIFICATION_RATE_LIMITS.submissionIp },
+    ],
+    store,
+    now,
+  );
+}
+
+export async function consumeHalalVerificationUploadLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("halal-verification:upload:user", userId),
+    identifierKey("halal-verification:upload:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: HALAL_VERIFICATION_RATE_LIMITS.uploadUser },
+      { key: ipKey, rule: HALAL_VERIFICATION_RATE_LIMITS.uploadIp },
     ],
     store,
     now,

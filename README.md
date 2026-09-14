@@ -85,6 +85,8 @@ Use the URL printed by the dev server. Development and production API requests r
 | `GET /api/places/saved` | JSON | Authenticated list of the current user's saved places. |
 | `POST/DELETE /api/places/[id]/saved` | JSON | Authenticated, rate-limited save or unsave mutation for one halal place. |
 | `GET /api/places/google-search` | JSON | Authenticated, rate-limited Google Places (New) Text Search for the add form. |
+| `GET/POST /api/places/[id]/verifications` | JSON | Public approved evidence lookup; authenticated, rate-limited community halal verification submission. |
+| `POST/GET /api/uploads/r2` | Multipart/stream | Authenticated direct R2 upload and approved/own-pending evidence download. |
 | `/api/auth/*` | Better Auth catch-all | Email OTP request, verification, session, and sign-out endpoints. |
 | `POST /api/admin/email/healthcheck` | JSON | Optional operator smoke check; disabled by default and bearer-token gated when enabled. |
 
@@ -150,6 +152,19 @@ key namespace: one user may perform at most 120 save actions per hour with a
 250ms cooldown, and one IP may perform at most 300 per hour with a 100ms
 cooldown. Both the user and IP bucket must allow the mutation.
 
+Community halal verification submissions reuse the same durable Neon limiter
+with separate hashed key namespaces: one signed-in user may submit at most 5
+verifications per 24 hours with a 60-second cooldown, and one IP may submit at
+most 30 per 24 hours with a 10-second cooldown. Both the user and IP bucket
+must allow the submission. New verification rows start as `pending`; the
+public place page shows approved rows and the signed-in submitter's own
+pending rows.
+
+R2 uploads have separate hashed storage budgets of 20 files per user per day
+and 60 files per IP per day. This keeps the direct upload path bounded before
+a verification record is created while allowing one submission to include
+multiple evidence files.
+
 The limiter fails closed if Neon is unavailable, so a provider outage cannot turn the endpoint into an unrestricted Resend sender. Old limiter rows can be pruned by Ops after confirming the retention policy; they contain hashes rather than raw identifiers.
 
 ### Auth schema migration
@@ -160,12 +175,15 @@ Apply [`migrations/0002_user_submitted_places.sql`](migrations/0002_user_submitt
 
 Apply [`migrations/0003_saved_places.sql`](migrations/0003_saved_places.sql) after it. It creates the additive `saved_places` table with a cascading foreign key to Better Auth's `user`, a cascading foreign key to `places`, and a unique `(user_id, place_id)` pair. It is safe to re-run.
 
+Apply [`migrations/0004_place_halal_verifications.sql`](migrations/0004_place_halal_verifications.sql) after it. It creates the additive `place_halal_verifications` and `place_halal_verification_evidence` tables, links both records to the existing place/user rows, and constrains status/evidence shapes. New submissions are `pending` and the migration is safe to re-run.
+
 With `DATABASE_URL` already present in the shell, use either the Neon SQL Editor or:
 
 ```sh
 psql "$DATABASE_URL" -f migrations/0001_better_auth_email_otp.sql
 psql "$DATABASE_URL" -f migrations/0002_user_submitted_places.sql
 psql "$DATABASE_URL" -f migrations/0003_saved_places.sql
+psql "$DATABASE_URL" -f migrations/0004_place_halal_verifications.sql
 ```
 
 The Drizzle definitions in `src/db/schema.ts` must stay aligned with this SQL. If Better Auth is upgraded or plugins are added, regenerate/review the Drizzle schema with the Better Auth CLI and create a new migration rather than changing the existing table names silently.
@@ -225,6 +243,10 @@ node scripts/generate-assets.mjs
 - `GET /api/places/saved`: requires a Better Auth session and returns up to 200 saved halal places, newest first. Unauthenticated requests return 401 with a `/login?returnTo=%2Fsaved` hint.
 - `POST/DELETE /api/places/:id/saved`: requires a Better Auth session, validates the UUID and confirms the target is an existing halal listing. Both methods return the resulting `saved` state and 429 when either save-action bucket is exhausted.
 - `GET /api/places/google-search?q=...`: requires a Better Auth session and uses server-only Google Places (New) Text Search when configured. It is rate-limited separately from submissions.
+- `GET /api/places/:id/verifications`: returns approved community evidence to everyone and the current contributor's own pending submission when signed in. Submitter ids are never exposed.
+- `POST /api/places/:id/verifications`: requires a Better Auth session and at least one HTTPS Zabihah, Instagram, TikTok, or YouTube link or validated R2 upload. New rows are `pending` and the user/IP Neon buckets are consumed before the write.
+- `POST /api/uploads/r2`: requires a Better Auth session and a configured `HALAL_EVIDENCE_R2` binding. It accepts only JPEG, PNG, WebP, and PDF files up to 8 MiB, checks the file signature, and returns an account-scoped R2 key for the verification submission. Missing R2 configuration fails closed with 503.
+- `GET /api/uploads/r2?key=...`: serves an uploaded document only when its verification is approved or it belongs to the current contributor's pending submission.
 - `GET /api/cities/:citySlug`: aggregate for one city, including the mean of its listed coordinates for map centring.
 - `src/lib/places.ts` also exposes `getPlaceById`, `listCities`, `countCities`, `getCity`, `findPlacesByCity`, `countPlaces` and `listPlaceRefs` for the server-rendered routes. Every one is parameterized and limit-clamped; none writes.
 - Responses contain `places`, `total` (all matching rows) and `limit`. The count pill shows the viewport total; the sheet explains when only the top 600 are shown. Results are ordered by rating, reviews, then ID.
@@ -266,5 +288,42 @@ npx @vinext/cloudflare deploy --config dist/server/wrangler.json
 Wrangler prints the workers.dev URL on success. Configure the custom domain `halalfood.world` in Cloudflare after deployment if desired. Local `.dev.vars` does **not** upload production secrets. Set `EMAIL_FROM` as a Worker variable (or leave the preferred default), and use `onboarding@resend.dev` until the custom domain is verified. No tile token is needed. Deployment also requires Cloudflare authentication.
 
 The optional email smoke check is disabled unless `EMAIL_HEALTHCHECK_ENABLED=true`. To enable it, configure `EMAIL_HEALTHCHECK_TO` and store a long random bearer token as `EMAIL_HEALTHCHECK_TOKEN` (use `npx wrangler secret put EMAIL_HEALTHCHECK_TOKEN` for production), then send an authenticated `POST` to `/api/admin/email/healthcheck` with `Authorization: Bearer <token>`. The endpoint has no request-supplied recipient and returns 404 while disabled, so it cannot be used as an unauthenticated spam endpoint. Use it only for occasional operator checks; it is not a queue or mass-mailing mechanism.
+
+### Community verification R2 uploads
+
+The root [`wrangler.jsonc`](wrangler.jsonc) declares the `HALAL_EVIDENCE_R2`
+R2 binding and the bucket name `halalfood-world-evidence`. Create that bucket
+once in the target Cloudflare account, or change the bucket name in
+`wrangler.jsonc` before deployment:
+
+```sh
+npx wrangler r2 bucket create halalfood-world-evidence
+```
+
+The upload path is a Worker-direct multipart upload; it does not need S3
+credentials or a public bucket. Uploads are limited to 8 MiB and the allowlist
+is `image/jpeg`, `image/png`, `image/webp`, and `application/pdf`. The server
+also checks the JPEG/PNG/WebP/PDF signature, stores an account-hashed key, and
+never accepts an arbitrary R2 key in a verification submission. R2 objects are
+served through the access-checked download route, so only approved evidence
+or the submitter's own pending evidence is readable.
+
+`npm run build` generates the deployable Worker config at
+`dist/server/wrangler.json` and carries the root `r2_buckets` declaration into
+that generated config. Do not hand-edit `dist`; if the generated file is
+missing the `HALAL_EVIDENCE_R2` declaration, stop before deploying and inspect
+the vinext build output. The runtime reads this binding with vinext's native
+`cloudflare:workers` environment module and fails closed when it is absent.
+
+For Ops moderation, update only the status column after reviewing the evidence
+(there is intentionally no admin UI in this feature):
+
+```sql
+UPDATE place_halal_verifications
+SET status = 'approved', updated_at = now()
+WHERE id = '<verification id>' AND status = 'pending';
+```
+
+The supported status values are `pending`, `approved`, and `rejected`.
 
 The framework deployment setup follows the [official vinext documentation](https://github.com/cloudflare/vinext). Basemap availability depends on CARTO; review its service terms before scaling traffic.

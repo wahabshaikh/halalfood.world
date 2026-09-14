@@ -27,6 +27,7 @@ import {
 import { loadOrDegrade } from "../../../src/lib/load";
 import ShareButton from "../../../src/components/share-button";
 import SavePlaceButton from "../../../src/components/save-place-button";
+import PlaceHalalVerification from "./place-halal-verification";
 
 /** `generateMetadata` and the page body share one round trip. */
 const loadPlace = cache(async (raw: string) => {
@@ -222,6 +223,8 @@ export default async function PlacePage({
           </dl>
 
           <ApproximateNote />
+
+          <PlaceHalalVerification placeId={place.id} />
 
           <p className="detail-more">
             Looking for more? See{" "}
