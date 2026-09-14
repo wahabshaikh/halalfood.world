@@ -24,7 +24,29 @@ BETTER_AUTH_SECRET=<long random Better Auth secret>
 BETTER_AUTH_URL=http://localhost:3000
 TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
 TURNSTILE_SECRET_KEY=<Cloudflare Turnstile server secret>
+GOOGLE_PLACES_API_KEY=<your Google Places API key>
+# GOOGLE_MAPS_API_KEY=<fallback Google Maps API key>
 ```
+
+`GOOGLE_PLACES_API_KEY` is preferred; `GOOGLE_MAPS_API_KEY` is accepted as a
+fallback for existing deployments. Both are server-only secrets: never prefix
+them with `NEXT_PUBLIC_`, expose them to the browser, or commit their values.
+The Places client uses the Places API (New) Place Details endpoint and explicit
+field masks. The default mask stays on Essentials fields (`id`, `name`,
+`formattedAddress`, `location`, `photos`); requests that only need coordinates
+use `location` alone. An explicit useful-fields mask is available for the
+restaurant display name, address, phone, regular hours and photo fields when a
+caller accepts the higher Pro/Enterprise SKU exposure.
+
+See Google’s [Place Details (New) field-mask guide](https://developers.google.com/maps/documentation/places/web-service/place-details)
+and [current Maps Platform pricing](https://developers.google.com/maps/billing-and-pricing/pricing)
+before enabling broader fields.
+
+Google Places requests are optional. A missing key, provider error or malformed
+response leaves the database-backed page unchanged, so a page can still render
+without Google. The approximate monthly no-cost allowance commonly used for
+Places API (New) Essentials is about 10,000 Place Details requests; confirm
+the current Google Maps Platform terms and billing account before scaling.
 
 Email delivery uses the Workers-compatible Resend REST API. `noreply@halalfood.world` is the preferred sender after the domain is verified in Resend. Until then, set `EMAIL_FROM=onboarding@resend.dev` in the relevant environment. `RESEND_API_KEY` is required only when sending mail; the email helper has no bulk-send behavior and is intended for low-volume transactional messages. OTP delivery is additionally guarded by the durable limits described below.
 
@@ -56,6 +78,39 @@ Use the URL printed by the dev server. Development and production API requests r
 | `/api/places/[id]`, `/api/cities/[citySlug]` | JSON | Lookups behind the map deep links. |
 | `/api/auth/*` | Better Auth catch-all | Email OTP request, verification, session, and sign-out endpoints. |
 | `POST /api/admin/email/healthcheck` | JSON | Optional operator smoke check; disabled by default and bearer-token gated when enabled. |
+
+## Google Places coordinate backfill
+
+The server-side client is in `src/lib/google-places.ts` and calls Place
+Details (New) with `GET https://places.googleapis.com/v1/places/{placeId}`.
+`app/place/[id]/page.tsx` uses persisted coordinates first; when either
+coordinate is missing and `google_place_id` exists, it makes one location-only
+request and still renders the page unchanged if Google is unavailable.
+
+Ops can backfill without browser scraping using the CLI. It reads
+`DATABASE_URL` and `GOOGLE_PLACES_API_KEY` (or the Maps fallback) from the
+environment, processes requests sequentially, and sleeps between calls:
+
+```sh
+export DATABASE_URL=<your Neon connection string>
+export GOOGLE_PLACES_API_KEY=<your Google Places API key>
+
+# Fetch and report proposed updates, but do not write rows.
+npm run backfill:places -- --dry-run --limit 50 --batch-size 10 --delay-ms 300
+
+# Apply at most 500 updates.
+npm run backfill:places -- --limit 500 --batch-size 25 --delay-ms 300
+```
+
+The safe initial heuristic selects only rows with a `google_place_id` and a
+null `lat` or `lng`; updates recheck that predicate and the place ID, so an
+existing coordinate is never overwritten. This intentionally leaves the
+current non-null centroid-plus-jitter coordinates alone until their provenance
+can be distinguished from verified coordinates. `--dry-run` still calls
+Google to show the proposed coordinates and therefore still consumes requests.
+Keep `--delay-ms` and `--limit` within the project's quota; lower batch sizes
+and longer delays are appropriate if Google returns quota errors. The script
+reports provider failures and exits non-zero when any candidate fails.
 
 ## Email OTP auth
 
@@ -144,6 +199,7 @@ npx wrangler secret put DATABASE_URL
 npx wrangler secret put RESEND_API_KEY
 npx wrangler secret put BETTER_AUTH_SECRET
 npx wrangler secret put TURNSTILE_SECRET_KEY
+npx wrangler secret put GOOGLE_PLACES_API_KEY
 npm run deploy
 ```
 
@@ -155,7 +211,7 @@ TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
 EMAIL_FROM=noreply@halalfood.world
 ```
 
-`TURNSTILE_SITE_KEY` may be a normal public Worker variable (or a dashboard secret if preferred); only `TURNSTILE_SECRET_KEY` belongs in `wrangler secret put` and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `DATABASE_URL`, `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, and `TURNSTILE_SECRET_KEY` are secret names only here; enter their values at the Wrangler prompts.
+`TURNSTILE_SITE_KEY` may be a normal public Worker variable (or a dashboard secret if preferred); only `TURNSTILE_SECRET_KEY` belongs in `wrangler secret put` and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `DATABASE_URL`, `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, and `GOOGLE_PLACES_API_KEY` are secret names only here; enter their values at the Wrangler prompts. Use `GOOGLE_MAPS_API_KEY` instead only when retaining an existing secret name.
 
 Enter the existing Neon connection string, Resend API key, Better Auth secret, and Turnstile server secret at their respective Wrangler prompts. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
 
