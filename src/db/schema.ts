@@ -198,6 +198,44 @@ export const placeRatings = pgTable(
   ],
 );
 
+export const placeReviews = pgTable(
+  "place_reviews",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    placeId: uuid("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    title: text("title"),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: "place_reviews_pkey",
+      columns: [table.userId, table.placeId],
+    }),
+    check(
+      "place_reviews_body_check",
+      sql`length(btrim(${table.body})) > 0 AND length(${table.body}) <= 5000`,
+    ),
+    check(
+      "place_reviews_title_check",
+      sql`${table.title} IS NULL OR length(${table.title}) <= 120`,
+    ),
+    index("place_reviews_place_id_created_at_idx").on(
+      table.placeId,
+      table.createdAt.desc(),
+    ),
+  ],
+);
+
 export const placeHalalVerifications = pgTable(
   "place_halal_verifications",
   {

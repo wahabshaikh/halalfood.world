@@ -86,6 +86,8 @@ Use the URL printed by the dev server. Development and production API requests r
 | `POST/DELETE /api/places/[id]/saved` | JSON | Authenticated, rate-limited save or unsave mutation for one halal place. |
 | `GET /api/places/[id]/rating` | JSON | Aggregate halal reactions and the current user's reaction when signed in. |
 | `PUT/POST /api/places/[id]/rating` | JSON | Authenticated, rate-limited upsert of one halal reaction. |
+| `GET /api/places/[id]/reviews` | JSON | Public newest-first halal reviews with author display and timestamps. |
+| `PUT/POST/DELETE /api/places/[id]/reviews` | JSON | Authenticated, rate-limited create/update or delete of the current user's one review. |
 | `GET /api/places/google-search` | JSON | Authenticated, rate-limited Google Places (New) Text Search for the add form. |
 | `GET/POST /api/places/[id]/verifications` | JSON | Public approved evidence lookup; authenticated, rate-limited community halal verification submission. |
 | `POST/GET /api/uploads/r2` | Multipart/stream | Authenticated direct R2 upload and approved/own-pending evidence download. |
@@ -160,6 +162,11 @@ Neon limiter: one user may perform at most 120 rating actions per hour with a
 cooldown. Both the user and IP bucket must allow the mutation. The accepted
 halal reaction values are `mashallah`, `alhamdulillah`, and `astaghfirullah`.
 
+Place review mutations use their own hashed key namespace and the same durable
+Neon limiter: one user may perform at most 120 review actions per hour with a
+250ms cooldown, and one IP may perform at most 300 per hour with a 100ms
+cooldown. Invalid review payloads are rejected before either bucket is spent.
+
 Community halal verification submissions reuse the same durable Neon limiter
 with separate hashed key namespaces: one signed-in user may submit at most 5
 verifications per 24 hours with a 60-second cooldown, and one IP may submit at
@@ -187,6 +194,8 @@ Apply [`migrations/0004_place_halal_verifications.sql`](migrations/0004_place_ha
 
 Apply [`migrations/0005_place_ratings.sql`](migrations/0005_place_ratings.sql) after it. It creates the additive `place_ratings` table with cascading place/user foreign keys, one `(user_id, place_id)` row per user and place, and a check constraint for the three halal reaction values. The migration is safe to re-run.
 
+Apply [`migrations/0006_place_reviews.sql`](migrations/0006_place_reviews.sql) after it. It creates the additive `place_reviews` table with cascading place/user foreign keys, a required trimmed text body, an optional title, and a `(user_id, place_id)` primary key. That composite key intentionally gives each user one editable review per place and makes ownership enforcement/upsert behavior durable. The migration is safe to re-run.
+
 With `DATABASE_URL` already present in the shell, use either the Neon SQL Editor or:
 
 ```sh
@@ -195,6 +204,7 @@ psql "$DATABASE_URL" -f migrations/0002_user_submitted_places.sql
 psql "$DATABASE_URL" -f migrations/0003_saved_places.sql
 psql "$DATABASE_URL" -f migrations/0004_place_halal_verifications.sql
 psql "$DATABASE_URL" -f migrations/0005_place_ratings.sql
+psql "$DATABASE_URL" -f migrations/0006_place_reviews.sql
 ```
 
 The Drizzle definitions in `src/db/schema.ts` must stay aligned with this SQL. If Better Auth is upgraded or plugins are added, regenerate/review the Drizzle schema with the Better Auth CLI and create a new migration rather than changing the existing table names silently.
@@ -258,6 +268,9 @@ node scripts/generate-assets.mjs
 - `POST /api/places/:id/verifications`: requires a Better Auth session and at least one HTTPS Zabihah, Instagram, TikTok, or YouTube link or validated R2 upload. New rows are `pending` and the user/IP Neon buckets are consumed before the write.
 - `GET /api/places/:id/rating`: returns `counts` for `mashallah`, `alhamdulillah`, and `astaghfirullah`, plus `rating` for the current signed-in user (or `null`).
 - `PUT/POST /api/places/:id/rating`: requires a Better Auth session and `{ "rating": "mashallah" | "alhamdulillah" | "astaghfirullah" }`; upserts that user's reaction and returns the refreshed aggregate counts. Invalid UUIDs or reactions are rejected, and both user/IP rating buckets must allow the write.
+- `GET /api/places/:id/reviews`: returns up to 50 newest public reviews for a halal place, plus the signed-in user's own review when it falls outside that window, with the author's display name, body, optional title, created/updated timestamps, and an `isOwn` marker.
+- `PUT/POST /api/places/:id/reviews`: requires a Better Auth session and `{ "body": "...", "title": "..." }` (`title` is optional); trims input, caps title/body lengths at 120/5,000 characters, rejects empty bodies, and upserts the current user's one review for the place.
+- `DELETE /api/places/:id/reviews`: requires a Better Auth session and deletes only the review owned by that session's user. Review mutations require both hashed user/IP limiter buckets to allow the action.
 - `POST /api/uploads/r2`: requires a Better Auth session and a configured `HALAL_EVIDENCE_R2` binding. It accepts only JPEG, PNG, WebP, and PDF files up to 8 MiB, checks the file signature, and returns an account-scoped R2 key for the verification submission. Missing R2 configuration fails closed with 503.
 - `GET /api/uploads/r2?key=...`: serves an uploaded document only when its verification is approved or it belongs to the current contributor's pending submission.
 - `GET /api/cities/:citySlug`: aggregate for one city, including the mean of its listed coordinates for map centring.
