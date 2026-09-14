@@ -281,7 +281,7 @@ export default function AddPlaceForm() {
           <ShareButton
             url={"/place/" + successId}
             title={name || "A halal place on halalfood.world"}
-            text={(name || "This halal place") + " is now on Halalfood."}
+            text={(name || "This halal place") + " is now on halalfood.world."}
             className="action share-button"
           />
           <button type="button" className="action" onClick={reset}>
