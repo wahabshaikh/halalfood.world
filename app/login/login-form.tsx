@@ -90,7 +90,13 @@ function TurnstileCheck({
   return <div ref={container} className="turnstile-check" />;
 }
 
-export default function LoginForm({ siteKey }: { siteKey: string }) {
+export default function LoginForm({
+  siteKey,
+  returnTo = "/",
+}: {
+  siteKey: string;
+  returnTo?: string;
+}) {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState<"email" | "code">("email");
@@ -148,8 +154,8 @@ export default function LoginForm({ siteKey }: { siteKey: string }) {
     setBusy(true);
     try {
       await verifyLoginOtp(email, otp);
-      setStatus("You are signed in. Opening the map…");
-      window.location.assign("/");
+      setStatus("You are signed in. Opening your page…");
+      window.location.assign(returnTo);
     } catch (caught) {
       const authError = caught instanceof AuthClientError ? caught : undefined;
       setError(

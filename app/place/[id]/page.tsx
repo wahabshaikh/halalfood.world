@@ -126,6 +126,12 @@ export default async function PlacePage({
           <p className="eyebrow">HALAL · {city.toUpperCase()}</p>
           <h1>{place.name}</h1>
           <p className="lead">{placeDescription(place)}</p>
+          {place.source === "user-submitted" && place.halal_confirmed !== false && (
+            <p className="submission-note">
+              Community submission — a signed-in user confirmed this place is halal.
+              Please verify with the restaurant before visiting.
+            </p>
+          )}
 
           <div className="detail-actions">
             {hasCoords && (

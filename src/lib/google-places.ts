@@ -1,5 +1,7 @@
 const GOOGLE_PLACES_DETAILS_URL =
   "https://places.googleapis.com/v1/places";
+const GOOGLE_PLACES_TEXT_SEARCH_URL =
+  "https://places.googleapis.com/v1/places:searchText";
 
 /**
  * The default mask stays within the Place Details Essentials fields. The
@@ -29,6 +31,22 @@ export const GOOGLE_PLACES_USEFUL_FIELD_MASK = [
 
 export const GOOGLE_PLACES_COORDINATE_FIELD_MASK = "location";
 
+/** Minimal add mask: one name field plus the required address/coordinate data. */
+export const GOOGLE_PLACES_ADD_FIELD_MASK = [
+  "id",
+  "displayName",
+  "formattedAddress",
+  "location",
+].join(",");
+
+/** Text Search fields needed to render a short, selectable result list. */
+export const GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK = [
+  "places.id",
+  "places.displayName",
+  "places.formattedAddress",
+  "places.location",
+].join(",");
+
 export type GooglePlaceLocation = {
   latitude: number;
   longitude: number;
@@ -55,6 +73,7 @@ export type GooglePlaceDetails = {
 export type GooglePlacesErrorCode =
   | "NOT_CONFIGURED"
   | "INVALID_PLACE_ID"
+  | "INVALID_QUERY"
   | "NETWORK_ERROR"
   | "HTTP_ERROR"
   | "INVALID_RESPONSE";
@@ -72,6 +91,22 @@ export type GooglePlaceDetailsResult =
       status?: number;
     };
 
+export type GooglePlaceSearchSuggestion = {
+  id: string;
+  displayName: string;
+  formattedAddress: string;
+  location: GooglePlaceLocation | null;
+};
+
+export type GooglePlaceSearchResult =
+  | { ok: true; places: GooglePlaceSearchSuggestion[] }
+  | {
+      ok: false;
+      code: GooglePlacesErrorCode;
+      message: string;
+      status?: number;
+    };
+
 /** Prefer the Places-specific secret, with the legacy Maps name as fallback. */
 export function getGooglePlacesApiKey() {
   return (
@@ -81,8 +116,16 @@ export function getGooglePlacesApiKey() {
   );
 }
 
+export function googlePlacesTextSearchUrl() {
+  return GOOGLE_PLACES_TEXT_SEARCH_URL;
+}
+
 export function googlePlaceDetailsUrl(placeId: string) {
   return `${GOOGLE_PLACES_DETAILS_URL}/${encodeURIComponent(placeId.trim())}`;
+}
+
+export function googlePlaceMapsUrl(placeId: string) {
+  return `https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${encodeURIComponent(placeId.trim())}`;
 }
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -154,6 +197,22 @@ function parsePlace(value: unknown): GooglePlaceDetails | null {
       : {}),
     ...(openingHours ? { regularOpeningHours: openingHours } : {}),
     ...(photos?.length ? { photos } : {}),
+  };
+}
+
+function parseSearchSuggestion(
+  value: unknown,
+): GooglePlaceSearchSuggestion | null {
+  const place = parsePlace(value);
+  const id = place?.id?.trim();
+  const displayName = place?.displayName?.text?.trim();
+  const formattedAddress = place?.formattedAddress?.trim();
+  if (!id || !displayName || !formattedAddress) return null;
+  return {
+    id,
+    displayName,
+    formattedAddress,
+    location: place?.location ?? null,
   };
 }
 
@@ -250,6 +309,101 @@ export async function getGooglePlaceDetails(
     ? { lat: place.location.latitude, lng: place.location.longitude }
     : null;
   return { ok: true, place, coordinates };
+}
+
+/**
+ * Search Google Places (New) with only the fields needed to choose a result.
+ * Details are fetched again on submission so the browser cannot invent the
+ * canonical name, address, or coordinates.
+ */
+export async function searchGooglePlaces(
+  query: string,
+): Promise<GooglePlaceSearchResult> {
+  const normalizedQuery = query.trim();
+  if (normalizedQuery.length < 2 || normalizedQuery.length > 120) {
+    return {
+      ok: false,
+      code: "INVALID_QUERY",
+      message: "A 2–120 character search is required",
+    };
+  }
+
+  const apiKey = getGooglePlacesApiKey();
+  if (!apiKey) {
+    return {
+      ok: false,
+      code: "NOT_CONFIGURED",
+      message: "Google Places is not configured",
+    };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(GOOGLE_PLACES_TEXT_SEARCH_URL, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK,
+      },
+      body: JSON.stringify({ textQuery: normalizedQuery }),
+    });
+  } catch {
+    return {
+      ok: false,
+      code: "NETWORK_ERROR",
+      message: "Unable to reach Google Places",
+    };
+  }
+
+  let rawBody = "";
+  try {
+    rawBody = await response.text();
+  } catch {
+    return {
+      ok: false,
+      code: "HTTP_ERROR",
+      message: "Google Places returned an unreadable response",
+      status: response.status,
+    };
+  }
+  if (!response.ok) {
+    return {
+      ok: false,
+      code: "HTTP_ERROR",
+      message: "Google Places rejected the request",
+      status: response.status,
+    };
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    return {
+      ok: false,
+      code: "INVALID_RESPONSE",
+      message: "Google Places returned invalid JSON",
+      status: response.status,
+    };
+  }
+  const places = record(payload)?.places;
+  if (!Array.isArray(places)) {
+    return {
+      ok: false,
+      code: "INVALID_RESPONSE",
+      message: "Google Places returned an invalid search response",
+      status: response.status,
+    };
+  }
+  return {
+    ok: true,
+    places: places
+      .map(parseSearchSuggestion)
+      .filter((place): place is GooglePlaceSearchSuggestion => Boolean(place))
+      .slice(0, 5),
+  };
 }
 
 /** Get only coordinates for backfills or a page with missing DB coordinates. */
