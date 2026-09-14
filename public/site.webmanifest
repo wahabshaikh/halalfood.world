@@ -1,14 +1,14 @@
 {
-  "name": "Halalfood — find halal food anywhere in the world",
+  "name": "Halalfood — discover halal places worth sharing",
   "short_name": "Halalfood",
-  "description": "A world map of halal restaurants, searchable by city or name.",
+  "description": "A community map of halal restaurants, searchable by city or name.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#eceee9",
-  "theme_color": "#374b37",
+  "background_color": "#f6f5ef",
+  "theme_color": "#116a4a",
   "categories": ["food", "travel", "navigation"],
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
