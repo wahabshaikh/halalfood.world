@@ -84,6 +84,8 @@ Use the URL printed by the dev server. Development and production API requests r
 | `POST /api/places` | JSON | Authenticated halal place submission. |
 | `GET /api/places/saved` | JSON | Authenticated list of the current user's saved places. |
 | `POST/DELETE /api/places/[id]/saved` | JSON | Authenticated, rate-limited save or unsave mutation for one halal place. |
+| `GET /api/places/[id]/rating` | JSON | Aggregate halal reactions and the current user's reaction when signed in. |
+| `PUT/POST /api/places/[id]/rating` | JSON | Authenticated, rate-limited upsert of one halal reaction. |
 | `GET /api/places/google-search` | JSON | Authenticated, rate-limited Google Places (New) Text Search for the add form. |
 | `GET/POST /api/places/[id]/verifications` | JSON | Public approved evidence lookup; authenticated, rate-limited community halal verification submission. |
 | `POST/GET /api/uploads/r2` | Multipart/stream | Authenticated direct R2 upload and approved/own-pending evidence download. |
@@ -152,6 +154,12 @@ key namespace: one user may perform at most 120 save actions per hour with a
 250ms cooldown, and one IP may perform at most 300 per hour with a 100ms
 cooldown. Both the user and IP bucket must allow the mutation.
 
+Place rating mutations use a separate hashed key namespace and the same durable
+Neon limiter: one user may perform at most 120 rating actions per hour with a
+250ms cooldown, and one IP may perform at most 300 per hour with a 100ms
+cooldown. Both the user and IP bucket must allow the mutation. The accepted
+halal reaction values are `mashallah`, `alhamdulillah`, and `astaghfirullah`.
+
 Community halal verification submissions reuse the same durable Neon limiter
 with separate hashed key namespaces: one signed-in user may submit at most 5
 verifications per 24 hours with a 60-second cooldown, and one IP may submit at
@@ -177,6 +185,8 @@ Apply [`migrations/0003_saved_places.sql`](migrations/0003_saved_places.sql) aft
 
 Apply [`migrations/0004_place_halal_verifications.sql`](migrations/0004_place_halal_verifications.sql) after it. It creates the additive `place_halal_verifications` and `place_halal_verification_evidence` tables, links both records to the existing place/user rows, and constrains status/evidence shapes. New submissions are `pending` and the migration is safe to re-run.
 
+Apply [`migrations/0005_place_ratings.sql`](migrations/0005_place_ratings.sql) after it. It creates the additive `place_ratings` table with cascading place/user foreign keys, one `(user_id, place_id)` row per user and place, and a check constraint for the three halal reaction values. The migration is safe to re-run.
+
 With `DATABASE_URL` already present in the shell, use either the Neon SQL Editor or:
 
 ```sh
@@ -184,6 +194,7 @@ psql "$DATABASE_URL" -f migrations/0001_better_auth_email_otp.sql
 psql "$DATABASE_URL" -f migrations/0002_user_submitted_places.sql
 psql "$DATABASE_URL" -f migrations/0003_saved_places.sql
 psql "$DATABASE_URL" -f migrations/0004_place_halal_verifications.sql
+psql "$DATABASE_URL" -f migrations/0005_place_ratings.sql
 ```
 
 The Drizzle definitions in `src/db/schema.ts` must stay aligned with this SQL. If Better Auth is upgraded or plugins are added, regenerate/review the Drizzle schema with the Better Auth CLI and create a new migration rather than changing the existing table names silently.
@@ -245,6 +256,8 @@ node scripts/generate-assets.mjs
 - `GET /api/places/google-search?q=...`: requires a Better Auth session and uses server-only Google Places (New) Text Search when configured. It is rate-limited separately from submissions.
 - `GET /api/places/:id/verifications`: returns approved community evidence to everyone and the current contributor's own pending submission when signed in. Submitter ids are never exposed.
 - `POST /api/places/:id/verifications`: requires a Better Auth session and at least one HTTPS Zabihah, Instagram, TikTok, or YouTube link or validated R2 upload. New rows are `pending` and the user/IP Neon buckets are consumed before the write.
+- `GET /api/places/:id/rating`: returns `counts` for `mashallah`, `alhamdulillah`, and `astaghfirullah`, plus `rating` for the current signed-in user (or `null`).
+- `PUT/POST /api/places/:id/rating`: requires a Better Auth session and `{ "rating": "mashallah" | "alhamdulillah" | "astaghfirullah" }`; upserts that user's reaction and returns the refreshed aggregate counts. Invalid UUIDs or reactions are rejected, and both user/IP rating buckets must allow the write.
 - `POST /api/uploads/r2`: requires a Better Auth session and a configured `HALAL_EVIDENCE_R2` binding. It accepts only JPEG, PNG, WebP, and PDF files up to 8 MiB, checks the file signature, and returns an account-scoped R2 key for the verification submission. Missing R2 configuration fails closed with 503.
 - `GET /api/uploads/r2?key=...`: serves an uploaded document only when its verification is approved or it belongs to the current contributor's pending submission.
 - `GET /api/cities/:citySlug`: aggregate for one city, including the mean of its listed coordinates for map centring.
@@ -254,6 +267,11 @@ node scripts/generate-assets.mjs
 - Ops has populated all 11,957 coordinates with city centroids plus about 1–3 km of jitter. These are **approximate locations**, not verified restaurant coordinates. The UI asks visitors to confirm the address. There is no runtime centroid fallback or client-side jitter.
 - `src/data/city_coords.json` is retained as a reference only; it is not imported into runtime code.
 - SQL values are parameterized; search wildcard characters are escaped. API failures return generic errors without database details or credentials.
+
+Rating aggregates use query-time filtered `COUNT` values from `place_ratings`
+instead of denormalized counters. This keeps a changed reaction and its totals
+in one durable source of truth; the rating read and mutation responses both
+return the three counts and total.
 
 ## Cloudflare deployment
 
