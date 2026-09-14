@@ -1537,6 +1537,89 @@ a {
   color: var(--ink-soft);
   font-size: 15px;
 }
+.leaderboard-method {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.leaderboard-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 42px minmax(125px, 1fr) minmax(350px, 2fr) 82px;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.leaderboard-rank {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--leaf-wash);
+  color: var(--leaf);
+  font-weight: 700;
+}
+.leaderboard-contributor {
+  min-width: 0;
+}
+.leaderboard-contributor strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+.leaderboard-counts {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(52px, 1fr));
+  gap: 7px;
+  margin: 0;
+}
+.leaderboard-counts div {
+  min-width: 0;
+  padding: 8px 7px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfcfa;
+}
+.leaderboard-counts dt {
+  overflow-wrap: anywhere;
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1.25;
+}
+.leaderboard-counts dd {
+  margin: 4px 0 0;
+  color: var(--leaf);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+}
+.leaderboard-score {
+  text-align: right;
+}
+.leaderboard-score strong {
+  display: block;
+  color: var(--leaf);
+  font-size: 20px;
+  line-height: 1;
+}
+.leaderboard-score span {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1.2;
+}
 .saved-auth-card {
   margin-top: clamp(18px, 7vw, 70px);
 }
@@ -1959,6 +2042,18 @@ a {
   }
   .search-row .action {
     justify-content: center;
+  }
+  .leaderboard-row {
+    grid-template-columns: 38px minmax(0, 1fr) 76px;
+    gap: 11px;
+  }
+  .leaderboard-counts {
+    grid-column: 2 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .leaderboard-score {
+    grid-column: 3;
+    grid-row: 1;
   }
 }
 
