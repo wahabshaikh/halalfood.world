@@ -20,9 +20,13 @@ Create a **gitignored** `.dev.vars` in the repo root containing the local-only d
 DATABASE_URL=<your Neon connection string>
 RESEND_API_KEY=<your Resend API key>
 EMAIL_FROM=noreply@halalfood.world
+BETTER_AUTH_SECRET=<long random Better Auth secret>
+BETTER_AUTH_URL=http://localhost:3000
+TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
+TURNSTILE_SECRET_KEY=<Cloudflare Turnstile server secret>
 ```
 
-Email delivery uses the Workers-compatible Resend REST API. `noreply@halalfood.world` is the preferred sender after the domain is verified in Resend. Until then, set `EMAIL_FROM=onboarding@resend.dev` in the relevant environment. `RESEND_API_KEY` is required only when sending mail; the email helper has no bulk-send behavior and is intended for low-volume transactional messages. Future OTP mail must account for Resend/provider rate limits before it is added.
+Email delivery uses the Workers-compatible Resend REST API. `noreply@halalfood.world` is the preferred sender after the domain is verified in Resend. Until then, set `EMAIL_FROM=onboarding@resend.dev` in the relevant environment. `RESEND_API_KEY` is required only when sending mail; the email helper has no bulk-send behavior and is intended for low-volume transactional messages. OTP delivery is additionally guarded by the durable limits described below.
 
 ```sh
 npm run dev
@@ -36,7 +40,7 @@ npm run build
 npm start
 ```
 
-Use the URL printed by the dev server. Development and production API requests run against the existing Neon `neondb`; there are no migrations or write operations.
+Use the URL printed by the dev server. Development and production API requests run against the existing Neon `neondb`; the map/listing queries remain read-only, while Better Auth writes auth and rate-limit rows after the migration below is applied.
 
 ## Routes
 
@@ -46,10 +50,37 @@ Use the URL printed by the dev server. Development and production API requests r
 | `/cities` | SSR | Directory of every city, largest first. |
 | `/city/[citySlug]` | SSR | Listings for one city, 60 per page, with `ItemList` + `BreadcrumbList` JSON-LD. |
 | `/place/[id]` | SSR | One place, with `Restaurant` + `BreadcrumbList` JSON-LD. |
+| `/login` | Client form + SSR chrome | Email OTP sign-in protected by Cloudflare Turnstile. |
 | `/robots.txt`, `/sitemap.xml` | Metadata routes | See below. |
 | `/api/places`, `/api/places/search` | JSON | Viewport and search queries. |
 | `/api/places/[id]`, `/api/cities/[citySlug]` | JSON | Lookups behind the map deep links. |
+| `/api/auth/*` | Better Auth catch-all | Email OTP request, verification, session, and sign-out endpoints. |
 | `POST /api/admin/email/healthcheck` | JSON | Optional operator smoke check; disabled by default and bearer-token gated when enabled. |
+
+## Email OTP auth
+
+The `/login` page renders a Cloudflare Turnstile widget, then uses the Better Auth `emailOTP` plugin to request and verify a 6-digit sign-in code. The client uses `emailOTPClient`; successful verification creates a database-backed Better Auth session and secure, HTTP-only cookie. OTP mail is sent only through `src/lib/email.ts`, uses `EMAIL_FROM` when set, and includes both text and HTML bodies.
+
+Turnstile is fail closed: the request endpoint returns an error when either `TURNSTILE_SITE_KEY` or `TURNSTILE_SECRET_KEY` is missing, when no token is supplied, or when Cloudflare rejects the token. The site key is intentionally rendered to the browser and is not a secret. `TURNSTILE_SECRET_KEY`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, and `DATABASE_URL` must never be client-exposed or committed.
+
+Rate limits use Neon/Postgres, not KV (this Worker has no KV binding). Better Auth's database-backed IP/endpoint limiter uses the `rate_limit` table. The auth route also uses the `auth_otp_rate_limit` table with SHA-256 hashed email/IP keys and a Neon HTTP transaction with advisory locks:
+
+- OTP requests: one email can send at most 5 codes per 24 hours with a 60-second cooldown; one IP can send at most 30 per 24 hours with a 10-second cooldown.
+- OTP verification: at most 5 attempts per email and 20 per IP per 15 minutes. The budget is consumed before checking a submitted code, so concurrent guesses cannot bypass it. Better Auth also invalidates an OTP after 3 wrong attempts, and codes expire after 5 minutes.
+
+The limiter fails closed if Neon is unavailable, so a provider outage cannot turn the endpoint into an unrestricted Resend sender. Old limiter rows can be pruned by Ops after confirming the retention policy; they contain hashes rather than raw identifiers.
+
+### Auth schema migration
+
+Apply [`migrations/0001_better_auth_email_otp.sql`](migrations/0001_better_auth_email_otp.sql) to the existing Neon database before deploying the auth route. It creates Better Auth's `user`, `session`, `account`, `verification`, and `rate_limit` tables plus the application OTP limiter table; it does not create a second database or alter `places`.
+
+With `DATABASE_URL` already present in the shell, use either the Neon SQL Editor or:
+
+```sh
+psql "$DATABASE_URL" -f migrations/0001_better_auth_email_otp.sql
+```
+
+The Drizzle definitions in `src/db/schema.ts` must stay aligned with this SQL. If Better Auth is upgraded or plugins are added, regenerate/review the Drizzle schema with the Better Auth CLI and create a new migration rather than changing the existing table names silently.
 
 Dynamic segments are validated before they reach SQL: `citySlugParam` accepts only lowercase kebab-case, `placeIdParam` only UUIDs, and `pageParam` clamps the page index. An unparseable segment is a 404 and never costs a query.
 
@@ -111,10 +142,22 @@ Authenticate with `npx wrangler login`, or provide `CLOUDFLARE_API_TOKEN` and `C
 npm run build
 npx wrangler secret put DATABASE_URL
 npx wrangler secret put RESEND_API_KEY
+npx wrangler secret put BETTER_AUTH_SECRET
+npx wrangler secret put TURNSTILE_SECRET_KEY
 npm run deploy
 ```
 
-Enter the existing Neon connection string and Resend API key at their respective Wrangler secret prompts. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
+Set these Worker variables in the relevant environment before deploy:
+
+```dotenv
+BETTER_AUTH_URL=https://halalfood.world
+TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
+EMAIL_FROM=noreply@halalfood.world
+```
+
+`TURNSTILE_SITE_KEY` may be a normal public Worker variable (or a dashboard secret if preferred); only `TURNSTILE_SECRET_KEY` belongs in `wrangler secret put` and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `DATABASE_URL`, `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, and `TURNSTILE_SECRET_KEY` are secret names only here; enter their values at the Wrangler prompts.
+
+Enter the existing Neon connection string, Resend API key, Better Auth secret, and Turnstile server secret at their respective Wrangler prompts. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
 
 ```sh
 npx @vinext/cloudflare deploy --config dist/server/wrangler.json

@@ -30,6 +30,7 @@ export function SiteHeader({ backTo }: { backTo?: { href: string; label: string 
       <nav aria-label="Primary">
         <a href="/">Map</a>
         <a href="/cities">Cities</a>
+        <a href="/login">Sign in</a>
         {backTo && <a href={backTo.href}>{backTo.label}</a>}
       </nav>
     </header>
