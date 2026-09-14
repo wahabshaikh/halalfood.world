@@ -65,7 +65,7 @@ npm run build
 npm start
 ```
 
-Use the URL printed by the dev server. Development and production API requests run against the existing Neon `neondb`; the map/listing queries remain read-only, while Better Auth writes auth and rate-limit rows after the migration below is applied.
+Use the URL printed by the dev server. Development and production API requests run against the existing Neon `neondb`; map/listing reads remain bounded, while Better Auth, saved-place, and rate-limit writes use the migrations below.
 
 ## Routes
 
@@ -75,12 +75,15 @@ Use the URL printed by the dev server. Development and production API requests r
 | `/cities` | SSR | Directory of every city, largest first. |
 | `/city/[citySlug]` | SSR | Listings for one city, 60 per page, with `ItemList` + `BreadcrumbList` JSON-LD. |
 | `/place/[id]` | SSR | One place, with `Restaurant` + `BreadcrumbList` JSON-LD. |
+| `/saved` | Client list + SSR chrome | Authenticated user's saved halal places; unauthenticated visitors get a sign-in CTA. |
 | `/add` | Client form + SSR chrome | Authenticated users can submit a halal place using Google Places or manual entry. |
 | `/login` | Client form + SSR chrome | Email OTP sign-in protected by Cloudflare Turnstile. |
 | `/robots.txt`, `/sitemap.xml` | Metadata routes | See below. |
 | `/api/places`, `/api/places/search` | JSON | Viewport and search queries. |
 | `/api/places/[id]`, `/api/cities/[citySlug]` | JSON | Lookups behind the map deep links. |
 | `POST /api/places` | JSON | Authenticated halal place submission. |
+| `GET /api/places/saved` | JSON | Authenticated list of the current user's saved places. |
+| `POST/DELETE /api/places/[id]/saved` | JSON | Authenticated, rate-limited save or unsave mutation for one halal place. |
 | `GET /api/places/google-search` | JSON | Authenticated, rate-limited Google Places (New) Text Search for the add form. |
 | `/api/auth/*` | Better Auth catch-all | Email OTP request, verification, session, and sign-out endpoints. |
 | `POST /api/admin/email/healthcheck` | JSON | Optional operator smoke check; disabled by default and bearer-token gated when enabled. |
@@ -142,6 +145,11 @@ per 24 hours with a 10-second cooldown. Authenticated Google Text Search is
 also capped at 30 requests per user per hour (1-second cooldown) and 120 per IP
 per hour (250ms cooldown), keeping the optional paid lookup bounded.
 
+Save and unsave mutations reuse the same durable table with their own hashed
+key namespace: one user may perform at most 120 save actions per hour with a
+250ms cooldown, and one IP may perform at most 300 per hour with a 100ms
+cooldown. Both the user and IP bucket must allow the mutation.
+
 The limiter fails closed if Neon is unavailable, so a provider outage cannot turn the endpoint into an unrestricted Resend sender. Old limiter rows can be pruned by Ops after confirming the retention policy; they contain hashes rather than raw identifiers.
 
 ### Auth schema migration
@@ -150,11 +158,14 @@ Apply [`migrations/0001_better_auth_email_otp.sql`](migrations/0001_better_auth_
 
 Apply [`migrations/0002_user_submitted_places.sql`](migrations/0002_user_submitted_places.sql) after it. It adds `places.submitted_by_user_id` and `places.halal_confirmed`, plus durable uniqueness for `(city_slug, name, street_address)` and non-null `google_place_id` values. The migration is additive and safe to re-run. New rows use `source = user-submitted`, `serves_cuisine = {Halal}`, the authenticated user id, and the submission time for both `created_at` and `scraped_at`.
 
+Apply [`migrations/0003_saved_places.sql`](migrations/0003_saved_places.sql) after it. It creates the additive `saved_places` table with a cascading foreign key to Better Auth's `user`, a cascading foreign key to `places`, and a unique `(user_id, place_id)` pair. It is safe to re-run.
+
 With `DATABASE_URL` already present in the shell, use either the Neon SQL Editor or:
 
 ```sh
 psql "$DATABASE_URL" -f migrations/0001_better_auth_email_otp.sql
 psql "$DATABASE_URL" -f migrations/0002_user_submitted_places.sql
+psql "$DATABASE_URL" -f migrations/0003_saved_places.sql
 ```
 
 The Drizzle definitions in `src/db/schema.ts` must stay aligned with this SQL. If Better Auth is upgraded or plugins are added, regenerate/review the Drizzle schema with the Better Auth CLI and create a new migration rather than changing the existing table names silently.
@@ -211,6 +222,8 @@ node scripts/generate-assets.mjs
 - `GET /api/places/search?q=mumbai&limit=12`: searches name, city and address; requires 2–120 characters and caps at 40.
 - `GET /api/places/:id`: one place by UUID. 400 on a malformed id, 404 when absent.
 - `POST /api/places`: requires a Better Auth session and `halalConfirmed: true`; accepts `mode: google` with a selected `googlePlaceId`, or `mode: manual` with name, address and city. Returns 201 with the new place id, 401 for sign-in, 409 for a duplicate, and 429 when the durable submission budget is exhausted.
+- `GET /api/places/saved`: requires a Better Auth session and returns up to 200 saved halal places, newest first. Unauthenticated requests return 401 with a `/login?returnTo=%2Fsaved` hint.
+- `POST/DELETE /api/places/:id/saved`: requires a Better Auth session, validates the UUID and confirms the target is an existing halal listing. Both methods return the resulting `saved` state and 429 when either save-action bucket is exhausted.
 - `GET /api/places/google-search?q=...`: requires a Better Auth session and uses server-only Google Places (New) Text Search when configured. It is rate-limited separately from submissions.
 - `GET /api/cities/:citySlug`: aggregate for one city, including the mean of its listed coordinates for map centring.
 - `src/lib/places.ts` also exposes `getPlaceById`, `listCities`, `countCities`, `getCity`, `findPlacesByCity`, `countPlaces` and `listPlaceRefs` for the server-rendered routes. Every one is parameterized and limit-clamped; none writes.

@@ -9,6 +9,7 @@ import {
   timestamp,
   doublePrecision,
   index,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 
 /** Better Auth's core PostgreSQL tables. Keep these names aligned with auth.ts. */
@@ -136,3 +137,29 @@ export const places = pgTable("places", {
   submittedByUserId: text("submitted_by_user_id"),
   halalConfirmed: boolean("halal_confirmed").notNull().default(true),
 });
+
+export const savedPlaces = pgTable(
+  "saved_places",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    placeId: uuid("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: "saved_places_pkey",
+      columns: [table.userId, table.placeId],
+    }),
+    index("saved_places_user_id_created_at_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+    index("saved_places_place_id_idx").on(table.placeId),
+  ],
+);

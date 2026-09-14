@@ -26,6 +26,7 @@ import {
 } from "../../../src/components/site-chrome";
 import { loadOrDegrade } from "../../../src/lib/load";
 import ShareButton from "../../../src/components/share-button";
+import SavePlaceButton from "../../../src/components/save-place-button";
 
 /** `generateMetadata` and the page body share one round trip. */
 const loadPlace = cache(async (raw: string) => {
@@ -176,6 +177,7 @@ export default async function PlacePage({
               text={`${place.name} — halal food in ${city}`}
               className="action share-button"
             />
+            <SavePlaceButton placeId={place.id} />
           </div>
 
           <h2>Details</h2>

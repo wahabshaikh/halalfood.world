@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import {
   LocateFixed,
   Maximize,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import type { Map as MapInstance, Marker, Popup } from "maplibre-gl";
 import type { Place } from "../src/lib/places";
+import SavePlaceButton from "../src/components/save-place-button";
 import "maplibre-gl/dist/maplibre-gl.css";
 // Bundle the worker explicitly so its URL exists in Cloudflare static assets.
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
@@ -66,6 +68,7 @@ export default function FoodMap() {
   const library = useRef<typeof import("maplibre-gl") | null>(null);
   const markers = useRef<Marker[]>([]);
   const popup = useRef<Popup | null>(null);
+  const popupSaveRoot = useRef<Root | null>(null);
   const styleReady = useRef(false);
   const [ready, setReady] = useState(false);
   const [results, setResults] = useState<Results>({
@@ -111,6 +114,8 @@ export default function FoodMap() {
           center: [place.lng, place.lat],
           zoom: Math.max(m.getZoom(), 13),
         });
+      popupSaveRoot.current?.unmount();
+      popupSaveRoot.current = null;
       popup.current?.remove();
       syncUrl(place.id);
 
@@ -188,13 +193,25 @@ export default function FoodMap() {
         }
       });
       links.append(share);
+      const saveMount = document.createElement("span");
+      saveMount.className = "popup-save-mount";
+      links.append(saveMount);
       content.append(links);
+
+      popupSaveRoot.current = createRoot(saveMount);
+      popupSaveRoot.current.render(
+        <SavePlaceButton placeId={place.id} compact />,
+      );
 
       popup.current = new lib.Popup({ offset: 26, maxWidth: "320px" })
         .setLngLat([place.lng, place.lat])
         .setDOMContent(content)
         .addTo(m);
       popup.current.once("close", () => syncUrl(null));
+      popup.current.once("close", () => {
+        popupSaveRoot.current?.unmount();
+        popupSaveRoot.current = null;
+      });
     },
     [syncUrl],
   );
@@ -236,6 +253,8 @@ export default function FoodMap() {
       cancelled = true;
       map.current?.remove();
       map.current = null;
+      popupSaveRoot.current?.unmount();
+      popupSaveRoot.current = null;
       styleReady.current = false;
     };
   }, []);
@@ -454,6 +473,9 @@ export default function FoodMap() {
           </a>
           <a className="pill chrome-link" href="/add">
             Add a place
+          </a>
+          <a className="pill chrome-link" href="/saved">
+            Saved
           </a>
           <a className="pill chrome-link" href="/login">
             Sign in
@@ -680,6 +702,7 @@ export default function FoodMap() {
                 >
                   <ArrowUpRight size={19} />
                 </a>
+                <SavePlaceButton placeId={place.id} compact />
               </li>
             ))}
           </ul>

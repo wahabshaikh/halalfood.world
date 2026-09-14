@@ -23,7 +23,7 @@ export const OTP_RATE_LIMITS = {
   },
 } as const;
 
-/** Durable budgets for user-submitted places and paid Google searches. */
+/** Durable budgets for user-submitted places, saves, and paid Google searches. */
 export const PLACE_RATE_LIMITS = {
   submissionUser: {
     windowMs: 24 * 60 * 60 * 1000,
@@ -44,6 +44,20 @@ export const PLACE_RATE_LIMITS = {
     windowMs: 60 * 60 * 1000,
     maxCount: 120,
     cooldownMs: 250,
+  },
+} as const;
+
+/** Durable budgets for save/unsave mutations. */
+export const SAVE_RATE_LIMITS = {
+  mutationUser: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 120,
+    cooldownMs: 250,
+  },
+  mutationIp: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 300,
+    cooldownMs: 100,
   },
 } as const;
 
@@ -362,6 +376,26 @@ export async function consumeGooglePlaceSearchLimits(
     [
       { key: userKey, rule: PLACE_RATE_LIMITS.googleSearchUser },
       { key: ipKey, rule: PLACE_RATE_LIMITS.googleSearchIp },
+    ],
+    store,
+    now,
+  );
+}
+
+export async function consumeSavePlaceLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("saved-place:mutate:user", userId),
+    identifierKey("saved-place:mutate:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: SAVE_RATE_LIMITS.mutationUser },
+      { key: ipKey, rule: SAVE_RATE_LIMITS.mutationIp },
     ],
     store,
     now,
