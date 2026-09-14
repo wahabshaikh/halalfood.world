@@ -39,6 +39,7 @@
     "deploy": "vinext-cloudflare deploy --config dist/server/wrangler.json",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "backfill:places": "tsx scripts/backfill-place-coordinates.ts",
     "test:api": "node tests/api-smoke.mjs",
     "test:browser": "node tests/browser-smoke.mjs"
   },

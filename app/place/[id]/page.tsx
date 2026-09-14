@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { getPlaceById } from "../../../src/lib/places";
+import { enrichPlaceCoordinates } from "../../../src/lib/google-places";
 import { placeIdParam } from "../../../src/lib/params";
 import {
   breadcrumbJsonLd,
@@ -31,7 +32,10 @@ const loadPlace = cache(async (raw: string) => {
   const id = placeIdParam(raw);
   // A malformed id is a 404, not an outage — skip the query entirely.
   if (!id) return { status: "missing" as const };
-  return await loadOrDegrade(() => getPlaceById(id));
+  return await loadOrDegrade(async () => {
+    const place = await getPlaceById(id);
+    return place ? enrichPlaceCoordinates(place) : null;
+  });
 });
 
 function safeWebsite(value: string | null) {

@@ -1,7 +1,10 @@
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  GOOGLE_PLACES_COORDINATE_FIELD_MASK,
   GOOGLE_PLACES_FIELD_MASK,
+  GOOGLE_PLACES_USEFUL_FIELD_MASK,
+  enrichPlaceCoordinates,
   getGooglePlaceDetails,
   getGooglePlacesApiKey,
   googlePlaceDetailsUrl,
@@ -93,6 +96,9 @@ test("details request uses encoded place id, API key header, and explicit field 
   assert.equal(requestedHeaders?.get("x-goog-api-key"), "maps-fallback-key");
   assert.equal(requestedHeaders?.get("x-goog-fieldmask"), GOOGLE_PLACES_FIELD_MASK);
   assert.equal(googlePlaceDetailsUrl("ChIJ/encoded id"), requestedUrl);
+  assert.ok(GOOGLE_PLACES_FIELD_MASK.includes("location"));
+  assert.ok(GOOGLE_PLACES_FIELD_MASK.includes("formattedAddress"));
+  assert.ok(GOOGLE_PLACES_USEFUL_FIELD_MASK.includes("regularOpeningHours"));
 });
 
 test("provider and malformed responses become safe structured errors", async () => {
@@ -120,4 +126,38 @@ test("Places key takes precedence over the Maps fallback", () => {
     GOOGLE_MAPS_API_KEY: "maps-key",
   });
   assert.equal(getGooglePlacesApiKey(), "places-key");
+});
+
+test("coordinate enrichment prefers persisted values and uses the small mask only when needed", async () => {
+  setEnvironment({ GOOGLE_PLACES_API_KEY: "places-test-key", GOOGLE_MAPS_API_KEY: undefined });
+  let called = false;
+  let fieldMask = "";
+  globalThis.fetch = async (_input, init) => {
+    called = true;
+    fieldMask = new Headers(init?.headers).get("x-goog-fieldmask") ?? "";
+    return new Response(JSON.stringify({ location: { latitude: 40.7, longitude: -74 } }));
+  };
+
+  const persisted = {
+    google_place_id: "ChIJpersisted",
+    lat: 10,
+    lng: 20,
+    name: "Persisted place",
+  };
+  assert.deepEqual(await enrichPlaceCoordinates(persisted), persisted);
+  assert.equal(called, false);
+
+  const enriched = await enrichPlaceCoordinates({
+    google_place_id: "ChIJmissing",
+    lat: null,
+    lng: null,
+    name: "Missing place",
+  });
+  assert.deepEqual(enriched, {
+    google_place_id: "ChIJmissing",
+    lat: 40.7,
+    lng: -74,
+    name: "Missing place",
+  });
+  assert.equal(fieldMask, GOOGLE_PLACES_COORDINATE_FIELD_MASK);
 });

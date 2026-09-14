@@ -2,11 +2,21 @@ const GOOGLE_PLACES_DETAILS_URL =
   "https://places.googleapis.com/v1/places";
 
 /**
- * The default mask is intentionally explicit. Coordinate backfills use the
- * smaller location-only mask below so routine operational work stays
- * cost-conscious and does not request every Place field.
+ * The default mask stays within the Place Details Essentials fields. The
+ * broader mask is opt-in for callers that explicitly need contact/hours data,
+ * some of which Google classifies as Pro or Enterprise.
  */
 export const GOOGLE_PLACES_FIELD_MASK = [
+  "id",
+  "name",
+  "formattedAddress",
+  "location",
+  "photos",
+].join(",");
+
+/** Useful later, but not used by page rendering or coordinate backfills. */
+export const GOOGLE_PLACES_USEFUL_FIELD_MASK = [
+  "id",
   "name",
   "displayName",
   "formattedAddress",

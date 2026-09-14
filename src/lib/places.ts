@@ -23,6 +23,7 @@ export type PlaceDetail = Omit<Place, "lat" | "lng"> & {
   address_region: string | null;
   postal_code: string | null;
   maps_url: string | null;
+  google_place_id: string | null;
   serves_cuisine: string[] | null;
   source: string | null;
   source_url: string | null;
@@ -86,11 +87,69 @@ export async function findPlaces(options: {
 export async function getPlaceById(id: string): Promise<PlaceDetail | null> {
   const result = await database().execute(sql`
     SELECT id, name, city_slug, street_address, address_locality, address_region,
-      postal_code, address_country, telephone, website, maps_url, serves_cuisine,
+      postal_code, address_country, telephone, website, maps_url, google_place_id,
+      serves_cuisine,
       rating_value, review_count, source, source_url, scraped_at, lat, lng
     FROM places WHERE id = ${id}::uuid LIMIT 1
   `);
   return (result.rows[0] as unknown as PlaceDetail) ?? null;
+}
+
+export type PlaceCoordinateCandidate = {
+  id: string;
+  google_place_id: string;
+  lat: number | null;
+  lng: number | null;
+};
+
+/**
+ * Candidates deliberately mean missing either coordinate. Existing non-null
+ * values may be approximate, but without provenance this safe first pass does
+ * not overwrite them. See the operational backfill notes in README.md.
+ */
+export async function listPlacesNeedingCoordinateBackfill(options: {
+  limit?: number;
+} = {}): Promise<PlaceCoordinateCandidate[]> {
+  const limit = clamp(options.limit ?? 100, 1, 10000);
+  const result = await database().execute(sql`
+    SELECT id, google_place_id, lat, lng
+    FROM places
+    WHERE google_place_id IS NOT NULL AND (lat IS NULL OR lng IS NULL)
+    ORDER BY id
+    LIMIT ${limit}
+  `);
+  return result.rows as unknown as PlaceCoordinateCandidate[];
+}
+
+/**
+ * Update only a still-missing candidate. Rechecking the predicate makes a
+ * repeated or concurrent backfill safe and avoids overwriting existing pins.
+ */
+export async function updatePlaceCoordinatesIfMissing(
+  id: string,
+  googlePlaceId: string,
+  coordinates: { lat: number; lng: number },
+) {
+  if (
+    !Number.isFinite(coordinates.lat) ||
+    !Number.isFinite(coordinates.lng) ||
+    coordinates.lat < -90 ||
+    coordinates.lat > 90 ||
+    coordinates.lng < -180 ||
+    coordinates.lng > 180
+  ) {
+    return false;
+  }
+
+  const result = await database().execute(sql`
+    UPDATE places
+    SET lat = ${coordinates.lat}, lng = ${coordinates.lng}
+    WHERE id = ${id}::uuid
+      AND google_place_id = ${googlePlaceId}
+      AND (lat IS NULL OR lng IS NULL)
+    RETURNING id
+  `);
+  return result.rows.length > 0;
 }
 
 /** Distinct cities, largest first, for the city index and city sitemap. */
