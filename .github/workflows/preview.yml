@@ -1,0 +1,283 @@
+name: Pull request preview
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: halalfood-world-preview-\${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: >
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@v6
+        with:
+          ref: \${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check and build application
+        run: |
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Pack Cloudflare build
+        run: tar -czf preview-build.tgz dist
+
+      - name: Upload Cloudflare build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: halalfood-world-preview-\${{ github.event.pull_request.number }}-\${{ github.event.pull_request.head.sha }}
+          path: preview-build.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    needs: build
+    if: >
+      needs.build.result == 'success' &&
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Check out trusted deployment tooling
+        uses: actions/checkout@v6
+        with:
+          ref: \${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install trusted deployment tooling
+        run: npm ci
+
+      - name: Download Cloudflare build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: halalfood-world-preview-\${{ github.event.pull_request.number }}-\${{ github.event.pull_request.head.sha }}
+          path: .
+
+      - name: Restore Cloudflare build
+        run: |
+          test -f preview-build.tgz || { echo "::error::Missing preview build artifact"; exit 1; }
+          tar -xzf preview-build.tgz
+          test -f dist/server/wrangler.json || { echo "::error::Generated Wrangler config is missing"; exit 1; }
+
+      - name: Validate deployment settings
+        env:
+          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NEON_API_KEY: \${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: \${{ vars.NEON_PROJECT_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CLOUDFLARE_API_TOKEN repository secret"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CLOUDFLARE_ACCOUNT_ID repository secret"; exit 1; }
+          test -n "$NEON_API_KEY" || { echo "::error::Missing NEON_API_KEY repository secret"; exit 1; }
+          test -n "$NEON_PROJECT_ID" || { echo "::error::Missing NEON_PROJECT_ID repository variable"; exit 1; }
+
+      - name: Calculate Neon branch expiration
+        id: branch-expiry
+        run: |
+          echo "expires_at=$(date -u --date '+14 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Create or reuse Neon branch
+        id: neon
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: \${{ vars.NEON_PROJECT_ID }}
+          branch_name: pr-\${{ github.event.pull_request.number }}
+          api_key: \${{ secrets.NEON_API_KEY }}
+          expires_at: \${{ steps.branch-expiry.outputs.expires_at }}
+
+      - name: Write preview database secret
+        env:
+          PREVIEW_DATABASE_URL: \${{ steps.neon.outputs.db_url_pooled }}
+        run: |
+          test -n "$PREVIEW_DATABASE_URL" || { echo "::error::Neon did not return a pooled connection string"; exit 1; }
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
+
+          const url = process.env.PREVIEW_DATABASE_URL;
+          if (!url) {
+            throw new Error("Missing preview database URL");
+          }
+
+          writeFileSync(
+            "preview-secrets.json",
+            JSON.stringify({ DATABASE_URL: url }),
+            { mode: 0o600 },
+          );
+          NODE
+
+      - name: Upload Cloudflare preview
+        id: upload
+        env:
+          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIEW_ALIAS: pr-\${{ github.event.pull_request.number }}
+        run: |
+          set -o pipefail
+          npx wrangler versions upload \
+            --config dist/server/wrangler.json \
+            --preview-alias "$PREVIEW_ALIAS" \
+            --keep-vars \
+            --secrets-file preview-secrets.json \
+            --message "PR #\${{ github.event.pull_request.number }}" \
+            2>&1 | tee wrangler-upload.log
+
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from "node:fs";
+
+          const output = readFileSync("wrangler-upload.log", "utf8");
+          const candidates = [...output.matchAll(
+            /https:\/\/[a-z0-9.-]+\.workers\.dev(?:\/[^\s]*)?/gi,
+          )].map((match) => match[0].replace(/[),.]+$/, ""));
+          const aliasPrefix = process.env.PREVIEW_ALIAS + "-halalfood-world";
+          const previewUrl =
+            candidates.find((url) => url.includes(aliasPrefix)) ?? candidates.at(-1);
+
+          if (!previewUrl) {
+            throw new Error("Wrangler did not print a preview URL");
+          }
+
+          appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            "preview_url=" + previewUrl + "\n",
+          );
+          NODE
+
+      - name: Set preview auth origin
+        env:
+          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIEW_ALIAS: pr-\${{ github.event.pull_request.number }}
+          PREVIEW_URL: \${{ steps.upload.outputs.preview_url }}
+        run: |
+          test -n "$PREVIEW_URL" || { echo "::error::Missing preview URL"; exit 1; }
+          npx wrangler versions upload \
+            --config dist/server/wrangler.json \
+            --preview-alias "$PREVIEW_ALIAS" \
+            --keep-vars \
+            --var "BETTER_AUTH_URL:$PREVIEW_URL" \
+            --secrets-file preview-secrets.json \
+            --message "PR #\${{ github.event.pull_request.number }}"
+
+      - name: Add preview URL to job summary
+        env:
+          PREVIEW_URL: \${{ steps.upload.outputs.preview_url }}
+        run: |
+          {
+            echo "## halalfood.world preview"
+            echo
+            echo "[Open the preview]($PREVIEW_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment preview URL on pull request
+        uses: actions/github-script@v8
+        env:
+          PREVIEW_URL: \${{ steps.upload.outputs.preview_url }}
+          NEON_BRANCH_NAME: pr-\${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const marker = "<!-- halalfood-world-preview -->";
+            const previewUrl = process.env.PREVIEW_URL;
+            if (!previewUrl) {
+              throw new Error("Missing preview URL");
+            }
+
+            const body = [
+              marker,
+              "## halalfood.world preview",
+              "",
+              "[Open the preview](" + previewUrl + ")",
+              "",
+              "Neon branch: " + process.env.NEON_BRANCH_NAME,
+              "",
+              "_This preview is refreshed on every push to the PR._",
+            ].join("\n");
+
+            const { owner, repo } = context.repo;
+            const issueNumber = context.issue.number;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) =>
+              comment.body?.includes(marker),
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body,
+              });
+            }
+
+      - name: Remove temporary deployment files
+        if: always()
+        run: rm -f preview-secrets.json preview-build.tgz wrangler-upload.log
+
+  cleanup:
+    if: >
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Delete Neon branch
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: \${{ vars.NEON_PROJECT_ID }}
+          branch: pr-\${{ github.event.pull_request.number }}
+          api_key: \${{ secrets.NEON_API_KEY }}
