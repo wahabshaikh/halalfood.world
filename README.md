@@ -24,7 +24,17 @@ BETTER_AUTH_SECRET=<long random Better Auth secret>
 BETTER_AUTH_URL=http://localhost:3000
 TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
 TURNSTILE_SECRET_KEY=<Cloudflare Turnstile server secret>
+GOOGLE_PLACES_API_KEY=<your Google Places API key>
+# GOOGLE_MAPS_API_KEY=<fallback Google Maps API key>
 ```
+
+`GOOGLE_PLACES_API_KEY` is preferred; `GOOGLE_MAPS_API_KEY` is accepted as a
+fallback for existing deployments. Both are server-only secrets: never prefix
+them with `NEXT_PUBLIC_`, expose them to the browser, or commit their values.
+The Places client uses the Places API (New) Place Details endpoint and explicit
+field masks. Requests that only need coordinates use `location` alone; the
+full details helper also supports the restaurant name, address, phone, regular
+hours and photo fields.
 
 Email delivery uses the Workers-compatible Resend REST API. `noreply@halalfood.world` is the preferred sender after the domain is verified in Resend. Until then, set `EMAIL_FROM=onboarding@resend.dev` in the relevant environment. `RESEND_API_KEY` is required only when sending mail; the email helper has no bulk-send behavior and is intended for low-volume transactional messages. OTP delivery is additionally guarded by the durable limits described below.
 
