@@ -97,6 +97,7 @@ jobs:
       - name: Restore Cloudflare build
         run: |
           test -f preview-build.tgz || { echo "::error::Missing preview build artifact"; exit 1; }
+          rm -rf dist migrations
           tar -xzf preview-build.tgz
           test -f dist/server/wrangler.json || { echo "::error::Generated Wrangler config is missing"; exit 1; }
           test -d migrations || { echo "::error::Migrations directory is missing"; exit 1; }
@@ -144,7 +145,7 @@ jobs:
             migration_count=$((migration_count + 1))
             echo "Applying $migration"
             psql "$PREVIEW_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
-          done < <(find migrations -maxdepth 1 -type f -name '*.sql' -print0 | LC_ALL=C sort -z)
+          done < <(find migrations -type f -name '*.sql' -print0 | LC_ALL=C sort -z)
           echo "Applied $migration_count migration(s)"
 
       - name: Predict Cloudflare preview URL
