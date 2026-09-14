@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cache } from "react";
+import { ArrowUpRight, MapPinned } from "lucide-react";
 import { countCities, listCities } from "../../src/lib/places";
 import {
   breadcrumbJsonLd,
@@ -19,9 +20,9 @@ import {
 } from "../../src/components/site-chrome";
 import { loadOrDegrade } from "../../src/lib/load";
 
-const TITLE = "Halal food by city";
+const TITLE = "Explore halal food by city";
 const DESCRIPTION =
-  "Every city on the Halalfood map, ordered by how many halal restaurants we list. Pick a city to see addresses, ratings and phone numbers.";
+  "Browse every city on the Halalfood map, then open a city to see its halal restaurants, addresses, ratings and contact details.";
 
 const loadDirectory = cache(() =>
   loadOrDegrade(async () => {
@@ -39,7 +40,6 @@ export async function generateMetadata(): Promise<Metadata> {
     title: TITLE,
     description: DESCRIPTION,
     alternates: { canonical: "/cities" },
-    // Never let an outage page collect indexing signals.
     robots: loaded.status === "ok" ? undefined : { index: false, follow: true },
     openGraph: {
       type: "website",
@@ -48,11 +48,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description: DESCRIPTION,
       images: [{ url: OG_IMAGE, width: 1200, height: 630 }],
     },
-    twitter: {
-      card: "summary_large_image",
-      title: TITLE,
-      description: DESCRIPTION,
-    },
+    twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
   };
 }
 
@@ -68,6 +64,7 @@ export default async function CitiesPage() {
         <SiteFooter />
       </div>
     );
+
   const { cities, total } = loaded.data;
   const trail = [
     { name: "Halalfood", path: "/" },
@@ -85,32 +82,52 @@ export default async function CitiesPage() {
           }}
         />
         <Breadcrumbs trail={trail} />
-        <header className="page-intro">
-          <p className="eyebrow">DIRECTORY</p>
+        <header className="page-intro directory-intro">
+          <div className="directory-kicker">
+            <span className="ui-badge ui-badge-default">
+              <MapPinned size={12} aria-hidden="true" />
+              Global directory
+            </span>
+            <span>{formatCount(total)} cities mapped</span>
+          </div>
+          <p className="eyebrow">EXPLORE BY CITY</p>
           <h1>{TITLE}</h1>
           <p className="lead">
-            {total > 0
-              ? `${formatCount(total)} ${plural(total, "city", "cities")} with halal listings, biggest first.`
-              : DESCRIPTION}
+            Start with a city, find a table, then help the next person make a more
+            confident choice.
           </p>
+          <div className="detail-actions">
+            <a className="action primary" href="/">
+              Open the world map <ArrowUpRight size={14} aria-hidden="true" />
+            </a>
+          </div>
           <ApproximateNote compact />
         </header>
 
         {cities.length ? (
-          <ul className="city-grid">
-            {cities.map((city) => (
-              <li key={city.city_slug}>
-                <a href={`/city/${city.city_slug}`}>
-                  <strong>{cityName(city.city_slug)}</strong>
-                  <small>
-                    {formatCount(city.place_count)}{" "}
-                    {plural(city.place_count, "place")}
-                    {city.address_country ? ` · ${city.address_country}` : ""}
-                  </small>
-                </a>
-              </li>
-            ))}
-          </ul>
+          <section aria-labelledby="city-list-title">
+            <div className="section-bar">
+              <div>
+                <p className="eyebrow">PLACES TO START</p>
+                <h2 id="city-list-title">Cities with the most listings</h2>
+              </div>
+              <span className="section-bar-note">Sorted by places listed</span>
+            </div>
+            <ul className="city-grid">
+              {cities.map((city) => (
+                <li key={city.city_slug}>
+                  <a href={"/city/" + city.city_slug}>
+                    <strong>{cityName(city.city_slug)}</strong>
+                    <small>
+                      {formatCount(city.place_count)} {plural(city.place_count, "place")}
+                      {city.address_country ? " · " + city.address_country : ""}
+                    </small>
+                    <ArrowUpRight size={15} aria-hidden="true" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
         ) : (
           <p className="empty-state">
             The city directory is empty right now. <a href="/">Try the map</a>.
