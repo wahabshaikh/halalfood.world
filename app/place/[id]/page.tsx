@@ -120,7 +120,7 @@ export default async function PlacePage({
   const hasCoords = place.lat !== null && place.lng !== null;
   const cuisine = place.serves_cuisine?.filter(Boolean).slice(0, 3).join(" · ");
   const trail = [
-    { name: "Halalfood", path: "/" },
+    { name: "halalfood.world", path: "/" },
     { name: city, path: "/city/" + place.city_slug },
     { name: place.name, path: "/place/" + place.id },
   ];
@@ -143,7 +143,7 @@ export default async function PlacePage({
           <div className="place-hero">
             <div className="place-hero-visual" aria-hidden="true">
               <Utensils size={60} strokeWidth={1.1} />
-              <span className="place-hero-visual-label">HALALFOOD GUIDE</span>
+              <span className="place-hero-visual-label">halalfood.world GUIDE</span>
             </div>
             <div className="place-hero-copy">
               <div className="place-status-row">

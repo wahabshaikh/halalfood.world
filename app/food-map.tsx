@@ -35,23 +35,15 @@ const foodIcon =
   '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v5a3 3 0 0 0 6 0V3M7 3v18M18 3c-3 3-3 8 0 8h2M20 3v18"/></svg>';
 
 const filters: Array<{ key: FilterKey; label: string }> = [
-  { key: "all", label: "All places" },
+  { key: "all", label: "All" },
   { key: "rated", label: "Top rated" },
-  { key: "contact", label: "With contact" },
+  { key: "contact", label: "Contact" },
 ];
 
 function BrandGlyph() {
   return (
     <span className="brand-mark" aria-hidden="true">
-      <svg width="23" height="23" viewBox="0 0 28 28" fill="none">
-        <path
-          d="M14 25.2s7.6-7.2 7.6-13.1A7.6 7.6 0 1 0 6.4 12.1C6.4 18 14 25.2 14 25.2Z"
-          stroke="currentColor"
-          strokeWidth="1.7"
-        />
-        <circle cx="14" cy="11.8" r="3.1" stroke="currentColor" strokeWidth="1.7" />
-        <path d="M10.3 11.8h7.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      </svg>
+      <img className="brand-logo-image" src="/halalfood-world-logo.png" alt="" />
     </span>
   );
 }
@@ -224,7 +216,7 @@ function SearchBox({
         <Search size={18} aria-hidden="true" />
         <input
           aria-label="Search for halal food"
-          placeholder="Search a place or city"
+          placeholder="Search places, cities, or cuisines"
           value={query}
           maxLength={120}
           onFocus={() => setOpen(true)}
@@ -595,21 +587,27 @@ export default function FoodMap() {
     <main className="map-app">
       <div ref={container} className="map-canvas" aria-label="Map of halal food places" />
 
-      <aside className="explore-rail" aria-label="Halalfood exploration panel">
+      <aside className="explore-rail" aria-label="halalfood.world exploration panel">
         <div className="rail-header">
-          <a className="map-brand" href="/" aria-label="Halalfood home">
+          <a className="map-brand" href="/" aria-label="halalfood.world home">
             <BrandGlyph />
-            <span>Halalfood</span>
+            <span>halalfood.world</span>
           </a>
           <div className="rail-header-actions">
-            <a className="header-contribute" href="/add">Contribute</a>
+            <a className="header-contribute" href="/add">Spot a place</a>
           </div>
         </div>
+        <nav className="map-site-nav" aria-label="halalfood.world navigation">
+          <a className="is-active" href="/">Map</a>
+          <a href="/cities">Cities</a>
+          <a href="/add">Spot</a>
+          <a href="/leaderboard">Community</a>
+        </nav>
         <div className="rail-scroll">
           <div className="rail-intro">
-            <p className="eyebrow">THE COMMUNITY FOOD MAP</p>
-            <h1>Find a table worth sharing.</h1>
-            <p>Explore halal places, then leave the next useful detail for someone else.</p>
+            <p className="eyebrow">A LIVING MAP OF HALAL PLACES</p>
+            <h1>Find somewhere worth sharing.</h1>
+            <p>Find a place, leave a useful signal, and make the next visit easier.</p>
           </div>
           <SearchBox
             query={query}
@@ -656,12 +654,12 @@ export default function FoodMap() {
       </aside>
 
       <div className="mobile-map-chrome">
-        <a className="mobile-brand" href="/" aria-label="Halalfood home">
+        <a className="mobile-brand" href="/" aria-label="halalfood.world home">
           <BrandGlyph />
-          <span>Halalfood</span>
+          <span>halalfood.world</span>
         </a>
         <div className="mobile-map-actions">
-          <a className="mobile-icon-button" href="/add" aria-label="Contribute">
+          <a className="mobile-icon-button" href="/add" aria-label="Spot a place">
             <Plus size={18} aria-hidden="true" />
           </a>
           <a className="mobile-icon-button" href="/saved" aria-label="Saved places">
@@ -721,7 +719,7 @@ export default function FoodMap() {
         </button>
       </div>
 
-      <span className="map-bottom-note">Halal listings · Community maintained</span>
+      <span className="map-bottom-note">Directory · Community maintained</span>
 
       <section className={cn("mobile-results-sheet", "sheet-" + sheetState)} aria-label="Places in this area">
         <button type="button" className="sheet-handle" aria-label="Change results sheet size" onClick={cycleSheet} />
@@ -776,7 +774,7 @@ export default function FoodMap() {
         </a>
         <a className="mobile-bottom-nav-contribute" href="/add">
           <Plus size={17} aria-hidden="true" />
-          <span>Contribute</span>
+          <span>Spot a place</span>
         </a>
         <a href="/leaderboard">
           <Trophy size={17} aria-hidden="true" />

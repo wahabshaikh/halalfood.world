@@ -93,7 +93,7 @@ function mapReview(row: Record<string, unknown>): PlaceReview {
   const author =
     typeof row.author_display_name === "string" && row.author_display_name.trim()
       ? row.author_display_name.trim()
-      : "Halalfood member";
+      : "halalfood.world member";
   return {
     authorDisplayName: author,
     title: typeof row.title === "string" && row.title.trim() ? row.title : null,
@@ -132,7 +132,7 @@ export function neonPlaceReviewRepository(
           COALESCE(
             NULLIF(BTRIM(u.name), ''),
             NULLIF(BTRIM(u.email), ''),
-            'Halalfood member'
+            'halalfood.world member'
           ) AS author_display_name,
           r.title,
           r.body,
@@ -154,7 +154,7 @@ export function neonPlaceReviewRepository(
             COALESCE(
               NULLIF(BTRIM(u.name), ''),
               NULLIF(BTRIM(u.email), ''),
-              'Halalfood member'
+              'halalfood.world member'
             ) AS author_display_name,
             r.title,
             r.body,

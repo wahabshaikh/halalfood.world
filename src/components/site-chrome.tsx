@@ -4,15 +4,7 @@ import { APPROXIMATE_NOTE, SITE_NAME } from "../lib/seo";
 function BrandMark() {
   return (
     <span className="brand-mark" aria-hidden="true">
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-        <path
-          d="M14 25.2s7.6-7.2 7.6-13.1A7.6 7.6 0 1 0 6.4 12.1C6.4 18 14 25.2 14 25.2Z"
-          stroke="currentColor"
-          strokeWidth="1.7"
-        />
-        <circle cx="14" cy="11.8" r="3.1" stroke="currentColor" strokeWidth="1.7" />
-        <path d="M10.3 11.8h7.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      </svg>
+      <img className="brand-logo-image" src="/halalfood-world-logo.png" alt="" />
     </span>
   );
 }
@@ -21,7 +13,7 @@ export function SiteHeader({ backTo }: { backTo?: { href: string; label: string 
   return (
     <header className="page-header">
       <div className="page-header-inner">
-        <a className="page-brand" href="/" aria-label="Halalfood home">
+        <a className="page-brand" href="/" aria-label="halalfood.world home">
           <BrandMark />
           <span className="brand-word">{SITE_NAME}</span>
         </a>

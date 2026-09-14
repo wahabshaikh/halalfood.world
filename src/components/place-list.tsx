@@ -20,7 +20,7 @@ export function PlaceList({ places }: { places: Place[] }) {
           <article className="place-card">
             <div className="place-card-visual" aria-hidden="true">
               <Utensils size={31} strokeWidth={1.4} />
-              <span>HALALFOOD GUIDE</span>
+              <span>halalfood.world GUIDE</span>
             </div>
             <div className="place-card-heading">
               <div>
