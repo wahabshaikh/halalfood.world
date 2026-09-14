@@ -29,6 +29,8 @@ export type PlaceDetail = Omit<Place, "lat" | "lng"> & {
   source_url: string | null;
   scraped_at: string | Date | null;
   halal_confirmed: boolean | null;
+  google_details_cached_at: string | Date | null;
+  google_details_snapshot: string | null;
   lat: number | null;
   lng: number | null;
 };
@@ -106,7 +108,8 @@ export async function getPlaceById(id: string): Promise<PlaceDetail | null> {
       postal_code, address_country, telephone, website, maps_url, google_place_id,
       serves_cuisine,
       rating_value, review_count, source, source_url, scraped_at,
-      halal_confirmed, lat, lng
+      halal_confirmed, google_details_cached_at, google_details_snapshot,
+      lat, lng
     FROM places WHERE id = ${id}::uuid AND halal_confirmed IS TRUE LIMIT 1
   `);
   return (result.rows[0] as unknown as PlaceDetail) ?? null;

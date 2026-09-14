@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { getPlaceById } from "../../../src/lib/places";
-import { enrichPlaceCoordinates } from "../../../src/lib/google-places";
+import {
+  assembleRestaurantPage,
+  saveGoogleDetailsCache,
+} from "../../../src/lib/restaurant-page";
 import { placeIdParam } from "../../../src/lib/params";
 import {
   breadcrumbJsonLd,
   canonical,
   cityName,
-  formatAddress,
   formatCount,
   jsonLdScript,
   OG_IMAGE,
@@ -39,7 +41,9 @@ const loadPlace = cache(async (raw: string) => {
   if (!id) return { status: "missing" as const };
   return await loadOrDegrade(async () => {
     const place = await getPlaceById(id);
-    return place ? enrichPlaceCoordinates(place) : null;
+    return place
+      ? assembleRestaurantPage(place, { saveGoogleDetails: saveGoogleDetailsCache })
+      : null;
   });
 });
 
@@ -65,9 +69,9 @@ export async function generateMetadata({
       title: loaded.status === "missing" ? "Place not found" : "Listing unavailable",
       robots: { index: false, follow: true },
     };
-  const place = loaded.data;
+  const place = loaded.data.place;
   const title = placeTitle(place);
-  const description = placeDescription(place);
+  const description = placeDescription(place, { includeCommunity: true });
   const url = canonical(`/place/${place.id}`);
   return {
     title,
@@ -102,12 +106,12 @@ export default async function PlacePage({
         <SiteFooter />
       </div>
     );
-  const place = loaded.data;
+  const { place, google, community } = loaded.data;
 
   const city = cityName(place.city_slug);
-  const website = safeWebsite(place.website);
-  const maps = safeWebsite(place.maps_url);
-  const address = formatAddress(place);
+  const website = safeWebsite(google.website);
+  const maps = safeWebsite(google.mapsUrl);
+  const address = google.address;
   const hasCoords = place.lat !== null && place.lng !== null;
   const trail = [
     { name: "Halalfood", path: "/" },
@@ -123,14 +127,20 @@ export default async function PlacePage({
           type="application/ld+json"
           // Schema.org payload; string is JSON with `<` escaped.
           dangerouslySetInnerHTML={{
-            __html: jsonLdScript([placeJsonLd(place), breadcrumbJsonLd(trail)]),
+            __html: jsonLdScript([
+              placeJsonLd(place, {
+                mapsUrl: maps,
+                communityNote: community.note,
+              }),
+              breadcrumbJsonLd(trail),
+            ]),
           }}
         />
         <Breadcrumbs trail={trail} />
         <article className="place-detail">
           <p className="eyebrow">HALAL · {city.toUpperCase()}</p>
           <h1>{place.name}</h1>
-          <p className="lead">{placeDescription(place)}</p>
+          <p className="lead">{placeDescription(place, { includeCommunity: true })}</p>
           {place.source === "user-submitted" && place.halal_confirmed !== false && (
             <p className="submission-note">
               Community submission — a signed-in user confirmed this place is halal.
@@ -147,12 +157,12 @@ export default async function PlacePage({
                 Show on the map
               </a>
             )}
-            {place.telephone && (
+            {google.telephone && (
               <a
                 className="action"
-                href={`tel:${place.telephone.replace(/[^+\d]/g, "")}`}
+                href={`tel:${google.telephone.replace(/[^+\d]/g, "")}`}
               >
-                Call {place.telephone}
+                Call {google.telephone}
               </a>
             )}
             {website && (
@@ -184,56 +194,114 @@ export default async function PlacePage({
             <SavePlaceButton placeId={place.id} />
           </div>
 
-          <h2>Details</h2>
-          <dl className="detail-grid">
-            {address && (
+          <section className="place-section listing-facts" aria-labelledby="listing-facts-title">
+            <div className="place-section-heading">
               <div>
-                <dt>Address</dt>
-                <dd>{address}</dd>
+                <p className="eyebrow">
+                  {google.linked ? "GOOGLE / LISTING FACTS" : "LISTING FACTS"}
+                </p>
+                <h2 id="listing-facts-title">Restaurant details</h2>
               </div>
-            )}
-            {place.postal_code && (
-              <div>
-                <dt>Postal code</dt>
-                <dd>{place.postal_code}</dd>
-              </div>
-            )}
-            {place.rating_value && (
-              <div>
-                <dt>Rating</dt>
-                <dd>
-                  ★ {place.rating_value}
-                  {place.review_count
-                    ? ` from ${formatCount(place.review_count)} ${plural(place.review_count, "review")}`
-                    : ""}
-                </dd>
-              </div>
-            )}
-            {place.serves_cuisine?.length ? (
-              <div>
-                <dt>Cuisine</dt>
-                <dd>{place.serves_cuisine.join(", ")}</dd>
-              </div>
-            ) : null}
-            {hasCoords && (
-              <div>
-                <dt>Approximate coordinates</dt>
-                <dd>
-                  {place.lat!.toFixed(4)}, {place.lng!.toFixed(4)}
-                </dd>
-              </div>
-            )}
-          </dl>
+              {google.linked && (
+                <span className={`listing-cache-status ${google.cacheStatus}`}>
+                  {google.cacheStatus === "cached" ? "Cached" :
+                    google.cacheStatus === "refreshed" ? "Refreshed" :
+                      google.cacheStatus === "stale-fallback" ? "Saved details" :
+                        "Listing only"}
+                </span>
+              )}
+            </div>
+            <p className="section-intro">{google.note}</p>
+            <dl className="detail-grid">
+              {google.displayNameSource === "google" && (
+                <div>
+                  <dt>Google listing name</dt>
+                  <dd>{google.displayName}</dd>
+                </div>
+              )}
+              {address && (
+                <div>
+                  <dt>{google.addressSource === "google" ? "Google address" : "Address"}</dt>
+                  <dd>{address}</dd>
+                </div>
+              )}
+              {place.postal_code && (
+                <div>
+                  <dt>Postal code</dt>
+                  <dd>{place.postal_code}</dd>
+                </div>
+              )}
+              {google.ratingValue && (
+                <div>
+                  <dt>Listing rating</dt>
+                  <dd>
+                    ★ {google.ratingValue}
+                    {google.reviewCount
+                      ? ` from ${formatCount(google.reviewCount)} ${plural(google.reviewCount, "review")}`
+                      : ""}
+                  </dd>
+                </div>
+              )}
+              {google.telephone && (
+                <div>
+                  <dt>Phone</dt>
+                  <dd>{google.telephone}</dd>
+                </div>
+              )}
+              {website && (
+                <div>
+                  <dt>Website</dt>
+                  <dd>
+                    <a href={website} target="_blank" rel="noopener noreferrer nofollow">
+                      Visit restaurant website
+                    </a>
+                  </dd>
+                </div>
+              )}
+              {place.serves_cuisine?.length ? (
+                <div>
+                  <dt>Cuisine</dt>
+                  <dd>{place.serves_cuisine.join(", ")}</dd>
+                </div>
+              ) : null}
+              {maps && (
+                <div>
+                  <dt>Map listing</dt>
+                  <dd>
+                    <a href={maps} target="_blank" rel="noopener noreferrer nofollow">
+                      Open in Google Maps
+                    </a>
+                  </dd>
+                </div>
+              )}
+              {hasCoords && (
+                <div>
+                  <dt>Approximate coordinates</dt>
+                  <dd>
+                    {place.lat!.toFixed(4)}, {place.lng!.toFixed(4)}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </section>
 
           <ApproximateNote />
 
-          <PlacePhotos placeId={place.id} />
-
-          <PlaceRating placeId={place.id} />
-
-          <PlaceReviews placeId={place.id} />
-
-          <PlaceHalalVerification placeId={place.id} />
+          <section className="community-section" aria-labelledby="community-evidence-title">
+            <div className="place-section-heading">
+              <div>
+                <p className="eyebrow">COMMUNITY EVIDENCE</p>
+                <h2 id="community-evidence-title">What the community adds</h2>
+              </div>
+            </div>
+            <p className="section-intro">{community.note}</p>
+            <div className="community-layers">
+              <PlacePhotos placeId={place.id} />
+              <PlaceRating placeId={place.id} />
+              <PlaceReviews placeId={place.id} />
+              <PlaceHalalVerification placeId={place.id} />
+            </div>
+          </section>
 
           <p className="detail-more">
             Looking for more? See{" "}
