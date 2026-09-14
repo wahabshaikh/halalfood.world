@@ -3,12 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
+  Bookmark,
   LocateFixed,
   Maximize,
+  MapPinned,
   Minus,
   Plus,
   Search,
   Star,
+  Trophy,
   Utensils,
   X,
 } from "lucide-react";
@@ -762,6 +765,24 @@ export default function FoodMap() {
           </div>
         )}
       </section>
+      <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+        <a className="is-active" href="/">
+          <MapPinned size={17} aria-hidden="true" />
+          <span>Explore</span>
+        </a>
+        <a href="/saved">
+          <Bookmark size={17} aria-hidden="true" />
+          <span>Saved</span>
+        </a>
+        <a className="mobile-bottom-nav-contribute" href="/add">
+          <Plus size={17} aria-hidden="true" />
+          <span>Contribute</span>
+        </a>
+        <a href="/leaderboard">
+          <Trophy size={17} aria-hidden="true" />
+          <span>Community</span>
+        </a>
+      </nav>
     </main>
   );
 }
