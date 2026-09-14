@@ -821,6 +821,70 @@ a {
   padding: 10px 13px;
   margin: 14px 0 0;
 }
+.place-section,
+.community-section {
+  margin: 34px 0 28px;
+}
+.listing-facts {
+  padding: 22px;
+  background: #f8fbf5;
+  border: 1px solid #dce8d5;
+  border-radius: 18px;
+}
+.place-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.place-section-heading .eyebrow {
+  margin-bottom: 4px;
+}
+.place-section-heading h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.section-intro {
+  margin: 8px 0 16px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.listing-cache-status {
+  display: inline-flex;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.listing-cache-status.refreshed,
+.listing-cache-status.cached {
+  color: #365b2d;
+  background: var(--leaf-wash);
+  border-color: #cbdcbe;
+}
+.listing-cache-status.stale-fallback {
+  color: #765b1d;
+  background: #fff5d9;
+  border-color: #efdfb5;
+}
+.community-section {
+  padding-top: 4px;
+}
+.community-layers {
+  display: grid;
+  gap: 0;
+}
+.community-layers > .place-photos,
+.community-layers > .place-rating,
+.community-layers > .place-reviews,
+.community-layers > .community-verification {
+  margin-top: 0;
+}
 .place-rating {
   margin: 34px 0 28px;
   padding: 22px;
@@ -2021,6 +2085,9 @@ a {
   .detail-grid > div {
     grid-template-columns: 1fr;
     gap: 3px;
+  }
+  .listing-facts {
+    padding: 18px;
   }
   .place-photos,
   .place-reviews,

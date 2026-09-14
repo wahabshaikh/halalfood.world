@@ -426,7 +426,10 @@ export async function enrichPlaceCoordinates<
     lat: number | null;
     lng: number | null;
   },
->(place: T): Promise<T> {
+>(
+  place: T,
+  options: { coordinates?: GooglePlaceCoordinates | null } = {},
+): Promise<T> {
   if (
     typeof place.lat === "number" &&
     Number.isFinite(place.lat) &&
@@ -436,6 +439,14 @@ export async function enrichPlaceCoordinates<
     return place;
   }
   if (!place.google_place_id) return place;
+
+  // A page-level details request may already have supplied the location. The
+  // explicit option prevents a second Google request in that render.
+  if ("coordinates" in options) {
+    return options.coordinates
+      ? { ...place, lat: options.coordinates.lat, lng: options.coordinates.lng }
+      : place;
+  }
 
   const coordinates = await getGooglePlaceCoordinates(place.google_place_id);
   return coordinates

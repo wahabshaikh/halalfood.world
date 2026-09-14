@@ -138,6 +138,10 @@ export const places = pgTable("places", {
   lng: doublePrecision("lng"),
   submittedByUserId: text("submitted_by_user_id"),
   halalConfirmed: boolean("halal_confirmed").notNull().default(true),
+  googleDetailsCachedAt: timestamp("google_details_cached_at", {
+    withTimezone: true,
+  }),
+  googleDetailsSnapshot: text("google_details_snapshot"),
 });
 
 export const savedPlaces = pgTable(

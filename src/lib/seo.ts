@@ -93,7 +93,14 @@ export function placeTitle(place: PlaceLike) {
   return where ? `${place.name} — halal food in ${where}` : place.name;
 }
 
-export function placeDescription(place: PlaceLike) {
+export type PlaceDescriptionOptions = {
+  includeCommunity?: boolean;
+};
+
+export function placeDescription(
+  place: PlaceLike,
+  options: PlaceDescriptionOptions = {},
+) {
   const where = place.address_locality?.trim() || cityName(place.city_slug);
   const cuisine = place.serves_cuisine?.filter(Boolean).slice(0, 3).join(", ");
   const rating =
@@ -105,9 +112,26 @@ export function placeDescription(place: PlaceLike) {
         }.`
       : "";
   const address = formatAddress(place);
+  const main = `${place.name} is a halal ${cuisine ? cuisine + " " : ""}restaurant in ${where}.`;
+  if (options.includeCommunity) {
+    const shortRating =
+      place.rating_value && Number.isFinite(Number(place.rating_value))
+        ? `Rated ${place.rating_value}.`
+        : "";
+    return truncate(
+      [
+        main,
+        shortRating,
+        "Community halal reviews, photos, reactions and evidence.",
+        "Map location is approximate.",
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+  }
   return truncate(
     [
-      `${place.name} is a halal ${cuisine ? cuisine + " " : ""}restaurant in ${where}.`,
+      main,
       rating,
       address ? `Address: ${address}.` : "",
       "Location on the map is approximate.",
@@ -126,12 +150,22 @@ type JsonLdPlace = PlaceLike & {
   lng?: number | null;
 };
 
+export type PlaceJsonLdOptions = {
+  mapsUrl?: string | null;
+  communityNote?: string | null;
+  communityReviewCount?: number | null;
+  communityVerificationCount?: number | null;
+};
+
 /**
  * Schema.org `Restaurant`. `geo` is emitted with
  * `additionalProperty: locationPrecision = approximate` so consumers are not
  * misled into treating a jittered centroid as a surveyed coordinate.
  */
-export function placeJsonLd(place: JsonLdPlace) {
+export function placeJsonLd(
+  place: JsonLdPlace,
+  options: PlaceJsonLdOptions = {},
+) {
   const url = canonical(`/place/${place.id}`);
   const rating =
     place.rating_value && Number.isFinite(Number(place.rating_value))
@@ -148,6 +182,38 @@ export function placeJsonLd(place: JsonLdPlace) {
     typeof place.lng === "number" &&
     Number.isFinite(place.lat) &&
     Number.isFinite(place.lng);
+  const communityProperties: {
+    "@type": "PropertyValue";
+    name: string;
+    value: string | number;
+  }[] = [];
+  if (
+    typeof options.communityReviewCount === "number" &&
+    Number.isInteger(options.communityReviewCount) &&
+    options.communityReviewCount >= 0
+  )
+    communityProperties.push({
+      "@type": "PropertyValue",
+      name: "communityReviewCount",
+      value: options.communityReviewCount,
+    });
+  if (
+    typeof options.communityVerificationCount === "number" &&
+    Number.isInteger(options.communityVerificationCount) &&
+    options.communityVerificationCount >= 0
+  )
+    communityProperties.push({
+      "@type": "PropertyValue",
+      name: "communityVerificationCount",
+      value: options.communityVerificationCount,
+    });
+  const communityNote = options.communityNote?.trim();
+  if (communityNote)
+    communityProperties.push({
+      "@type": "PropertyValue",
+      name: "communityEvidenceNote",
+      value: communityNote,
+    });
   return {
     "@context": "https://schema.org",
     "@type": "Restaurant",
@@ -167,6 +233,7 @@ export function placeJsonLd(place: JsonLdPlace) {
     },
     telephone: place.telephone || undefined,
     sameAs: place.website || undefined,
+    hasMap: options.mapsUrl || undefined,
     aggregateRating: rating,
     geo: hasGeo
       ? {
@@ -182,6 +249,7 @@ export function placeJsonLd(place: JsonLdPlace) {
       : undefined,
     isAccessibleForFree: undefined,
     disambiguatingDescription: APPROXIMATE_NOTE,
+    additionalProperty: communityProperties.length ? communityProperties : undefined,
   };
 }
 

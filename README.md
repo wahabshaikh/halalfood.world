@@ -75,7 +75,7 @@ Use the URL printed by the dev server. Development and production API requests r
 | `/cities` | SSR | Directory of every city, largest first. |
 | `/leaderboard` | SSR | Public halal community contributor leaderboard. |
 | `/city/[citySlug]` | SSR | Listings for one city, 60 per page, with `ItemList` + `BreadcrumbList` JSON-LD. |
-| `/place/[id]` | SSR | One place, with `Restaurant` + `BreadcrumbList` JSON-LD. |
+| `/place/[id]` | SSR | Canonical restaurant page with Google/listing facts, community layers, and `Restaurant` + `BreadcrumbList` JSON-LD. |
 | `/saved` | Client list + SSR chrome | Authenticated user's saved halal places; unauthenticated visitors get a sign-in CTA. |
 | `/add` | Client form + SSR chrome | Authenticated users can submit a halal place using Google Places or manual entry. |
 | `/login` | Client form + SSR chrome | Email OTP sign-in protected by Cloudflare Turnstile. |
@@ -117,6 +117,31 @@ normalized name and a stable user-id tie-breaker.
 `GET /api/leaderboard` returns the same top 50 JSON payload with
 `Cache-Control: public, max-age=60, s-maxage=60`. No migration was needed.
 
+### Feature 11: restaurant pages
+
+`/place/[id]` assembles one canonical restaurant model from the existing place
+row and an optional Google Places Details (New) snapshot. The page keeps the
+Google/listing facts separate from the community evidence area: saves, halal
+reactions, reviews, community photos, and halal verification evidence remain
+available below the listing facts.
+
+Rows with a `google_place_id` use the existing `getGooglePlaceDetails` client
+with `GOOGLE_PLACES_FIELD_MASK` only (`id`, `name`, `formattedAddress`,
+`location`, `photos`). A successful normalized snapshot is stored in
+`places.google_details_snapshot` with `places.google_details_cached_at` by
+[`migrations/0008_restaurant_google_cache.sql`](migrations/0008_restaurant_google_cache.sql)
+and served for 7 days. A stale or missing snapshot makes one Essentials
+request; provider failures leave the saved row visible. Phone, website,
+rating, review count, address parts, and the Maps link use persisted listing
+columns or a deterministic Google Maps URL. The costlier
+`GOOGLE_PLACES_USEFUL_FIELD_MASK` is not used on page views, so phone/hours
+fields are not requested from Google on every visit.
+
+Metadata and Restaurant JSON-LD use the merged listing name and map link,
+retain the approximate-location disclaimer, and add a clearly labeled
+community-evidence note. Community reaction counts are not presented as a
+fake aggregate rating.
+
 ## Google Places coordinate backfill
 
 The server-side client is in `src/lib/google-places.ts` and calls Place
@@ -127,9 +152,11 @@ opaque place IDs. On submit, the server fetches Place Details again and
 persists the returned name, formatted address, coordinates and place ID. The
 Google API key never reaches the browser. Search is optional: when no key is
 configured, the same form supports manual entry.
-`app/place/[id]/page.tsx` uses persisted coordinates first; when either
-coordinate is missing and `google_place_id` exists, it makes one location-only
-request and still renders the page unchanged if Google is unavailable.
+`app/place/[id]/page.tsx` uses persisted coordinates first. Its page-level
+Essentials snapshot also supplies coordinates when the row is missing one, so
+the render does not make a second location-only request. The existing
+`enrichPlaceCoordinates` helper remains available for the operational
+backfill, and Google failures still leave the page unchanged.
 
 Ops can backfill without browser scraping using the CLI. It reads
 `DATABASE_URL` and `GOOGLE_PLACES_API_KEY` (or the Maps fallback) from the
@@ -227,6 +254,8 @@ Apply [`migrations/0006_place_reviews.sql`](migrations/0006_place_reviews.sql) a
 
 Apply [`migrations/0007_place_photos.sql`](migrations/0007_place_photos.sql) after it. It creates the additive `place_photos` table with cascading place/user foreign keys, unique R2 keys, image-only content types, an 8 MiB size check, and a place/created-at gallery index. The migration is safe to re-run.
 
+Apply [`migrations/0008_restaurant_google_cache.sql`](migrations/0008_restaurant_google_cache.sql) after it. It adds the cached Google Essentials timestamp and normalized snapshot columns to `places`. The migration is additive and safe to re-run.
+
 With `DATABASE_URL` already present in the shell, use either the Neon SQL Editor or:
 
 ```sh
@@ -237,6 +266,7 @@ psql "$DATABASE_URL" -f migrations/0004_place_halal_verifications.sql
 psql "$DATABASE_URL" -f migrations/0005_place_ratings.sql
 psql "$DATABASE_URL" -f migrations/0006_place_reviews.sql
 psql "$DATABASE_URL" -f migrations/0007_place_photos.sql
+psql "$DATABASE_URL" -f migrations/0008_restaurant_google_cache.sql
 ```
 
 The Drizzle definitions in `src/db/schema.ts` must stay aligned with this SQL. If Better Auth is upgraded or plugins are added, regenerate/review the Drizzle schema with the Better Auth CLI and create a new migration rather than changing the existing table names silently.
