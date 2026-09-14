@@ -30,6 +30,7 @@ import SavePlaceButton from "../../../src/components/save-place-button";
 import PlaceHalalVerification from "./place-halal-verification";
 import PlaceRating from "./place-rating";
 import PlaceReviews from "./place-reviews";
+import PlacePhotos from "./place-photos";
 
 /** `generateMetadata` and the page body share one round trip. */
 const loadPlace = cache(async (raw: string) => {
@@ -225,6 +226,8 @@ export default async function PlacePage({
           </dl>
 
           <ApproximateNote />
+
+          <PlacePhotos placeId={place.id} />
 
           <PlaceRating placeId={place.id} />
 

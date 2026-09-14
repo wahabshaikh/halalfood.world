@@ -1,5 +1,5 @@
 import {
-  isSafeR2Key,
+  isSafeEvidenceR2Key,
   MAX_R2_UPLOAD_BYTES,
   R2_UPLOAD_CONTENT_TYPES,
   type R2UploadContentType,
@@ -152,7 +152,7 @@ export function validateHalalVerificationSubmission(
     const sizeBytes = item.sizeBytes;
     const fileName = uploadFileName(item.fileName);
     if (
-      !isSafeR2Key(key) ||
+      !isSafeEvidenceR2Key(key) ||
       !uploadContentType(contentType) ||
       !fileName ||
       typeof sizeBytes !== "number" ||

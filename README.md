@@ -88,6 +88,8 @@ Use the URL printed by the dev server. Development and production API requests r
 | `PUT/POST /api/places/[id]/rating` | JSON | Authenticated, rate-limited upsert of one halal reaction. |
 | `GET /api/places/[id]/reviews` | JSON | Public newest-first halal reviews with author display and timestamps. |
 | `PUT/POST/DELETE /api/places/[id]/reviews` | JSON | Authenticated, rate-limited create/update or delete of the current user's one review. |
+| `GET/POST /api/places/[id]/photos` | JSON/multipart | Public newest-first halal place photo gallery; authenticated image upload. |
+| `DELETE /api/places/[id]/photos/[photoId]` | JSON | Authenticated, ownership-checked deletion of the current user's photo. |
 | `GET /api/places/google-search` | JSON | Authenticated, rate-limited Google Places (New) Text Search for the add form. |
 | `GET/POST /api/places/[id]/verifications` | JSON | Public approved evidence lookup; authenticated, rate-limited community halal verification submission. |
 | `POST/GET /api/uploads/r2` | Multipart/stream | Authenticated direct R2 upload and approved/own-pending evidence download. |
@@ -180,6 +182,12 @@ and 60 files per IP per day. This keeps the direct upload path bounded before
 a verification record is created while allowing one submission to include
 multiple evidence files.
 
+Place photo uploads use the same durable limiter with a `place-photo` namespace:
+20 uploads per signed-in user per day and 60 per IP per day. Photo deletion uses
+the standard authenticated mutation buckets of 120 actions per user per hour
+and 300 per IP per hour. Validated photo input is checked before either upload
+bucket is spent.
+
 The limiter fails closed if Neon is unavailable, so a provider outage cannot turn the endpoint into an unrestricted Resend sender. Old limiter rows can be pruned by Ops after confirming the retention policy; they contain hashes rather than raw identifiers.
 
 ### Auth schema migration
@@ -196,6 +204,8 @@ Apply [`migrations/0005_place_ratings.sql`](migrations/0005_place_ratings.sql) a
 
 Apply [`migrations/0006_place_reviews.sql`](migrations/0006_place_reviews.sql) after it. It creates the additive `place_reviews` table with cascading place/user foreign keys, a required trimmed text body, an optional title, and a `(user_id, place_id)` primary key. That composite key intentionally gives each user one editable review per place and makes ownership enforcement/upsert behavior durable. The migration is safe to re-run.
 
+Apply [`migrations/0007_place_photos.sql`](migrations/0007_place_photos.sql) after it. It creates the additive `place_photos` table with cascading place/user foreign keys, unique R2 keys, image-only content types, an 8 MiB size check, and a place/created-at gallery index. The migration is safe to re-run.
+
 With `DATABASE_URL` already present in the shell, use either the Neon SQL Editor or:
 
 ```sh
@@ -205,6 +215,7 @@ psql "$DATABASE_URL" -f migrations/0003_saved_places.sql
 psql "$DATABASE_URL" -f migrations/0004_place_halal_verifications.sql
 psql "$DATABASE_URL" -f migrations/0005_place_ratings.sql
 psql "$DATABASE_URL" -f migrations/0006_place_reviews.sql
+psql "$DATABASE_URL" -f migrations/0007_place_photos.sql
 ```
 
 The Drizzle definitions in `src/db/schema.ts` must stay aligned with this SQL. If Better Auth is upgraded or plugins are added, regenerate/review the Drizzle schema with the Better Auth CLI and create a new migration rather than changing the existing table names silently.
@@ -271,8 +282,11 @@ node scripts/generate-assets.mjs
 - `GET /api/places/:id/reviews`: returns up to 50 newest public reviews for a halal place, plus the signed-in user's own review when it falls outside that window, with the author's display name, body, optional title, created/updated timestamps, and an `isOwn` marker.
 - `PUT/POST /api/places/:id/reviews`: requires a Better Auth session and `{ "body": "...", "title": "..." }` (`title` is optional); trims input, caps title/body lengths at 120/5,000 characters, rejects empty bodies, and upserts the current user's one review for the place.
 - `DELETE /api/places/:id/reviews`: requires a Better Auth session and deletes only the review owned by that session's user. Review mutations require both hashed user/IP limiter buckets to allow the action.
+- `GET /api/places/:id/photos`: returns up to 100 newest public photos for a halal place with image URLs, metadata, and an `isOwn` marker for the signed-in user.
+- `POST /api/places/:id/photos`: requires a Better Auth session and a multipart `file`; accepts only JPEG, PNG, or WebP images up to 8 MiB, checks content type and magic bytes, stores the object, and registers its metadata in one request.
+- `DELETE /api/places/:id/photos/:photoId`: requires a Better Auth session and removes only the photo owned by that session's user. The database row is removed before best-effort R2 cleanup so failed cleanup cannot leave the image publicly authorized.
 - `POST /api/uploads/r2`: requires a Better Auth session and a configured `HALAL_EVIDENCE_R2` binding. It accepts only JPEG, PNG, WebP, and PDF files up to 8 MiB, checks the file signature, and returns an account-scoped R2 key for the verification submission. Missing R2 configuration fails closed with 503.
-- `GET /api/uploads/r2?key=...`: serves an uploaded document only when its verification is approved or it belongs to the current contributor's pending submission.
+- `GET /api/uploads/r2?key=...`: serves approved/own-pending verification evidence or a listed halal place photo. Photos are stored under `photos/<hashed-owner>/<uuid>.<ext>` and are public-read only when their `place_photos` row belongs to a listed halal place.
 - `GET /api/cities/:citySlug`: aggregate for one city, including the mean of its listed coordinates for map centring.
 - `src/lib/places.ts` also exposes `getPlaceById`, `listCities`, `countCities`, `getCity`, `findPlacesByCity`, `countPlaces` and `listPlaceRefs` for the server-rendered routes. Every one is parameterized and limit-clamped; none writes.
 - Responses contain `places`, `total` (all matching rows) and `limit`. The count pill shows the viewport total; the sheet explains when only the top 600 are shown. Results are ordered by rating, reviews, then ID.
@@ -338,6 +352,13 @@ also checks the JPEG/PNG/WebP/PDF signature, stores an account-hashed key, and
 never accepts an arbitrary R2 key in a verification submission. R2 objects are
 served through the access-checked download route, so only approved evidence
 or the submitter's own pending evidence is readable.
+
+Place photos reuse this same `HALAL_EVIDENCE_R2` binding and
+`halalfood-world-evidence` bucket; no new Worker binding or bucket is needed.
+Photo objects use the `photos/<hashed-owner>/<uuid>.<jpg|png|webp>` prefix and
+are readable through the same proxy only while their `place_photos` row belongs
+to a listed halal place. One multipart request performs the direct R2 write and
+metadata registration together.
 
 `npm run build` generates the deployable Worker config at
 `dist/server/wrangler.json` and carries the root `r2_buckets` declaration into

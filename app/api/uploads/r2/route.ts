@@ -6,8 +6,11 @@ import {
   retryAfterSeconds,
 } from "../../../../src/lib/otp-rate-limit";
 import { neonHalalVerificationRepository } from "../../../../src/lib/halal-verifications";
+import { neonPlacePhotoRepository } from "../../../../src/lib/place-photos";
 import {
   getEvidenceBucket,
+  isSafeEvidenceR2Key,
+  isSafePhotoR2Key,
   isSafeR2Key,
   MAX_R2_UPLOAD_BYTES,
   storeEvidenceFile,
@@ -177,6 +180,32 @@ function downloadName(value: string): string {
 export async function GET(request: Request): Promise<Response> {
   const key = new URL(request.url).searchParams.get("key");
   if (!isSafeR2Key(key))
+    return Response.json({ error: "Invalid evidence key." }, { status: 400 });
+
+  if (isSafePhotoR2Key(key)) {
+    try {
+      const access = await neonPlacePhotoRepository().getUploadAccess(key);
+      if (!access) return new Response("Not found", { status: 404 });
+      const bucket = await getEvidenceBucket();
+      if (!bucket) return unavailable();
+      const object = await bucket.get(key);
+      if (!object?.body) return new Response("Not found", { status: 404 });
+      const headers = new Headers({
+        "Content-Type": access.contentType,
+        "Content-Disposition": `inline; filename="${downloadName(access.fileName)}"`,
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'",
+        "Cache-Control": "public, max-age=3600",
+      });
+      return new Response(object.body, { headers });
+    } catch {
+      return unavailable();
+    }
+  }
+
+  // Keep the evidence branch narrower than the shared proxy predicate so a
+  // photo key can never be accepted as verification evidence metadata.
+  if (!isSafeEvidenceR2Key(key))
     return Response.json({ error: "Invalid evidence key." }, { status: 400 });
 
   let userId: string | null = null;
