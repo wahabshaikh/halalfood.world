@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
+  <style>
+    body { margin: 0; }
+    .a { font-family: "DM Sans", system-ui, sans-serif; color: #1E2A22; -webkit-font-smoothing: antialiased; }
+    .a-serif { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: -0.01em; }
+    .a-eyebrow { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #7C8A76; }
+    .a-num { font-variant-numeric: tabular-nums; }
+    .a-screen { width: 390px; height: 844px; background: #F2F0E8; overflow: hidden; display: flex; flex-direction: column; }
+    .a-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 12px; flex-shrink: 0; }
+    .a-icobtn { width: 44px; height: 44px; border-radius: 10px; background: #FFFFFF; border: 1px solid #DDDCCF; display: grid; place-items: center; }
+    .a-card { background: #FFFFFF; border: 1px solid #DDDCCF; border-radius: 16px; }
+    .a-cta { height: 52px; border-radius: 13px; background: #31462F; color: #F4F2EA; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15.5px; font-weight: 700; }
+    a { color: #31462F; text-decoration: none; }
+    a:hover { color: #4A6B3F; }
+  </style>
+</helmet>
+<div class="a a-screen">
+
+  <div class="a-top">
+    <div class="a-icobtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E2A22" stroke-width="2.1" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></div>
+    <div style="font-size: 13.5px; font-weight: 700;">Rate a place</div>
+    <div style="width: 44px;"></div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 4px 20px 0;">
+    <div class="a-eyebrow">Zaitoon Grill · Coventry Rd</div>
+    <div class="a-serif" style="font-size: 30px; line-height: 1.15; margin: 7px 0 18px;">How was your visit?</div>
+
+    <div style="display: flex; flex-direction: column; gap: 9px;">
+      <div style="border: 2px solid #2E6B4A; background: #EDF4EC; border-radius: 14px; padding: 14px 15px; display: flex; align-items: center; gap: 13px;">
+        <div style="width: 38px; height: 38px; border-radius: 50%; background: #2E6B4A; display: grid; place-items: center; flex-shrink: 0;">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="#EDF4EC"><path d="M12 20.5S3.5 14.9 3.5 9.4A4.9 4.9 0 0 1 12 6.2a4.9 4.9 0 0 1 8.5 3.2c0 5.5-8.5 11.1-8.5 11.1Z"/></svg>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 16px; font-weight: 700; color: #2E6B4A;">Mashallah</div>
+          <div style="font-size: 12px; color: #5B6A5A; margin-top: 2px;">Loved it — I'd bring people here</div>
+        </div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#2E6B4A"><circle cx="12" cy="12" r="10"/><path d="m8.2 12.3 2.5 2.5 5-5.2" stroke="#EDF4EC" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+
+      <div style="border: 1px solid #DDDCCF; background: #FFFFFF; border-radius: 14px; padding: 14px 15px; display: flex; align-items: center; gap: 13px;">
+        <div style="width: 38px; height: 38px; border-radius: 50%; background: #FAF6EC; border: 1px solid #E3D7B9; display: grid; place-items: center; flex-shrink: 0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9A7B33" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9h3Z"/><path d="M7 11l4.5-7.5A2 2 0 0 1 15 4.8L14 9h4.6a2 2 0 0 1 1.9 2.6l-1.9 6A2 2 0 0 1 16.7 19H7"/></svg>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 16px; font-weight: 700; color: #6B5A2F;">Alhamdulillah</div>
+          <div style="font-size: 12px; color: #7C8072; margin-top: 2px;">Good — it did the job</div>
+        </div>
+      </div>
+
+      <div style="border: 1px solid #DDDCCF; background: #FFFFFF; border-radius: 14px; padding: 14px 15px; display: flex; align-items: center; gap: 13px;">
+        <div style="width: 38px; height: 38px; border-radius: 50%; background: #FAF0ED; border: 1px solid #E6CCC4; display: grid; place-items: center; flex-shrink: 0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0503C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 15c1-1.2 5-1.2 6 0M9 9.5h.01M15 9.5h.01"/></svg>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 16px; font-weight: 700; color: #8A4534;">Astaghfirullah</div>
+          <div style="font-size: 12px; color: #7C8072; margin-top: 2px;">Something was wrong — others should know</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="a-eyebrow" style="margin: 20px 0 9px;">What stood out</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+      <div style="height: 32px; padding: 0 12px; display: flex; align-items: center; border-radius: 999px; background: #31462F; color: #F4F2EA; font-size: 12.5px; font-weight: 600;">Zabiha meat</div>
+      <div style="height: 32px; padding: 0 12px; display: flex; align-items: center; border-radius: 999px; background: #FFFFFF; border: 1px solid #DDDCCF; font-size: 12.5px; font-weight: 600; color: #4B584A;">Prayer space</div>
+      <div style="height: 32px; padding: 0 12px; display: flex; align-items: center; border-radius: 999px; background: #31462F; color: #F4F2EA; font-size: 12.5px; font-weight: 600;">Family friendly</div>
+      <div style="height: 32px; padding: 0 12px; display: flex; align-items: center; border-radius: 999px; background: #FFFFFF; border: 1px solid #DDDCCF; font-size: 12.5px; font-weight: 600; color: #4B584A;">No alcohol</div>
+      <div style="height: 32px; padding: 0 12px; display: flex; align-items: center; border-radius: 999px; background: #FFFFFF; border: 1px solid #DDDCCF; font-size: 12.5px; font-weight: 600; color: #4B584A;">Worth the price</div>
+    </div>
+
+    <div class="a-eyebrow" style="margin: 20px 0 9px;">Your note <span style="color: #B0B6A8; letter-spacing: 0.04em;">optional</span></div>
+    <div class="a-card" style="padding: 13px 15px; height: 86px;">
+      <div class="a-serif" style="font-size: 17px; color: #A9AFA2; line-height: 1.45;">What should someone know before they go?</div>
+    </div>
+
+    <div style="display: flex; gap: 9px; margin-top: 11px;">
+      <div style="width: 62px; height: 62px; border-radius: 12px; border: 1px dashed #C9C7B7; background: #FBFAF4; display: grid; place-items: center;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7C8A76" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>
+      </div>
+      <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <div style="font-size: 13px; font-weight: 700;">Add photos</div>
+        <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;">+10 barakah each, up to 5</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px)); background: #F2F0E8; border-top: 1px solid #E5E3D7; flex-shrink: 0;">
+    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: #6B7568; margin-bottom: 9px;">
+      <span>Posted as Aisha K. · Scout</span>
+      <span style="font-weight: 700; color: #31462F;">This rating earns 25 barakah</span>
+    </div>
+    <div class="a-cta">Post rating</div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

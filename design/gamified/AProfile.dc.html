@@ -1,0 +1,163 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
+  <style>
+    body { margin: 0; }
+    .a { font-family: "DM Sans", system-ui, sans-serif; color: #1E2A22; -webkit-font-smoothing: antialiased; }
+    .a-serif { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: -0.01em; }
+    .a-eyebrow { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #7C8A76; }
+    .a-num { font-variant-numeric: tabular-nums; }
+    .a-screen { width: 390px; height: 844px; background: #F2F0E8; overflow: hidden; display: flex; flex-direction: column; }
+    .a-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 12px; flex-shrink: 0; }
+    .a-icobtn { width: 44px; height: 44px; border-radius: 10px; background: #FFFFFF; border: 1px solid #DDDCCF; display: grid; place-items: center; }
+    .a-card { background: #FFFFFF; border: 1px solid #DDDCCF; border-radius: 16px; }
+    .a-cta { height: 52px; border-radius: 13px; background: #31462F; color: #F4F2EA; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15.5px; font-weight: 700; }
+    a { color: #31462F; text-decoration: none; }
+    a:hover { color: #4A6B3F; }
+  </style>
+</helmet>
+<div class="a a-screen">
+
+  <div class="a-top" style="padding-bottom: 6px;">
+    <div style="font-size: 13.5px; font-weight: 700;">You</div>
+    <div class="a-icobtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1E2A22" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.4M12 18.6V21M3 12h2.4M18.6 12H21M5.6 5.6l1.7 1.7M16.7 16.7l1.7 1.7M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7"/></svg></div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 2px 20px 0;">
+
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <div style="width: 64px; height: 64px; border-radius: 50%; background: #31462F; color: #F2F0E8; font-size: 22px; font-weight: 700; display: grid; place-items: center; flex-shrink: 0;">AK</div>
+      <div style="flex: 1; min-width: 0;">
+        <div class="a-serif" style="font-size: 27px; line-height: 1.1;">Aisha K.</div>
+        <div style="display: flex; align-items: center; gap: 7px; margin-top: 5px;">
+          <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: #31462F; background: #E9EFE0; border: 1px solid #C9DCCB; padding: 3px 7px; border-radius: 5px;">SCOUT</span>
+          <span style="font-size: 12px; color: #6B7568;">Birmingham · joined 2025</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- rank progress -->
+    <div class="a-card" style="margin-top: 16px; padding: 15px 16px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <div class="a-serif a-num" style="font-size: 32px; line-height: 1;">1,092</div>
+        <div style="font-size: 11.5px; color: #6B7568; font-weight: 600;">barakah this season</div>
+      </div>
+      <div style="height: 7px; border-radius: 4px; background: #EDEBE0; margin: 14px 0 8px; overflow: hidden;">
+        <div style="width: 61%; height: 7px; background: #31462F; border-radius: 4px;"></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 11.5px; color: #6B7568;">
+        <span>Scout</span>
+        <span><strong style="color: #1E2A22;"><span class="a-num">708</span> to Guide</strong></span>
+      </div>
+    </div>
+
+    <!-- streak + stats -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 9px;">
+      <div class="a-card" style="padding: 13px 15px;">
+        <div class="a-serif a-num" style="font-size: 26px; line-height: 1;">6</div>
+        <div style="font-size: 11.5px; color: #6B7568; margin-top: 4px;">week streak</div>
+      </div>
+      <div class="a-card" style="padding: 13px 15px;">
+        <div class="a-serif a-num" style="font-size: 26px; line-height: 1;">7th</div>
+        <div style="font-size: 11.5px; color: #6B7568; margin-top: 4px;">in Birmingham</div>
+      </div>
+    </div>
+
+    <!-- contribution ledger -->
+    <div class="a-eyebrow" style="margin: 22px 0 8px;">Your ledger</div>
+    <div class="a-card" style="overflow: hidden;">
+      <div style="display: flex; align-items: center; gap: 12px; padding: 11px 15px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="1.8" stroke-linecap="round"><path d="M12 21c4.5-3.4 7-7 7-10.6A7 7 0 0 0 5 10.4C5 14 7.5 17.6 12 21Z"/><path d="M12 5v9M9 9.5h6"/></svg>
+        <div style="flex: 1; font-size: 13.5px; font-weight: 600;">Places added</div>
+        <div class="a-num" style="font-size: 14px; font-weight: 700;">9</div>
+      </div>
+      <div style="height: 1px; background: #EDEBE0;"></div>
+      <div style="display: flex; align-items: center; gap: 12px; padding: 11px 15px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="m9.5 14 1.8 1.8 3.4-3.6"/></svg>
+        <div style="flex: 1; font-size: 13.5px; font-weight: 600;">Proofs accepted</div>
+        <div class="a-num" style="font-size: 14px; font-weight: 700;">11</div>
+      </div>
+      <div style="height: 1px; background: #EDEBE0;"></div>
+      <div style="display: flex; align-items: center; gap: 12px; padding: 11px 15px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 15a3 3 0 0 1-3 3H8l-4 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3Z"/></svg>
+        <div style="flex: 1; font-size: 13.5px; font-weight: 600;">Ratings &amp; notes</div>
+        <div class="a-num" style="font-size: 14px; font-weight: 700;">38</div>
+      </div>
+      <div style="height: 1px; background: #EDEBE0;"></div>
+      <div style="display: flex; align-items: center; gap: 12px; padding: 11px 15px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>
+        <div style="flex: 1; font-size: 13.5px; font-weight: 600;">Photos</div>
+        <div class="a-num" style="font-size: 14px; font-weight: 700;">62</div>
+      </div>
+    </div>
+
+    <!-- badges -->
+    <div style="display: flex; align-items: baseline; justify-content: space-between; margin: 22px 0 9px;">
+      <div class="a-eyebrow">Seals earned</div>
+      <div style="font-size: 11.5px; font-weight: 700; color: #31462F;"><span class="a-num">7</span> of <span class="a-num">24</span></div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px;">
+      <div style="text-align: center;">
+        <div style="width: 100%; aspect-ratio: 1; max-width: 100%; border-radius: 50%; border: 1.5px solid #31462F; background: #E9EFE0; display: grid; place-items: center;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="m9.5 14 1.8 1.8 3.4-3.6"/></svg>
+        </div>
+        <div style="font-size: 9.5px; font-weight: 700; margin-top: 6px; line-height: 1.3;">First proof</div>
+      </div>
+      <div style="text-align: center;">
+        <div style="width: 100%; aspect-ratio: 1; border-radius: 50%; border: 1.5px solid #9A7B33; background: #FAF6EC; display: grid; place-items: center;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9A7B33" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v6c0 4.4 3.4 7.6 8 8.6 4.6-1 8-4.2 8-8.6V7Z"/><path d="m9 12 2 2 4-4.4"/></svg>
+        </div>
+        <div style="font-size: 9.5px; font-weight: 700; margin-top: 6px; line-height: 1.3;">10 verified</div>
+      </div>
+      <div style="text-align: center;">
+        <div style="width: 100%; aspect-ratio: 1; border-radius: 50%; border: 1.5px solid #31462F; background: #E9EFE0; display: grid; place-items: center;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c4.5-3.4 7-7 7-10.6A7 7 0 0 0 5 10.4C5 14 7.5 17.6 12 21Z"/></svg>
+        </div>
+        <div style="font-size: 9.5px; font-weight: 700; margin-top: 6px; line-height: 1.3;">New street</div>
+      </div>
+      <div style="text-align: center; opacity: .45;">
+        <div style="width: 100%; aspect-ratio: 1; border-radius: 50%; border: 1.5px dashed #B0B6A8; background: #F6F5EE; display: grid; place-items: center;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>
+        </div>
+        <div style="font-size: 9.5px; font-weight: 700; margin-top: 6px; line-height: 1.3;">Muhtasib</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; background: #FFFFFF; border-top: 1px solid #E5E3D7; padding: 9px 8px calc(10px + env(safe-area-inset-bottom, 0px)); flex-shrink: 0;">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center; color: #8A937F;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3-6-3Z"/><path d="M9 4v13M15 7v13"/></svg>
+      <span style="font-size: 10.5px; font-weight: 600;">Map</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center; color: #8A937F;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="1.9" stroke-linecap="round"><path d="M7 4h11M7 12h11M7 20h11M3.5 4h.01M3.5 12h.01M3.5 20h.01"/></svg>
+      <span style="font-size: 10.5px; font-weight: 600;">Lists</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center;">
+      <div style="width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid #31462F; display: grid; place-items: center;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+      <span style="font-size: 10.5px; font-weight: 600; color: #8A937F;">Add</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center; color: #8A937F;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="1.9" stroke-linecap="round"><path d="M5 21V11M12 21V4M19 21v-6"/></svg>
+      <span style="font-size: 10.5px; font-weight: 600;">Board</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E2A22" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/></svg>
+      <span style="font-size: 10.5px; font-weight: 700;">You</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; }
+    .b { font-family: "Space Grotesk", system-ui, sans-serif; color: #F1F5EF; -webkit-font-smoothing: antialiased; }
+    .b-d { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.035em; }
+    .b-num { font-variant-numeric: tabular-nums; font-family: "Archivo", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.04em; }
+    .b-lbl { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; color: #7E8C84; }
+    .b-screen { width: 390px; height: 844px; background: #0B100E; overflow: hidden; display: flex; flex-direction: column; }
+    .b-card { background: #161D19; border: 1px solid #262F2A; border-radius: 18px; }
+    .b-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; flex-shrink: 0; }
+    .b-icobtn { width: 44px; height: 44px; border-radius: 12px; background: #161D19; border: 1px solid #262F2A; display: grid; place-items: center; }
+    .b-cta { height: 54px; border-radius: 15px; background: #FFB347; color: #10170F; display: flex; align-items: center; justify-content: center; gap: 9px; font-family: "Archivo", sans-serif; font-size: 16px; font-weight: 800; letter-spacing: -0.02em; box-shadow: 0 0 28px #FFB34733; }
+    .b-tabbar { display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; background: #0E1412; border-top: 1px solid #212A25; padding: 10px 8px calc(11px + env(safe-area-inset-bottom, 0px)); flex-shrink: 0; }
+    .b-tab { display: flex; flex-direction: column; align-items: center; gap: 5px; min-height: 44px; justify-content: center; }
+    .b-tab span { font-size: 10px; font-weight: 600; color: #7E8C84; }
+    .b-tab.on span { color: #FFB347; font-weight: 700; }
+    a { color: #FFB347; text-decoration: none; }
+    a:hover { color: #FFC978; }
+  </style>
+</helmet>
+<div class="b b-screen">
+
+  <div class="b-top">
+    <div style="display: flex; align-items: center; gap: 11px;">
+      <div style="width: 40px; height: 40px; border-radius: 13px; background: linear-gradient(150deg, #FFB347, #FF6B4A); color: #10170F; font-size: 14px; font-weight: 800; font-family: Archivo, sans-serif; display: grid; place-items: center;">AK</div>
+      <div>
+        <div class="b-lbl">Birmingham · 21:40</div>
+        <div class="b-d" style="font-size: 19px; margin-top: 2px;">Salam, Aisha</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 7px;">
+      <div style="display: flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px; border-radius: 999px; background: #241A10; border: 1px solid #4A3316;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="#FF8A3D"><path d="M13 2c.4 4-2.6 5.2-3.8 7.4-1 1.8.3 3.3 1.3 3.1 1-.2.6-2 1.7-2.9 1.4 3.4 4.3 3.9 4.3 7.2A5.5 5.5 0 0 1 6 17.6C6 11.4 12.3 9.9 13 2Z"/></svg>
+        <span class="b-num" style="font-size: 14px; color: #FFB347;">6</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px; border-radius: 999px; background: #10201A; border: 1px solid #1E4636;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="#6FE3A5"><path d="M13.5 2 4 13.5h6L9.5 22 20 10h-6.8Z"/></svg>
+        <span class="b-num" style="font-size: 14px; color: #6FE3A5;">1,092</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 0 18px;">
+
+    <!-- league strip -->
+    <div class="b-card" style="padding: 13px 15px; display: flex; align-items: center; gap: 13px; background: linear-gradient(100deg, #1C1710, #161D19);">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#FFB347" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/><path d="M10 20h4M12 13v7"/></svg>
+      <div style="flex: 1; min-width: 0;">
+        <div class="b-d" style="font-size: 15px;">Amber League</div>
+        <div style="font-size: 11.5px; color: #8A978F; margin-top: 3px;">7th of 30 · top 5 go up · <span style="color: #FFB347; font-weight: 600;">3 days left</span></div>
+        <div style="height: 5px; border-radius: 3px; background: #26302A; margin-top: 9px; overflow: hidden;">
+          <div style="width: 72%; height: 5px; background: linear-gradient(90deg, #FFB347, #FF8A3D);"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- map band -->
+    <div style="position: relative; height: 166px; border-radius: 18px; overflow: hidden; margin-top: 11px; border: 1px solid #262F2A; background: #0F1512;">
+      <div style="position: absolute; inset: 0; background:
+        repeating-linear-gradient(98deg, transparent 0 44px, #18211C 44px 46px),
+        repeating-linear-gradient(8deg, transparent 0 54px, #18211C 54px 56px);"></div>
+      <div style="position: absolute; left: -40px; bottom: -30px; width: 190px; height: 130px; background: radial-gradient(circle, #FFB3471F, transparent 70%);"></div>
+      <div style="position: absolute; right: -30px; top: -30px; width: 160px; height: 130px; background: radial-gradient(circle, #6FE3A51A, transparent 70%);"></div>
+
+      <div style="position: absolute; left: 44px; top: 40px; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+        <div style="height: 25px; padding: 0 10px; border-radius: 999px; background: #6FE3A5; color: #06170F; font-family: Archivo, sans-serif; font-size: 11px; font-weight: 800; display: flex; align-items: center; box-shadow: 0 0 20px #6FE3A555;">Zaitoon</div>
+        <div style="width: 8px; height: 8px; border-radius: 50%; background: #6FE3A5; box-shadow: 0 0 12px #6FE3A5;"></div>
+      </div>
+      <div style="position: absolute; left: 194px; top: 24px; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+        <div style="height: 25px; padding: 0 10px; border-radius: 999px; background: #2A1F10; border: 1px solid #FFB34766; color: #FFB347; font-family: Archivo, sans-serif; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 5px;">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#FFB347" stroke-width="3" stroke-linecap="round"><path d="M12 8v5M12 16.5h.01"/></svg>
+          Needs proof
+        </div>
+        <div style="width: 8px; height: 8px; border-radius: 50%; background: #FFB347; box-shadow: 0 0 12px #FFB347;"></div>
+      </div>
+      <div style="position: absolute; left: 116px; top: 112px; width: 8px; height: 8px; border-radius: 50%; background: #6FE3A5; box-shadow: 0 0 10px #6FE3A5;"></div>
+      <div style="position: absolute; left: 258px; top: 92px; width: 8px; height: 8px; border-radius: 50%; background: #FFB347; box-shadow: 0 0 10px #FFB347;"></div>
+      <div style="position: absolute; left: 300px; top: 126px; width: 8px; height: 8px; border-radius: 50%; background: #3E4A44;"></div>
+
+      <div style="position: absolute; left: 12px; bottom: 12px; height: 30px; padding: 0 13px; display: flex; align-items: center; gap: 7px; border-radius: 999px; background: #0B100ECC; border: 1px solid #2B3530; font-size: 12px; font-weight: 600;">
+        <span class="b-num" style="font-size: 13px;">148</span> nearby
+      </div>
+      <div style="position: absolute; right: 12px; bottom: 12px; height: 30px; padding: 0 13px; display: flex; align-items: center; border-radius: 999px; background: #161D19; border: 1px solid #2B3530; font-size: 12px; font-weight: 700; color: #FFB347;">Open map</div>
+    </div>
+
+    <!-- quest -->
+    <div class="b-card" style="margin-top: 11px; padding: 15px 16px; border-color: #3A3020; background: linear-gradient(140deg, #1E1810, #151C18);">
+      <div style="display: flex; align-items: flex-start; gap: 12px;">
+        <div style="width: 38px; height: 38px; border-radius: 12px; background: #FFB347; display: grid; place-items: center; flex-shrink: 0; box-shadow: 0 0 22px #FFB34740;">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#10170F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6.6v5.2c0 4.6 3.4 8.1 8 9.2 4.6-1.1 8-4.6 8-9.2V6.6Z"/><path d="m9 12 2.2 2.2L15.4 10"/></svg>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div class="b-lbl" style="color: #C9A46B;">Tonight's quest</div>
+          <div class="b-d" style="font-size: 17px; margin-top: 4px; line-height: 1.25;">Verify 2 places on Ladypool Rd</div>
+          <div style="display: flex; align-items: center; gap: 9px; margin-top: 11px;">
+            <div style="flex: 1; height: 7px; border-radius: 4px; background: #2A2418; overflow: hidden;">
+              <div style="width: 50%; height: 7px; background: #FFB347;"></div>
+            </div>
+            <span class="b-num" style="font-size: 13px; color: #FFB347;">1/2</span>
+          </div>
+        </div>
+        <div style="text-align: right; flex-shrink: 0;">
+          <div class="b-num" style="font-size: 20px; color: #6FE3A5;">+150</div>
+          <div style="font-size: 9.5px; color: #7E8C84; margin-top: 1px;">XP</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- feed -->
+    <div class="b-lbl" style="margin: 20px 0 10px;">Live in your city</div>
+
+    <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 13px;">
+      <div style="width: 34px; height: 34px; border-radius: 11px; background: #1E2A22; color: #6FE3A5; font-size: 11px; font-weight: 800; font-family: Archivo, sans-serif; display: grid; place-items: center; flex-shrink: 0;">YR</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 13.5px; line-height: 1.4;"><strong style="font-weight: 700;">Yusuf R.</strong> <span style="color: #8A978F;">put a certificate on</span> Karak House</div>
+        <div style="font-size: 11px; color: #6B7871; margin-top: 3px;">4 min ago · needs 1 more confirm</div>
+      </div>
+      <div style="height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid #2E5F47; background: #10201A; color: #6FE3A5; font-size: 12px; font-weight: 700; display: flex; align-items: center;">Confirm</div>
+    </div>
+
+    <div style="height: 1px; background: #1C2420;"></div>
+
+    <div style="display: flex; align-items: center; gap: 12px; padding: 13px 0;">
+      <div style="width: 34px; height: 34px; border-radius: 11px; background: #2A2218; color: #FFB347; font-size: 11px; font-weight: 800; font-family: Archivo, sans-serif; display: grid; place-items: center; flex-shrink: 0;">FN</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 13.5px; line-height: 1.4;"><strong style="font-weight: 700;">Fatima N.</strong> <span style="color: #8A978F;">rated</span> Sambal &amp; Co. <span style="color: #6FE3A5; font-weight: 600;">Mashallah</span></div>
+        <div style="font-size: 11px; color: #6B7871; margin-top: 3px;">18 min ago</div>
+      </div>
+      <div class="b-num" style="font-size: 13px; color: #6FE3A5;">+25</div>
+    </div>
+
+    <div style="height: 1px; background: #1C2420;"></div>
+
+    <div style="display: flex; align-items: center; gap: 12px; padding-top: 13px;">
+      <div style="width: 34px; height: 34px; border-radius: 11px; background: #2A1A16; color: #FF6B4A; font-size: 11px; font-weight: 800; font-family: Archivo, sans-serif; display: grid; place-items: center; flex-shrink: 0;">OD</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 13.5px; line-height: 1.4;"><strong style="font-weight: 700;">Omar D.</strong> <span style="color: #8A978F;">flagged</span> a lapsed certificate</div>
+        <div style="font-size: 11px; color: #6B7871; margin-top: 3px;">1 hr ago · Noor Kebab House</div>
+      </div>
+      <div class="b-num" style="font-size: 13px; color: #6FE3A5;">+40</div>
+    </div>
+
+  </div>
+
+  <div class="b-tabbar">
+    <div class="b-tab on"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#FFB347" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3-6-3Z"/><path d="M9 4v13M15 7v13"/></svg><span>Tonight</span></div>
+    <div class="b-tab"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#7E8C84" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg><span>Saved</span></div>
+    <div class="b-tab"><div style="width: 40px; height: 32px; border-radius: 11px; background: #FFB347; display: grid; place-items: center; box-shadow: 0 0 22px #FFB34740;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10170F" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div><span>Add</span></div>
+    <div class="b-tab"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#7E8C84" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/><path d="M10 20h4M12 13v7"/></svg><span>League</span></div>
+    <div class="b-tab"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#7E8C84" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/></svg><span>You</span></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

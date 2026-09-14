@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap">
+  <style>
+    body { margin: 0; }
+    .c { font-family: "Karla", system-ui, sans-serif; color: #141F1E; -webkit-font-smoothing: antialiased; }
+    .c-d { font-family: "Syne", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.02em; }
+    .c-num { font-variant-numeric: tabular-nums; font-family: "Syne", sans-serif; font-weight: 800; }
+    .c-lbl { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; font-weight: 700; color: #0E6F66; }
+    .c-screen { width: 390px; height: 844px; background: #FBF6EC; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+    .c-card { background: #FFFFFF; border: 2px solid #141F1E; border-radius: 10px; box-shadow: 3px 3px 0 #141F1E; }
+    .c-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; flex-shrink: 0; }
+    .c-icobtn { width: 44px; height: 44px; border-radius: 10px; background: #FFFFFF; border: 2px solid #141F1E; display: grid; place-items: center; box-shadow: 2px 2px 0 #141F1E; }
+    .c-cta { height: 54px; border-radius: 10px; background: #0E6F66; color: #FBF6EC; border: 2px solid #141F1E; box-shadow: 3px 3px 0 #141F1E; display: flex; align-items: center; justify-content: center; gap: 9px; font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800; }
+    .c-nav { position: absolute; left: 18px; right: 18px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); height: 62px; border-radius: 999px; background: #141F1E; display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; padding: 0 6px; }
+    .c-navi { display: grid; place-items: center; min-height: 44px; border-radius: 999px; }
+    .c-navi.on { background: #F0A319; }
+    a { color: #0E6F66; text-decoration: none; font-weight: 600; }
+    a:hover { color: #0B564F; }
+  </style>
+</helmet>
+<div class="c c-screen">
+
+  <div class="c-top">
+    <div>
+      <div class="c-lbl">Season 4 · 3 days left</div>
+      <div class="c-d" style="font-size: 27px; line-height: 1.1; margin-top: 3px;">The board</div>
+    </div>
+    <div class="c-icobtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#141F1E" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg></div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 2px 18px 0;">
+
+    <div style="display: flex; gap: 8px;">
+      <div style="height: 34px; padding: 0 13px; display: flex; align-items: center; border-radius: 8px; background: #141F1E; color: #FBF6EC; font-size: 12.5px; font-weight: 700;">Birmingham</div>
+      <div style="height: 34px; padding: 0 13px; display: flex; align-items: center; border-radius: 8px; background: #FFFFFF; border: 2px solid #141F1E; font-size: 12.5px; font-weight: 700;">UK</div>
+      <div style="height: 34px; padding: 0 13px; display: flex; align-items: center; border-radius: 8px; background: #FFFFFF; border: 2px solid #141F1E; font-size: 12.5px; font-weight: 700;">Global</div>
+    </div>
+
+    <!-- podium as tiles -->
+    <div style="display: grid; grid-template-columns: 1fr 1.18fr 1fr; gap: 9px; align-items: end; margin-top: 16px;">
+      <div style="border: 2px solid #141F1E; border-radius: 10px; box-shadow: 3px 3px 0 #141F1E; background: #FFFFFF; padding: 13px 8px 12px; text-align: center;">
+        <div style="width: 38px; height: 38px; margin: 0 auto; border-radius: 8px; background: #C4553B; border: 2px solid #141F1E; color: #FBF6EC; font-family: Syne, sans-serif; font-size: 12px; font-weight: 800; display: grid; place-items: center;">FN</div>
+        <div style="font-size: 12px; font-weight: 700; margin-top: 8px;">Fatima N.</div>
+        <div class="c-num" style="font-size: 17px; margin-top: 4px;">2,140</div>
+        <div class="c-lbl" style="margin-top: 4px; color: #8D9C95;">2nd</div>
+      </div>
+      <div style="border: 3px solid #141F1E; border-radius: 10px; box-shadow: 4px 4px 0 #141F1E; background: #F0A319; padding: 16px 8px 14px; text-align: center;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#0E6F66" stroke="#141F1E" stroke-width="1.2"><path d="M12 1.5 14.6 7l5.9.5-4.5 3.9 1.4 5.8L12 14.1 6.6 17.2 8 11.4 3.5 7.5 9.4 7Z"/></svg>
+        <div style="width: 44px; height: 44px; margin: 8px auto 0; border-radius: 9px; background: #0E6F66; border: 2px solid #141F1E; color: #FBF6EC; font-family: Syne, sans-serif; font-size: 14px; font-weight: 800; display: grid; place-items: center;">YR</div>
+        <div style="font-size: 12.5px; font-weight: 700; margin-top: 8px;">Yusuf R.</div>
+        <div class="c-num" style="font-size: 21px; margin-top: 4px;">3,486</div>
+        <div class="c-lbl" style="margin-top: 4px; color: #7A5A10;">Muhtasib</div>
+      </div>
+      <div style="border: 2px solid #141F1E; border-radius: 10px; box-shadow: 3px 3px 0 #141F1E; background: #FFFFFF; padding: 13px 8px 12px; text-align: center;">
+        <div style="width: 38px; height: 38px; margin: 0 auto; border-radius: 8px; background: #0E6F66; border: 2px solid #141F1E; color: #FBF6EC; font-family: Syne, sans-serif; font-size: 12px; font-weight: 800; display: grid; place-items: center;">OD</div>
+        <div style="font-size: 12px; font-weight: 700; margin-top: 8px;">Omar D.</div>
+        <div class="c-num" style="font-size: 17px; margin-top: 4px;">1,905</div>
+        <div class="c-lbl" style="margin-top: 4px; color: #8D9C95;">3rd</div>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; margin: 18px 2px 8px;">
+      <div class="c-lbl">Member</div>
+      <div class="c-lbl">Points</div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 12px; padding: 10px 2px; border-top: 2px solid #141F1E;">
+      <span class="c-num" style="width: 20px; font-size: 14px; color: #8D9C95;">4</span>
+      <div style="width: 34px; height: 34px; border-radius: 8px; background: #FFFFFF; border: 2px solid #141F1E; font-family: Syne, sans-serif; font-size: 11px; font-weight: 800; display: grid; place-items: center;">ZH</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 14px; font-weight: 700;">Zainab H.</div>
+        <div style="font-size: 11px; color: #5C6B66; margin-top: 2px;">Guide · 28 tiles turned</div>
+      </div>
+      <span class="c-num" style="font-size: 15px;">1,744</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px; padding: 10px 2px; border-top: 1px solid #E6DECE;">
+      <span class="c-num" style="width: 20px; font-size: 14px; color: #8D9C95;">5</span>
+      <div style="width: 34px; height: 34px; border-radius: 8px; background: #FFFFFF; border: 2px solid #141F1E; font-family: Syne, sans-serif; font-size: 11px; font-weight: 800; display: grid; place-items: center;">BM</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 14px; font-weight: 700;">Bilal M.</div>
+        <div style="font-size: 11px; color: #5C6B66; margin-top: 2px;">Guide · 61 notes</div>
+      </div>
+      <span class="c-num" style="font-size: 15px;">1,512</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px; padding: 10px 2px; border-top: 1px solid #E6DECE;">
+      <span class="c-num" style="width: 20px; font-size: 14px; color: #8D9C95;">6</span>
+      <div style="width: 34px; height: 34px; border-radius: 8px; background: #FFFFFF; border: 2px solid #141F1E; font-family: Syne, sans-serif; font-size: 11px; font-weight: 800; display: grid; place-items: center;">HS</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 14px; font-weight: 700;">Hamza S.</div>
+        <div style="font-size: 11px; color: #5C6B66; margin-top: 2px;">Scout · 14 places added</div>
+      </div>
+      <span class="c-num" style="font-size: 15px;">1,208</span>
+    </div>
+
+    <div style="border: 3px solid #141F1E; border-radius: 10px; box-shadow: 4px 4px 0 #141F1E; background: #0E6F66; padding: 12px 13px; margin: 12px 0; display: flex; align-items: center; gap: 12px;">
+      <span class="c-num" style="width: 20px; font-size: 14px; color: #F0A319;">7</span>
+      <div style="width: 34px; height: 34px; border-radius: 8px; background: #F0A319; border: 2px solid #141F1E; font-family: Syne, sans-serif; font-size: 11px; font-weight: 800; display: grid; place-items: center;">AK</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 14px; font-weight: 700; color: #FBF6EC;">You</div>
+        <div style="font-size: 11px; color: #BEE3DF; margin-top: 2px;"><span class="c-num" style="font-size: 11px;">116</span> points behind 6th</div>
+      </div>
+      <span class="c-num" style="font-size: 15px; color: #F0A319;">1,092</span>
+    </div>
+
+    <div style="border: 2px solid #141F1E; border-radius: 10px; background: #FDF0D8; padding: 13px 15px; display: flex; align-items: center; gap: 12px;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="#F0A319" stroke="#141F1E" stroke-width="1.3" style="flex-shrink: 0;"><path d="M12 1.5 14.6 7l5.9.5-4.5 3.9 1.4 5.8L12 14.1 6.6 17.2 8 11.4 3.5 7.5 9.4 7Z"/></svg>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 13.5px; font-weight: 700;">Two tiles would do it</div>
+        <div style="font-size: 11px; color: #5C6B66; margin-top: 2px;"><span class="c-num" style="font-size: 11px;">11</span> places on Ladypool Rd are unclaimed</div>
+      </div>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#141F1E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>
+    </div>
+
+  </div>
+
+  <div style="height: 94px; flex-shrink: 0;"></div>
+  <div class="c-nav">
+    <div class="c-navi "><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#8D9C95" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3-6-3Z"/><path d="M9 4v13M15 7v13"/></svg></div>
+    <div class="c-navi "><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#8D9C95" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg></div>
+    <div class="c-navi"><div style="width: 44px; height: 44px; border-radius: 50%; background: #F0A319; display: grid; place-items: center;"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#141F1E" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div></div>
+    <div class="c-navi on"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#141F1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V11M12 21V4M19 21v-6"/></svg></div>
+    <div class="c-navi "><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#8D9C95" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/></svg></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

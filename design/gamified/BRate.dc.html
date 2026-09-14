@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; }
+    .b { font-family: "Space Grotesk", system-ui, sans-serif; color: #F1F5EF; -webkit-font-smoothing: antialiased; }
+    .b-d { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.035em; }
+    .b-num { font-variant-numeric: tabular-nums; font-family: "Archivo", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.04em; }
+    .b-lbl { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; color: #7E8C84; }
+    .b-screen { width: 390px; height: 844px; background: #0B100E; overflow: hidden; display: flex; flex-direction: column; }
+    .b-card { background: #161D19; border: 1px solid #262F2A; border-radius: 18px; }
+    .b-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; flex-shrink: 0; }
+    .b-icobtn { width: 44px; height: 44px; border-radius: 12px; background: #161D19; border: 1px solid #262F2A; display: grid; place-items: center; }
+    .b-cta { height: 54px; border-radius: 15px; background: #FFB347; color: #10170F; display: flex; align-items: center; justify-content: center; gap: 9px; font-family: "Archivo", sans-serif; font-size: 16px; font-weight: 800; letter-spacing: -0.02em; box-shadow: 0 0 28px #FFB34733; }
+    .b-tabbar { display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; background: #0E1412; border-top: 1px solid #212A25; padding: 10px 8px calc(11px + env(safe-area-inset-bottom, 0px)); flex-shrink: 0; }
+    .b-tab { display: flex; flex-direction: column; align-items: center; gap: 5px; min-height: 44px; justify-content: center; }
+    .b-tab span { font-size: 10px; font-weight: 600; color: #7E8C84; }
+    .b-tab.on span { color: #FFB347; font-weight: 700; }
+    a { color: #FFB347; text-decoration: none; }
+    a:hover { color: #FFC978; }
+  </style>
+</helmet>
+<div class="b b-screen">
+
+  <div class="b-top">
+    <div class="b-icobtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F1F5EF" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></div>
+    <div style="font-size: 13px; font-weight: 700; color: #8A978F;">Zaitoon Grill</div>
+    <div style="width: 44px;"></div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 6px 18px 0;">
+
+    <div class="b-d" style="font-size: 34px; line-height: 1.08;">How was it?</div>
+    <div style="font-size: 13px; color: #8A978F; margin-top: 7px; line-height: 1.5;">One tap. Your rating counts more once you hit Guide.</div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 20px;">
+      <div style="border-radius: 20px; background: #12261D; border: 2px solid #6FE3A5; padding: 16px 8px 14px; text-align: center; box-shadow: 0 0 30px #6FE3A528;">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="#6FE3A5"><path d="M12 20.5S3.5 14.9 3.5 9.4A4.9 4.9 0 0 1 12 6.2a4.9 4.9 0 0 1 8.5 3.2c0 5.5-8.5 11.1-8.5 11.1Z"/></svg>
+        <div class="b-d" style="font-size: 12.5px; color: #6FE3A5; margin-top: 10px;">Mashallah</div>
+        <div style="font-size: 9.5px; color: #6C9D84; margin-top: 3px;">loved it</div>
+      </div>
+      <div style="border-radius: 20px; background: #161D19; border: 1px solid #2B3530; padding: 16px 8px 14px; text-align: center;">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#8A978F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9h3Z"/><path d="M7 11l4.5-7.5A2 2 0 0 1 15 4.8L14 9h4.6a2 2 0 0 1 1.9 2.6l-1.9 6A2 2 0 0 1 16.7 19H7"/></svg>
+        <div class="b-d" style="font-size: 12.5px; color: #B3BFB8; margin-top: 10px;">Alhamdu&shy;lillah</div>
+        <div style="font-size: 9.5px; color: #6B7871; margin-top: 3px;">it was good</div>
+      </div>
+      <div style="border-radius: 20px; background: #161D19; border: 1px solid #2B3530; padding: 16px 8px 14px; text-align: center;">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#8A978F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 15c1-1.2 5-1.2 6 0M9 9.5h.01M15 9.5h.01"/></svg>
+        <div class="b-d" style="font-size: 12.5px; color: #B3BFB8; margin-top: 10px;">Astaghfi&shy;rullah</div>
+        <div style="font-size: 9.5px; color: #6B7871; margin-top: 3px;">avoid</div>
+      </div>
+    </div>
+
+    <!-- streak bonus -->
+    <div style="display: flex; align-items: center; gap: 11px; margin-top: 13px; padding: 12px 15px; border-radius: 15px; background: linear-gradient(100deg, #241A10, #171D19); border: 1px solid #4A3316;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#FF8A3D" style="flex-shrink: 0;"><path d="M13 2c.4 4-2.6 5.2-3.8 7.4-1 1.8.3 3.3 1.3 3.1 1-.2.6-2 1.7-2.9 1.4 3.4 4.3 3.9 4.3 7.2A5.5 5.5 0 0 1 6 17.6C6 11.4 12.3 9.9 13 2Z"/></svg>
+      <div style="flex: 1; font-size: 12.5px; color: #D7C3A2; line-height: 1.45;">Week <strong style="color: #FFB347;">6</strong> of your streak — this one pays <strong style="color: #FFB347;">1.5×</strong>.</div>
+    </div>
+
+    <div class="b-lbl" style="margin: 20px 0 10px;">Tag what's true</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+      <div style="height: 34px; padding: 0 13px; display: flex; align-items: center; border-radius: 999px; background: #6FE3A5; color: #06170F; font-size: 12.5px; font-weight: 700;">Zabiha meat</div>
+      <div style="height: 34px; padding: 0 13px; display: flex; align-items: center; border-radius: 999px; background: #161D19; border: 1px solid #2B3530; color: #B3BFB8; font-size: 12.5px; font-weight: 600;">Prayer space</div>
+      <div style="height: 34px; padding: 0 13px; display: flex; align-items: center; border-radius: 999px; background: #6FE3A5; color: #06170F; font-size: 12.5px; font-weight: 700;">Open late</div>
+      <div style="height: 34px; padding: 0 13px; display: flex; align-items: center; border-radius: 999px; background: #161D19; border: 1px solid #2B3530; color: #B3BFB8; font-size: 12.5px; font-weight: 600;">No alcohol</div>
+      <div style="height: 34px; padding: 0 13px; display: flex; align-items: center; border-radius: 999px; background: #161D19; border: 1px solid #2B3530; color: #B3BFB8; font-size: 12.5px; font-weight: 600;">Worth it</div>
+    </div>
+
+    <div class="b-lbl" style="margin: 20px 0 10px;">Say something <span style="color: #4E5A54;">optional · +10 XP</span></div>
+    <div class="b-card" style="padding: 14px 15px; height: 78px;">
+      <div style="font-size: 14px; color: #5C6A63; line-height: 1.5;">What should someone know before they go?</div>
+    </div>
+
+    <div style="display: flex; gap: 9px; margin-top: 11px;">
+      <div style="width: 66px; height: 66px; border-radius: 15px; border: 1px dashed #3A4A42; background: #111714; display: grid; place-items: center;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A978F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>
+      </div>
+      <div style="width: 66px; height: 66px; border-radius: 15px; background: #1B2420; border: 1px solid #2B3530; display: grid; place-items: center;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4E5A54" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="padding: 12px 18px calc(14px + env(safe-area-inset-bottom, 0px)); background: #0B100E; border-top: 1px solid #1C2420; flex-shrink: 0;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+      <span style="font-size: 11.5px; color: #7E8C84;">Posting as Aisha K. · Scout</span>
+      <span style="display: flex; align-items: center; gap: 5px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="#6FE3A5"><path d="M13.5 2 4 13.5h6L9.5 22 20 10h-6.8Z"/></svg>
+        <span class="b-num" style="font-size: 15px; color: #6FE3A5;">+38 XP</span>
+      </span>
+    </div>
+    <div class="b-cta">Slam it</div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

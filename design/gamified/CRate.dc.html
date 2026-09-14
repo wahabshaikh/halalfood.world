@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap">
+  <style>
+    body { margin: 0; }
+    .c { font-family: "Karla", system-ui, sans-serif; color: #141F1E; -webkit-font-smoothing: antialiased; }
+    .c-d { font-family: "Syne", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.02em; }
+    .c-num { font-variant-numeric: tabular-nums; font-family: "Syne", sans-serif; font-weight: 800; }
+    .c-lbl { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; font-weight: 700; color: #0E6F66; }
+    .c-screen { width: 390px; height: 844px; background: #FBF6EC; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+    .c-card { background: #FFFFFF; border: 2px solid #141F1E; border-radius: 10px; box-shadow: 3px 3px 0 #141F1E; }
+    .c-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; flex-shrink: 0; }
+    .c-icobtn { width: 44px; height: 44px; border-radius: 10px; background: #FFFFFF; border: 2px solid #141F1E; display: grid; place-items: center; box-shadow: 2px 2px 0 #141F1E; }
+    .c-cta { height: 54px; border-radius: 10px; background: #0E6F66; color: #FBF6EC; border: 2px solid #141F1E; box-shadow: 3px 3px 0 #141F1E; display: flex; align-items: center; justify-content: center; gap: 9px; font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800; }
+    .c-nav { position: absolute; left: 18px; right: 18px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); height: 62px; border-radius: 999px; background: #141F1E; display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; padding: 0 6px; }
+    .c-navi { display: grid; place-items: center; min-height: 44px; border-radius: 999px; }
+    .c-navi.on { background: #F0A319; }
+    a { color: #0E6F66; text-decoration: none; font-weight: 600; }
+    a:hover { color: #0B564F; }
+  </style>
+</helmet>
+<div class="c c-screen">
+
+  <div class="c-top">
+    <div class="c-icobtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#141F1E" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></div>
+    <div class="c-d" style="font-size: 15px;">Rate &amp; stamp</div>
+    <div style="width: 44px;"></div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 4px 18px 0;">
+
+    <div class="c-lbl">Zaitoon Grill</div>
+    <div class="c-d" style="font-size: 29px; line-height: 1.1; margin: 6px 0 16px;">Pick your tile.</div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="border: 3px solid #141F1E; border-radius: 10px; box-shadow: 4px 4px 0 #141F1E; background: #0E6F66; padding: 15px 16px; display: flex; align-items: center; gap: 14px;">
+        <div style="width: 46px; height: 46px; border-radius: 8px; background: #F0A319; border: 2px solid #141F1E; display: grid; place-items: center; flex-shrink: 0;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#141F1E"><path d="M12 20.5S3.5 14.9 3.5 9.4A4.9 4.9 0 0 1 12 6.2a4.9 4.9 0 0 1 8.5 3.2c0 5.5-8.5 11.1-8.5 11.1Z"/></svg>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div class="c-d" style="font-size: 18px; color: #FBF6EC;">Mashallah</div>
+          <div style="font-size: 12px; color: #BEE3DF; margin-top: 3px;">I'd bring people here</div>
+        </div>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#F0A319"><path d="M12 1.5 14.6 7l5.9.5-4.5 3.9 1.4 5.8L12 14.1 6.6 17.2 8 11.4 3.5 7.5 9.4 7Z"/></svg>
+      </div>
+
+      <div style="border: 2px solid #141F1E; border-radius: 10px; box-shadow: 3px 3px 0 #141F1E; background: #FFFFFF; padding: 15px 16px; display: flex; align-items: center; gap: 14px;">
+        <div style="width: 46px; height: 46px; border-radius: 8px; background: #FDF0D8; border: 2px solid #141F1E; display: grid; place-items: center; flex-shrink: 0;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B07A12" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9h3Z"/><path d="M7 11l4.5-7.5A2 2 0 0 1 15 4.8L14 9h4.6a2 2 0 0 1 1.9 2.6l-1.9 6A2 2 0 0 1 16.7 19H7"/></svg>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div class="c-d" style="font-size: 18px;">Alhamdulillah</div>
+          <div style="font-size: 12px; color: #5C6B66; margin-top: 3px;">Good, no complaints</div>
+        </div>
+      </div>
+
+      <div style="border: 2px solid #141F1E; border-radius: 10px; box-shadow: 3px 3px 0 #141F1E; background: #FFFFFF; padding: 15px 16px; display: flex; align-items: center; gap: 14px;">
+        <div style="width: 46px; height: 46px; border-radius: 8px; background: #F8E3DD; border: 2px solid #141F1E; display: grid; place-items: center; flex-shrink: 0;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C4553B" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 15c1-1.2 5-1.2 6 0M9 9.5h.01M15 9.5h.01"/></svg>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div class="c-d" style="font-size: 18px;">Astaghfirullah</div>
+          <div style="font-size: 12px; color: #5C6B66; margin-top: 3px;">Something was off — say why below</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="c-lbl" style="margin: 20px 0 10px;">Tag the tiles that fit</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+      <div style="height: 34px; padding: 0 12px; display: flex; align-items: center; border-radius: 8px; background: #0E6F66; color: #FBF6EC; border: 2px solid #141F1E; font-size: 12.5px; font-weight: 700;">Zabiha meat</div>
+      <div style="height: 34px; padding: 0 12px; display: flex; align-items: center; border-radius: 8px; background: #FFFFFF; border: 2px solid #141F1E; font-size: 12.5px; font-weight: 700;">Prayer space</div>
+      <div style="height: 34px; padding: 0 12px; display: flex; align-items: center; border-radius: 8px; background: #0E6F66; color: #FBF6EC; border: 2px solid #141F1E; font-size: 12.5px; font-weight: 700;">Family friendly</div>
+      <div style="height: 34px; padding: 0 12px; display: flex; align-items: center; border-radius: 8px; background: #FFFFFF; border: 2px solid #141F1E; font-size: 12.5px; font-weight: 700;">No alcohol</div>
+    </div>
+
+    <div class="c-lbl" style="margin: 20px 0 10px;">Leave a note</div>
+    <div class="c-card" style="padding: 14px 15px; height: 80px;">
+      <div style="font-size: 13.5px; color: #8D9C95; line-height: 1.5;">What should someone know before they go?</div>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-top: 12px;">
+      <div style="width: 64px; height: 64px; border-radius: 10px; border: 2px dashed #141F1E; background: #FFFFFF; display: grid; place-items: center;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#141F1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>
+      </div>
+      <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <div style="font-size: 13px; font-weight: 700;">Add photos</div>
+        <div style="font-size: 11.5px; color: #5C6B66; margin-top: 3px;">Each one is worth +10 and unlocks the photo tile</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="padding: 12px 18px calc(14px + env(safe-area-inset-bottom, 0px)); background: #FBF6EC; border-top: 2px solid #141F1E; flex-shrink: 0;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+      <span style="font-size: 11.5px; color: #5C6B66;">Aisha K. · Scout</span>
+      <span style="display: flex; align-items: center; gap: 6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="#F0A319" style="stroke: #141F1E; stroke-width: 1.2;"><path d="M12 1.5 14.6 7l5.9.5-4.5 3.9 1.4 5.8L12 14.1 6.6 17.2 8 11.4 3.5 7.5 9.4 7Z"/></svg>
+        <span class="c-num" style="font-size: 14px;">+25 · stamp 19</span>
+      </span>
+    </div>
+    <div class="c-cta">Stamp it</div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

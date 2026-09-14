@@ -1,0 +1,186 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
+  <style>
+    body { margin: 0; }
+    .a { font-family: "DM Sans", system-ui, sans-serif; color: #1E2A22; -webkit-font-smoothing: antialiased; }
+    .a-serif { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: -0.01em; }
+    .a-eyebrow { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #7C8A76; }
+    .a-num { font-variant-numeric: tabular-nums; }
+    a { color: #31462F; text-decoration: none; }
+    a:hover { color: #4A6B3F; }
+  </style>
+</helmet>
+
+<div class="a" style="width: 390px; height: 844px; background: #F2F0E8; overflow: hidden; display: flex; flex-direction: column;">
+
+  <!-- header -->
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 10px;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 26px; height: 30px; border: 1.5px solid #31462F; border-radius: 48% 48% 48% 48% / 40% 40% 60% 60%; display: grid; place-items: center; background: #DCE9C2;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="1.8" stroke-linecap="round"><path d="M12 21c4.5-3.4 7-7 7-10.6A7 7 0 0 0 5 10.4C5 14 7.5 17.6 12 21Z"/><circle cx="12" cy="10" r="2.4"/></svg>
+      </div>
+      <div style="font-size: 19px; font-weight: 700; letter-spacing: -0.5px;">Halalfood</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid #DDDCCF; border-radius: 999px; background: #FFFFFF; font-size: 13px; font-weight: 600;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6B7568" stroke-width="2" stroke-linecap="round"><path d="M12 21c4.5-3.4 7-7 7-10.6A7 7 0 0 0 5 10.4C5 14 7.5 17.6 12 21Z"/></svg>
+        Birmingham
+      </div>
+      <div style="width: 34px; height: 34px; border-radius: 50%; background: #31462F; color: #F2F0E8; display: grid; place-items: center; font-size: 13px; font-weight: 700;">AK</div>
+    </div>
+  </div>
+
+  <!-- search -->
+  <div style="padding: 0 20px;">
+    <div style="display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 15px; background: #FFFFFF; border: 1px solid #DDDCCF; border-radius: 12px;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+      <span style="font-size: 15px; color: #8A937F;">Search a place, dish or street</span>
+    </div>
+  </div>
+
+  <!-- filters -->
+  <div style="display: flex; gap: 7px; padding: 12px 20px 14px; overflow: hidden;">
+    <div style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; background: #31462F; color: #F4F2EA; font-size: 12.5px; font-weight: 600; white-space: nowrap;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#DCE9C2" stroke-width="2.4" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+      Zabiha
+    </div>
+    <div style="display: flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; background: #FFFFFF; border: 1px solid #DDDCCF; font-size: 12.5px; font-weight: 600; color: #4B584A; white-space: nowrap;">Certificate</div>
+    <div style="display: flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; background: #FFFFFF; border: 1px solid #DDDCCF; font-size: 12.5px; font-weight: 600; color: #4B584A; white-space: nowrap;">Open now</div>
+    <div style="display: flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; background: #FFFFFF; border: 1px solid #DDDCCF; font-size: 12.5px; font-weight: 600; color: #4B584A; white-space: nowrap;">£</div>
+  </div>
+
+  <!-- map -->
+  <div style="position: relative; height: 246px; margin: 0 20px; border-radius: 16px; overflow: hidden; border: 1px solid #DDDCCF; background: #E7E7DA;">
+    <div style="position: absolute; inset: 0; background:
+      linear-gradient(#EFEFE3 0 0) 0 0/100% 100%,
+      repeating-linear-gradient(96deg, transparent 0 46px, #DEDED0 46px 49px),
+      repeating-linear-gradient(6deg, transparent 0 58px, #DEDED0 58px 61px);"></div>
+    <div style="position: absolute; left: -30px; top: 132px; width: 170px; height: 96px; background: #DFE9CD; border-radius: 50% 42% 46% 54%;"></div>
+    <div style="position: absolute; right: -24px; top: -20px; width: 128px; height: 104px; background: #DFE9CD; border-radius: 46% 54% 50% 44%;"></div>
+    <div style="position: absolute; left: 0; right: 0; top: 88px; height: 13px; background: #CFDCE4; transform: rotate(-5deg);"></div>
+
+    <!-- pins: filled = verified, hollow = unverified -->
+    <div style="position: absolute; left: 56px; top: 52px; display: flex; flex-direction: column; align-items: center; gap: 3px;">
+      <div style="height: 26px; padding: 0 9px; border-radius: 999px; background: #31462F; color: #F4F2EA; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 5px; box-shadow: 0 3px 9px #26332226;">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#DCE9C2" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Zaitoon
+      </div>
+      <div style="width: 7px; height: 7px; border-radius: 50%; background: #31462F;"></div>
+    </div>
+    <div style="position: absolute; left: 196px; top: 30px; display: flex; flex-direction: column; align-items: center; gap: 3px;">
+      <div style="height: 26px; padding: 0 9px; border-radius: 999px; background: #FFFFFF; border: 1px solid #DDDCCF; color: #4B584A; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 5px;">
+        <span style="width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid #9A7B33;"></span>
+        Karak House
+      </div>
+      <div style="width: 7px; height: 7px; border-radius: 50%; background: #FFFFFF; border: 1.5px solid #8A937F;"></div>
+    </div>
+    <div style="position: absolute; left: 108px; top: 150px; display: flex; flex-direction: column; align-items: center; gap: 3px;">
+      <div style="height: 26px; padding: 0 9px; border-radius: 999px; background: #31462F; color: #F4F2EA; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 5px; box-shadow: 0 3px 9px #26332226;">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#DCE9C2" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Bismillah Biryani
+      </div>
+      <div style="width: 7px; height: 7px; border-radius: 50%; background: #31462F;"></div>
+    </div>
+    <div style="position: absolute; left: 262px; top: 168px; width: 9px; height: 9px; border-radius: 50%; background: #FFFFFF; border: 1.5px solid #8A937F;"></div>
+    <div style="position: absolute; left: 300px; top: 106px; width: 9px; height: 9px; border-radius: 50%; background: #31462F;"></div>
+
+    <div style="position: absolute; left: 12px; bottom: 12px; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 999px; background: #FFFFFFF0; border: 1px solid #DDDCCF; font-size: 12px; font-weight: 600;">
+      <span class="a-num">148</span> places · <span style="color: #6B7568;"><span class="a-num">61</span> verified</span>
+    </div>
+    <div style="position: absolute; right: 12px; bottom: 12px; width: 34px; height: 34px; border-radius: 10px; background: #FFFFFF; border: 1px solid #DDDCCF; display: grid; place-items: center;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="2" stroke-linecap="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/></svg>
+    </div>
+  </div>
+
+  <!-- sheet -->
+  <div style="flex: 1; margin: 14px 0 0; background: #FFFFFF; border-top: 1px solid #DDDCCF; border-radius: 20px 20px 0 0; padding: 14px 20px 0; display: flex; flex-direction: column; min-height: 0;">
+    <div style="width: 34px; height: 4px; border-radius: 4px; background: #E1E0D3; margin: 0 auto 12px;"></div>
+    <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px;">
+      <div class="a-serif" style="font-size: 23px;">Nearby in Small Heath</div>
+      <div style="font-size: 12px; font-weight: 600; color: #6B7568;">Trust ▾</div>
+    </div>
+
+    <div style="border-top: 1px solid #EDEBE0; padding: 13px 0 12px; display: flex; gap: 13px; align-items: flex-start;">
+      <div style="width: 44px; height: 44px; border-radius: 12px; background: #E9EFE0; display: grid; place-items: center; flex-shrink: 0;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4A6B3F" stroke-width="1.7" stroke-linecap="round"><path d="M4 9h16M6 9v9a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V9M9 9V6a3 3 0 0 1 6 0v3"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <div style="font-size: 15.5px; font-weight: 700; letter-spacing: -0.2px;">Zaitoon Grill</div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#31462F"><path d="m12 2 2.4 1.8 3-.3 1 2.8 2.5 1.6-1 2.9 1 2.9-2.5 1.6-1 2.8-3-.3L12 22l-2.4-1.8-3 .3-1-2.8L3.1 16l1-2.9-1-2.9 2.5-1.6 1-2.8 3 .3Z"/><path d="m8.6 12.2 2.3 2.3 4.4-4.6" stroke="#F2F0E8" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+        </div>
+        <div style="font-size: 12.5px; color: #6B7568; margin-top: 3px;">Turkish grill · 0.4 mi · Coventry Rd</div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; font-weight: 600;">
+          <span style="color: #2E6B4A;">Mashallah <span class="a-num">184</span></span>
+          <span style="color: #9A7B33;">Alhamdulillah <span class="a-num">46</span></span>
+          <span style="color: #A0503C;"><span class="a-num">3</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div style="border-top: 1px solid #EDEBE0; padding: 13px 0 12px; display: flex; gap: 13px; align-items: flex-start;">
+      <div style="width: 44px; height: 44px; border-radius: 12px; background: #F3F1E6; display: grid; place-items: center; flex-shrink: 0;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9A8B5F" stroke-width="1.7" stroke-linecap="round"><path d="M6 4h10a3 3 0 0 1 0 6h-1"/><path d="M4 10h11v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-6Z"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <div style="font-size: 15.5px; font-weight: 700; letter-spacing: -0.2px;">Karak House</div>
+          <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: #9A7B33; border: 1px solid #E0D3B4; background: #FAF5E9; padding: 2px 6px; border-radius: 5px;">NEEDS PROOF</span>
+        </div>
+        <div style="font-size: 12.5px; color: #6B7568; margin-top: 3px;">Café · 0.6 mi · Stratford Rd</div>
+        <div style="display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 12px; font-weight: 600; color: #31462F;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Add a certificate · earn <span class="a-num">75</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="border-top: 1px solid #EDEBE0; padding: 13px 0 0; display: flex; gap: 13px; align-items: flex-start;">
+      <div style="width: 44px; height: 44px; border-radius: 12px; background: #E9EFE0; display: grid; place-items: center; flex-shrink: 0;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4A6B3F" stroke-width="1.7" stroke-linecap="round"><path d="M5 20h14M6 20V9l6-4 6 4v11"/><path d="M10 20v-5h4v5"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 15.5px; font-weight: 700; letter-spacing: -0.2px;">Bismillah Biryani</div>
+        <div style="font-size: 12.5px; color: #6B7568; margin-top: 3px;">Hyderabadi · 0.9 mi · Ladypool Rd</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tab bar -->
+  <div style="display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; background: #FFFFFF; border-top: 1px solid #E5E3D7; padding: 9px 8px calc(10px + env(safe-area-inset-bottom, 0px)); flex-shrink: 0;">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E2A22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3-6-3Z"/><path d="M9 4v13M15 7v13"/></svg>
+      <span style="font-size: 10.5px; font-weight: 700;">Map</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center; color: #8A937F;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="1.9" stroke-linecap="round"><path d="M7 4h11M7 12h11M7 20h11M3.5 4h.01M3.5 12h.01M3.5 20h.01"/></svg>
+      <span style="font-size: 10.5px; font-weight: 600;">Lists</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center;">
+      <div style="width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid #31462F; display: grid; place-items: center;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+      <span style="font-size: 10.5px; font-weight: 600; color: #8A937F;">Add</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center; color: #8A937F;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="1.9" stroke-linecap="round"><path d="M5 21V11M12 21V4M19 21v-6"/></svg>
+      <span style="font-size: 10.5px; font-weight: 600;">Board</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center; color: #8A937F;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/></svg>
+      <span style="font-size: 10.5px; font-weight: 600;">You</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
