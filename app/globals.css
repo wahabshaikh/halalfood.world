@@ -421,6 +421,15 @@ a {
 .popup-share:hover {
   background: #e0ebd2;
 }
+.popup-save-mount {
+  display: inline-flex;
+}
+.popup-links .save-place-control {
+  display: inline-flex;
+}
+.popup-links .save-place-button {
+  box-shadow: none;
+}
 
 /* ------------------------------------------------------------- list sheet */
 
@@ -728,6 +737,51 @@ a {
 .action.primary:hover {
   background: #2c3d2c;
 }
+.save-place-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.save-place-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #cfdcc6;
+  border-radius: 999px;
+  background: #f7fbf3;
+  color: #365b2d;
+  box-shadow: var(--shadow-s);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.save-place-button:hover {
+  background: var(--leaf-wash);
+  border-color: #bcd2ad;
+}
+.save-place-button.compact {
+  min-height: 34px;
+  padding: 7px 11px;
+  box-shadow: none;
+  font-size: 12px;
+}
+.save-place-button.is-saved {
+  background: var(--leaf-wash);
+  border-color: #c5d9b6;
+}
+.save-place-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+.save-place-error {
+  color: #9a4036;
+  font-size: 12px;
+  line-height: 1.4;
+}
 .share-control {
   display: inline-flex;
   align-items: center;
@@ -822,6 +876,18 @@ a {
   text-decoration: underline;
   color: var(--leaf-bright);
 }
+.place-card h2 {
+  font-size: 19px;
+  margin: 0 0 5px;
+  letter-spacing: -0.4px;
+}
+.place-card h2 a {
+  text-decoration: none;
+}
+.place-card h2 a:hover {
+  text-decoration: underline;
+  color: var(--leaf-bright);
+}
 .place-card-address {
   font-size: 13px;
   color: var(--ink-soft);
@@ -847,6 +913,12 @@ a {
 }
 .card-link:hover {
   text-decoration: underline;
+}
+.place-card-meta .save-place-control {
+  margin-left: auto;
+}
+.place-row .save-place-control {
+  flex-shrink: 0;
 }
 .city-grid {
   list-style: none;
@@ -904,6 +976,23 @@ a {
   text-align: center;
   color: var(--ink-soft);
   font-size: 15px;
+}
+.saved-auth-card {
+  margin-top: clamp(18px, 7vw, 70px);
+}
+.saved-error {
+  margin-top: clamp(18px, 7vw, 70px);
+  padding: clamp(24px, 5vw, 42px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: var(--shadow-m);
+}
+.saved-error h1 {
+  font-size: clamp(28px, 5vw, 38px);
+  line-height: 1.15;
+  letter-spacing: -1.4px;
+  margin: 7px 0 12px;
 }
 .page-footer {
   border-top: 1px solid var(--line);

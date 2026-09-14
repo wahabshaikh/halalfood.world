@@ -1,5 +1,6 @@
 import type { Place } from "../lib/places";
 import { formatAddress, formatCount } from "../lib/seo";
+import SavePlaceButton from "./save-place-button";
 
 /**
  * Server-rendered list of places. Crawlers get real anchors to `/place/<id>`;
@@ -38,6 +39,7 @@ export function PlaceList({ places }: { places: Place[] }) {
               >
                 Show on map
               </a>
+              <SavePlaceButton placeId={place.id} compact />
             </p>
           </article>
         </li>
