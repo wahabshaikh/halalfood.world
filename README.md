@@ -436,19 +436,22 @@ The framework deployment setup follows the [official vinext documentation](https
 The repository includes `.github/workflows/preview.yml` for Vercel-style previews on same-repository pull requests:
 
 - Each PR creates or reuses a Neon branch named `pr-<number>`.
-- The Cloudflare Worker is uploaded as a non-production version with a stable `pr-<number>` preview alias.
-- The preview URL is added to the PR and updated on every push.
-- The Neon branch is deleted when the PR closes and expires after 14 days as a cleanup safeguard.
+- Before upload, the deploy job applies every `migrations/*.sql` file to that branch in lexical filename order. A migration failure fails the preview.
+- The Cloudflare Worker is uploaded as a non-production version with a stable `pr-<number>` preview alias. The predicted URL is `https://pr-<number>-halalfood-world.wahabshaikh.workers.dev`.
+- The workflow creates or updates one GitHub Deployment in the `preview` environment and adds or updates one preview URL comment in the PR.
+- When the PR closes, all Cloudflare preview versions tagged for that PR are deleted so the alias no longer has a retained version target. The Neon branch is also deleted and expires after 14 days as a cleanup safeguard.
 
 Configure these GitHub Actions settings before opening a PR:
 
 | Setting | Type | Purpose |
 | --- | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Repository secret | Cloudflare Workers deployment token |
+| `CLOUDFLARE_API_TOKEN` | Repository secret | Cloudflare preview upload, version lookup, and cleanup |
 | `CLOUDFLARE_ACCOUNT_ID` | Repository secret | Cloudflare account ID |
 | `NEON_API_KEY` | Repository secret | Create and delete Neon branches |
 | `NEON_PROJECT_ID` | Repository variable | Neon project ID |
 
 The Neon GitHub integration can create the `NEON_API_KEY` secret and `NEON_PROJECT_ID` variable automatically. Fork pull requests are intentionally skipped because the preview deployment requires infrastructure credentials.
 
-The preview upload changes only the preview version's `DATABASE_URL` and `BETTER_AUTH_URL`; existing Worker secrets and variables are preserved. Keep the production deployment configured to explicitly provide the production `DATABASE_URL` on every production deploy, and do not promote a preview version manually.
+The upload intentionally uses `--keep-vars`. It changes only the preview `DATABASE_URL` and `BETTER_AUTH_URL`; it reuses production Worker variables and secrets for Resend, Turnstile, Google Places, `BETTER_AUTH_SECRET`, and the R2 binding `halalfood-world-evidence`. Preview code can therefore send through production integrations and read or write the production R2 bucket. Future isolation could use a `preview/` key prefix or a separate bucket; that is not implemented here.
+
+Keep the production deployment configured to explicitly provide the production `DATABASE_URL` on every production deploy, and do not promote a preview version manually.
