@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; }
+    .b { font-family: "Space Grotesk", system-ui, sans-serif; color: #F1F5EF; -webkit-font-smoothing: antialiased; }
+    .b-d { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.035em; }
+    .b-num { font-variant-numeric: tabular-nums; font-family: "Archivo", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.04em; }
+    .b-lbl { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; color: #7E8C84; }
+    .b-screen { width: 390px; height: 844px; background: #0B100E; overflow: hidden; display: flex; flex-direction: column; }
+    .b-card { background: #161D19; border: 1px solid #262F2A; border-radius: 18px; }
+    .b-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; flex-shrink: 0; }
+    .b-icobtn { width: 44px; height: 44px; border-radius: 12px; background: #161D19; border: 1px solid #262F2A; display: grid; place-items: center; }
+    .b-cta { height: 54px; border-radius: 15px; background: #FFB347; color: #10170F; display: flex; align-items: center; justify-content: center; gap: 9px; font-family: "Archivo", sans-serif; font-size: 16px; font-weight: 800; letter-spacing: -0.02em; box-shadow: 0 0 28px #FFB34733; }
+    .b-tabbar { display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; background: #0E1412; border-top: 1px solid #212A25; padding: 10px 8px calc(11px + env(safe-area-inset-bottom, 0px)); flex-shrink: 0; }
+    .b-tab { display: flex; flex-direction: column; align-items: center; gap: 5px; min-height: 44px; justify-content: center; }
+    .b-tab span { font-size: 10px; font-weight: 600; color: #7E8C84; }
+    .b-tab.on span { color: #FFB347; font-weight: 700; }
+    a { color: #FFB347; text-decoration: none; }
+    a:hover { color: #FFC978; }
+  </style>
+</helmet>
+<div class="b b-screen">
+
+  <div class="b-top">
+    <div class="b-icobtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#F1F5EF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg></div>
+    <div style="font-size: 13px; font-weight: 700; color: #8A978F;">Karak House</div>
+    <div style="width: 44px;"></div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 6px 18px 0;">
+
+    <div style="display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px; border-radius: 999px; background: #241A10; border: 1px solid #4A3316; color: #FFB347; font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#FFB347" stroke-width="3" stroke-linecap="round"><path d="M12 8v5M12 16.5h.01"/></svg>
+      NEEDS PROOF
+    </div>
+    <div class="b-d" style="font-size: 31px; line-height: 1.1; margin: 11px 0 7px;">Drop the proof</div>
+    <div style="font-size: 13px; color: #8A978F; line-height: 1.55;">Two members confirm it, then this place flips to <span style="color: #6FE3A5; font-weight: 600;">Zabiha confirmed</span> and you bank the XP.</div>
+
+    <!-- type pills -->
+    <div style="display: flex; gap: 7px; margin-top: 18px; overflow: hidden;">
+      <div style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 13px; border-radius: 999px; background: #FFB347; color: #10170F; font-size: 12.5px; font-weight: 700; white-space: nowrap;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10170F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/></svg>
+        Certificate +75
+      </div>
+      <div style="display: flex; align-items: center; height: 36px; padding: 0 13px; border-radius: 999px; background: #161D19; border: 1px solid #2B3530; color: #B3BFB8; font-size: 12.5px; font-weight: 600; white-space: nowrap;">Supplier +50</div>
+      <div style="display: flex; align-items: center; height: 36px; padding: 0 13px; border-radius: 999px; background: #161D19; border: 1px solid #2B3530; color: #B3BFB8; font-size: 12.5px; font-weight: 600; white-space: nowrap;">Menu +15</div>
+    </div>
+
+    <!-- viewfinder -->
+    <div style="position: relative; height: 210px; border-radius: 20px; margin-top: 15px; background: radial-gradient(120% 90% at 50% 40%, #1A2620, #0D1310); border: 1px solid #26302A; overflow: hidden;">
+      <div style="position: absolute; left: 30px; top: 26px; width: 26px; height: 26px; border-left: 2.5px solid #FFB347; border-top: 2.5px solid #FFB347; border-radius: 6px 0 0 0;"></div>
+      <div style="position: absolute; right: 30px; top: 26px; width: 26px; height: 26px; border-right: 2.5px solid #FFB347; border-top: 2.5px solid #FFB347; border-radius: 0 6px 0 0;"></div>
+      <div style="position: absolute; left: 30px; bottom: 58px; width: 26px; height: 26px; border-left: 2.5px solid #FFB347; border-bottom: 2.5px solid #FFB347; border-radius: 0 0 0 6px;"></div>
+      <div style="position: absolute; right: 30px; bottom: 58px; width: 26px; height: 26px; border-right: 2.5px solid #FFB347; border-bottom: 2.5px solid #FFB347; border-radius: 0 0 6px 0;"></div>
+      <div style="position: absolute; left: 0; right: 0; top: 82px; display: flex; flex-direction: column; align-items: center; gap: 9px;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FFB347" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.4"/></svg>
+        <div class="b-d" style="font-size: 15px;">Frame the certificate</div>
+        <div style="font-size: 11.5px; color: #7E8C84;">Certifier name and dates must be readable</div>
+      </div>
+      <div style="position: absolute; left: 0; right: 0; bottom: 14px; display: flex; justify-content: center;">
+        <div style="width: 54px; height: 54px; border-radius: 50%; background: #FFB347; border: 4px solid #0B100E; box-shadow: 0 0 0 2px #FFB347, 0 0 26px #FFB34755;"></div>
+      </div>
+    </div>
+
+    <!-- fields -->
+    <div class="b-card" style="margin-top: 13px; overflow: hidden;">
+      <div style="padding: 12px 15px; display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 12px; color: #7E8C84; font-weight: 600;">Certifier</span>
+        <span style="font-size: 14px; font-weight: 600;">HMC</span>
+      </div>
+      <div style="height: 1px; background: #212A25;"></div>
+      <div style="padding: 12px 15px; display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 12px; color: #7E8C84; font-weight: 600;">Valid until</span>
+        <span style="font-size: 14px; font-weight: 600;">March 2027</span>
+      </div>
+      <div style="height: 1px; background: #212A25;"></div>
+      <div style="padding: 12px 15px; display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 12px; color: #7E8C84; font-weight: 600;">Meat</span>
+        <span style="font-size: 14px; font-weight: 600; color: #6FE3A5;">Hand-slaughtered</span>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-top: 13px; padding: 12px 14px; border-radius: 15px; background: #1B1412; border: 1px solid #4A241B;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF6B4A" stroke-width="2" stroke-linecap="round" style="flex-shrink: 0; margin-top: 1px;"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M12 11.5v4.5"/></svg>
+      <div style="font-size: 11.5px; color: #D3A899; line-height: 1.55;">No faces, no phone numbers. A rejected proof costs you <strong style="color: #FF6B4A;">25 XP</strong> and your streak multiplier.</div>
+    </div>
+
+  </div>
+
+  <div style="padding: 12px 18px calc(14px + env(safe-area-inset-bottom, 0px)); background: #0B100E; border-top: 1px solid #1C2420; flex-shrink: 0;">
+    <div class="b-cta">Send to the crew <span style="font-size: 12.5px; font-weight: 700; opacity: .7;">+75 XP on accept</span></div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

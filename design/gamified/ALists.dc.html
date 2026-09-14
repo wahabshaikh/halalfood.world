@@ -1,0 +1,138 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
+  <style>
+    body { margin: 0; }
+    .a { font-family: "DM Sans", system-ui, sans-serif; color: #1E2A22; -webkit-font-smoothing: antialiased; }
+    .a-serif { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: -0.01em; }
+    .a-eyebrow { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #7C8A76; }
+    .a-num { font-variant-numeric: tabular-nums; }
+    .a-screen { width: 390px; height: 844px; background: #F2F0E8; overflow: hidden; display: flex; flex-direction: column; }
+    .a-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 12px; flex-shrink: 0; }
+    .a-icobtn { width: 44px; height: 44px; border-radius: 10px; background: #FFFFFF; border: 1px solid #DDDCCF; display: grid; place-items: center; }
+    .a-card { background: #FFFFFF; border: 1px solid #DDDCCF; border-radius: 16px; }
+    .a-cta { height: 52px; border-radius: 13px; background: #31462F; color: #F4F2EA; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15.5px; font-weight: 700; }
+    a { color: #31462F; text-decoration: none; }
+    a:hover { color: #4A6B3F; }
+  </style>
+</helmet>
+<div class="a a-screen">
+
+  <div class="a-top" style="padding-bottom: 6px;">
+    <div class="a-serif" style="font-size: 30px;">Your lists</div>
+    <div class="a-icobtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1E2A22" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 6px 20px 0;">
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 9px;">
+      <div class="a-card" style="padding: 14px 15px; height: 104px; display: flex; flex-direction: column; justify-content: space-between;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v17l-6-4-6 4V4Z"/></svg>
+        <div>
+          <div style="font-size: 14.5px; font-weight: 700;">Want to try</div>
+          <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;"><span class="a-num">14</span> places · private</div>
+        </div>
+      </div>
+      <div class="a-card" style="padding: 14px 15px; height: 104px; display: flex; flex-direction: column; justify-content: space-between; background: #31462F; border-color: #31462F;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#DCE9C2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="m9.5 14 1.8 1.8 3.4-3.6"/></svg>
+        <div>
+          <div style="font-size: 14.5px; font-weight: 700; color: #F4F2EA;">Certificate on file</div>
+          <div style="font-size: 11.5px; color: #B9C7AE; margin-top: 2px;"><span class="a-num">22</span> places · auto</div>
+        </div>
+      </div>
+      <div class="a-card" style="padding: 14px 15px; height: 104px; display: flex; flex-direction: column; justify-content: space-between;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9A7B33" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a4 4 0 0 0 0 8 4 4 0 0 1 0 8"/><path d="M5 21h14"/></svg>
+        <div>
+          <div style="font-size: 14.5px; font-weight: 700;">Iftar 2027</div>
+          <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;"><span class="a-num">9</span> places · shared</div>
+        </div>
+      </div>
+      <div style="border: 1px dashed #C9C7B7; background: #FBFAF4; border-radius: 16px; padding: 14px 15px; height: 104px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7C8A76" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <div style="font-size: 13px; font-weight: 700; color: #4B584A;">New list</div>
+      </div>
+    </div>
+
+    <div class="a-eyebrow" style="margin: 22px 0 4px;">Recently saved</div>
+    <div>
+      <div style="border-top: 1px solid #E5E3D7; padding: 12px 0; display: flex; align-items: center; gap: 12px;">
+        <div style="width: 40px; height: 40px; border-radius: 11px; background: #E9EFE0; display: grid; place-items: center; flex-shrink: 0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4A6B3F" stroke-width="1.7" stroke-linecap="round"><path d="M4 9h16M6 9v9a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V9M9 9V6a3 3 0 0 1 6 0v3"/></svg>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 14.5px; font-weight: 700;">Anatolia Ocakbaşı</div>
+          <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;">Want to try · added Tuesday</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#31462F"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>
+      </div>
+      <div style="border-top: 1px solid #E5E3D7; padding: 12px 0; display: flex; align-items: center; gap: 12px;">
+        <div style="width: 40px; height: 40px; border-radius: 11px; background: #F3F1E6; display: grid; place-items: center; flex-shrink: 0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9A8B5F" stroke-width="1.7" stroke-linecap="round"><path d="M6 4h10a3 3 0 0 1 0 6h-1"/><path d="M4 10h11v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-6Z"/></svg>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 14.5px; font-weight: 700;">Sambal &amp; Co.</div>
+          <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;">Iftar 2027 · added Sunday</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#31462F"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>
+      </div>
+    </div>
+
+    <div class="a-eyebrow" style="margin: 22px 0 9px;">Lists people follow</div>
+    <div class="a-card" style="padding: 14px 15px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 28px; height: 28px; border-radius: 50%; background: #9A7B33; color: #FFF; font-size: 10px; font-weight: 700; display: grid; place-items: center;">YR</div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 14px; font-weight: 700;">Every zabiha place on Coventry Rd</div>
+          <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;">Yusuf R. · <span class="a-num">31</span> places · <span class="a-num">1.2k</span> followers</div>
+        </div>
+        <div style="height: 30px; padding: 0 13px; border-radius: 999px; border: 1px solid #31462F; display: flex; align-items: center; font-size: 12.5px; font-weight: 700; color: #31462F;">Follow</div>
+      </div>
+      <div style="height: 1px; background: #EDEBE0; margin: 13px 0;"></div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 28px; height: 28px; border-radius: 50%; background: #4A6B3F; color: #FFF; font-size: 10px; font-weight: 700; display: grid; place-items: center;">FN</div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 14px; font-weight: 700;">Late-night after Isha</div>
+          <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;">Fatima N. · <span class="a-num">18</span> places · <span class="a-num">604</span> followers</div>
+        </div>
+        <div style="height: 30px; padding: 0 13px; border-radius: 999px; border: 1px solid #31462F; display: flex; align-items: center; font-size: 12.5px; font-weight: 700; color: #31462F;">Follow</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; background: #FFFFFF; border-top: 1px solid #E5E3D7; padding: 9px 8px calc(10px + env(safe-area-inset-bottom, 0px)); flex-shrink: 0;">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center; color: #8A937F;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3-6-3Z"/><path d="M9 4v13M15 7v13"/></svg>
+      <span style="font-size: 10.5px; font-weight: 600;">Map</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E2A22" stroke-width="1.9" stroke-linecap="round"><path d="M7 4h11M7 12h11M7 20h11M3.5 4h.01M3.5 12h.01M3.5 20h.01"/></svg>
+      <span style="font-size: 10.5px; font-weight: 700;">Lists</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center;">
+      <div style="width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid #31462F; display: grid; place-items: center;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+      <span style="font-size: 10.5px; font-weight: 600; color: #8A937F;">Add</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center; color: #8A937F;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="1.9" stroke-linecap="round"><path d="M5 21V11M12 21V4M19 21v-6"/></svg>
+      <span style="font-size: 10.5px; font-weight: 600;">Board</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center; color: #8A937F;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/></svg>
+      <span style="font-size: 10.5px; font-weight: 600;">You</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
