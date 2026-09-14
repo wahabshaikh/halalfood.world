@@ -20,7 +20,7 @@ export default function SavedPage() {
       <main className="page-main">
         <Breadcrumbs
           trail={[
-            { name: "Halalfood", path: "/" },
+            { name: "halalfood.world", path: "/" },
             { name: "Saved", path: "/saved" },
           ]}
         />

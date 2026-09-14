@@ -3,7 +3,7 @@
  * Nothing here touches the database, so it stays unit-testable.
  */
 export const SITE_URL = "https://halalfood.world";
-export const SITE_NAME = "Halalfood";
+export const SITE_NAME = "halalfood.world";
 export const OG_IMAGE = "/og.png";
 
 /** Every pin is a city centroid plus jitter, so say so wherever we show one. */
@@ -75,8 +75,8 @@ export function cityDescription(slug: string, count: number) {
   const name = cityName(slug);
   return truncate(
     count > 0
-      ? `Browse ${formatCount(count)} halal ${plural(count, "restaurant")} in ${name} on the Halalfood map, with addresses, phone numbers and ratings. Locations are approximate — confirm before visiting.`
-      : `Halal restaurants in ${name} on the Halalfood map. Locations are approximate — confirm before visiting.`,
+      ? `Browse ${formatCount(count)} halal ${plural(count, "restaurant")} in ${name} on the halalfood.world map, with addresses, phone numbers and ratings. Locations are approximate — confirm before visiting.`
+      : `Halal restaurants in ${name} on the halalfood.world map. Locations are approximate — confirm before visiting.`,
   );
 }
 

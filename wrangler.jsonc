@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "halalfood-world",
+  "name": "halalfood.world-world",
   "compatibility_date": "2026-09-13",
   "compatibility_flags": [
     "nodejs_compat"
@@ -15,7 +15,7 @@
   "r2_buckets": [
     {
       "binding": "HALAL_EVIDENCE_R2",
-      "bucket_name": "halalfood-world-evidence"
+      "bucket_name": "halalfood.world-world-evidence"
     }
   ],
   "cache": {

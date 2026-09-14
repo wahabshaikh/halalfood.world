@@ -8,7 +8,7 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Halalfood — discover halal places worth sharing",
+    default: "halalfood.world — discover halal places worth sharing",
     template: "%s · " + SITE_NAME,
   },
   description: DESCRIPTION,
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     type: "website",
     siteName: SITE_NAME,
     url: SITE_URL,
-    title: "Halalfood — discover halal places worth sharing",
+    title: "halalfood.world — discover halal places worth sharing",
     description: DESCRIPTION,
     locale: "en_US",
     images: [
@@ -33,13 +33,13 @@ export const metadata: Metadata = {
         url: OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: "Halalfood — a community map of halal restaurants",
+        alt: "halalfood.world — a community map of halal restaurants",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Halalfood — discover halal places worth sharing",
+    title: "halalfood.world — discover halal places worth sharing",
     description: DESCRIPTION,
     images: [OG_IMAGE],
   },
@@ -56,6 +56,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
+      { url: "/halalfood-world-logo.png", sizes: "1024x1024", type: "image/png" },
       { url: "/icon.svg", type: "image/svg+xml" },
       { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
     ],

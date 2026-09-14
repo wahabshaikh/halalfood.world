@@ -22,9 +22,9 @@ import {
 } from "../../src/components/site-chrome";
 import { loadOrDegrade } from "../../src/lib/load";
 
-const TITLE = "Halalfood community contributors";
+const TITLE = "halalfood.world community contributors";
 const DESCRIPTION =
-  "Meet the people helping the Halalfood community build a more useful map with places, verifications, reviews, photos and ratings.";
+  "Meet the people helping the halalfood.world community build a more useful map with places, verifications, reviews, photos and ratings.";
 
 const loadLeaderboard = cache(() =>
   loadOrDegrade(() => listContributors(CONTRIBUTOR_LEADERBOARD_LIMIT)),
@@ -72,7 +72,7 @@ export default async function LeaderboardPage() {
 
   const contributors = loaded.data;
   const trail = [
-    { name: "Halalfood", path: "/" },
+    { name: "halalfood.world", path: "/" },
     { name: "Community", path: "/leaderboard" },
   ];
 

@@ -28,7 +28,7 @@ function errorFrom(body: Record<string, unknown> | null, fallback: string) {
 }
 
 const loginUrl = "/login?returnTo=%2Fadd";
-const draftKey = "halalfood:add-place-draft";
+const draftKey = "halalfood.world:add-place-draft";
 
 export default function AddPlaceForm() {
   const [authState, setAuthState] = useState<AuthState>("checking");
@@ -280,8 +280,8 @@ export default function AddPlaceForm() {
           </a>
           <ShareButton
             url={"/place/" + successId}
-            title={name || "A halal place on Halalfood"}
-            text={(name || "This halal place") + " is now on Halalfood."}
+            title={name || "A halal place on halalfood.world"}
+            text={(name || "This halal place") + " is now on halalfood.world."}
             className="action share-button"
           />
           <button type="button" className="action" onClick={reset}>
