@@ -10,7 +10,9 @@ import {
   doublePrecision,
   index,
   primaryKey,
+  check,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 /** Better Auth's core PostgreSQL tables. Keep these names aligned with auth.ts. */
 export const authUser = pgTable("user", {
@@ -161,6 +163,38 @@ export const savedPlaces = pgTable(
       table.createdAt,
     ),
     index("saved_places_place_id_idx").on(table.placeId),
+  ],
+);
+
+export const placeRatings = pgTable(
+  "place_ratings",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    placeId: uuid("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    rating: text("rating", {
+      enum: ["mashallah", "alhamdulillah", "astaghfirullah"],
+    }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: "place_ratings_pkey",
+      columns: [table.userId, table.placeId],
+    }),
+    check(
+      "place_ratings_rating_check",
+      sql`${table.rating} IN ('mashallah', 'alhamdulillah', 'astaghfirullah')`,
+    ),
+    index("place_ratings_place_id_rating_idx").on(table.placeId, table.rating),
   ],
 );
 

@@ -85,6 +85,23 @@ export const SAVE_RATE_LIMITS = {
   },
 } as const;
 
+/** Durable budgets for halal place rating mutations. */
+export const RATING_RATE_LIMITS = {
+  mutationUser: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 120,
+    cooldownMs: 250,
+  },
+  mutationIp: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 300,
+    cooldownMs: 100,
+  },
+} as const;
+
+/** Descriptive alias for callers that group limits by feature. */
+export const PLACE_RATING_RATE_LIMITS = RATING_RATE_LIMITS;
+
 export type OtpRateLimitRule = {
   windowMs: number;
   maxCount: number;
@@ -420,6 +437,26 @@ export async function consumeSavePlaceLimits(
     [
       { key: userKey, rule: SAVE_RATE_LIMITS.mutationUser },
       { key: ipKey, rule: SAVE_RATE_LIMITS.mutationIp },
+    ],
+    store,
+    now,
+  );
+}
+
+export async function consumePlaceRatingLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("place-rating:mutate:user", userId),
+    identifierKey("place-rating:mutate:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: RATING_RATE_LIMITS.mutationUser },
+      { key: ipKey, rule: RATING_RATE_LIMITS.mutationIp },
     ],
     store,
     now,
