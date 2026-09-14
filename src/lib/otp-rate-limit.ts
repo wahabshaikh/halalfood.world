@@ -102,6 +102,23 @@ export const RATING_RATE_LIMITS = {
 /** Descriptive alias for callers that group limits by feature. */
 export const PLACE_RATING_RATE_LIMITS = RATING_RATE_LIMITS;
 
+/** Durable budgets for halal place review mutations. */
+export const REVIEW_RATE_LIMITS = {
+  mutationUser: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 120,
+    cooldownMs: 250,
+  },
+  mutationIp: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 300,
+    cooldownMs: 100,
+  },
+} as const;
+
+/** Descriptive alias for callers that group limits by feature. */
+export const PLACE_REVIEW_RATE_LIMITS = REVIEW_RATE_LIMITS;
+
 export type OtpRateLimitRule = {
   windowMs: number;
   maxCount: number;
@@ -457,6 +474,26 @@ export async function consumePlaceRatingLimits(
     [
       { key: userKey, rule: RATING_RATE_LIMITS.mutationUser },
       { key: ipKey, rule: RATING_RATE_LIMITS.mutationIp },
+    ],
+    store,
+    now,
+  );
+}
+
+export async function consumePlaceReviewLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("place-review:mutate:user", userId),
+    identifierKey("place-review:mutate:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: REVIEW_RATE_LIMITS.mutationUser },
+      { key: ipKey, rule: REVIEW_RATE_LIMITS.mutationIp },
     ],
     store,
     now,
