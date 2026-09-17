@@ -2,7 +2,6 @@ import { ArrowUpRight, Star, Utensils } from "lucide-react";
 import type { Place } from "../lib/places";
 import { formatAddress, formatCount } from "../lib/seo";
 import SavePlaceButton from "./save-place-button";
-import { Badge } from "./ui/badge";
 
 export function PlaceList({ places }: { places: Place[] }) {
   if (!places.length)
@@ -19,8 +18,7 @@ export function PlaceList({ places }: { places: Place[] }) {
         <li key={place.id}>
           <article className="place-card">
             <div className="place-card-visual" aria-hidden="true">
-              <Utensils size={31} strokeWidth={1.4} />
-              <span>HALALFOOD GUIDE</span>
+              <Utensils size={28} strokeWidth={1.4} />
             </div>
             <div className="place-card-heading">
               <div>
@@ -33,7 +31,6 @@ export function PlaceList({ places }: { places: Place[] }) {
             </div>
             <p className="place-card-address">{formatAddress(place)}</p>
             <div className="place-card-meta">
-              <Badge variant="default">Halal listed</Badge>
               {place.rating_value && (
                 <span className="rating-chip">
                   <Star size={12} fill="currentColor" aria-hidden="true" /> {place.rating_value}
