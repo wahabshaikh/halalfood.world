@@ -3344,3 +3344,154 @@ h3,
     background: #fffdf8;
   }
 }
+
+
+/* phase 2 decision experience */
+.place-card-monogram,
+.place-hero-mark {
+  display: grid;
+  place-items: center;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 700;
+  letter-spacing: -0.08em;
+}
+.place-card-monogram {
+  font-size: 24px;
+  line-height: 1;
+}
+.place-card-visual-caption {
+  position: absolute;
+  right: 7px;
+  bottom: 6px;
+  color: currentColor;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.map-place-card-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.map-place-card-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.map-place-card-rating strong {
+  color: var(--foreground);
+  font-weight: 700;
+}
+.map-place-card-rating small {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+.map-place-card-unrated {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-style: italic;
+}
+.selected-preview-evidence {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.selected-preview-meta strong {
+  color: var(--foreground);
+}
+.place-hero-visual {
+  position: relative;
+  display: flex;
+  min-height: 244px;
+  align-items: flex-end;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: 24px;
+  background:
+    linear-gradient(135deg, rgba(184, 72, 48, 0.96), rgba(143, 52, 36, 0.9)),
+    var(--primary);
+  color: #fffdf8;
+}
+.place-hero-visual::before,
+.place-hero-visual::after {
+  position: absolute;
+  display: block;
+  border: 1px solid rgba(255, 253, 248, 0.34);
+  border-radius: 50%;
+  content: "";
+}
+.place-hero-visual::before {
+  width: 190px;
+  height: 190px;
+  right: -62px;
+  top: -74px;
+}
+.place-hero-visual::after {
+  width: 260px;
+  height: 260px;
+  left: -170px;
+  bottom: -190px;
+}
+.place-hero-mark {
+  position: relative;
+  z-index: 1;
+  width: 92px;
+  height: 92px;
+  border: 1px solid rgba(255, 253, 248, 0.55);
+  border-radius: 50%;
+  font-size: 42px;
+  letter-spacing: -0.12em;
+}
+.place-hero-label {
+  position: relative;
+  z-index: 1;
+  align-self: flex-end;
+  max-width: 10ch;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  line-height: 1.35;
+  text-align: right;
+  text-transform: uppercase;
+}
+.place-fact {
+  white-space: nowrap;
+}
+.place-fact-evidence {
+  color: var(--primary-dark);
+  font-weight: 700;
+}
+.listing-facts .detail-grid {
+  gap: 0;
+}
+.listing-facts .detail-grid > div {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.listing-facts .detail-grid > div:last-child {
+  border-bottom: 0;
+}
+@media (max-width: 760px) {
+  .place-hero-visual {
+    min-height: 180px;
+  }
+  .place-hero-mark {
+    width: 72px;
+    height: 72px;
+    font-size: 32px;
+  }
+  .place-hero-label {
+    font-size: 9px;
+  }
+  .map-place-card-kicker {
+    font-size: 8px;
+  }
+}
