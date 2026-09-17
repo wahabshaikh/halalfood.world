@@ -72,7 +72,7 @@ export default async function LeaderboardPage() {
 
   const contributors = loaded.data;
   const trail = [
-    { name: "Halalfood", path: "/" },
+    { name: "halalfood.world", path: "/" },
     { name: "Community", path: "/leaderboard" },
   ];
 
@@ -93,7 +93,7 @@ export default async function LeaderboardPage() {
               <Trophy size={12} aria-hidden="true" />
               Community board
             </span>
-            <span>{formatCount(contributors.length)} ranked contributors</span>
+            <span>{formatCount(contributors.length)} ranked curators</span>
           </div>
           <p className="eyebrow">THE PEOPLE WHO KEEP IT USEFUL</p>
           <h1>Make the next visit easier.</h1>
