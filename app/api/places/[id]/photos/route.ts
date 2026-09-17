@@ -8,7 +8,7 @@ import {
 } from "../../../../../src/lib/otp-rate-limit";
 import {
   deletePlacePhotoForUser,
-  neonPlacePhotoRepository,
+  d1PlacePhotoRepository,
   registerPlacePhotoForUser,
   type PlacePhoto,
   type PlacePhotoRepository,
@@ -156,7 +156,7 @@ export async function handlePlacePhotosGet(
   }
 
   try {
-    const repository = dependencies.repository ?? neonPlacePhotoRepository();
+    const repository = dependencies.repository ?? d1PlacePhotoRepository();
     if (!(await repository.hasPlace(placeId))) return notFound();
     const photos = await repository.list(placeId, userId);
     return Response.json(
@@ -257,7 +257,7 @@ export async function handlePlacePhotosPost(
 
   let repository: PlacePhotoRepository;
   try {
-    repository = dependencies.repository ?? neonPlacePhotoRepository();
+    repository = dependencies.repository ?? d1PlacePhotoRepository();
     if (!(await repository.hasPlace(placeId))) return notFound();
   } catch {
     return unavailable();

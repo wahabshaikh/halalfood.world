@@ -7,7 +7,7 @@ import {
 } from "../../../../../../src/lib/otp-rate-limit";
 import {
   deletePlacePhotoForUser,
-  neonPlacePhotoRepository,
+  d1PlacePhotoRepository,
   type PlacePhotoRepository,
 } from "../../../../../../src/lib/place-photos";
 import {
@@ -125,7 +125,7 @@ export async function handlePlacePhotoDelete(
 
   try {
     const result = await deletePlacePhotoForUser(
-      dependencies.repository ?? neonPlacePhotoRepository(),
+      dependencies.repository ?? d1PlacePhotoRepository(),
       gate.auth.userId,
       placeId,
       photoId,

@@ -42,9 +42,9 @@ function otpEmail(otp: string) {
 
 /**
  * Build Better Auth per request so Worker environment bindings are read at
- * request time and the Neon HTTP/Drizzle connection stays request-scoped.
+ * request time and the D1/Drizzle connection stays request-scoped.
  */
-export function createAuth() {
+export async function createAuth() {
   const baseURL = authBaseUrl();
   const secret = environmentValue("BETTER_AUTH_SECRET");
   if (!secret) throw new Error("BETTER_AUTH_SECRET is not configured");
@@ -58,8 +58,8 @@ export function createAuth() {
   const secureCookies = isSecureEnvironment(baseURL);
 
   return betterAuth({
-    database: drizzleAdapter(database(), {
-      provider: "pg",
+    database: drizzleAdapter(await database(), {
+      provider: "sqlite",
       schema: authSchema,
       transaction: false,
     }),

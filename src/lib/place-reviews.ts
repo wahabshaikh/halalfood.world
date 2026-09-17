@@ -81,10 +81,11 @@ export interface PlaceReviewRepository {
   delete(userId: string, placeId: string): Promise<boolean>;
 }
 
-type DatabaseClient = ReturnType<typeof database>;
+type DatabaseClient = Awaited<ReturnType<typeof database>>;
 
 function isoDate(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
+  if (typeof value === "number") return new Date(value).toISOString();
   if (typeof value === "string") return value;
   return new Date(0).toISOString();
 }
@@ -100,38 +101,38 @@ function mapReview(row: Record<string, unknown>): PlaceReview {
     body: typeof row.body === "string" ? row.body : "",
     createdAt: isoDate(row.created_at),
     updatedAt: isoDate(row.updated_at),
-    isOwn: row.is_own === true || row.is_own === "true",
+    isOwn: row.is_own === true || row.is_own === 1 || row.is_own === "true",
   };
 }
 
 function isOwnReviewRow(row: Record<string, unknown>): boolean {
-  return row.is_own === true || row.is_own === "true";
+  return row.is_own === true || row.is_own === 1 || row.is_own === "true";
 }
 
-/** Neon-backed review operations. The caller owns auth and rate limits. */
-export function neonPlaceReviewRepository(
-  client: DatabaseClient = database(),
+/** D1-backed review operations. The caller owns auth and rate limits. */
+export function d1PlaceReviewRepository(
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): PlaceReviewRepository {
   return {
     async hasPlace(placeId) {
-      const result = await client.execute(sql`
+      const db = await client;
+      const rows = await db.all(sql`
         SELECT 1
         FROM places
-        WHERE id = ${placeId}::uuid AND halal_confirmed IS TRUE
+        WHERE id = ${placeId} AND halal_confirmed = 1
         LIMIT 1
       `);
-      return result.rows.length > 0;
+      return rows.length > 0;
     },
 
     async list(placeId, userId) {
-      const ownReview = userId
-        ? sql`r.user_id = ${userId}`
-        : sql`FALSE`;
-      const result = await client.execute(sql`
+      const db = await client;
+      const ownReview = userId ? sql`r.user_id = ${userId}` : sql`0`;
+      const rows = await db.all<Record<string, unknown>>(sql`
         SELECT
           COALESCE(
-            NULLIF(BTRIM(u.name), ''),
-            NULLIF(BTRIM(u.email), ''),
+            NULLIF(TRIM(u.name), ''),
+            NULLIF(TRIM(u.email), ''),
             'Halalfood member'
           ) AS author_display_name,
           r.title,
@@ -142,68 +143,71 @@ export function neonPlaceReviewRepository(
         FROM place_reviews AS r
         INNER JOIN places AS p ON p.id = r.place_id
         INNER JOIN "user" AS u ON u.id = r.user_id
-        WHERE r.place_id = ${placeId}::uuid
-          AND p.halal_confirmed IS TRUE
+        WHERE r.place_id = ${placeId}
+          AND p.halal_confirmed = 1
         ORDER BY r.created_at DESC, r.updated_at DESC, r.user_id
         LIMIT 50
       `);
-      const rows = result.rows as unknown as Record<string, unknown>[];
       if (userId && !rows.some(isOwnReviewRow)) {
-        const ownResult = await client.execute(sql`
+        const ownRows = await db.all<Record<string, unknown>>(sql`
           SELECT
             COALESCE(
-              NULLIF(BTRIM(u.name), ''),
-              NULLIF(BTRIM(u.email), ''),
+              NULLIF(TRIM(u.name), ''),
+              NULLIF(TRIM(u.email), ''),
               'Halalfood member'
             ) AS author_display_name,
             r.title,
             r.body,
             r.created_at,
             r.updated_at,
-            TRUE AS is_own
+            1 AS is_own
           FROM place_reviews AS r
           INNER JOIN places AS p ON p.id = r.place_id
           INNER JOIN "user" AS u ON u.id = r.user_id
-          WHERE r.place_id = ${placeId}::uuid
+          WHERE r.place_id = ${placeId}
             AND r.user_id = ${userId}
-            AND p.halal_confirmed IS TRUE
+            AND p.halal_confirmed = 1
           LIMIT 1
         `);
-        rows.push(...(ownResult.rows as unknown as Record<string, unknown>[]));
+        rows.push(...ownRows);
       }
       return rows.map(mapReview);
     },
 
     async upsert(userId, placeId, input) {
-      const result = await client.execute(sql`
+      const db = await client;
+      const now = Date.now();
+      const rows = await db.all<{ place_id: string }>(sql`
         INSERT INTO place_reviews (
           user_id, place_id, title, body, created_at, updated_at
         )
         SELECT
-          ${userId}, p.id, ${input.title}, ${input.body}, now(), now()
+          ${userId}, p.id, ${input.title}, ${input.body}, ${now}, ${now}
         FROM places AS p
-        WHERE p.id = ${placeId}::uuid
-          AND p.halal_confirmed IS TRUE
+        WHERE p.id = ${placeId}
+          AND p.halal_confirmed = 1
         ON CONFLICT (user_id, place_id) DO UPDATE SET
-          title = EXCLUDED.title,
-          body = EXCLUDED.body,
-          updated_at = now()
+          title = excluded.title,
+          body = excluded.body,
+          updated_at = excluded.updated_at
         RETURNING place_id
       `);
-      return result.rows.length > 0;
+      return rows.length > 0;
     },
 
     async delete(userId, placeId) {
-      const result = await client.execute(sql`
-        DELETE FROM place_reviews AS r
-        USING places AS p
-        WHERE r.user_id = ${userId}
-          AND r.place_id = ${placeId}::uuid
-          AND p.id = r.place_id
-          AND p.halal_confirmed IS TRUE
-        RETURNING r.place_id
+      const db = await client;
+      const rows = await db.all<{ place_id: string }>(sql`
+        DELETE FROM place_reviews
+        WHERE user_id = ${userId}
+          AND place_id = ${placeId}
+          AND EXISTS (
+            SELECT 1 FROM places
+            WHERE places.id = place_reviews.place_id AND places.halal_confirmed = 1
+          )
+        RETURNING place_id
       `);
-      return result.rows.length > 0;
+      return rows.length > 0;
     },
   };
 }

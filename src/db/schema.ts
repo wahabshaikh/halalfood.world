@@ -1,46 +1,43 @@
 import {
-  bigint,
-  boolean,
-  pgTable,
-  uuid,
-  text,
   integer,
-  numeric,
-  timestamp,
-  doublePrecision,
+  real,
+  sqliteTable,
+  text,
   index,
   primaryKey,
   check,
-} from "drizzle-orm/pg-core";
+} from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
-/** Better Auth's core PostgreSQL tables. Keep these names aligned with auth.ts. */
-export const authUser = pgTable("user", {
+/** Better Auth's core SQLite tables. Keep these names aligned with auth.ts. */
+export const authUser = sqliteTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").notNull().default(false),
+  emailVerified: integer("email_verified", { mode: "boolean" })
+    .notNull()
+    .default(false),
   image: text("image"),
-  createdAt: timestamp("created_at", { withTimezone: true })
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
-    .defaultNow(),
+    .$defaultFn(() => new Date()),
 });
 
-export const authSession = pgTable(
+export const authSession = sqliteTable(
   "session",
   {
     id: text("id").primaryKey(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
     token: text("token").notNull().unique(),
-    createdAt: timestamp("created_at", { withTimezone: true })
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
+      .$defaultFn(() => new Date()),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
     userId: text("user_id")
@@ -50,7 +47,7 @@ export const authSession = pgTable(
   (table) => [index("session_user_id_idx").on(table.userId)],
 );
 
-export const authAccount = pgTable(
+export const authAccount = sqliteTable(
   "account",
   {
     id: text("id").primaryKey(),
@@ -62,46 +59,46 @@ export const authAccount = pgTable(
     accessToken: text("access_token"),
     refreshToken: text("refresh_token"),
     idToken: text("id_token"),
-    accessTokenExpiresAt: timestamp("access_token_expires_at", {
-      withTimezone: true,
+    accessTokenExpiresAt: integer("access_token_expires_at", {
+      mode: "timestamp_ms",
     }),
-    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", {
-      withTimezone: true,
+    refreshTokenExpiresAt: integer("refresh_token_expires_at", {
+      mode: "timestamp_ms",
     }),
     scope: text("scope"),
     password: text("password"),
-    createdAt: timestamp("created_at", { withTimezone: true })
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
+      .$defaultFn(() => new Date()),
   },
   (table) => [index("account_user_id_idx").on(table.userId)],
 );
 
-export const authVerification = pgTable(
+export const authVerification = sqliteTable(
   "verification",
   {
     id: text("id").primaryKey(),
     identifier: text("identifier").notNull(),
     value: text("value").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
+      .$defaultFn(() => new Date()),
   },
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
-export const authRateLimit = pgTable("rate_limit", {
+export const authRateLimit = sqliteTable("rate_limit", {
   id: text("id").primaryKey(),
   key: text("key").notNull().unique(),
   count: integer("count").notNull(),
-  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+  lastRequest: integer("last_request", { mode: "number" }).notNull(),
 });
 
 export const authSchema = {
@@ -112,8 +109,30 @@ export const authSchema = {
   rateLimit: authRateLimit,
 };
 
-export const places = pgTable("places", {
-  id: uuid("id").primaryKey(),
+/**
+ * Application-level durable OTP budget. Keys are SHA-256 hashes prefixed by
+ * scope, so raw emails and IP addresses are never stored in this table. Read
+ * and written only through raw SQL in otp-rate-limit.ts.
+ */
+export const authOtpRateLimit = sqliteTable("auth_otp_rate_limit", {
+  key: text("key").primaryKey(),
+  windowStartedAt: integer("window_started_at", {
+    mode: "timestamp_ms",
+  }).notNull(),
+  windowCount: integer("window_count").notNull(),
+  lastActionAt: integer("last_action_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/**
+ * `servesCuisine`, timestamps, and booleans below are read and written
+ * exclusively through raw SQL in src/lib/*.ts, not drizzle's query builder,
+ * so these column definitions document shape rather than drive (de)serialization.
+ */
+export const places = sqliteTable("places", {
+  id: text("id").primaryKey(),
   name: text("name").notNull(),
   citySlug: text("city_slug").notNull(),
   cityUrl: text("city_url").notNull(),
@@ -127,35 +146,39 @@ export const places = pgTable("places", {
   website: text("website"),
   mapsUrl: text("maps_url"),
   googlePlaceId: text("google_place_id"),
-  servesCuisine: text("serves_cuisine").array().notNull(),
-  ratingValue: numeric("rating_value", { precision: 3, scale: 2 }),
+  servesCuisine: text("serves_cuisine", { mode: "json" })
+    .notNull()
+    .$type<string[]>(),
+  ratingValue: text("rating_value"),
   reviewCount: integer("review_count"),
   source: text("source").notNull(),
   sourceUrl: text("source_url").notNull(),
-  scrapedAt: timestamp("scraped_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  lat: doublePrecision("lat"),
-  lng: doublePrecision("lng"),
+  scrapedAt: integer("scraped_at", { mode: "timestamp_ms" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  lat: real("lat"),
+  lng: real("lng"),
   submittedByUserId: text("submitted_by_user_id"),
-  halalConfirmed: boolean("halal_confirmed").notNull().default(true),
-  googleDetailsCachedAt: timestamp("google_details_cached_at", {
-    withTimezone: true,
+  halalConfirmed: integer("halal_confirmed", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  googleDetailsCachedAt: integer("google_details_cached_at", {
+    mode: "timestamp_ms",
   }),
   googleDetailsSnapshot: text("google_details_snapshot"),
 });
 
-export const savedPlaces = pgTable(
+export const savedPlaces = sqliteTable(
   "saved_places",
   {
     userId: text("user_id")
       .notNull()
       .references(() => authUser.id, { onDelete: "cascade" }),
-    placeId: uuid("place_id")
+    placeId: text("place_id")
       .notNull()
       .references(() => places.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at", { withTimezone: true })
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
+      .$defaultFn(() => new Date()),
   },
   (table) => [
     primaryKey({
@@ -170,24 +193,24 @@ export const savedPlaces = pgTable(
   ],
 );
 
-export const placeRatings = pgTable(
+export const placeRatings = sqliteTable(
   "place_ratings",
   {
     userId: text("user_id")
       .notNull()
       .references(() => authUser.id, { onDelete: "cascade" }),
-    placeId: uuid("place_id")
+    placeId: text("place_id")
       .notNull()
       .references(() => places.id, { onDelete: "cascade" }),
     rating: text("rating", {
       enum: ["mashallah", "alhamdulillah", "astaghfirullah"],
     }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
+      .$defaultFn(() => new Date()),
   },
   (table) => [
     primaryKey({
@@ -202,23 +225,23 @@ export const placeRatings = pgTable(
   ],
 );
 
-export const placeReviews = pgTable(
+export const placeReviews = sqliteTable(
   "place_reviews",
   {
     userId: text("user_id")
       .notNull()
       .references(() => authUser.id, { onDelete: "cascade" }),
-    placeId: uuid("place_id")
+    placeId: text("place_id")
       .notNull()
       .references(() => places.id, { onDelete: "cascade" }),
     title: text("title"),
     body: text("body").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
+      .$defaultFn(() => new Date()),
   },
   (table) => [
     primaryKey({
@@ -227,7 +250,7 @@ export const placeReviews = pgTable(
     }),
     check(
       "place_reviews_body_check",
-      sql`length(btrim(${table.body})) > 0 AND length(${table.body}) <= 5000`,
+      sql`length(trim(${table.body})) > 0 AND length(${table.body}) <= 5000`,
     ),
     check(
       "place_reviews_title_check",
@@ -235,16 +258,16 @@ export const placeReviews = pgTable(
     ),
     index("place_reviews_place_id_created_at_idx").on(
       table.placeId,
-      table.createdAt.desc(),
+      sql`${table.createdAt} DESC`,
     ),
   ],
 );
 
-export const placePhotos = pgTable(
+export const placePhotos = sqliteTable(
   "place_photos",
   {
-    id: uuid("id").primaryKey(),
-    placeId: uuid("place_id")
+    id: text("id").primaryKey(),
+    placeId: text("place_id")
       .notNull()
       .references(() => places.id, { onDelete: "cascade" }),
     userId: text("user_id")
@@ -254,9 +277,9 @@ export const placePhotos = pgTable(
     contentType: text("content_type").notNull(),
     byteSize: integer("byte_size").notNull(),
     originalFileName: text("original_file_name").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
+      .$defaultFn(() => new Date()),
   },
   (table) => [
     check(
@@ -269,16 +292,16 @@ export const placePhotos = pgTable(
     ),
     index("place_photos_place_id_created_at_idx").on(
       table.placeId,
-      table.createdAt.desc(),
+      sql`${table.createdAt} DESC`,
     ),
   ],
 );
 
-export const placeHalalVerifications = pgTable(
+export const placeHalalVerifications = sqliteTable(
   "place_halal_verifications",
   {
-    id: uuid("id").primaryKey(),
-    placeId: uuid("place_id")
+    id: text("id").primaryKey(),
+    placeId: text("place_id")
       .notNull()
       .references(() => places.id, { onDelete: "cascade" }),
     submittedByUserId: text("submitted_by_user_id")
@@ -286,12 +309,12 @@ export const placeHalalVerifications = pgTable(
       .references(() => authUser.id, { onDelete: "cascade" }),
     status: text("status").notNull().default("pending"),
     note: text("note"),
-    createdAt: timestamp("created_at", { withTimezone: true })
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
+      .$defaultFn(() => new Date()),
   },
   (table) => [
     index("place_halal_verifications_place_status_created_idx").on(
@@ -306,11 +329,11 @@ export const placeHalalVerifications = pgTable(
   ],
 );
 
-export const placeHalalVerificationEvidence = pgTable(
+export const placeHalalVerificationEvidence = sqliteTable(
   "place_halal_verification_evidence",
   {
-    id: uuid("id").primaryKey(),
-    verificationId: uuid("verification_id")
+    id: text("id").primaryKey(),
+    verificationId: text("verification_id")
       .notNull()
       .references(() => placeHalalVerifications.id, { onDelete: "cascade" }),
     kind: text("kind").notNull(),
@@ -319,9 +342,9 @@ export const placeHalalVerificationEvidence = pgTable(
     contentType: text("content_type"),
     fileName: text("file_name"),
     sizeBytes: integer("size_bytes"),
-    createdAt: timestamp("created_at", { withTimezone: true })
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
-      .defaultNow(),
+      .$defaultFn(() => new Date()),
   },
   (table) => [
     index("place_halal_verification_evidence_verification_idx").on(

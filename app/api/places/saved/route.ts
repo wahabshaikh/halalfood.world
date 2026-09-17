@@ -1,6 +1,6 @@
 import { getRequestAuth } from "../../../../src/lib/auth-session";
 import {
-  neonSavedPlaceRepository,
+  d1SavedPlaceRepository,
 } from "../../../../src/lib/saved-places";
 
 function noStore() {
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   if (auth.status === "unauthenticated") return unauthorized();
 
   try {
-    return Response.json(await neonSavedPlaceRepository().list(auth.userId), {
+    return Response.json(await d1SavedPlaceRepository().list(auth.userId), {
       headers: noStore(),
     });
   } catch {

@@ -106,47 +106,98 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CLOUDFLARE_API_TOKEN repository secret"; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CLOUDFLARE_ACCOUNT_ID repository secret"; exit 1; }
-          test -n "$NEON_API_KEY" || { echo "::error::Missing NEON_API_KEY repository secret"; exit 1; }
-          test -n "$NEON_PROJECT_ID" || { echo "::error::Missing NEON_PROJECT_ID repository variable"; exit 1; }
 
-      - name: Calculate Neon branch expiration
-        id: branch-expiry
+      - name: Create or reuse Cloudflare D1 preview database
+        id: d1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_NAME: halalfood-world-pr-${{ github.event.pull_request.number }}
         run: |
-          echo "expires_at=$(date -u --date '+14 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+          node --input-type=module <<'NODE'
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const name = process.env.D1_DATABASE_NAME;
+          const baseUrl =
+            'https://api.cloudflare.com/client/v4/accounts/' +
+            encodeURIComponent(accountId) +
+            '/d1/database';
 
-      - name: Create or reuse Neon branch
-        id: neon
-        uses: neondatabase/create-branch-action@v6
-        with:
-          project_id: ${{ vars.NEON_PROJECT_ID }}
-          branch_name: pr-${{ github.event.pull_request.number }}
-          api_key: ${{ secrets.NEON_API_KEY }}
-          expires_at: ${{ steps.branch-expiry.outputs.expires_at }}
+          async function api(path, options = {}) {
+            const response = await fetch(baseUrl + path, {
+              ...options,
+              headers: {
+                Authorization: 'Bearer ' + token,
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                ...(options.headers ?? {}),
+              },
+            });
+            const raw = await response.text();
+            let payload;
+            try {
+              payload = raw ? JSON.parse(raw) : {};
+            } catch {
+              throw new Error('Cloudflare API returned non-JSON for ' + path + ': ' + raw.slice(0, 500));
+            }
+            if (!response.ok || payload.success !== true) {
+              throw new Error(
+                'Cloudflare API ' + (options.method ?? 'GET') + ' ' + path +
+                  ' failed (' + response.status + '): ' + raw.slice(0, 500),
+              );
+            }
+            return payload;
+          }
 
-      - name: Install PostgreSQL client
+          const existing = await api('?name=' + encodeURIComponent(name));
+          let database = existing.result?.find((db) => db.name === name);
+
+          if (!database) {
+            const created = await api('', {
+              method: 'POST',
+              body: JSON.stringify({ name }),
+            });
+            database = created.result;
+            console.log('Created D1 database ' + name + ' (' + database.uuid + ')');
+          } else {
+            console.log('Reusing D1 database ' + name + ' (' + database.uuid + ')');
+          }
+
+          const fs = await import('node:fs');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'database_id=' + database.uuid + '\n');
+          NODE
+
+      - name: Write temporary D1 wrangler config
+        env:
+          D1_DATABASE_NAME: halalfood-world-pr-${{ github.event.pull_request.number }}
+          D1_DATABASE_ID: ${{ steps.d1.outputs.database_id }}
         run: |
-          if ! command -v psql >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install --yes postgresql-client
-          fi
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
+
+          writeFileSync(
+            "preview-d1-config.json",
+            JSON.stringify({
+              name: "halalfood-world-preview",
+              d1_databases: [
+                {
+                  binding: "DB",
+                  database_name: process.env.D1_DATABASE_NAME,
+                  database_id: process.env.D1_DATABASE_ID,
+                },
+              ],
+            }),
+          );
+          NODE
 
       - name: Apply preview database migrations
         env:
-          PREVIEW_DATABASE_URL: ${{ steps.neon.outputs.db_url }}
-        run: |
-          test -n "$PREVIEW_DATABASE_URL" || { echo "::error::Neon did not return a database connection string"; exit 1; }
-          migration_count=0
-          while IFS= read -r -d '' migration; do
-            migration_count=$((migration_count + 1))
-            echo "Applying $migration"
-            psql "$PREVIEW_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
-          done < <(find migrations -type f -name '*.sql' -print0 | LC_ALL=C sort -z)
-          echo "Applied $migration_count migration(s)"
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply DB --remote --config preview-d1-config.json
 
       - name: Predict Cloudflare preview URL
         id: preview-url
@@ -154,24 +205,23 @@ jobs:
           # Cloudflare's stable alias format is <alias>-<worker>-<workers.dev subdomain>.
           echo "preview_url=https://pr-${{ github.event.pull_request.number }}-halalfood-world.wahabshaikh.workers.dev" >> "$GITHUB_OUTPUT"
 
-      - name: Write preview database secret
+      - name: Bind the preview D1 database
         env:
-          PREVIEW_DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
+          D1_DATABASE_NAME: halalfood-world-pr-${{ github.event.pull_request.number }}
+          D1_DATABASE_ID: ${{ steps.d1.outputs.database_id }}
         run: |
-          test -n "$PREVIEW_DATABASE_URL" || { echo "::error::Neon did not return a pooled connection string"; exit 1; }
           node --input-type=module <<'NODE'
-          import { writeFileSync } from "node:fs";
+          import { readFileSync, writeFileSync } from "node:fs";
 
-          const url = process.env.PREVIEW_DATABASE_URL;
-          if (!url) {
-            throw new Error("Missing preview database URL");
+          const path = "dist/server/wrangler.json";
+          const config = JSON.parse(readFileSync(path, "utf8"));
+          const binding = config.d1_databases?.find((db) => db.binding === "DB");
+          if (!binding) {
+            throw new Error("Generated wrangler config has no DB binding to rebind for preview");
           }
-
-          writeFileSync(
-            "preview-secrets.json",
-            JSON.stringify({ DATABASE_URL: url }),
-            { mode: 0o600 },
-          );
+          binding.database_name = process.env.D1_DATABASE_NAME;
+          binding.database_id = process.env.D1_DATABASE_ID;
+          writeFileSync(path, JSON.stringify(config));
           NODE
 
       - name: Upload Cloudflare preview
@@ -189,7 +239,6 @@ jobs:
             --preview-alias "$PREVIEW_ALIAS" \
             --keep-vars \
             --var "BETTER_AUTH_URL:$PREVIEW_URL" \
-            --secrets-file preview-secrets.json \
             --message "PR #${{ github.event.pull_request.number }}" \
             2>&1 | tee wrangler-upload.log
 
@@ -254,7 +303,7 @@ jobs:
         uses: actions/github-script@v8
         env:
           PREVIEW_URL: ${{ steps.upload.outputs.preview_url }}
-          NEON_BRANCH_NAME: pr-${{ github.event.pull_request.number }}
+          D1_DATABASE_NAME: halalfood-world-pr-${{ github.event.pull_request.number }}
         with:
           script: |
             const marker = "<!-- halalfood-world-preview -->";
@@ -269,7 +318,7 @@ jobs:
               "",
               "[Open the preview](" + previewUrl + ")",
               "",
-              "Neon branch: " + process.env.NEON_BRANCH_NAME,
+              "D1 database: " + process.env.D1_DATABASE_NAME,
               "",
               "_This preview is refreshed on every push to the PR._",
             ].join("\n");
@@ -370,7 +419,7 @@ jobs:
 
       - name: Remove temporary deployment files
         if: always()
-        run: rm -f preview-secrets.json preview-build.tgz wrangler-upload.log
+        run: rm -f preview-d1-config.json preview-build.tgz wrangler-upload.log
 
   cleanup:
     if: >
@@ -490,13 +539,65 @@ jobs:
           );
           NODE
 
-      - name: Delete Neon branch
+      - name: Delete Cloudflare D1 preview database
         if: always()
-        uses: neondatabase/delete-branch-action@v3
-        with:
-          project_id: ${{ vars.NEON_PROJECT_ID }}
-          branch: pr-${{ github.event.pull_request.number }}
-          api_key: ${{ secrets.NEON_API_KEY }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_NAME: halalfood-world-pr-${{ github.event.pull_request.number }}
+        run: |
+          node --input-type=module <<'NODE'
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const name = process.env.D1_DATABASE_NAME;
+
+          if (!accountId || !token) {
+            throw new Error('Missing Cloudflare cleanup credentials');
+          }
+
+          const baseUrl =
+            'https://api.cloudflare.com/client/v4/accounts/' +
+            encodeURIComponent(accountId) +
+            '/d1/database';
+
+          async function api(path, options = {}) {
+            const response = await fetch(baseUrl + path, {
+              ...options,
+              headers: {
+                Authorization: 'Bearer ' + token,
+                Accept: 'application/json',
+                ...(options.headers ?? {}),
+              },
+            });
+            const raw = await response.text();
+            if (response.status === 404) {
+              return null;
+            }
+            let payload;
+            try {
+              payload = raw ? JSON.parse(raw) : {};
+            } catch {
+              throw new Error('Cloudflare API returned non-JSON for ' + path);
+            }
+            if (!response.ok || payload.success !== true) {
+              throw new Error(
+                'Cloudflare API ' + (options.method ?? 'GET') + ' ' + path +
+                  ' failed (' + response.status + '): ' + raw.slice(0, 500),
+              );
+            }
+            return payload;
+          }
+
+          const existing = await api('?name=' + encodeURIComponent(name));
+          const database = existing?.result?.find((db) => db.name === name);
+
+          if (!database) {
+            console.log('D1 database ' + name + ' is already absent');
+          } else {
+            await api('/' + encodeURIComponent(database.uuid), { method: 'DELETE' });
+            console.log('Deleted D1 database ' + name + ' (' + database.uuid + ')');
+          }
+          NODE
 
       - name: Mark GitHub preview deployment inactive
         if: always()

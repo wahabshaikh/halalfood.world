@@ -8,7 +8,7 @@ import {
 import {
   PLACE_REVIEW_MAX_PAYLOAD_BYTES,
   deletePlaceReviewForUser,
-  neonPlaceReviewRepository,
+  d1PlaceReviewRepository,
   savePlaceReviewForUser,
   validatePlaceReviewInput,
   type PlaceReviewRepository,
@@ -163,7 +163,7 @@ export async function handleReviewGet(
   const userId = auth.status === "authenticated" ? auth.userId : null;
 
   try {
-    const repository = dependencies.repository ?? neonPlaceReviewRepository();
+    const repository = dependencies.repository ?? d1PlaceReviewRepository();
     if (!(await repository.hasPlace(placeId))) return notFound();
     return Response.json(
       { placeId, reviews: await repository.list(placeId, userId) },
@@ -199,7 +199,7 @@ export async function handleReviewPut(
 
   try {
     const result = await savePlaceReviewForUser(
-      dependencies.repository ?? neonPlaceReviewRepository(),
+      dependencies.repository ?? d1PlaceReviewRepository(),
       gate.auth.userId,
       placeId,
       validation.data,
@@ -230,7 +230,7 @@ export async function handleReviewDelete(
 
   try {
     const result = await deletePlaceReviewForUser(
-      dependencies.repository ?? neonPlaceReviewRepository(),
+      dependencies.repository ?? d1PlaceReviewRepository(),
       gate.auth.userId,
       placeId,
     );

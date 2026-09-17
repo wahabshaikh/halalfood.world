@@ -1,4 +1,5 @@
-import { neonSql } from "../db";
+import { sql } from "drizzle-orm";
+import { database } from "../db";
 
 export const OTP_RATE_LIMITS = {
   requestEmail: {
@@ -252,7 +253,7 @@ export type RateLimitBucket = {
   rule: OtpRateLimitRule;
 };
 
-type NeonRateLimitClient = ReturnType<typeof neonSql>;
+type DatabaseClient = Awaited<ReturnType<typeof database>>;
 
 export interface OtpRateLimitStore {
   consume(
@@ -261,120 +262,77 @@ export interface OtpRateLimitStore {
   ): Promise<Pick<OtpRateLimitDecision, "allowed" | "retryAfterMs">>;
 }
 
+type StoredOtpRateLimitRow = {
+  window_started_at: number;
+  window_count: number;
+  last_action_at: number;
+};
+
 /**
- * Neon HTTP supports a non-interactive transaction. Advisory locks serialize
- * the two keyed rows before the conditional upsert, so concurrent requests
- * cannot all pass a stale read and spend the same email/IP budget.
+ * D1 is a single Durable Object per database, so a `db.transaction()` block
+ * already serializes concurrent writers against the same rows the way the
+ * Postgres advisory locks used to: the decision is computed from a read
+ * inside the transaction and only written back if every bucket allows it, so
+ * concurrent requests cannot both pass a stale read and spend the same
+ * email/IP budget.
  */
-export function neonOtpRateLimitStore(
-  client: NeonRateLimitClient = neonSql(),
+export function d1OtpRateLimitStore(
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): OtpRateLimitStore {
   return {
     async consume(buckets, now) {
-      const first = buckets[0];
-      const second = buckets[1];
-      const nowIso = now.toISOString();
-      const results = await client.transaction((txn) => [
-        txn`
-          SELECT
-            pg_advisory_xact_lock(hashtextextended(${first.key}, 0)),
-            pg_advisory_xact_lock(hashtextextended(${second.key}, 0))
-        `,
-        txn`
-          WITH input(key, window_ms, max_count, cooldown_ms) AS (
-            VALUES
-              (${first.key}, ${first.rule.windowMs}, ${first.rule.maxCount}, ${first.rule.cooldownMs}),
-              (${second.key}, ${second.rule.windowMs}, ${second.rule.maxCount}, ${second.rule.cooldownMs})
-          ),
-          current_state AS (
-            SELECT
-              input.*,
-              limits.window_started_at,
-              limits.window_count,
-              limits.last_action_at
-            FROM input
-            LEFT JOIN auth_otp_rate_limit AS limits ON limits.key = input.key
-          ),
-          state AS (
-            SELECT
-              current_state.*,
-              (
-                window_started_at IS NULL
-                OR ${nowIso}::timestamptz >= window_started_at + window_ms * interval '1 millisecond'
-                OR (
-                  window_count < max_count
-                  AND ${nowIso}::timestamptz >= last_action_at + cooldown_ms * interval '1 millisecond'
+      const db = await client;
+      const nowMs = now.getTime();
+      return db.transaction(async (tx) => {
+        const states = await Promise.all(
+          buckets.map(async (bucket) => {
+            const rows = await tx.all<StoredOtpRateLimitRow>(sql`
+              SELECT window_started_at, window_count, last_action_at
+              FROM auth_otp_rate_limit
+              WHERE key = ${bucket.key}
+            `);
+            const row = rows[0];
+            const state: OtpRateLimitState = row
+              ? {
+                  windowStartedAt: row.window_started_at,
+                  count: row.window_count,
+                  lastActionAt: row.last_action_at,
+                }
+              : { windowStartedAt: null, count: 0, lastActionAt: null };
+            return { bucket, decision: evaluateOtpRateLimit(state, bucket.rule, nowMs) };
+          }),
+        );
+
+        const allowed = states.every(({ decision }) => decision.allowed);
+        const retryAfterMs = allowed
+          ? 0
+          : Math.max(
+              0,
+              ...states.map(({ decision }) => (decision.allowed ? 0 : decision.retryAfterMs)),
+            );
+
+        if (allowed) {
+          await Promise.all(
+            states.map(({ bucket, decision }) =>
+              tx.run(sql`
+                INSERT INTO auth_otp_rate_limit (
+                  key, window_started_at, window_count, last_action_at, updated_at
+                ) VALUES (
+                  ${bucket.key}, ${decision.next.windowStartedAt}, ${decision.next.count},
+                  ${decision.next.lastActionAt}, ${nowMs}
                 )
-              ) AS allowed
-            FROM current_state
-          ),
-          decision AS (
-            SELECT
-              bool_and(allowed) AS allowed,
-              COALESCE(
-                MAX(
-                  CASE
-                    WHEN allowed OR window_started_at IS NULL THEN 0
-                    WHEN ${nowIso}::timestamptz >= window_started_at + window_ms * interval '1 millisecond' THEN 0
-                    WHEN window_count >= max_count THEN CEIL(EXTRACT(EPOCH FROM (window_started_at + window_ms * interval '1 millisecond' - ${nowIso}::timestamptz)) * 1000)
-                    WHEN ${nowIso}::timestamptz < last_action_at + cooldown_ms * interval '1 millisecond' THEN CEIL(EXTRACT(EPOCH FROM (last_action_at + cooldown_ms * interval '1 millisecond' - ${nowIso}::timestamptz)) * 1000)
-                    ELSE 0
-                  END
-                ),
-                0
-              )::bigint AS retry_after_ms
-            FROM state
-          ),
-          upsert AS (
-            INSERT INTO auth_otp_rate_limit (
-              key,
-              window_started_at,
-              window_count,
-              last_action_at,
-              updated_at
-            )
-            SELECT
-              key,
-              CASE
-                WHEN window_started_at IS NULL
-                  OR ${nowIso}::timestamptz >= window_started_at + window_ms * interval '1 millisecond'
-                THEN ${nowIso}::timestamptz
-                ELSE window_started_at
-              END,
-              CASE
-                WHEN window_started_at IS NULL
-                  OR ${nowIso}::timestamptz >= window_started_at + window_ms * interval '1 millisecond'
-                THEN 1
-                ELSE window_count + 1
-              END,
-              ${nowIso}::timestamptz,
-              ${nowIso}::timestamptz
-            FROM state
-            CROSS JOIN decision
-            WHERE decision.allowed
-            ON CONFLICT (key) DO UPDATE SET
-              window_started_at = EXCLUDED.window_started_at,
-              window_count = EXCLUDED.window_count,
-              last_action_at = EXCLUDED.last_action_at,
-              updated_at = EXCLUDED.updated_at
-            RETURNING key
-          )
-          SELECT decision.allowed, decision.retry_after_ms
-          FROM decision
-          CROSS JOIN (SELECT count(*) AS applied FROM upsert) AS applied
-        `,
-      ]);
-      const row = (
-        results[1] as Array<{
-          allowed?: unknown;
-          retry_after_ms?: unknown;
-        }>
-      )[0];
-      if (!row) throw new Error("Rate-limit decision was empty");
-      return {
-        allowed: row.allowed === true || row.allowed === "true",
-        retryAfterMs: Math.max(0, Number(row.retry_after_ms) || 0),
-      };
+                ON CONFLICT (key) DO UPDATE SET
+                  window_started_at = excluded.window_started_at,
+                  window_count = excluded.window_count,
+                  last_action_at = excluded.last_action_at,
+                  updated_at = excluded.updated_at
+              `),
+            ),
+          );
+        }
+
+        return { allowed, retryAfterMs };
+      });
     },
   };
 }
@@ -390,7 +348,7 @@ async function consumePair(
 export async function consumeOtpRequestLimits(
   email: string,
   ip: string,
-  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
   now = new Date(),
 ) {
   const [emailKey, ipKey] = await Promise.all([
@@ -410,7 +368,7 @@ export async function consumeOtpRequestLimits(
 export async function consumeOtpVerificationLimits(
   email: string,
   ip: string,
-  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
   now = new Date(),
 ) {
   const [emailKey, ipKey] = await Promise.all([
@@ -430,7 +388,7 @@ export async function consumeOtpVerificationLimits(
 export async function consumePlaceSubmissionLimits(
   userId: string,
   ip: string,
-  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
   now = new Date(),
 ) {
   const [userKey, ipKey] = await Promise.all([
@@ -450,7 +408,7 @@ export async function consumePlaceSubmissionLimits(
 export async function consumeGooglePlaceSearchLimits(
   userId: string,
   ip: string,
-  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
   now = new Date(),
 ) {
   const [userKey, ipKey] = await Promise.all([
@@ -470,7 +428,7 @@ export async function consumeGooglePlaceSearchLimits(
 export async function consumeSavePlaceLimits(
   userId: string,
   ip: string,
-  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
   now = new Date(),
 ) {
   const [userKey, ipKey] = await Promise.all([
@@ -490,7 +448,7 @@ export async function consumeSavePlaceLimits(
 export async function consumePlaceRatingLimits(
   userId: string,
   ip: string,
-  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
   now = new Date(),
 ) {
   const [userKey, ipKey] = await Promise.all([
@@ -510,7 +468,7 @@ export async function consumePlaceRatingLimits(
 export async function consumePlaceReviewLimits(
   userId: string,
   ip: string,
-  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
   now = new Date(),
 ) {
   const [userKey, ipKey] = await Promise.all([
@@ -530,7 +488,7 @@ export async function consumePlaceReviewLimits(
 export async function consumePlacePhotoUploadLimits(
   userId: string,
   ip: string,
-  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
   now = new Date(),
 ) {
   const [userKey, ipKey] = await Promise.all([
@@ -550,7 +508,7 @@ export async function consumePlacePhotoUploadLimits(
 export async function consumePlacePhotoMutationLimits(
   userId: string,
   ip: string,
-  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
   now = new Date(),
 ) {
   const [userKey, ipKey] = await Promise.all([
@@ -570,7 +528,7 @@ export async function consumePlacePhotoMutationLimits(
 export async function consumeHalalVerificationLimits(
   userId: string,
   ip: string,
-  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
   now = new Date(),
 ) {
   const [userKey, ipKey] = await Promise.all([
@@ -593,7 +551,7 @@ export async function consumeHalalVerificationLimits(
 export async function consumeHalalVerificationUploadLimits(
   userId: string,
   ip: string,
-  store: OtpRateLimitStore = neonOtpRateLimitStore(),
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
   now = new Date(),
 ) {
   const [userKey, ipKey] = await Promise.all([

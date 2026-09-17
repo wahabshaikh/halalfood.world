@@ -3,10 +3,60 @@ import {
   getGooglePlaceDetails,
   getGooglePlacesApiKey,
 } from "../src/lib/google-places";
-import {
-  listPlacesNeedingCoordinateBackfill,
-  updatePlaceCoordinatesIfMissing,
-} from "../src/lib/places";
+import type { PlaceCoordinateCandidate } from "../src/lib/places";
+import { queryD1 } from "./d1-rest-client";
+
+/**
+ * Candidates deliberately mean missing either coordinate. Existing non-null
+ * values may be approximate, but without provenance this safe first pass does
+ * not overwrite them. See the operational backfill notes in README.md.
+ */
+async function listPlacesNeedingCoordinateBackfill(options: {
+  limit: number;
+}): Promise<PlaceCoordinateCandidate[]> {
+  return queryD1<PlaceCoordinateCandidate>(
+    `SELECT id, google_place_id, lat, lng
+     FROM places
+     WHERE halal_confirmed = 1
+       AND google_place_id IS NOT NULL AND (lat IS NULL OR lng IS NULL)
+     ORDER BY id
+     LIMIT ?`,
+    [options.limit],
+  );
+}
+
+/**
+ * Update only a still-missing candidate. Rechecking the predicate makes a
+ * repeated or concurrent backfill safe and avoids overwriting existing pins.
+ */
+async function updatePlaceCoordinatesIfMissing(
+  id: string,
+  googlePlaceId: string,
+  coordinates: { lat: number; lng: number },
+): Promise<boolean> {
+  if (
+    !Number.isFinite(coordinates.lat) ||
+    !Number.isFinite(coordinates.lng) ||
+    coordinates.lat < -90 ||
+    coordinates.lat > 90 ||
+    coordinates.lng < -180 ||
+    coordinates.lng > 180
+  ) {
+    return false;
+  }
+
+  const rows = await queryD1<{ id: string }>(
+    `UPDATE places
+     SET lat = ?, lng = ?
+     WHERE id = ?
+       AND google_place_id = ?
+       AND halal_confirmed = 1
+       AND (lat IS NULL OR lng IS NULL)
+     RETURNING id`,
+    [coordinates.lat, coordinates.lng, id, googlePlaceId],
+  );
+  return rows.length > 0;
+}
 
 type BackfillOptions = {
   dryRun: boolean;

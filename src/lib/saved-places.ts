@@ -7,7 +7,7 @@ export const SAVED_PLACES_LIMIT = 200;
 export type SavedPlace = Omit<Place, "lat" | "lng"> & {
   lat: number | null;
   lng: number | null;
-  saved_at: string | Date | null;
+  saved_at: string | number | Date | null;
 };
 
 export type SavedPlaceList = {
@@ -28,42 +28,46 @@ export interface SavedPlaceRepository {
   list(userId: string): Promise<SavedPlaceList>;
 }
 
-type DatabaseClient = ReturnType<typeof database>;
+type DatabaseClient = Awaited<ReturnType<typeof database>>;
 
-/** Neon-backed saved-place operations. The caller owns auth and rate limits. */
-export function neonSavedPlaceRepository(
-  client: DatabaseClient = database(),
+/** D1-backed saved-place operations. The caller owns auth and rate limits. */
+export function d1SavedPlaceRepository(
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): SavedPlaceRepository {
   return {
     async hasPlace(placeId) {
-      const result = await client.execute(sql`
+      const db = await client;
+      const rows = await db.all(sql`
         SELECT 1
         FROM places
-        WHERE id = ${placeId}::uuid AND halal_confirmed IS TRUE
+        WHERE id = ${placeId} AND halal_confirmed = 1
         LIMIT 1
       `);
-      return result.rows.length > 0;
+      return rows.length > 0;
     },
 
     async add(userId, placeId) {
-      await client.execute(sql`
-        INSERT INTO saved_places (user_id, place_id)
-        VALUES (${userId}, ${placeId}::uuid)
+      const db = await client;
+      await db.run(sql`
+        INSERT INTO saved_places (user_id, place_id, created_at)
+        VALUES (${userId}, ${placeId}, ${Date.now()})
         ON CONFLICT (user_id, place_id) DO NOTHING
       `);
     },
 
     async remove(userId, placeId) {
-      await client.execute(sql`
+      const db = await client;
+      await db.run(sql`
         DELETE FROM saved_places
-        WHERE user_id = ${userId} AND place_id = ${placeId}::uuid
+        WHERE user_id = ${userId} AND place_id = ${placeId}
       `);
     },
 
     async list(userId) {
-      const result = await client.execute(sql`
+      const db = await client;
+      const rows = await db.all<SavedPlace & { total: number }>(sql`
         SELECT
-          p.id::text AS id,
+          p.id AS id,
           p.name,
           p.city_slug,
           p.street_address,
@@ -76,15 +80,14 @@ export function neonSavedPlaceRepository(
           p.lat,
           p.lng,
           saved.created_at AS saved_at,
-          count(*) OVER()::integer AS total
+          count(*) OVER() AS total
         FROM saved_places AS saved
         INNER JOIN places AS p ON p.id = saved.place_id
         WHERE saved.user_id = ${userId}
-          AND p.halal_confirmed IS TRUE
+          AND p.halal_confirmed = 1
         ORDER BY saved.created_at DESC, p.name, p.id
         LIMIT ${SAVED_PLACES_LIMIT}
       `);
-      const rows = result.rows as unknown as (SavedPlace & { total: number })[];
       return {
         places: rows.map(({ total: _total, ...place }) => place),
         total: rows[0]?.total ?? 0,

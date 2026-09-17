@@ -1,15 +1,15 @@
--- Community halal verification evidence. Apply after 0003_saved_places.sql.
--- Every statement is additive and safe to re-run.
+-- Community halal verification evidence. D1/SQLite dialect.
+-- Apply after 0003_saved_places.sql.
 
 CREATE TABLE IF NOT EXISTS "place_halal_verifications" (
-  "id" uuid PRIMARY KEY NOT NULL,
-  "place_id" uuid NOT NULL REFERENCES "places"("id") ON DELETE CASCADE,
+  "id" text PRIMARY KEY NOT NULL,
+  "place_id" text NOT NULL REFERENCES "places"("id") ON DELETE CASCADE,
   "submitted_by_user_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
   "status" text NOT NULL DEFAULT 'pending'
     CHECK ("status" IN ('pending', 'approved', 'rejected')),
   "note" text,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
-  "updated_at" timestamptz NOT NULL DEFAULT now()
+  "created_at" integer NOT NULL,
+  "updated_at" integer NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS "place_halal_verifications_place_status_created_idx"
@@ -19,8 +19,8 @@ CREATE INDEX IF NOT EXISTS "place_halal_verifications_submitter_idx"
   ON "place_halal_verifications" ("submitted_by_user_id", "created_at");
 
 CREATE TABLE IF NOT EXISTS "place_halal_verification_evidence" (
-  "id" uuid PRIMARY KEY NOT NULL,
-  "verification_id" uuid NOT NULL
+  "id" text PRIMARY KEY NOT NULL,
+  "verification_id" text NOT NULL
     REFERENCES "place_halal_verifications"("id") ON DELETE CASCADE,
   "kind" text NOT NULL CHECK ("kind" IN ('link', 'upload')),
   "url" text,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS "place_halal_verification_evidence" (
   "content_type" text,
   "file_name" text,
   "size_bytes" integer,
-  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "created_at" integer NOT NULL,
   CHECK (
     "content_type" IS NULL
     OR "content_type" IN ('image/jpeg', 'image/png', 'image/webp', 'application/pdf')

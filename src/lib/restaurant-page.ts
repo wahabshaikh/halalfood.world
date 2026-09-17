@@ -116,9 +116,15 @@ function coordinates(value: unknown): GooglePlaceCoordinates | null {
   return { lat, lng };
 }
 
-function isoTimestamp(value: string | Date | null | undefined): string | null {
+function isoTimestamp(
+  value: string | number | Date | null | undefined,
+): string | null {
   if (value instanceof Date)
     return Number.isFinite(value.valueOf()) ? value.toISOString() : null;
+  if (typeof value === "number") {
+    const fromNumber = new Date(value);
+    return Number.isFinite(fromNumber.valueOf()) ? fromNumber.toISOString() : null;
+  }
   if (typeof value !== "string" || !value.trim()) return null;
   const parsed = new Date(value);
   return Number.isFinite(parsed.valueOf()) ? parsed.toISOString() : null;
@@ -260,18 +266,19 @@ function cachedGoogleDetails(place: PlaceDetail): CachedGoogleDetails {
   };
 }
 
-type DatabaseClient = ReturnType<typeof database>;
+type DatabaseClient = Awaited<ReturnType<typeof database>>;
 
-/** Persist only normalized Google fields; the API key and raw response never enter Neon. */
+/** Persist only normalized Google fields; the API key and raw response never enter D1. */
 export async function saveGoogleDetailsCache(
   input: GoogleDetailsCacheWrite,
-  client: DatabaseClient = database(),
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
 ) {
-  await client.execute(sql`
+  const db = await client;
+  await db.run(sql`
     UPDATE places
-    SET google_details_cached_at = ${input.cachedAt}::timestamptz,
+    SET google_details_cached_at = ${new Date(input.cachedAt).getTime()},
         google_details_snapshot = ${JSON.stringify(input.snapshot)}
-    WHERE id = ${input.placeId}::uuid
+    WHERE id = ${input.placeId}
       AND google_place_id = ${input.googlePlaceId}
   `);
 }

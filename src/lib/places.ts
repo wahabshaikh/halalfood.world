@@ -27,9 +27,9 @@ export type PlaceDetail = Omit<Place, "lat" | "lng"> & {
   serves_cuisine: string[] | null;
   source: string | null;
   source_url: string | null;
-  scraped_at: string | Date | null;
+  scraped_at: string | number | Date | null;
   halal_confirmed: boolean | null;
-  google_details_cached_at: string | Date | null;
+  google_details_cached_at: string | number | Date | null;
   google_details_snapshot: string | null;
   lat: number | null;
   lng: number | null;
@@ -63,7 +63,25 @@ export type City = {
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(Math.trunc(value) || min, min), max);
 
-const COORDS_PRESENT = sql`halal_confirmed IS TRUE AND lat IS NOT NULL AND lng IS NOT NULL`;
+const COORDS_PRESENT = sql`halal_confirmed = 1 AND lat IS NOT NULL AND lng IS NOT NULL`;
+
+/** `rating_value` is stored as text ("4.30") to preserve scraped formatting; ratings are 0-5 so a numeric cast orders correctly. */
+const RATING_DESC = sql`CAST(rating_value AS REAL) DESC`;
+
+function parseServesCuisine(value: unknown): string[] | null {
+  if (Array.isArray(value)) return value as string[];
+  if (typeof value !== "string") return null;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? (parsed as string[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function toBoolean(value: unknown): boolean {
+  return value === true || value === 1 || value === "1";
+}
 
 export async function findPlaces(options: {
   bbox?: ReturnType<typeof bboxParam>;
@@ -83,17 +101,17 @@ export async function findPlaces(options: {
   if (options.q) {
     const term = "%" + options.q.replace(/[\\%_]/g, "\\$&") + "%";
     conditions.push(
-      sql`(name ILIKE ${term} OR replace(city_slug, '-', ' ') ILIKE ${term} OR street_address ILIKE ${term} OR address_locality ILIKE ${term})`,
+      sql`(name LIKE ${term} ESCAPE '\\' OR replace(city_slug, '-', ' ') LIKE ${term} ESCAPE '\\' OR street_address LIKE ${term} ESCAPE '\\' OR address_locality LIKE ${term} ESCAPE '\\')`,
     );
   }
-  const result = await database().execute(sql`
+  const db = await database();
+  const rows = await db.all<Place & { total: number }>(sql`
     SELECT id, name, city_slug, street_address, address_locality, address_country,
-      telephone, website, rating_value, review_count, lat, lng, count(*) OVER()::integer AS total
+      telephone, website, rating_value, review_count, lat, lng, count(*) OVER() AS total
     FROM places WHERE ${sql.join(conditions, sql` AND `)}
-    ORDER BY rating_value DESC NULLS LAST, review_count DESC NULLS LAST, id
+    ORDER BY ${RATING_DESC} NULLS LAST, review_count DESC NULLS LAST, id
     LIMIT ${options.limit}
   `);
-  const rows = result.rows as unknown as (Place & { total: number })[];
   return {
     places: rows.map(({ total: _total, ...place }) => place),
     total: rows[0]?.total ?? 0,
@@ -103,23 +121,31 @@ export async function findPlaces(options: {
 
 /** One place by id. The id must already have passed `placeIdParam`. */
 export async function getPlaceById(id: string): Promise<PlaceDetail | null> {
-  const result = await database().execute(sql`
+  const db = await database();
+  const rows = await db.all<Record<string, unknown>>(sql`
     SELECT id, name, city_slug, street_address, address_locality, address_region,
       postal_code, address_country, telephone, website, maps_url, google_place_id,
       serves_cuisine,
       rating_value, review_count, source, source_url, scraped_at,
       halal_confirmed, google_details_cached_at, google_details_snapshot,
       lat, lng
-    FROM places WHERE id = ${id}::uuid AND halal_confirmed IS TRUE LIMIT 1
+    FROM places WHERE id = ${id} AND halal_confirmed = 1 LIMIT 1
   `);
-  return (result.rows[0] as unknown as PlaceDetail) ?? null;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    ...(row as unknown as PlaceDetail),
+    serves_cuisine: parseServesCuisine(row.serves_cuisine),
+    halal_confirmed: toBoolean(row.halal_confirmed),
+  };
 }
 
 /** Insert one authenticated, explicitly halal user submission. */
 export async function createPlace(input: CreatePlaceInput) {
   const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const result = await database().execute(sql`
+  const now = Date.now();
+  const db = await database();
+  const rows = await db.all<{ id: string }>(sql`
     INSERT INTO places (
       id, name, city_slug, city_url, list_position, street_address,
       address_locality, address_region, postal_code, address_country,
@@ -127,16 +153,16 @@ export async function createPlace(input: CreatePlaceInput) {
       rating_value, review_count, source, source_url, scraped_at, created_at,
       lat, lng, submitted_by_user_id, halal_confirmed
     ) VALUES (
-      ${id}::uuid, ${input.name}, ${input.citySlug}, ${input.cityUrl}, NULL,
+      ${id}, ${input.name}, ${input.citySlug}, ${input.cityUrl}, NULL,
       ${input.streetAddress}, ${input.addressLocality}, NULL, NULL, NULL,
-      NULL, NULL, ${input.mapsUrl}, ${input.googlePlaceId}, ARRAY['Halal']::text[],
-      NULL, NULL, 'user-submitted', ${input.sourceUrl}, ${now}::timestamptz,
-      ${now}::timestamptz, ${input.lat}, ${input.lng},
-      ${input.submittedByUserId}, ${input.halalConfirmed}
+      NULL, NULL, ${input.mapsUrl}, ${input.googlePlaceId}, ${JSON.stringify(["Halal"])},
+      NULL, NULL, 'user-submitted', ${input.sourceUrl}, ${now},
+      ${now}, ${input.lat}, ${input.lng},
+      ${input.submittedByUserId}, 1
     )
-    RETURNING id::text AS id
+    RETURNING id
   `);
-  const row = result.rows[0] as { id?: unknown } | undefined;
+  const row = rows[0];
   if (typeof row?.id !== "string" || !row.id)
     throw new Error("Created place id was missing");
   return { id: row.id };
@@ -158,15 +184,15 @@ export async function listPlacesNeedingCoordinateBackfill(options: {
   limit?: number;
 } = {}): Promise<PlaceCoordinateCandidate[]> {
   const limit = clamp(options.limit ?? 100, 1, 10000);
-  const result = await database().execute(sql`
+  const db = await database();
+  return db.all<PlaceCoordinateCandidate>(sql`
     SELECT id, google_place_id, lat, lng
     FROM places
-    WHERE halal_confirmed IS TRUE
+    WHERE halal_confirmed = 1
       AND google_place_id IS NOT NULL AND (lat IS NULL OR lng IS NULL)
     ORDER BY id
     LIMIT ${limit}
   `);
-  return result.rows as unknown as PlaceCoordinateCandidate[];
 }
 
 /**
@@ -189,16 +215,17 @@ export async function updatePlaceCoordinatesIfMissing(
     return false;
   }
 
-  const result = await database().execute(sql`
+  const db = await database();
+  const rows = await db.all<{ id: string }>(sql`
     UPDATE places
     SET lat = ${coordinates.lat}, lng = ${coordinates.lng}
-    WHERE id = ${id}::uuid
+    WHERE id = ${id}
       AND google_place_id = ${googlePlaceId}
-      AND halal_confirmed IS TRUE
+      AND halal_confirmed = 1
       AND (lat IS NULL OR lng IS NULL)
     RETURNING id
   `);
-  return result.rows.length > 0;
+  return rows.length > 0;
 }
 
 /** Distinct cities, largest first, for the city index and city sitemap. */
@@ -207,40 +234,42 @@ export async function listCities(
 ) {
   const limit = clamp(options.limit ?? 500, 1, 2000);
   const offset = clamp(options.offset ?? 0, 0, 100000);
-  const result = await database().execute(sql`
+  const db = await database();
+  return db.all<City>(sql`
     SELECT city_slug,
-      count(*)::integer AS place_count,
+      count(*) AS place_count,
       min(address_country) AS address_country,
-      avg(lat)::double precision AS center_lat,
-      avg(lng)::double precision AS center_lng
+      avg(lat) AS center_lat,
+      avg(lng) AS center_lng
     FROM places WHERE ${COORDS_PRESENT}
     GROUP BY city_slug
     ORDER BY count(*) DESC, city_slug
     LIMIT ${limit} OFFSET ${offset}
   `);
-  return result.rows as unknown as City[];
 }
 
 export async function countCities() {
-  const result = await database().execute(sql`
-    SELECT count(DISTINCT city_slug)::integer AS total
+  const db = await database();
+  const rows = await db.all<{ total: number }>(sql`
+    SELECT count(DISTINCT city_slug) AS total
     FROM places WHERE ${COORDS_PRESENT}
   `);
-  return (result.rows[0] as unknown as { total: number } | undefined)?.total ?? 0;
+  return rows[0]?.total ?? 0;
 }
 
 /** Aggregate for one city, or `null` when the slug matches nothing. */
 export async function getCity(citySlug: string): Promise<City | null> {
-  const result = await database().execute(sql`
+  const db = await database();
+  const rows = await db.all<City>(sql`
     SELECT city_slug,
-      count(*)::integer AS place_count,
+      count(*) AS place_count,
       min(address_country) AS address_country,
-      avg(lat)::double precision AS center_lat,
-      avg(lng)::double precision AS center_lng
+      avg(lat) AS center_lat,
+      avg(lng) AS center_lng
     FROM places WHERE ${COORDS_PRESENT} AND city_slug = ${citySlug}
     GROUP BY city_slug
   `);
-  return (result.rows[0] as unknown as City) ?? null;
+  return rows[0] ?? null;
 }
 
 /** Places in one city, best rated first, paginated and capped. */
@@ -250,15 +279,15 @@ export async function findPlacesByCity(
 ) {
   const limit = clamp(options.limit ?? 60, 1, 200);
   const offset = clamp(options.offset ?? 0, 0, 100000);
-  const result = await database().execute(sql`
+  const db = await database();
+  const rows = await db.all<Place & { total: number }>(sql`
     SELECT id, name, city_slug, street_address, address_locality, address_country,
       telephone, website, rating_value, review_count, lat, lng,
-      count(*) OVER()::integer AS total
+      count(*) OVER() AS total
     FROM places WHERE ${COORDS_PRESENT} AND city_slug = ${citySlug}
-    ORDER BY rating_value DESC NULLS LAST, review_count DESC NULLS LAST, id
+    ORDER BY ${RATING_DESC} NULLS LAST, review_count DESC NULLS LAST, id
     LIMIT ${limit} OFFSET ${offset}
   `);
-  const rows = result.rows as unknown as (Place & { total: number })[];
   return {
     places: rows.map(({ total: _total, ...place }) => place),
     total: rows[0]?.total ?? 0,
@@ -268,10 +297,11 @@ export async function findPlacesByCity(
 }
 
 export async function countPlaces() {
-  const result = await database().execute(sql`
-    SELECT count(*)::integer AS total FROM places WHERE ${COORDS_PRESENT}
+  const db = await database();
+  const rows = await db.all<{ total: number }>(sql`
+    SELECT count(*) AS total FROM places WHERE ${COORDS_PRESENT}
   `);
-  return (result.rows[0] as unknown as { total: number } | undefined)?.total ?? 0;
+  return rows[0]?.total ?? 0;
 }
 
 /**
@@ -281,12 +311,9 @@ export async function countPlaces() {
 export async function listPlaceRefs(options: { limit: number; offset: number }) {
   const limit = clamp(options.limit, 1, 25000);
   const offset = clamp(options.offset, 0, 1000000);
-  const result = await database().execute(sql`
+  const db = await database();
+  return db.all<{ id: string; scraped_at: number | null }>(sql`
     SELECT id, scraped_at FROM places WHERE ${COORDS_PRESENT}
     ORDER BY id LIMIT ${limit} OFFSET ${offset}
   `);
-  return result.rows as unknown as {
-    id: string;
-    scraped_at: string | Date | null;
-  }[];
 }

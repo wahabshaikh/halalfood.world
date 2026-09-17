@@ -137,7 +137,7 @@ export function rankContributors(
     }));
 }
 
-type DatabaseClient = ReturnType<typeof database>;
+type DatabaseClient = Awaited<ReturnType<typeof database>>;
 
 export interface ContributorLeaderboardRepository {
   list(limit: number): Promise<ContributorAggregate[]>;
@@ -160,14 +160,15 @@ function mapContributorRow(
   };
 }
 
-/** Neon-backed aggregation for the public contributor board. */
-export function neonContributorLeaderboardRepository(
-  client: DatabaseClient = database(),
+/** D1-backed aggregation for the public contributor board. */
+export function d1ContributorLeaderboardRepository(
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): ContributorLeaderboardRepository {
   return {
     async list(limit) {
       const safeLimit = boundedLimit(limit);
-      const result = await client.execute(sql`
+      const db = await client;
+      const rows = await db.all<Record<string, unknown>>(sql`
         WITH contribution_events AS (
           SELECT submitted_by_user_id AS user_id, 'places_added' AS signal
           FROM places
@@ -187,17 +188,17 @@ export function neonContributorLeaderboardRepository(
         ), contribution_counts AS (
           SELECT
             user_id,
-            COUNT(*) FILTER (WHERE signal = 'places_added')::integer AS places_added,
-            COUNT(*) FILTER (WHERE signal = 'verifications_submitted')::integer AS verifications_submitted,
-            COUNT(*) FILTER (WHERE signal = 'reviews')::integer AS reviews,
-            COUNT(*) FILTER (WHERE signal = 'photos')::integer AS photos,
-            COUNT(*) FILTER (WHERE signal = 'ratings')::integer AS ratings
+            COUNT(*) FILTER (WHERE signal = 'places_added') AS places_added,
+            COUNT(*) FILTER (WHERE signal = 'verifications_submitted') AS verifications_submitted,
+            COUNT(*) FILTER (WHERE signal = 'reviews') AS reviews,
+            COUNT(*) FILTER (WHERE signal = 'photos') AS photos,
+            COUNT(*) FILTER (WHERE signal = 'ratings') AS ratings
           FROM contribution_events
           GROUP BY user_id
         )
         SELECT
           c.user_id,
-          NULLIF(BTRIM(u.name), '') AS user_name,
+          NULLIF(TRIM(u.name), '') AS user_name,
           c.places_added,
           c.verifications_submitted,
           c.reviews,
@@ -214,11 +215,11 @@ export function neonContributorLeaderboardRepository(
             c.ratings * ${CONTRIBUTOR_SCORE_WEIGHTS.ratings}
           ) DESC,
           c.places_added DESC,
-          LOWER(COALESCE(NULLIF(BTRIM(u.name), ''), '')) ASC,
+          LOWER(COALESCE(NULLIF(TRIM(u.name), ''), '')) ASC,
           c.user_id ASC
         LIMIT ${safeLimit}
       `);
-      return (result.rows as unknown as Record<string, unknown>[])
+      return rows
         .map(mapContributorRow)
         .filter((row): row is ContributorAggregate => row !== null);
     },
@@ -236,7 +237,7 @@ export async function getContributorLeaderboard(
 export async function listContributors(
   limit = CONTRIBUTOR_LEADERBOARD_LIMIT,
   repository: ContributorLeaderboardRepository =
-    neonContributorLeaderboardRepository(),
+    d1ContributorLeaderboardRepository(),
 ): Promise<RankedContributor[]> {
   return getContributorLeaderboard(repository, limit);
 }

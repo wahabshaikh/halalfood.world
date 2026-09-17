@@ -10,7 +10,7 @@ import {
   PLACE_REVIEW_MAX_PAYLOAD_BYTES,
   PLACE_REVIEW_TITLE_MAX_LENGTH,
   deletePlaceReviewForUser,
-  neonPlaceReviewRepository,
+  d1PlaceReviewRepository,
   savePlaceReviewForUser,
   type PlaceReview,
   type PlaceReviewInput,
@@ -409,7 +409,7 @@ test("review GET does not publicly cache an ownership-shaped response", async ()
   assert.equal(response.headers.get("Cache-Control"), "no-store");
 });
 
-test("Neon review listing keeps an authenticated user's older review beyond the recent cap", async () => {
+test("D1 review listing keeps an authenticated user's older review beyond the recent cap", async () => {
   const recentRows = Array.from({ length: 50 }, (_, index) => ({
     author_display_name: `Visitor ${index}`,
     title: null,
@@ -420,26 +420,23 @@ test("Neon review listing keeps an authenticated user's older review beyond the 
   }));
   let calls = 0;
   const client = {
-    async execute() {
+    async all() {
       calls += 1;
-      return {
-        rows:
-          calls === 1
-            ? recentRows
-            : [
-                {
-                  author_display_name: "Older owner",
-                  title: "My visit",
-                  body: "The older review still belongs to me.",
-                  created_at: "2026-01-01T10:00:00.000Z",
-                  updated_at: "2026-01-01T10:00:00.000Z",
-                  is_own: true,
-                },
-              ],
-      };
+      return calls === 1
+        ? recentRows
+        : [
+            {
+              author_display_name: "Older owner",
+              title: "My visit",
+              body: "The older review still belongs to me.",
+              created_at: "2026-01-01T10:00:00.000Z",
+              updated_at: "2026-01-01T10:00:00.000Z",
+              is_own: true,
+            },
+          ];
     },
   };
-  const repository = neonPlaceReviewRepository(client as never);
+  const repository = d1PlaceReviewRepository(client as never);
   const reviews = await repository.list(PLACE_ID, USER_ID);
   assert.equal(calls, 2);
   assert.equal(reviews.length, 51);

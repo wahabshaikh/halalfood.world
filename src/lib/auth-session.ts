@@ -8,7 +8,8 @@ export type RequestAuth =
 /** Authoritative session lookup for routes that mutate application data. */
 export async function getRequestAuth(request: Request): Promise<RequestAuth> {
   try {
-    const result = await createAuth().api.getSession({
+    const auth = await createAuth();
+    const result = await auth.api.getSession({
       headers: request.headers,
       query: { disableCookieCache: true },
     });

@@ -57,7 +57,7 @@ export function validatePlaceRatingInput(
   return { ok: true, data: { rating: input.rating } };
 }
 
-type DatabaseClient = ReturnType<typeof database>;
+type DatabaseClient = Awaited<ReturnType<typeof database>>;
 
 function countValue(value: unknown): number {
   const count = Number(value);
@@ -86,20 +86,20 @@ async function getSnapshot(
   const currentRating = userId
     ? sql`MAX(r.rating) FILTER (WHERE r.user_id = ${userId})`
     : sql`NULL`;
-  const result = await client.execute(sql`
+  const rows = await client.all<Record<string, unknown>>(sql`
     SELECT
-      COUNT(r.user_id)::integer AS total,
-      COUNT(r.user_id) FILTER (WHERE r.rating = 'mashallah')::integer AS mashallah,
-      COUNT(r.user_id) FILTER (WHERE r.rating = 'alhamdulillah')::integer AS alhamdulillah,
-      COUNT(r.user_id) FILTER (WHERE r.rating = 'astaghfirullah')::integer AS astaghfirullah,
+      COUNT(r.user_id) AS total,
+      COUNT(r.user_id) FILTER (WHERE r.rating = 'mashallah') AS mashallah,
+      COUNT(r.user_id) FILTER (WHERE r.rating = 'alhamdulillah') AS alhamdulillah,
+      COUNT(r.user_id) FILTER (WHERE r.rating = 'astaghfirullah') AS astaghfirullah,
       ${currentRating} AS current_rating
     FROM places AS p
     LEFT JOIN place_ratings AS r ON r.place_id = p.id
-    WHERE p.id = ${placeId}::uuid
-      AND p.halal_confirmed IS TRUE
+    WHERE p.id = ${placeId}
+      AND p.halal_confirmed = 1
     GROUP BY p.id
   `);
-  const row = result.rows[0] as Record<string, unknown> | undefined;
+  const row = rows[0];
   return row ? mapSnapshot(row) : null;
 }
 
@@ -112,29 +112,32 @@ export interface PlaceRatingRepository {
   ): Promise<PlaceRatingSnapshot | null>;
 }
 
-/** Neon-backed rating operations. The caller owns auth and rate limits. */
-export function neonPlaceRatingRepository(
-  client: DatabaseClient = database(),
+/** D1-backed rating operations. The caller owns auth and rate limits. */
+export function d1PlaceRatingRepository(
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): PlaceRatingRepository {
   return {
     async get(placeId, userId) {
-      return getSnapshot(client, placeId, userId);
+      const db = await client;
+      return getSnapshot(db, placeId, userId);
     },
 
     async upsert(userId, placeId, rating) {
-      const result = await client.execute(sql`
+      const db = await client;
+      const now = Date.now();
+      const rows = await db.all<{ place_id: string }>(sql`
         INSERT INTO place_ratings (user_id, place_id, rating, created_at, updated_at)
-        SELECT ${userId}, p.id, ${rating}, now(), now()
+        SELECT ${userId}, p.id, ${rating}, ${now}, ${now}
         FROM places AS p
-        WHERE p.id = ${placeId}::uuid
-          AND p.halal_confirmed IS TRUE
+        WHERE p.id = ${placeId}
+          AND p.halal_confirmed = 1
         ON CONFLICT (user_id, place_id) DO UPDATE SET
-          rating = EXCLUDED.rating,
-          updated_at = now()
+          rating = excluded.rating,
+          updated_at = excluded.updated_at
         RETURNING place_id
       `);
-      if (!result.rows.length) return null;
-      return getSnapshot(client, placeId, userId);
+      if (!rows.length) return null;
+      return getSnapshot(db, placeId, userId);
     },
   };
 }

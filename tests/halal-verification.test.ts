@@ -180,7 +180,7 @@ test("verification API writes a pending submission through the repository bounda
   assert.deepEqual(created, { userId: USER_ID, placeId: PLACE_ID });
 });
 
-test("verification service handles the happy path without Neon", async () => {
+test("verification service handles the happy path without a database", async () => {
   const repository: HalalVerificationRepository = {
     async hasPlace(placeId) {
       return placeId === PLACE_ID;

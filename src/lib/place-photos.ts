@@ -40,10 +40,11 @@ export interface PlacePhotoRepository {
   getUploadAccess(key: string): Promise<PlacePhotoAccess | null>;
 }
 
-type DatabaseClient = ReturnType<typeof database>;
+type DatabaseClient = Awaited<ReturnType<typeof database>>;
 
 function isoDate(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
+  if (typeof value === "number") return new Date(value).toISOString();
   if (typeof value === "string") return value;
   return new Date(0).toISOString();
 }
@@ -70,7 +71,7 @@ function mapPhoto(row: Record<string, unknown>): PlacePhoto {
     byteSize: Number.isInteger(byteSize) && byteSize > 0 ? byteSize : 0,
     fileName: rawFileName || `halal-photo.${extensionFor(type)}`,
     createdAt: isoDate(row.created_at),
-    isOwn: row.is_own === true || row.is_own === "true",
+    isOwn: row.is_own === true || row.is_own === 1 || row.is_own === "true",
   };
 }
 
@@ -80,26 +81,28 @@ function photoFromRow(row: Record<string, unknown> | undefined): PlacePhoto | nu
   return photo.id ? photo : null;
 }
 
-/** Neon-backed place photo operations. Callers own auth, limits, and R2 I/O. */
-export function neonPlacePhotoRepository(
-  client: DatabaseClient = database(),
+/** D1-backed place photo operations. Callers own auth, limits, and R2 I/O. */
+export function d1PlacePhotoRepository(
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): PlacePhotoRepository {
   return {
     async hasPlace(placeId) {
-      const result = await client.execute(sql`
+      const db = await client;
+      const rows = await db.all(sql`
         SELECT 1
         FROM places
-        WHERE id = ${placeId}::uuid AND halal_confirmed IS TRUE
+        WHERE id = ${placeId} AND halal_confirmed = 1
         LIMIT 1
       `);
-      return result.rows.length > 0;
+      return rows.length > 0;
     },
 
     async list(placeId, userId) {
-      const ownPhoto = userId ? sql`ph.user_id = ${userId}` : sql`FALSE`;
-      const result = await client.execute(sql`
+      const db = await client;
+      const ownPhoto = userId ? sql`ph.user_id = ${userId}` : sql`0`;
+      const rows = await db.all<Record<string, unknown>>(sql`
         SELECT
-          ph.id::text AS id,
+          ph.id AS id,
           ph.r2_key,
           ph.content_type,
           ph.byte_size,
@@ -108,67 +111,69 @@ export function neonPlacePhotoRepository(
           ${ownPhoto} AS is_own
         FROM place_photos AS ph
         INNER JOIN places AS p ON p.id = ph.place_id
-        WHERE ph.place_id = ${placeId}::uuid
-          AND p.halal_confirmed IS TRUE
+        WHERE ph.place_id = ${placeId}
+          AND p.halal_confirmed = 1
         ORDER BY ph.created_at DESC, ph.id DESC
         LIMIT 100
       `);
-      return (result.rows as unknown as Record<string, unknown>[]).map(mapPhoto);
+      return rows.map(mapPhoto);
     },
 
     async create(userId, placeId, input) {
+      const db = await client;
       const id = crypto.randomUUID();
-      const result = await client.execute(sql`
+      const rows = await db.all<Record<string, unknown>>(sql`
         INSERT INTO place_photos (
           id, place_id, user_id, r2_key, content_type, byte_size,
           original_file_name, created_at
         )
         SELECT
-          ${id}::uuid,
+          ${id},
           p.id,
           ${userId},
           ${input.r2Key},
           ${input.contentType},
           ${input.byteSize},
           ${input.fileName},
-          now()
+          ${Date.now()}
         FROM places AS p
-        WHERE p.id = ${placeId}::uuid
-          AND p.halal_confirmed IS TRUE
+        WHERE p.id = ${placeId}
+          AND p.halal_confirmed = 1
         RETURNING
-          id::text AS id, r2_key, content_type, byte_size,
-          original_file_name, created_at, TRUE AS is_own
+          id, r2_key, content_type, byte_size,
+          original_file_name, created_at, 1 AS is_own
       `);
-      return photoFromRow(result.rows[0] as unknown as Record<string, unknown> | undefined);
+      return photoFromRow(rows[0]);
     },
 
     async deleteOwn(userId, placeId, photoId) {
-      const result = await client.execute(sql`
-        DELETE FROM place_photos AS ph
-        USING places AS p
-        WHERE ph.id = ${photoId}::uuid
-          AND ph.place_id = ${placeId}::uuid
-          AND ph.user_id = ${userId}
-          AND p.id = ph.place_id
-          AND p.halal_confirmed IS TRUE
-        RETURNING ph.r2_key
+      const db = await client;
+      const rows = await db.all<{ r2_key?: unknown }>(sql`
+        DELETE FROM place_photos
+        WHERE id = ${photoId}
+          AND place_id = ${placeId}
+          AND user_id = ${userId}
+          AND EXISTS (
+            SELECT 1 FROM places
+            WHERE places.id = place_photos.place_id AND places.halal_confirmed = 1
+          )
+        RETURNING r2_key
       `);
-      const row = result.rows[0] as { r2_key?: unknown } | undefined;
+      const row = rows[0];
       return typeof row?.r2_key === "string" ? { r2Key: row.r2_key } : null;
     },
 
     async getUploadAccess(key) {
-      const result = await client.execute(sql`
+      const db = await client;
+      const rows = await db.all<{ content_type?: unknown; original_file_name?: unknown }>(sql`
         SELECT ph.content_type, ph.original_file_name
         FROM place_photos AS ph
         INNER JOIN places AS p ON p.id = ph.place_id
         WHERE ph.r2_key = ${key}
-          AND p.halal_confirmed IS TRUE
+          AND p.halal_confirmed = 1
         LIMIT 1
       `);
-      const row = result.rows[0] as
-        | { content_type?: unknown; original_file_name?: unknown }
-        | undefined;
+      const row = rows[0];
       if (
         !row ||
         (row.content_type !== "image/jpeg" &&

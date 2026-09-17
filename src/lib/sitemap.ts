@@ -60,8 +60,10 @@ export function sitemapIndexXml(entries: SitemapIndexEntry[]) {
   );
 }
 
-/** `scraped_at` arrives as a Date or an ISO string; unparseable values drop. */
-export function toLastModified(value: string | Date | null | undefined) {
+/** `scraped_at` arrives as a Date, epoch ms, or an ISO string; unparseable values drop. */
+export function toLastModified(
+  value: string | number | Date | null | undefined,
+) {
   if (!value) return undefined;
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? undefined : date;

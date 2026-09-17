@@ -10,7 +10,7 @@ import {
   type ValidatedHalalVerification,
 } from "../../../../../src/lib/halal-verification";
 import {
-  neonHalalVerificationRepository,
+  d1HalalVerificationRepository,
   submitHalalVerification,
   type HalalVerificationRepository,
 } from "../../../../../src/lib/halal-verifications";
@@ -143,7 +143,7 @@ export async function handleVerificationPost(
 
   try {
     const result = await submitHalalVerification(
-      dependencies.repository ?? neonHalalVerificationRepository(),
+      dependencies.repository ?? d1HalalVerificationRepository(),
       auth.userId,
       placeId,
       input,
@@ -180,7 +180,7 @@ export async function GET(
   if (auth.status === "authenticated") userId = auth.userId;
 
   try {
-    const repository = neonHalalVerificationRepository();
+    const repository = d1HalalVerificationRepository();
     if (!(await repository.hasPlace(placeId))) return notFound();
     return Response.json(
       { verifications: await repository.list(placeId, userId) },

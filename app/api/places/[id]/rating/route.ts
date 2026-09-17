@@ -6,7 +6,7 @@ import {
   retryAfterSeconds,
 } from "../../../../../src/lib/otp-rate-limit";
 import {
-  neonPlaceRatingRepository,
+  d1PlaceRatingRepository,
   ratePlaceForUser,
   validatePlaceRatingInput,
   type PlaceRatingRepository,
@@ -89,7 +89,7 @@ export async function handleRatingGet(
   const userId = auth.status === "authenticated" ? auth.userId : null;
 
   try {
-    const snapshot = await (dependencies.repository ?? neonPlaceRatingRepository()).get(
+    const snapshot = await (dependencies.repository ?? d1PlaceRatingRepository()).get(
       placeId,
       userId,
     );
@@ -142,7 +142,7 @@ export async function handleRatingPut(
 
   try {
     const result = await ratePlaceForUser(
-      dependencies.repository ?? neonPlaceRatingRepository(),
+      dependencies.repository ?? d1PlaceRatingRepository(),
       auth.userId,
       placeId,
       validation.data.rating,
