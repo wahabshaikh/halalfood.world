@@ -15,6 +15,11 @@ import {
   type HalalVerificationRepository,
 } from "../../../../../src/lib/halal-verifications";
 import {
+  d1HalalStatusRepository,
+  getHalalStatus,
+  type HalalStatusRepository,
+} from "../../../../../src/lib/halal-status";
+import {
   evidenceOwnerPrefix,
   getEvidenceBucket,
   type R2BucketLike,
@@ -75,6 +80,7 @@ export type VerificationRouteDependencies = {
   getAuth?: (request: Request) => Promise<RequestAuth>;
   consumeLimits?: typeof consumeHalalVerificationLimits;
   repository?: HalalVerificationRepository;
+  statusRepository?: HalalStatusRepository;
   getBucket?: () => Promise<R2BucketLike | null>;
 };
 
@@ -169,24 +175,41 @@ export async function POST(
   return handleVerificationPost(request, context);
 }
 
-export async function GET(
+export async function handleVerificationGet(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
+  dependencies: VerificationRouteDependencies = {},
 ): Promise<Response> {
   const placeId = placeIdParam((await params).id);
   if (!placeId) return invalidPlace();
   let userId: string | null = null;
-  const auth = await getRequestAuth(request);
+  const auth = await (dependencies.getAuth ?? getRequestAuth)(request);
   if (auth.status === "authenticated") userId = auth.userId;
 
   try {
-    const repository = d1HalalVerificationRepository();
+    const repository =
+      dependencies.repository ?? d1HalalVerificationRepository();
     if (!(await repository.hasPlace(placeId))) return notFound();
+    const [verifications, summary] = await Promise.all([
+      repository.list(placeId, userId),
+      getHalalStatus(
+        dependencies.statusRepository ?? d1HalalStatusRepository(),
+        placeId,
+      ),
+    ]);
+    if (summary.status === "unavailable") return unavailable();
     return Response.json(
-      { verifications: await repository.list(placeId, userId) },
+      { verifications, summary },
       { headers: { "Cache-Control": userId ? "no-store" : "public, max-age=60" } },
     );
   } catch {
     return unavailable();
   }
+}
+
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  return handleVerificationGet(request, context);
 }
