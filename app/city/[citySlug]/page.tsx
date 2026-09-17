@@ -24,6 +24,7 @@ import {
 import { loadOrDegrade } from "../../../src/lib/load";
 import { PlaceList } from "../../../src/components/place-list";
 import ShareButton from "../../../src/components/share-button";
+import { guidePath } from "../../../src/lib/guides";
 
 const PAGE_SIZE = 60;
 
@@ -108,7 +109,7 @@ export default async function CityPage({
   const lastPage = Math.max(Math.ceil(total / PAGE_SIZE) - 1, 0);
   const path = `/city/${city.city_slug}`;
   const trail = [
-    { name: "Halalfood", path: "/" },
+    { name: "halalfood.world", path: "/" },
     { name: "Cities", path: "/cities" },
     { name, path },
   ];
@@ -150,6 +151,9 @@ export default async function CityPage({
           <div className="detail-actions">
             <a className="action primary" href={mapLink}>
               Open {name} on the map
+            </a>
+            <a className="action" href={guidePath(city.city_slug)}>
+              Read the city guide
             </a>
             <ShareButton
               url={path}

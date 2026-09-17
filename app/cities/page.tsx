@@ -67,7 +67,7 @@ export default async function CitiesPage() {
 
   const { cities, total } = loaded.data;
   const trail = [
-    { name: "Halalfood", path: "/" },
+    { name: "halalfood.world", path: "/" },
     { name: "Cities", path: "/cities" },
   ];
 
@@ -99,6 +99,9 @@ export default async function CitiesPage() {
           <div className="detail-actions">
             <a className="action primary" href="/">
               Open the world map <ArrowUpRight size={14} aria-hidden="true" />
+            </a>
+            <a className="action" href="/guides">
+              Read city guides
             </a>
           </div>
           <ApproximateNote compact />

@@ -82,7 +82,9 @@ Use the URL printed by the dev server. Development runs against the local D1 dat
 | --- | --- | --- |
 | `/` | Client map + SSR `WebSite`/`FAQPage` JSON-LD | The map. Accepts the deep links below. |
 | `/cities` | SSR | Directory of every city, largest first. |
-| `/leaderboard` | SSR | Public halal community contributor leaderboard. |
+| `/leaderboard` | SSR | Public halal community curator leaderboard. |
+| `/guides` | SSR | Curated city starting points built from ranked listings and an explicit selection rubric. |
+| `/guides/[citySlug]` | SSR | A readable city shortlist with source and evidence guidance. |
 | `/city/[citySlug]` | SSR | Listings for one city, 60 per page, with `ItemList` + `BreadcrumbList` JSON-LD. |
 | `/place/[id]` | SSR | Canonical restaurant page with Google/listing facts, community layers, and `Restaurant` + `BreadcrumbList` JSON-LD. |
 | `/saved` | Client list + SSR chrome | Authenticated user's saved halal places; unauthenticated visitors get a sign-in CTA. |

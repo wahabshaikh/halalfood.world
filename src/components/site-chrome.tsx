@@ -33,6 +33,9 @@ export function SiteHeader({ backTo }: { backTo?: { href: string; label: string 
           <a className="page-nav-link" href="/cities">
             Cities
           </a>
+          <a className="page-nav-link" href="/guides">
+            Guides
+          </a>
           <a className="page-nav-link" href="/leaderboard">
             <Trophy size={16} aria-hidden="true" />
             Community
@@ -76,6 +79,7 @@ export function SiteFooter() {
         <nav className="page-footer-links" aria-label="Footer">
           <a href="/">Explore</a>
           <a href="/cities">Cities</a>
+          <a href="/guides">Guides</a>
           <a href="/leaderboard">Community</a>
           <a href="/add">Add a place</a>
           <a href="/sitemap.xml">Sitemap</a>
