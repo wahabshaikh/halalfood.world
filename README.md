@@ -1,6 +1,6 @@
 # halalfood.world
 
-A full-screen halal food map built with vinext, React, MapLibre GL, Drizzle and the Neon serverless HTTP driver, deployed as a Cloudflare Worker. The interface uses CARTO Positron with OpenStreetMap attribution.
+A full-screen halal food map built with vinext, React, MapLibre GL, Drizzle and Cloudflare D1, deployed as a Cloudflare Worker. The interface uses CARTO Positron with OpenStreetMap attribution.
 
 The map is the product; server-rendered city and place pages sit underneath it so the listings are crawlable, linkable and shareable without JavaScript.
 
@@ -14,10 +14,19 @@ node --version
 npm ci
 ```
 
-Create a **gitignored** `.dev.vars` in the repo root containing the local-only database and email settings below. Do not put secrets in client variables or commit this file. The Cloudflare Vite plugin loads it; the Worker reads bindings through `process.env.*` with Node compatibility enabled.
+The database is Cloudflare D1 (SQLite), bound as `DB` in [`wrangler.jsonc`](wrangler.jsonc). Create a local database and apply the migrations once:
+
+```sh
+npx wrangler d1 create halalfood-world
+# Paste the printed database_id into wrangler.jsonc's d1_databases entry.
+npm run db:migrate:local
+```
+
+`npm run dev` (via the Cloudflare Vite plugin) and `npm start` (via `wrangler dev`) both emulate the `DB` binding locally against the SQLite file under `.wrangler/state`, so no connection string is needed for local development.
+
+Create a **gitignored** `.dev.vars` in the repo root containing the local-only email and auth settings below. Do not put secrets in client variables or commit this file. The Cloudflare Vite plugin loads it; the Worker reads bindings through `process.env.*` with Node compatibility enabled.
 
 ```dotenv
-DATABASE_URL=<your Neon connection string>
 RESEND_API_KEY=<your Resend API key>
 EMAIL_FROM=noreply@halalfood.world
 BETTER_AUTH_SECRET=<long random Better Auth secret>
@@ -65,7 +74,7 @@ npm run build
 npm start
 ```
 
-Use the URL printed by the dev server. Development and production API requests run against the existing Neon `neondb`; map/listing reads remain bounded, while Better Auth, saved-place, and rate-limit writes use the migrations below.
+Use the URL printed by the dev server. Development runs against the local D1 database and production against the deployed one; map/listing reads remain bounded, while Better Auth, saved-place, and rate-limit writes use the migrations below.
 
 ## Routes
 
@@ -128,8 +137,8 @@ available below the listing facts.
 Rows with a `google_place_id` use the existing `getGooglePlaceDetails` client
 with `GOOGLE_PLACES_FIELD_MASK` only (`id`, `name`, `formattedAddress`,
 `location`, `photos`). A successful normalized snapshot is stored in
-`places.google_details_snapshot` with `places.google_details_cached_at` by
-[`migrations/0008_restaurant_google_cache.sql`](migrations/0008_restaurant_google_cache.sql)
+`places.google_details_snapshot` with `places.google_details_cached_at`,
+columns created by [`migrations/0002_places.sql`](migrations/0002_places.sql),
 and served for 7 days. A stale or missing snapshot makes one Essentials
 request; provider failures leave the saved row visible. Phone, website,
 rating, review count, address parts, and the Maps link use persisted listing
@@ -158,12 +167,18 @@ the render does not make a second location-only request. The existing
 `enrichPlaceCoordinates` helper remains available for the operational
 backfill, and Google failures still leave the page unchanged.
 
-Ops can backfill without browser scraping using the CLI. It reads
-`DATABASE_URL` and `GOOGLE_PLACES_API_KEY` (or the Maps fallback) from the
-environment, processes requests sequentially, and sleeps between calls:
+Ops can backfill without browser scraping using the CLI. The D1 binding only
+exists inside the Worker, so this script talks to the remote database through
+Cloudflare's D1 REST API (`scripts/d1-rest-client.ts`) instead of `src/db`. It
+reads `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_D1_DATABASE_ID`,
+`CLOUDFLARE_API_TOKEN`, and `GOOGLE_PLACES_API_KEY` (or the Maps fallback)
+from the environment, processes requests sequentially, and sleeps between
+calls:
 
 ```sh
-export DATABASE_URL=<your Neon connection string>
+export CLOUDFLARE_ACCOUNT_ID=<your Cloudflare account id>
+export CLOUDFLARE_D1_DATABASE_ID=<the halalfood-world D1 database id>
+export CLOUDFLARE_API_TOKEN=<a token with D1 edit permission>
 export GOOGLE_PLACES_API_KEY=<your Google Places API key>
 
 # Fetch and report proposed updates, but do not write rows.
@@ -187,14 +202,14 @@ reports provider failures and exits non-zero when any candidate fails.
 
 The `/login` page renders a Cloudflare Turnstile widget, then uses the Better Auth `emailOTP` plugin to request and verify a 6-digit sign-in code. The client uses `emailOTPClient`; successful verification creates a database-backed Better Auth session and secure, HTTP-only cookie. OTP mail is sent only through `src/lib/email.ts`, uses `EMAIL_FROM` when set, and includes both text and HTML bodies.
 
-Turnstile is fail closed: the request endpoint returns an error when either `TURNSTILE_SITE_KEY` or `TURNSTILE_SECRET_KEY` is missing, when no token is supplied, or when Cloudflare rejects the token. The site key is intentionally rendered to the browser and is not a secret. `TURNSTILE_SECRET_KEY`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, and `DATABASE_URL` must never be client-exposed or committed.
+Turnstile is fail closed: the request endpoint returns an error when either `TURNSTILE_SITE_KEY` or `TURNSTILE_SECRET_KEY` is missing, when no token is supplied, or when Cloudflare rejects the token. The site key is intentionally rendered to the browser and is not a secret. `TURNSTILE_SECRET_KEY`, `BETTER_AUTH_SECRET`, and `RESEND_API_KEY` must never be client-exposed or committed.
 
-Rate limits use Neon/Postgres, not KV (this Worker has no KV binding). Better Auth's database-backed IP/endpoint limiter uses the `rate_limit` table. The auth route also uses the `auth_otp_rate_limit` table with SHA-256 hashed email/IP keys and a Neon HTTP transaction with advisory locks:
+Rate limits use D1, not KV (this Worker has no KV binding). Better Auth's database-backed IP/endpoint limiter uses the `rate_limit` table. The auth route also uses the `auth_otp_rate_limit` table with SHA-256 hashed email/IP keys, read and written inside a `db.transaction()`: D1 is a single Durable Object per database, so the transaction already serializes concurrent writers the way Postgres advisory locks used to:
 
 - OTP requests: one email can send at most 5 codes per 24 hours with a 60-second cooldown; one IP can send at most 30 per 24 hours with a 10-second cooldown.
 - OTP verification: at most 5 attempts per email and 20 per IP per 15 minutes. The budget is consumed before checking a submitted code, so concurrent guesses cannot bypass it. Better Auth also invalidates an OTP after 3 wrong attempts, and codes expire after 5 minutes.
 
-Place submissions reuse the same Neon table and atomic advisory-lock pattern,
+Place submissions reuse the same durable table and transactional pattern,
 with separate hashed key namespaces: one signed-in user may submit at most 5
 places per 24 hours with a 60-second cooldown, and one IP may submit at most 30
 per 24 hours with a 10-second cooldown. Authenticated Google Text Search is
@@ -207,17 +222,17 @@ key namespace: one user may perform at most 120 save actions per hour with a
 cooldown. Both the user and IP bucket must allow the mutation.
 
 Place rating mutations use a separate hashed key namespace and the same durable
-Neon limiter: one user may perform at most 120 rating actions per hour with a
+limiter: one user may perform at most 120 rating actions per hour with a
 250ms cooldown, and one IP may perform at most 300 per hour with a 100ms
 cooldown. Both the user and IP bucket must allow the mutation. The accepted
 halal reaction values are `mashallah`, `alhamdulillah`, and `astaghfirullah`.
 
 Place review mutations use their own hashed key namespace and the same durable
-Neon limiter: one user may perform at most 120 review actions per hour with a
+limiter: one user may perform at most 120 review actions per hour with a
 250ms cooldown, and one IP may perform at most 300 per hour with a 100ms
 cooldown. Invalid review payloads are rejected before either bucket is spent.
 
-Community halal verification submissions reuse the same durable Neon limiter
+Community halal verification submissions reuse the same durable limiter
 with separate hashed key namespaces: one signed-in user may submit at most 5
 verifications per 24 hours with a 60-second cooldown, and one IP may submit at
 most 30 per 24 hours with a 10-second cooldown. Both the user and IP bucket
@@ -236,13 +251,15 @@ the standard authenticated mutation buckets of 120 actions per user per hour
 and 300 per IP per hour. Validated photo input is checked before either upload
 bucket is spent.
 
-The limiter fails closed if Neon is unavailable, so a provider outage cannot turn the endpoint into an unrestricted Resend sender. Old limiter rows can be pruned by Ops after confirming the retention policy; they contain hashes rather than raw identifiers.
+The limiter fails closed if D1 is unavailable, so a provider outage cannot turn the endpoint into an unrestricted Resend sender. Old limiter rows can be pruned by Ops after confirming the retention policy; they contain hashes rather than raw identifiers.
 
 ### Auth schema migration
 
-Apply [`migrations/0001_better_auth_email_otp.sql`](migrations/0001_better_auth_email_otp.sql) to the existing Neon database before deploying the auth route. It creates Better Auth's `user`, `session`, `account`, `verification`, and `rate_limit` tables plus the application OTP limiter table; it does not create a second database or alter `places`.
+The migrations under [`migrations/`](migrations) are D1/SQLite SQL, applied with `wrangler d1 migrations apply` (see [Cloudflare deployment](#cloudflare-deployment)). IDs are `text`, timestamps are Unix epoch milliseconds, booleans are `0`/`1`, and `places.serves_cuisine` is a JSON array stored as text.
 
-Apply [`migrations/0002_user_submitted_places.sql`](migrations/0002_user_submitted_places.sql) after it. It adds `places.submitted_by_user_id` and `places.halal_confirmed`, plus durable uniqueness for `(city_slug, name, street_address)` and non-null `google_place_id` values. The migration is additive and safe to re-run. New rows use `source = user-submitted`, `serves_cuisine = {Halal}`, the authenticated user id, and the submission time for both `created_at` and `scraped_at`.
+Apply [`migrations/0001_better_auth_email_otp.sql`](migrations/0001_better_auth_email_otp.sql) first. It creates Better Auth's `user`, `session`, `account`, `verification`, and `rate_limit` tables plus the application OTP limiter table.
+
+Apply [`migrations/0002_places.sql`](migrations/0002_places.sql) after it. It creates the `places` table, including `submitted_by_user_id` and `halal_confirmed` for community submissions, durable uniqueness for `(city_slug, name, street_address)`, and non-null `google_place_id` values. New user-submitted rows use `source = user-submitted`, `serves_cuisine = ["Halal"]`, the authenticated user id, and the submission time for both `created_at` and `scraped_at`.
 
 Apply [`migrations/0003_saved_places.sql`](migrations/0003_saved_places.sql) after it. It creates the additive `saved_places` table with a cascading foreign key to Better Auth's `user`, a cascading foreign key to `places`, and a unique `(user_id, place_id)` pair. It is safe to re-run.
 
@@ -254,19 +271,11 @@ Apply [`migrations/0006_place_reviews.sql`](migrations/0006_place_reviews.sql) a
 
 Apply [`migrations/0007_place_photos.sql`](migrations/0007_place_photos.sql) after it. It creates the additive `place_photos` table with cascading place/user foreign keys, unique R2 keys, image-only content types, an 8 MiB size check, and a place/created-at gallery index. The migration is safe to re-run.
 
-Apply [`migrations/0008_restaurant_google_cache.sql`](migrations/0008_restaurant_google_cache.sql) after it. It adds the cached Google Essentials timestamp and normalized snapshot columns to `places`. The migration is additive and safe to re-run.
-
-With `DATABASE_URL` already present in the shell, use either the Neon SQL Editor or:
+Apply them in order with wrangler's own migration tracking, which skips migrations it has already recorded as applied:
 
 ```sh
-psql "$DATABASE_URL" -f migrations/0001_better_auth_email_otp.sql
-psql "$DATABASE_URL" -f migrations/0002_user_submitted_places.sql
-psql "$DATABASE_URL" -f migrations/0003_saved_places.sql
-psql "$DATABASE_URL" -f migrations/0004_place_halal_verifications.sql
-psql "$DATABASE_URL" -f migrations/0005_place_ratings.sql
-psql "$DATABASE_URL" -f migrations/0006_place_reviews.sql
-psql "$DATABASE_URL" -f migrations/0007_place_photos.sql
-psql "$DATABASE_URL" -f migrations/0008_restaurant_google_cache.sql
+npm run db:migrate:local   # local development database
+npm run db:migrate:remote  # deployed halalfood-world D1 database
 ```
 
 The Drizzle definitions in `src/db/schema.ts` must stay aligned with this SQL. If Better Auth is upgraded or plugins are added, regenerate/review the Drizzle schema with the Better Auth CLI and create a new migration rather than changing the existing table names silently.
@@ -327,7 +336,7 @@ node scripts/generate-assets.mjs
 - `POST/DELETE /api/places/:id/saved`: requires a Better Auth session, validates the UUID and confirms the target is an existing halal listing. Both methods return the resulting `saved` state and 429 when either save-action bucket is exhausted.
 - `GET /api/places/google-search?q=...`: requires a Better Auth session and uses server-only Google Places (New) Text Search when configured. It is rate-limited separately from submissions.
 - `GET /api/places/:id/verifications`: returns approved community evidence to everyone and the current contributor's own pending submission when signed in. Submitter ids are never exposed.
-- `POST /api/places/:id/verifications`: requires a Better Auth session and at least one HTTPS Zabihah, Instagram, TikTok, or YouTube link or validated R2 upload. New rows are `pending` and the user/IP Neon buckets are consumed before the write.
+- `POST /api/places/:id/verifications`: requires a Better Auth session and at least one HTTPS Zabihah, Instagram, TikTok, or YouTube link or validated R2 upload. New rows are `pending` and the user/IP rate-limit buckets are consumed before the write.
 - `GET /api/places/:id/rating`: returns `counts` for `mashallah`, `alhamdulillah`, and `astaghfirullah`, plus `rating` for the current signed-in user (or `null`).
 - `PUT/POST /api/places/:id/rating`: requires a Better Auth session and `{ "rating": "mashallah" | "alhamdulillah" | "astaghfirullah" }`; upserts that user's reaction and returns the refreshed aggregate counts. Invalid UUIDs or reactions are rejected, and both user/IP rating buckets must allow the write.
 - `GET /api/places/:id/reviews`: returns up to 50 newest public reviews for a halal place, plus the signed-in user's own review when it falls outside that window, with the author's display name, body, optional title, created/updated timestamps, and an `isOwn` marker.
@@ -353,11 +362,17 @@ return the three counts and total.
 
 ## Cloudflare deployment
 
-Authenticate with `npx wrangler login`, or provide `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` through your shell/CI secret store. Use credentials authorized to deploy Workers.
+Authenticate with `npx wrangler login`, or provide `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` through your shell/CI secret store. Use credentials authorized to deploy Workers and manage D1.
+
+Create the production D1 database once, fill its printed `database_id` into [`wrangler.jsonc`](wrangler.jsonc)'s `d1_databases` entry, and apply the migrations:
+
+```sh
+npx wrangler d1 create halalfood-world
+npm run db:migrate:remote
+```
 
 ```sh
 npm run build
-npx wrangler secret put DATABASE_URL
 npx wrangler secret put RESEND_API_KEY
 npx wrangler secret put BETTER_AUTH_SECRET
 npx wrangler secret put TURNSTILE_SECRET_KEY
@@ -373,13 +388,24 @@ TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
 EMAIL_FROM=noreply@halalfood.world
 ```
 
-`TURNSTILE_SITE_KEY` may be a normal public Worker variable (or a dashboard secret if preferred); only `TURNSTILE_SECRET_KEY` belongs in `wrangler secret put` and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `DATABASE_URL`, `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, and `GOOGLE_PLACES_API_KEY` are secret names only here; enter their values at the Wrangler prompts. Use `GOOGLE_MAPS_API_KEY` instead only when retaining an existing secret name.
+`TURNSTILE_SITE_KEY` may be a normal public Worker variable (or a dashboard secret if preferred); only `TURNSTILE_SECRET_KEY` belongs in `wrangler secret put` and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, and `GOOGLE_PLACES_API_KEY` are secret names only here; enter their values at the Wrangler prompts. Use `GOOGLE_MAPS_API_KEY` instead only when retaining an existing secret name.
 
-Enter the existing Neon connection string, Resend API key, Better Auth secret, and Turnstile server secret at their respective Wrangler prompts. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
+Enter the Resend API key, Better Auth secret, and Turnstile server secret at their respective Wrangler prompts. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
 
 ```sh
 npx @vinext/cloudflare deploy --config dist/server/wrangler.json
 ```
+
+### Migrating existing data from Neon
+
+This repository previously ran on Neon/Postgres. Cutting an existing deployment
+over to D1 needs a one-time, manual data export/import that isn't part of this
+codebase or CI, since it requires production credentials for both databases:
+
+1. Export each table's rows from the existing Neon database (for example with `psql \copy ... to '<file>.csv' csv`).
+2. Convert exported rows to `INSERT` statements matching the new D1 schema: ids stay as text, timestamps become Unix epoch milliseconds, booleans become `0`/`1`, and `places.serves_cuisine` becomes a JSON array string.
+3. Load the converted statements with `npx wrangler d1 execute halalfood-world --remote --file=<file>.sql`.
+4. Verify row counts per table match before decommissioning the Neon project.
 
 Wrangler prints the workers.dev URL on success. Configure the custom domain `halalfood.world` in Cloudflare after deployment if desired. Local `.dev.vars` does **not** upload production secrets. Set `EMAIL_FROM` as a Worker variable (or leave the preferred default), and use `onboarding@resend.dev` until the custom domain is verified. No tile token is needed. Deployment also requires Cloudflare authentication.
 
@@ -421,10 +447,12 @@ the vinext build output. The runtime reads this binding with vinext's native
 For Ops moderation, update only the status column after reviewing the evidence
 (there is intentionally no admin UI in this feature):
 
-```sql
-UPDATE place_halal_verifications
-SET status = 'approved', updated_at = now()
-WHERE id = '<verification id>' AND status = 'pending';
+```sh
+npx wrangler d1 execute halalfood-world --remote --command "
+  UPDATE place_halal_verifications
+  SET status = 'approved', updated_at = unixepoch() * 1000
+  WHERE id = '<verification id>' AND status = 'pending'
+"
 ```
 
 The supported status values are `pending`, `approved`, and `rejected`.
@@ -435,23 +463,21 @@ The framework deployment setup follows the [official vinext documentation](https
 
 The repository includes `.github/workflows/preview.yml` for Vercel-style previews on same-repository pull requests:
 
-- Each PR creates or reuses a Neon branch named `pr-<number>`.
-- Before upload, the deploy job applies every SQL file under `migrations/` to that branch in lexical filename order. A migration failure fails the preview.
-- The Cloudflare Worker is uploaded as a non-production version with a stable `pr-<number>` preview alias. The predicted URL is `https://pr-<number>-halalfood-world.wahabshaikh.workers.dev`.
+- Each PR creates or reuses a Cloudflare D1 database named `halalfood-world-pr-<number>`.
+- Before upload, the deploy job applies every migration under `migrations/` to that database with `wrangler d1 migrations apply --remote`. A migration failure fails the preview.
+- The Cloudflare Worker is uploaded as a non-production version bound to that PR's D1 database, with a stable `pr-<number>` preview alias. The predicted URL is `https://pr-<number>-halalfood-world.wahabshaikh.workers.dev`.
 - The workflow creates or updates one GitHub Deployment in the `preview` environment and adds or updates one preview URL comment in the PR.
-- When the PR closes, all Cloudflare preview versions with the upload message `PR #<number>` are deleted so the alias no longer has a retained version target. The Neon branch is also deleted and expires after 14 days as a cleanup safeguard.
+- When the PR closes, all Cloudflare preview versions with the upload message `PR #<number>` are deleted so the alias no longer has a retained version target. The PR's D1 database is also deleted.
 
 Configure these GitHub Actions settings before opening a PR:
 
 | Setting | Type | Purpose |
 | --- | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Repository secret | Cloudflare preview upload, version lookup, and cleanup |
+| `CLOUDFLARE_API_TOKEN` | Repository secret | Cloudflare preview upload, D1 database create/migrate/delete, version lookup, and cleanup |
 | `CLOUDFLARE_ACCOUNT_ID` | Repository secret | Cloudflare account ID |
-| `NEON_API_KEY` | Repository secret | Create and delete Neon branches |
-| `NEON_PROJECT_ID` | Repository variable | Neon project ID |
 
-The Neon GitHub integration can create the `NEON_API_KEY` secret and `NEON_PROJECT_ID` variable automatically. Fork pull requests are intentionally skipped because the preview deployment requires infrastructure credentials.
+`CLOUDFLARE_API_TOKEN` needs Workers Scripts edit and D1 edit permissions. Fork pull requests are intentionally skipped because the preview deployment requires infrastructure credentials.
 
-The upload intentionally uses `--keep-vars`. It changes only the preview `DATABASE_URL` and `BETTER_AUTH_URL`; it reuses production Worker variables and secrets for Resend, Turnstile, Google Places, `BETTER_AUTH_SECRET`, and the R2 binding `halalfood-world-evidence`. Preview code can therefore send through production integrations and read or write the production R2 bucket. Future isolation could use a `preview/` key prefix or a separate bucket; that is not implemented here.
+The upload intentionally uses `--keep-vars`. It changes only the `BETTER_AUTH_URL` variable and the `DB` D1 binding; it reuses production Worker variables and secrets for Resend, Turnstile, Google Places, `BETTER_AUTH_SECRET`, and the R2 binding `halalfood-world-evidence`. Preview code can therefore send through production integrations and read or write the production R2 bucket. Future isolation could use a `preview/` key prefix or a separate bucket; that is not implemented here.
 
-Keep the production deployment configured to explicitly provide the production `DATABASE_URL` on every production deploy, and do not promote a preview version manually.
+Do not promote a preview version manually.

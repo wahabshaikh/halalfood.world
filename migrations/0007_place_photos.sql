@@ -1,10 +1,10 @@
--- Community halal place photos. Apply after 0006_place_reviews.sql.
--- Photos reuse the existing HALAL_EVIDENCE_R2 binding under the photos/ key
--- prefix. Every statement is additive and safe to re-run.
+-- Community halal place photos. D1/SQLite dialect.
+-- Apply after 0006_place_reviews.sql. Photos reuse the existing
+-- HALAL_EVIDENCE_R2 binding under the photos/ key prefix.
 
 CREATE TABLE IF NOT EXISTS "place_photos" (
-  "id" uuid PRIMARY KEY NOT NULL,
-  "place_id" uuid NOT NULL REFERENCES "places"("id") ON DELETE CASCADE,
+  "id" text PRIMARY KEY NOT NULL,
+  "place_id" text NOT NULL REFERENCES "places"("id") ON DELETE CASCADE,
   "user_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
   "r2_key" text NOT NULL UNIQUE,
   "content_type" text NOT NULL CHECK (
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS "place_photos" (
     "byte_size" BETWEEN 1 AND 8388608
   ),
   "original_file_name" text NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT now()
+  "created_at" integer NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS "place_photos_place_id_created_at_idx"

@@ -47,10 +47,11 @@ export interface HalalVerificationRepository {
   getUploadAccess(key: string, userId: string | null): Promise<UploadAccess | null>;
 }
 
-type DatabaseClient = ReturnType<typeof database>;
+type DatabaseClient = Awaited<ReturnType<typeof database>>;
 
 function isoDate(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
+  if (typeof value === "number") return new Date(value).toISOString();
   if (typeof value === "string") return value;
   return new Date(0).toISOString();
 }
@@ -96,54 +97,55 @@ function mapEvidence(value: unknown): PublicHalalEvidence[] {
   });
 }
 
-export function neonHalalVerificationRepository(
-  client: DatabaseClient = database(),
+export function d1HalalVerificationRepository(
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): HalalVerificationRepository {
   return {
     async hasPlace(placeId) {
-      const result = await client.execute(sql`
+      const db = await client;
+      const rows = await db.all(sql`
         SELECT 1
         FROM places
-        WHERE id = ${placeId}::uuid AND halal_confirmed IS TRUE
+        WHERE id = ${placeId} AND halal_confirmed = 1
         LIMIT 1
       `);
-      return result.rows.length > 0;
+      return rows.length > 0;
     },
 
     async list(placeId, userId) {
+      const db = await client;
       const visibility = userId
         ? sql`(v.status = 'approved' OR (v.status = 'pending' AND v.submitted_by_user_id = ${userId}))`
         : sql`v.status = 'approved'`;
-      const result = await client.execute(sql`
+      const rows = await db.all<Record<string, unknown>>(sql`
         SELECT
-          v.id::text AS id,
+          v.id AS id,
           v.status,
           v.note,
           v.created_at,
           COALESCE(
-            json_agg(
-              json_build_object(
-                'kind', e.kind,
-                'url', e.url,
-                'r2_key', e.r2_key,
-                'content_type', e.content_type,
-                'file_name', e.file_name
-              ) ORDER BY e.created_at, e.id
-            ) FILTER (WHERE e.id IS NOT NULL),
-            '[]'::json
+            (
+              SELECT json_group_array(json_object(
+                'kind', e.kind, 'url', e.url, 'r2_key', e.r2_key,
+                'content_type', e.content_type, 'file_name', e.file_name
+              ))
+              FROM (
+                SELECT * FROM place_halal_verification_evidence
+                WHERE verification_id = v.id
+                ORDER BY created_at, id
+              ) AS e
+            ),
+            '[]'
           ) AS evidence
         FROM place_halal_verifications AS v
         INNER JOIN places AS p ON p.id = v.place_id
-        LEFT JOIN place_halal_verification_evidence AS e
-          ON e.verification_id = v.id
-        WHERE v.place_id = ${placeId}::uuid
-          AND p.halal_confirmed IS TRUE
+        WHERE v.place_id = ${placeId}
+          AND p.halal_confirmed = 1
           AND ${visibility}
-        GROUP BY v.id, v.status, v.note, v.created_at
         ORDER BY v.created_at DESC, v.id DESC
         LIMIT 25
       `);
-      return (result.rows as unknown as Record<string, unknown>[]).map((row) => ({
+      return rows.map((row) => ({
         id: String(row.id),
         status: visibleStatus(row.status),
         note: typeof row.note === "string" ? row.note : null,
@@ -153,66 +155,57 @@ export function neonHalalVerificationRepository(
     },
 
     async create(userId, placeId, input) {
+      const db = await client;
       const verificationId = crypto.randomUUID();
-      const now = new Date().toISOString();
-      const evidenceValues = sql.join(
-        input.evidence.map((item) => {
-          const evidenceId = crypto.randomUUID();
-          return item.kind === "link"
-            ? sql`(
-                ${evidenceId}::uuid,
-                ${verificationId}::uuid,
-                'link',
-                ${item.url},
-                NULL,
-                NULL,
-                NULL,
-                NULL,
-                ${now}::timestamptz
-              )`
-            : sql`(
-                ${evidenceId}::uuid,
-                ${verificationId}::uuid,
-                'upload',
-                NULL,
-                ${item.key},
-                ${item.contentType},
-                ${item.fileName},
-                ${item.sizeBytes},
-                ${now}::timestamptz
-              )`;
-        }),
-        sql`,`,
-      );
-      await client.transaction(async (tx) => {
-        await tx.execute(sql`
+      const now = Date.now();
+      await db.transaction(async (tx) => {
+        await tx.run(sql`
           INSERT INTO place_halal_verifications (
             id, place_id, submitted_by_user_id, status, note, created_at, updated_at
           ) VALUES (
-            ${verificationId}::uuid,
-            ${placeId}::uuid,
+            ${verificationId},
+            ${placeId},
             ${userId},
             'pending',
             ${input.note},
-            ${now}::timestamptz,
-            ${now}::timestamptz
+            ${now},
+            ${now}
           )
         `);
-        await tx.execute(sql`
-          INSERT INTO place_halal_verification_evidence (
-            id, verification_id, kind, url, r2_key, content_type, file_name,
-            size_bytes, created_at
-          ) VALUES ${evidenceValues}
-        `);
+        for (const item of input.evidence) {
+          const evidenceId = crypto.randomUUID();
+          if (item.kind === "link") {
+            await tx.run(sql`
+              INSERT INTO place_halal_verification_evidence (
+                id, verification_id, kind, url, r2_key, content_type, file_name,
+                size_bytes, created_at
+              ) VALUES (
+                ${evidenceId}, ${verificationId}, 'link', ${item.url},
+                NULL, NULL, NULL, NULL, ${now}
+              )
+            `);
+          } else {
+            await tx.run(sql`
+              INSERT INTO place_halal_verification_evidence (
+                id, verification_id, kind, url, r2_key, content_type, file_name,
+                size_bytes, created_at
+              ) VALUES (
+                ${evidenceId}, ${verificationId}, 'upload', NULL,
+                ${item.key}, ${item.contentType}, ${item.fileName}, ${item.sizeBytes}, ${now}
+              )
+            `);
+          }
+        }
       });
       return { id: verificationId, status: "pending" };
     },
 
     async getUploadAccess(key, userId) {
+      const db = await client;
       const visibility = userId
         ? sql`(v.status = 'approved' OR (v.status = 'pending' AND v.submitted_by_user_id = ${userId}))`
         : sql`v.status = 'approved'`;
-      const result = await client.execute(sql`
+      const rows = await db.all<{ status?: unknown; content_type?: unknown; file_name?: unknown }>(sql`
         SELECT v.status, e.content_type, e.file_name
         FROM place_halal_verification_evidence AS e
         INNER JOIN place_halal_verifications AS v
@@ -220,13 +213,11 @@ export function neonHalalVerificationRepository(
         INNER JOIN places AS p ON p.id = v.place_id
         WHERE e.kind = 'upload'
           AND e.r2_key = ${key}
-          AND p.halal_confirmed IS TRUE
+          AND p.halal_confirmed = 1
           AND ${visibility}
         LIMIT 1
       `);
-      const row = result.rows[0] as
-        | { status?: unknown; content_type?: unknown; file_name?: unknown }
-        | undefined;
+      const row = rows[0];
       if (
         !row ||
         typeof row.content_type !== "string" ||

@@ -108,7 +108,8 @@ async function handle(request: Request): Promise<Response> {
   }
 
   try {
-    return await createAuth().handler(request);
+    const auth = await createAuth();
+    return await auth.handler(request);
   } catch {
     return unavailable();
   }

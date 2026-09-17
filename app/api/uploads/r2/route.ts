@@ -5,8 +5,8 @@ import {
   getClientIp,
   retryAfterSeconds,
 } from "../../../../src/lib/otp-rate-limit";
-import { neonHalalVerificationRepository } from "../../../../src/lib/halal-verifications";
-import { neonPlacePhotoRepository } from "../../../../src/lib/place-photos";
+import { d1HalalVerificationRepository } from "../../../../src/lib/halal-verifications";
+import { d1PlacePhotoRepository } from "../../../../src/lib/place-photos";
 import {
   getEvidenceBucket,
   isSafeEvidenceR2Key,
@@ -184,7 +184,7 @@ export async function GET(request: Request): Promise<Response> {
 
   if (isSafePhotoR2Key(key)) {
     try {
-      const access = await neonPlacePhotoRepository().getUploadAccess(key);
+      const access = await d1PlacePhotoRepository().getUploadAccess(key);
       if (!access) return new Response("Not found", { status: 404 });
       const bucket = await getEvidenceBucket();
       if (!bucket) return unavailable();
@@ -214,7 +214,7 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     const access = await (
-      neonHalalVerificationRepository()
+      d1HalalVerificationRepository()
     ).getUploadAccess(key, userId);
     if (!access) return new Response("Not found", { status: 404 });
     const bucket = await getEvidenceBucket();

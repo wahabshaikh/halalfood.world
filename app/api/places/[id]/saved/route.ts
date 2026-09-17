@@ -6,7 +6,7 @@ import {
   retryAfterSeconds,
 } from "../../../../../src/lib/otp-rate-limit";
 import {
-  neonSavedPlaceRepository,
+  d1SavedPlaceRepository,
   savePlaceForUser,
   unsavePlaceForUser,
 } from "../../../../../src/lib/saved-places";
@@ -106,7 +106,7 @@ export async function POST(
 
   try {
     const result = await savePlaceForUser(
-      neonSavedPlaceRepository(),
+      d1SavedPlaceRepository(),
       gate.auth.userId,
       placeId,
     );
@@ -132,7 +132,7 @@ export async function DELETE(
 
   try {
     const result = await unsavePlaceForUser(
-      neonSavedPlaceRepository(),
+      d1SavedPlaceRepository(),
       gate.auth.userId,
       placeId,
     );

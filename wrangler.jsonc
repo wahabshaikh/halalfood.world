@@ -18,6 +18,15 @@
       "bucket_name": "halalfood-world-evidence"
     }
   ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "halalfood-world",
+      // Replace with the id printed by `wrangler d1 create halalfood-world`.
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
   "cache": {
     "enabled": true
   }

@@ -18,7 +18,6 @@ import { POST as authPost } from "../app/api/auth/[...all]/route";
 const environmentKeys = [
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
-  "DATABASE_URL",
   "NODE_ENV",
   "TURNSTILE_SITE_KEY",
   "TURNSTILE_SECRET_KEY",
@@ -113,7 +112,7 @@ test("email identifiers are normalized before rate-limit keying", () => {
   assert.equal(retryAfterSeconds(1001), 2);
 });
 
-test("request limiter passes hashed email and IP buckets to the Neon store", async () => {
+test("request limiter passes hashed email and IP buckets to the rate-limit store", async () => {
   let received:
     | readonly [
         { key: string; rule: OtpRateLimitRule },
