@@ -3,12 +3,12 @@ import { SITE_NAME, SITE_URL, OG_IMAGE } from "../src/lib/seo";
 import "./globals.css";
 
 const DESCRIPTION =
-  "Discover halal restaurants around the world, save the places you love, and help the community keep every listing useful.";
+  "Find halal food around the world through transparent evidence, real visits and community knowledge.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Halalfood — discover halal places worth sharing",
+    default: "halalfood.world — discover halal food with evidence you can inspect",
     template: "%s · " + SITE_NAME,
   },
   description: DESCRIPTION,
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     type: "website",
     siteName: SITE_NAME,
     url: SITE_URL,
-    title: "Halalfood — discover halal places worth sharing",
+    title: "halalfood.world — discover halal food with evidence you can inspect",
     description: DESCRIPTION,
     locale: "en_US",
     images: [
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Halalfood — discover halal places worth sharing",
+    title: "halalfood.world — discover halal food with evidence you can inspect",
     description: DESCRIPTION,
     images: [OG_IMAGE],
   },
@@ -66,7 +66,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f6f5ef",
+  themeColor: "#f4f0e8",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

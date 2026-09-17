@@ -596,7 +596,7 @@ export default function FoodMap() {
         <div className="rail-header">
           <a className="map-brand" href="/" aria-label="Halalfood home">
             <BrandGlyph />
-            <span>Halalfood</span>
+            <span>halalfood.world</span>
           </a>
           <div className="rail-header-actions">
             <a className="header-contribute" href="/add">Contribute</a>
@@ -604,9 +604,9 @@ export default function FoodMap() {
         </div>
         <div className="rail-scroll">
           <div className="rail-intro">
-            <p className="eyebrow">THE COMMUNITY FOOD MAP</p>
-            <h1>Find a table worth sharing.</h1>
-            <p>Explore halal places, then leave the next useful detail for someone else.</p>
+            <p className="eyebrow">HALAL FOOD ATLAS</p>
+            <h1>Find halal food with evidence you can inspect.</h1>
+            <p>Explore the map, compare halal confidence, and leave the next useful detail for someone else.</p>
           </div>
           <SearchBox
             query={query}
@@ -655,7 +655,7 @@ export default function FoodMap() {
       <div className="mobile-map-chrome">
         <a className="mobile-brand" href="/" aria-label="Halalfood home">
           <BrandGlyph />
-          <span>Halalfood</span>
+          <span>halalfood.world</span>
         </a>
         <div className="mobile-map-actions">
           <a className="mobile-icon-button" href="/add" aria-label="Contribute">

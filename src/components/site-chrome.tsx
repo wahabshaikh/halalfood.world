@@ -71,7 +71,7 @@ export function SiteFooter() {
             <BrandMark />
             <span className="brand-word">{SITE_NAME}</span>
           </a>
-          <p>Find it. Share it. Keep the community moving.</p>
+          <p>A living guide to halal food, built from visits and evidence.</p>
         </div>
         <nav className="page-footer-links" aria-label="Footer">
           <a href="/">Explore</a>
@@ -82,7 +82,7 @@ export function SiteFooter() {
         </nav>
         <div className="page-footer-note">
           <p>{APPROXIMATE_NOTE}</p>
-          <p>Listings come from public directories and community submissions. Confirm details before visiting.</p>
+          <p>Listings combine public sources and community evidence. Check the status before you travel.</p>
         </div>
       </div>
     </footer>

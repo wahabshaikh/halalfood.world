@@ -3156,3 +3156,191 @@ p {
     padding-bottom: 67px;
   }
 }
+
+
+/* phase 1 visual foundation */
+
+/*
+ * The first visual layer moves the product away from default directory chrome:
+ * warm editorial surfaces, a restrained food accent and a clear typographic
+ * distinction between editorial decisions and utility controls.
+ */
+:root {
+  --background: #f4f0e8;
+  --foreground: #171815;
+  --card: #fffdf8;
+  --card-foreground: #171815;
+  --primary: #b84830;
+  --primary-dark: #8f3424;
+  --primary-soft: #f2ddd4;
+  --secondary: #ebe5da;
+  --secondary-foreground: #292a24;
+  --muted: #eee9df;
+  --muted-foreground: #706f66;
+  --accent: #c78a21;
+  --accent-soft: #f5e9c9;
+  --border: #d8d1c5;
+  --input: #cfc7bb;
+  --ring: rgba(184, 72, 48, 0.24);
+  --radius: 12px;
+  --shadow-sm: 0 1px 2px rgba(48, 37, 25, 0.06);
+  --shadow-md: 0 8px 22px rgba(48, 37, 25, 0.09);
+  --shadow-lg: 0 18px 44px rgba(48, 37, 25, 0.14);
+}
+
+body {
+  background: var(--background);
+}
+
+h1,
+h2,
+h3,
+.page-intro h1,
+.place-detail h1,
+.place-card h2,
+.place-card h3,
+.rail-intro h1,
+.selected-preview-head h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: -0.025em;
+}
+
+.eyebrow {
+  letter-spacing: 0.09em;
+}
+
+.brand-mark {
+  border-radius: 8px;
+  background: var(--primary);
+}
+
+.page-header {
+  background: rgba(255, 253, 248, 0.94);
+  backdrop-filter: blur(14px);
+}
+
+.page-footer {
+  background: #e9e2d6;
+}
+
+.explore-rail {
+  border-radius: 14px;
+  background: #fffdf8;
+}
+
+.rail-header {
+  padding-top: 15px;
+}
+
+.map-search,
+.mobile-search-wrap .map-search {
+  border-radius: 11px;
+  background: #f0ebe2;
+}
+
+.map-search:focus-within,
+.mobile-search-wrap .map-search:focus-within {
+  background: #fffdf8;
+}
+
+.filter-chip,
+.action,
+.header-contribute,
+.sheet-expand,
+.rating-chip,
+.ui-badge,
+.selected-preview-actions a,
+.selected-preview-actions button {
+  border-radius: 9px;
+}
+
+.page-nav-link {
+  border-radius: 8px;
+}
+
+.place-card,
+.listing-facts,
+.community-layers > section,
+.auth-card,
+.add-place-card,
+.success-card,
+.saved-error,
+.unavailable-card {
+  border-radius: 12px;
+  background: #fffdf8;
+}
+
+.place-card:hover {
+  transform: translateY(-1px);
+}
+
+.place-card-visual,
+.map-place-card .map-card-visual,
+.place-hero-visual {
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, rgba(184, 72, 48, 0.16), rgba(199, 138, 33, 0.2)),
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.32) 0 8px, transparent 8px 16px),
+    #ead8c7;
+  color: var(--primary);
+}
+
+.place-card-visual svg,
+.map-card-visual svg,
+.place-hero-visual svg {
+  opacity: 0.8;
+}
+
+.place-card-kicker,
+.place-hero-copy .eyebrow,
+.results-heading button,
+.card-link,
+.map-place-card-link,
+.detail-grid a,
+.detail-more a,
+.auth-secondary {
+  color: var(--primary);
+}
+
+.action.primary,
+.header-contribute,
+.filter-chip.is-active,
+.selected-preview-actions a:first-child,
+.ui-button-default {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.action.primary:hover,
+.header-contribute:hover,
+.filter-chip.is-active:hover,
+.ui-button-default:hover {
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
+}
+
+.food-marker {
+  background: var(--primary);
+}
+
+.food-marker:hover,
+.food-marker:focus-visible {
+  background: var(--primary-dark);
+}
+
+.food-marker.is-selected {
+  background: var(--foreground);
+}
+
+.approximate-note,
+.leaderboard-method,
+.submission-note {
+  background: #f5e9c9;
+}
+
+@media (max-width: 680px) {
+  .mobile-brand {
+    border-radius: 10px;
+    background: #fffdf8;
+  }
+}
