@@ -41,6 +41,12 @@ export function SiteHeader({ backTo }: { backTo?: { href: string; label: string 
             <Bookmark size={16} aria-hidden="true" />
             Saved
           </a>
+          <a className="page-nav-link" href="/lists">
+            Lists
+          </a>
+          <a className="page-nav-link" href="/passport">
+            Passport
+          </a>
           {backTo && (
             <a className="page-nav-link page-nav-back" href={backTo.href}>
               <ArrowLeft size={16} aria-hidden="true" />
@@ -78,11 +84,20 @@ export function SiteFooter() {
           <a href="/cities">Cities</a>
           <a href="/leaderboard">Community</a>
           <a href="/add">Add a place</a>
+          <a href="/lists">Lists</a>
+          <a href="/passport">Food passport</a>
+          <a href="/preferences">Dietary standards</a>
+          <a href="/contributions">Your contributions</a>
           <a href="/sitemap.xml">Sitemap</a>
         </nav>
         <div className="page-footer-note">
           <p>{APPROXIMATE_NOTE}</p>
           <p>Listings come from public directories and community submissions. Confirm details before visiting.</p>
+          <p>
+            Unverified never means not halal. Halal status is shown with its
+            evidence, scope and date, and no restaurant can pay to change a
+            status, a ranking or a search result.
+          </p>
         </div>
       </div>
     </footer>

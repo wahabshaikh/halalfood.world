@@ -10,21 +10,30 @@ import {
   Minus,
   Plus,
   Search,
+  SearchCheck,
   Star,
   Trophy,
   Utensils,
   X,
 } from "lucide-react";
 import type { Map as MapInstance, Marker } from "maplibre-gl";
+import type { DiscoveredPlace } from "../src/lib/discovery";
 import type { Place } from "../src/lib/places";
+import {
+  EMPTY_FILTERS,
+  parseDiscoveryFilters,
+  serializeDiscoveryFilters,
+  type DiscoveryFilters,
+} from "../src/lib/discovery-filters";
+import { STATUS_COPY } from "../src/lib/halal-taxonomy";
+import MapFilters from "./map-filters";
 import SavePlaceButton from "../src/components/save-place-button";
 import { Button } from "../src/components/ui/button";
 import { cn } from "../src/lib/utils";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
-type Results = { places: Place[]; total: number; limit: number };
-type FilterKey = "all" | "rated" | "contact";
+type Results = { places: DiscoveredPlace[]; total: number; limit: number };
 type SheetState = "collapsed" | "half" | "expanded";
 
 const VIEWPORT_LIMIT = 600;
@@ -32,12 +41,6 @@ const DEFAULT_VIEW = { center: [72.8777, 19.055] as [number, number], zoom: 14 }
 
 const foodIcon =
   '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v5a3 3 0 0 0 6 0V3M7 3v18M18 3c-3 3-3 8 0 8h2M20 3v18"/></svg>';
-
-const filters: Array<{ key: FilterKey; label: string }> = [
-  { key: "all", label: "All places" },
-  { key: "rated", label: "Top rated" },
-  { key: "contact", label: "With contact" },
-];
 
 function BrandGlyph() {
   return (
@@ -94,12 +97,40 @@ function viewFromParams(params: URLSearchParams) {
   };
 }
 
+/** The trust signals a card carries: status, evidence, and real return intent. */
+function TrustMeta({ place }: { place: DiscoveredPlace }) {
+  const copy = STATUS_COPY[place.halal_status];
+  return (
+    <span className="card-trust">
+      <span className={`card-status tone-${copy.tone}`}>{copy.label}</span>
+      {place.evidence_count > 0 && (
+        <span className="card-evidence">
+          {place.evidence_count} evidence {place.evidence_count === 1 ? "item" : "items"}
+        </span>
+      )}
+      {place.would_return_percent !== null ? (
+        <span className="card-return">
+          {place.would_return_percent}% would return · {place.check_in_count} check-ins
+        </span>
+      ) : place.check_in_count > 0 ? (
+        <span className="card-return is-thin">
+          {place.check_in_count} {place.check_in_count === 1 ? "check-in" : "check-ins"} —
+          too few to publish a percentage
+        </span>
+      ) : null}
+      {place.distance_km !== null && (
+        <span className="card-distance">{place.distance_km.toFixed(1)} km</span>
+      )}
+    </span>
+  );
+}
+
 function PlaceCard({
   place,
   selected,
   onSelect,
 }: {
-  place: Place;
+  place: DiscoveredPlace;
   selected: boolean;
   onSelect: (place: Place) => void;
 }) {
@@ -118,15 +149,10 @@ function PlaceCard({
           <span className="map-place-card-title">{place.name}</span>
           <span className="map-place-card-subtitle">{address(place)}</span>
           <span className="map-place-card-meta">
-            {place.rating_value && (
-              <span>
-                <Star className="star" size={12} fill="currentColor" aria-hidden="true" />{" "}
-                {place.rating_value}
-                {place.review_count ? " · " + place.review_count.toLocaleString() : ""}
-              </span>
-            )}
             <span>{cityLabel(place)}</span>
+            {place.price_band !== null && <span>{"$".repeat(place.price_band)}</span>}
           </span>
+          <TrustMeta place={place} />
         </span>
       </button>
       <span className="map-place-card-save">
@@ -273,32 +299,6 @@ function SearchBox({
   );
 }
 
-function FilterRow({
-  active,
-  onChange,
-  mobile = false,
-}: {
-  active: FilterKey;
-  onChange: (key: FilterKey) => void;
-  mobile?: boolean;
-}) {
-  return (
-    <div className={mobile ? "sheet-filter-row" : "filter-row"} aria-label="Filter places">
-      {filters.map((filter) => (
-        <button
-          type="button"
-          className={cn("filter-chip", active === filter.key && "is-active")}
-          key={filter.key}
-          aria-pressed={active === filter.key}
-          onClick={() => onChange(filter.key)}
-        >
-          {filter.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export default function FoodMap() {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapInstance | null>(null);
@@ -319,10 +319,41 @@ export default function FoodMap() {
   const [searchState, setSearchState] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [selected, setSelected] = useState<Place | null>(null);
-  const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  // Filters are seeded from and written back to the URL, so a filtered view is
+  // shareable and survives a reload.
+  const [filters, setFilters] = useState<DiscoveryFilters>(() =>
+    typeof window === "undefined"
+      ? EMPTY_FILTERS
+      : parseDiscoveryFilters(new URLSearchParams(window.location.search)),
+  );
+  // The viewport is only re-queried when the person asks, so panning the map
+  // never silently swaps the results out from under them.
+  const [areaMoved, setAreaMoved] = useState(false);
+  const [searchArea, setSearchArea] = useState(0);
   const [sheetState, setSheetState] = useState<SheetState>("collapsed");
   const [notice, setNotice] = useState("");
   const [retry, setRetry] = useState(0);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const next = new URLSearchParams(serializeDiscoveryFilters(filters));
+    for (const key of [
+      "status",
+      "facts",
+      "cuisine",
+      "dish",
+      "price",
+      "service",
+      "meal",
+      "open",
+      "within",
+      "sort",
+      "mine",
+    ])
+      url.searchParams.delete(key);
+    for (const [key, value] of next) url.searchParams.set(key, value);
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, [filters]);
 
   const syncUrl = useCallback((placeId: string | null) => {
     const url = new URL(window.location.href);
@@ -439,12 +470,15 @@ export default function FoodMap() {
     if (!ready || !map.current) return;
     const instance = map.current;
     let controller: AbortController | undefined;
-    let timer: ReturnType<typeof setTimeout>;
     async function loadPlaces() {
       controller?.abort();
       controller = new AbortController();
       setLoading(true);
       setError("");
+      // Clear the offer as the load starts, not when it finishes: a response
+      // that lands after the person has already panned must not swallow their
+      // next "search this area".
+      setAreaMoved(false);
       const bounds = instance.getBounds();
       const wrap = (value: number) => ((((value + 180) % 360) + 360) % 360) - 180;
       const world = bounds.getEast() - bounds.getWest() >= 360;
@@ -455,8 +489,13 @@ export default function FoodMap() {
         Math.min(90, bounds.getNorth()),
       ];
       try {
+        const query = serializeDiscoveryFilters(filters);
         const response = await fetch(
-          "/api/places?bbox=" + bbox.join(",") + "&limit=" + VIEWPORT_LIMIT,
+          "/api/discover?bbox=" +
+            bbox.join(",") +
+            "&limit=" +
+            VIEWPORT_LIMIT +
+            (query ? "&" + query : ""),
           { signal: controller.signal },
         );
         if (!response.ok) throw new Error("Places could not load. Please try again.");
@@ -470,19 +509,16 @@ export default function FoodMap() {
         }
       }
     }
-    const schedule = () => {
-      clearTimeout(timer);
-      controller?.abort();
-      timer = setTimeout(() => void loadPlaces(), 180);
-    };
-    instance.on("moveend", schedule);
+    // Moving the map only offers a refresh; it never performs one. Changing a
+    // filter does re-query immediately, because that is an explicit request.
+    const markMoved = () => setAreaMoved(true);
+    instance.on("moveend", markMoved);
     void loadPlaces();
     return () => {
-      clearTimeout(timer);
       controller?.abort();
-      instance.off("moveend", schedule);
+      instance.off("moveend", markMoved);
     };
-  }, [ready, retry]);
+  }, [ready, retry, filters, searchArea]);
 
   useEffect(() => {
     markers.current.forEach((marker) => marker.remove());
@@ -562,18 +598,12 @@ export default function FoodMap() {
     );
   }
 
-  const visiblePlaces = results.places.filter((place) => {
-    if (activeFilter === "rated") return Boolean(place.rating_value);
-    if (activeFilter === "contact") return Boolean(place.telephone || place.website);
-    return true;
-  });
+  const visiblePlaces = results.places;
   const countLabel = loading
     ? "Finding places..."
     : error
       ? "Places unavailable"
-      : activeFilter === "all"
-        ? results.total.toLocaleString() + (results.total === 1 ? " place" : " places")
-        : visiblePlaces.length.toLocaleString() + " shown";
+      : results.total.toLocaleString() + (results.total === 1 ? " place" : " places");
 
   function cycleSheet() {
     setSheetState((current) =>
@@ -581,12 +611,7 @@ export default function FoodMap() {
     );
   }
 
-  const filterRow = (
-    <FilterRow
-      active={activeFilter}
-      onChange={setActiveFilter}
-    />
-  );
+  const filterRow = <MapFilters filters={filters} onChange={setFilters} />;
 
   return (
     <main className="map-app">
@@ -624,7 +649,9 @@ export default function FoodMap() {
               <p className="eyebrow">IN THIS VIEW</p>
               <h2>{countLabel}</h2>
             </div>
-            <button type="button" onClick={() => setActiveFilter("all")}>Reset</button>
+            <button type="button" onClick={() => setFilters(EMPTY_FILTERS)}>
+              Reset filters
+            </button>
           </div>
           <div className="map-place-list">
             {loading && <p className="map-place-status">Loading places...</p>}
@@ -637,7 +664,10 @@ export default function FoodMap() {
               </p>
             )}
             {!loading && !error && !visiblePlaces.length && (
-              <p className="map-place-status">No places match this filter. Try all places.</p>
+              <p className="map-place-status">
+                No places in this view match these filters. Widen the filters or
+                move the map and search again.
+              </p>
             )}
             {!error &&
               visiblePlaces.map((place) => (
@@ -718,6 +748,17 @@ export default function FoodMap() {
         </button>
       </div>
 
+      {areaMoved && !loading && (
+        <button
+          type="button"
+          className="search-this-area"
+          onClick={() => setSearchArea((value) => value + 1)}
+        >
+          <SearchCheck size={16} aria-hidden="true" />
+          Search this area
+        </button>
+      )}
+
       <span className="map-bottom-note">Halal listings · Community maintained</span>
 
       <section className={cn("mobile-results-sheet", "sheet-" + sheetState)} aria-label="Places in this area">
@@ -737,7 +778,9 @@ export default function FoodMap() {
             {sheetState === "expanded" ? "Collapse" : "See places"}
           </Button>
         </div>
-        {sheetState !== "collapsed" && <FilterRow active={activeFilter} onChange={setActiveFilter} mobile />}
+        {sheetState !== "collapsed" && (
+          <MapFilters filters={filters} onChange={setFilters} mobile />
+        )}
         {selected && sheetState === "collapsed" && (
           <div className="mobile-selected-preview">
             <PlacePreview place={selected} onClose={closeSelected} />
@@ -748,7 +791,9 @@ export default function FoodMap() {
             {loading && <p className="map-place-status">Loading places...</p>}
             {error && <p className="map-place-status">{error}</p>}
             {!loading && !error && !visiblePlaces.length && (
-              <p className="map-place-status">No places match this filter.</p>
+              <p className="map-place-status">
+                No places in this view match these filters.
+              </p>
             )}
             {!error &&
               visiblePlaces.map((place) => (

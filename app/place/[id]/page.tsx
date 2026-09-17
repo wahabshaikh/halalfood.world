@@ -39,6 +39,24 @@ import ShareButton from "../../../src/components/share-button";
 import SavePlaceButton from "../../../src/components/save-place-button";
 import PlaceHalalStatus from "./place-halal-status";
 import PlaceHalalVerification from "./place-halal-verification";
+import PlaceCheckIn from "./place-check-in";
+import PlaceContribute from "./place-contribute";
+import {
+  DecisionHeadline,
+  DishHighlightPanel,
+  FactChips,
+  ReturnIntentPanel,
+  ScopeNote,
+} from "../../../src/components/decision-summary";
+import EvidencePanel from "../../../src/components/evidence-panel";
+import {
+  getDecisionSummary,
+  listStatusHistory,
+} from "../../../src/lib/place-decision";
+import { getPreferences } from "../../../src/lib/preferences-repository";
+import PersonalSuitability from "./personal-suitability";
+import { d1HalalVerificationRepository } from "../../../src/lib/halal-verifications";
+import { listDishes } from "../../../src/lib/dishes-repository";
 import PlaceRating from "./place-rating";
 import PlaceReviews from "./place-reviews";
 import PlacePhotos from "./place-photos";
@@ -53,6 +71,27 @@ const loadPlace = cache(async (raw: string) => {
       : null;
   });
 });
+
+/**
+ * The decision bundle is loaded separately from the listing so a failure here
+ * degrades one section rather than 404-ing a page that does exist. Everything
+ * is server-rendered: the status, its evidence and the dish verdicts have to be
+ * readable by a crawler and by a visitor with JavaScript switched off.
+ */
+async function loadDecision(placeId: string, userId: string | null) {
+  try {
+    const preferences = userId ? await getPreferences(userId) : null;
+    const [decision, history, verifications, dishes] = await Promise.all([
+      getDecisionSummary(placeId, preferences),
+      listStatusHistory(placeId),
+      d1HalalVerificationRepository().list(placeId, userId),
+      listDishes(placeId),
+    ]);
+    return { decision, history, verifications, dishes };
+  } catch {
+    return null;
+  }
+}
 
 function safeWebsite(value: string | null) {
   if (!value) return null;
@@ -115,6 +154,10 @@ export default async function PlacePage({
     );
 
   const { place, google, community } = loaded.data;
+  // Loaded without a session so the page stays publicly cacheable and fully
+  // crawlable. The signed-in suitability check is layered on by
+  // <PersonalSuitability>, which reads the same data from /decision.
+  const decisionBundle = await loadDecision(place.id, null);
   const city = cityName(place.city_slug);
   const website = safeWebsite(google.website);
   const maps = safeWebsite(google.mapsUrl);
@@ -207,8 +250,60 @@ export default async function PlacePage({
             </div>
           </div>
 
+          {decisionBundle && (
+            <>
+              <DecisionHeadline
+                assessment={decisionBundle.decision.assessment}
+                headline={decisionBundle.decision.headline}
+                evidenceLine={decisionBundle.decision.evidenceLine}
+                suitability={null}
+              />
+              <PersonalSuitability placeId={place.id} />
+              <ScopeNote assessment={decisionBundle.decision.assessment} />
+            </>
+          )}
+
           <div className="place-detail-grid">
             <div className="place-detail-main">
+              {decisionBundle && (
+                <>
+                  <EvidencePanel
+                    assessment={decisionBundle.decision.assessment}
+                    verifications={decisionBundle.verifications}
+                    history={decisionBundle.history}
+                  />
+                  <FactChips facts={decisionBundle.decision.facts} />
+                  <ReturnIntentPanel checkIns={decisionBundle.decision.checkIns} />
+                  <DishHighlightPanel dishes={decisionBundle.decision.dishes} />
+                  {decisionBundle.dishes.length > 0 && (
+                    <section className="menu-panel" aria-labelledby="menu-panel-title">
+                      <div className="place-section-heading">
+                        <div>
+                          <p className="eyebrow">MENU CONTRIBUTED BY THE COMMUNITY</p>
+                          <h2 id="menu-panel-title">Dishes on file</h2>
+                        </div>
+                      </div>
+                      <ul className="menu-list">
+                        {decisionBundle.dishes.map((dish) => (
+                          <li key={dish.id} className={`menu-item is-${dish.halalScope}`}>
+                            <span className="menu-item-name">{dish.name}</span>
+                            <span className="menu-item-meta">
+                              {dish.halalScope === "unknown"
+                                ? "Halal scope unknown"
+                                : dish.halalScope === "halal"
+                                  ? "Halal"
+                                  : "Not halal"}
+                              {dish.status === "pending" ? " · awaiting review" : ""}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+                  <PlaceCheckIn placeId={place.id} placeName={place.name} />
+                  <PlaceContribute placeId={place.id} />
+                </>
+              )}
               <section className="community-section" aria-labelledby="community-evidence-title">
                 <div className="place-section-heading">
                   <div>
