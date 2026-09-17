@@ -765,7 +765,10 @@ export default function FoodMap() {
           </div>
         )}
       </section>
-      <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+      <nav
+        className={cn("mobile-bottom-nav", selected && sheetState === "collapsed" && "is-hidden")}
+        aria-label="Mobile navigation"
+      >
         <a className="is-active" href="/">
           <MapPinned size={17} aria-hidden="true" />
           <span>Explore</span>

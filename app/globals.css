@@ -2179,6 +2179,10 @@ p {
     max-height: 145px;
   }
 
+  .mobile-results-sheet.sheet-collapsed:has(.mobile-selected-preview) {
+    max-height: min(360px, 54dvh);
+  }
+
   .mobile-results-sheet.sheet-half {
     max-height: 49dvh;
   }
@@ -2290,6 +2294,13 @@ p {
   .mobile-selected-preview .selected-preview {
     margin: 0 0 6px;
     padding: 12px;
+  }
+
+  /* The sheet summary directly above already shows the place name, so the
+     nested preview only needs to add address/actions and keep the close
+     button reachable. */
+  .mobile-selected-preview .selected-preview-head > div:first-child {
+    display: none;
   }
 
   .map-controls {
@@ -3169,6 +3180,10 @@ p {
     background: rgba(255, 255, 255, 0.94);
     box-shadow: var(--shadow-md);
     backdrop-filter: blur(16px);
+  }
+
+  .mobile-bottom-nav.is-hidden {
+    display: none;
   }
 
   .mobile-bottom-nav a {
