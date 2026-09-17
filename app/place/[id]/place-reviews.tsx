@@ -241,13 +241,14 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
     <section className="place-reviews" aria-labelledby="place-reviews-title">
       <div className="place-reviews-heading">
         <div>
-          <p className="eyebrow">COMMUNITY REVIEWS</p>
-          <h2 id="place-reviews-title">Share your halal experience</h2>
+          <p className="eyebrow">VISIT NOTES</p>
+          <h2 id="place-reviews-title">Share a visit, not a score</h2>
         </div>
       </div>
       <p className="reviews-intro">
-        Help fellow visitors choose with a thoughtful note about the food, service, and
-        halal options you experienced.
+        Help fellow visitors choose with a specific note about what you ordered, the
+        halal options you saw, and whether you would return. Reviews are tied to a
+        signed-in account and shown newest first.
       </p>
 
       {loading && <p className="form-help">Loading halal reviews…</p>}
@@ -268,7 +269,10 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
           {reviews.map((review, index) => (
             <li className="review-card" key={`${review.createdAt}-${index}`}>
               <div className="review-card-topline">
-                <strong>{review.authorDisplayName}</strong>
+                <div className="review-author">
+                  <strong>{review.authorDisplayName}</strong>
+                  <span>Signed-in community member</span>
+                </div>
                 <div className="review-dates">
                   <span>
                     Posted <time dateTime={review.createdAt}>{formatTimestamp(review.createdAt)}</time>
@@ -323,7 +327,9 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
         <form className="review-form" onSubmit={(event) => void submit(event)}>
           <h3>{editing ? "Edit your halal review" : "Write a halal review"}</h3>
           <p className="field-note">
-            Keep it useful and respectful for visitors looking for halal food.
+            Keep it useful and respectful. Mention the dish, the halal signal you relied
+            on, and any practical detail another diner can verify. Do not include personal
+            information about staff or other guests.
           </p>
           <label className="field">
             <span>Optional title</span>
@@ -331,18 +337,18 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               maxLength={TITLE_MAX_LENGTH}
-              placeholder="A helpful halal stop"
+              placeholder="What should the next diner know?"
             />
           </label>
           <label className="field">
-            <span>Your review</span>
+            <span>Your visit note</span>
             <textarea
               value={body}
               onChange={(event) => setBody(event.target.value)}
               maxLength={BODY_MAX_LENGTH}
               required
               rows={5}
-              placeholder="What should other halal diners know?"
+              placeholder="What did you order, and what should a halal diner know before visiting?"
             />
           </label>
           {formError && (
