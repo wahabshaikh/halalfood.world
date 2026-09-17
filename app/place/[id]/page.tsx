@@ -37,6 +37,7 @@ import {
 import { loadOrDegrade } from "../../../src/lib/load";
 import ShareButton from "../../../src/components/share-button";
 import SavePlaceButton from "../../../src/components/save-place-button";
+import PlaceHalalStatus from "./place-halal-status";
 import PlaceHalalVerification from "./place-halal-verification";
 import PlaceRating from "./place-rating";
 import PlaceReviews from "./place-reviews";
@@ -147,7 +148,7 @@ export default async function PlacePage({
             </div>
             <div className="place-hero-copy">
               <div className="place-status-row">
-                <span className="ui-badge ui-badge-default">Halal listed</span>
+                <PlaceHalalStatus placeId={place.id} compact />
                 {google.linked && <span className="place-source-label">Google listing linked</span>}
               </div>
               <p className="eyebrow">HALAL LISTING · {city.toUpperCase()}</p>
@@ -204,12 +205,6 @@ export default async function PlacePage({
                 />
                 <SavePlaceButton placeId={place.id} />
               </div>
-              {place.source === "user-submitted" && place.halal_confirmed !== false && (
-                <p className="submission-note">
-                  Community submission — a signed-in member confirmed this listing as halal.
-                  Please confirm with the restaurant before visiting.
-                </p>
-              )}
             </div>
           </div>
 

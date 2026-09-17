@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  formatHalalStatus,
+  parseHalalStatus,
+  type HalalStatus,
+} from "../../../src/lib/halal-status-view";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
 type Evidence =
@@ -100,6 +105,7 @@ function readVerifications(body: Record<string, unknown> | null): Verification[]
 export default function PlaceHalalVerification({ placeId }: { placeId: string }) {
   const [authState, setAuthState] = useState<AuthState>("checking");
   const [verifications, setVerifications] = useState<Verification[]>([]);
+  const [statusSummary, setStatusSummary] = useState<HalalStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [links, setLinks] = useState("");
@@ -130,11 +136,14 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
       const sessionUser = record(sessionBody?.user);
       setAuthState(typeof sessionUser?.id === "string" ? "signed-in" : "signed-out");
       if (!verificationResponse.ok) {
+        setStatusSummary({ status: "unavailable" });
         setLoadError(errorFrom(verificationBody, "Verifications could not be loaded."));
         return;
       }
+      setStatusSummary(parseHalalStatus(verificationBody?.summary));
       setVerifications(readVerifications(verificationBody));
     } catch {
+      setStatusSummary({ status: "unavailable" });
       setLoadError("Verifications could not be loaded. Please try again.");
     } finally {
       setLoading(false);
@@ -146,6 +155,8 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
     // The place id is the only input for this page section.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placeId]);
+
+  const statusView = statusSummary ? formatHalalStatus(statusSummary) : null;
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -261,6 +272,18 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
         See evidence shared by the community. Approved submissions are shown publicly;
         new submissions go to review.
       </p>
+
+      {statusView && (
+        <div
+          className={`halal-status-panel halal-status-${statusView.status}`}
+          aria-label={`Halal evidence status: ${statusView.label}`}
+          role="status"
+        >
+          <span className="ui-badge halal-status-badge">{statusView.label}</span>
+          <p className="halal-status-detail">{statusView.detail}</p>
+          <p className="halal-status-explanation">{statusView.explanation}</p>
+        </div>
+      )}
 
       {loading && <p className="form-help">Loading community evidence…</p>}
       {loadError && (

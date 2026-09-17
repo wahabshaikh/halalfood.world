@@ -335,7 +335,7 @@ node scripts/generate-assets.mjs
 - `GET /api/places/saved`: requires a Better Auth session and returns up to 200 saved halal places, newest first. Unauthenticated requests return 401 with a `/login?returnTo=%2Fsaved` hint.
 - `POST/DELETE /api/places/:id/saved`: requires a Better Auth session, validates the UUID and confirms the target is an existing halal listing. Both methods return the resulting `saved` state and 429 when either save-action bucket is exhausted.
 - `GET /api/places/google-search?q=...`: requires a Better Auth session and uses server-only Google Places (New) Text Search when configured. It is rate-limited separately from submissions.
-- `GET /api/places/:id/verifications`: returns approved community evidence to everyone and the current contributor's own pending submission when signed in. Submitter ids are never exposed.
+- `GET /api/places/:id/verifications`: returns approved community evidence to everyone and the current contributor's own pending submission when signed in, plus a `summary` derived only from approved rows (`evidence-backed` or `unverified`, with the approved count and latest reviewed timestamp). Submitter ids are never exposed; pending evidence never changes the public summary.
 - `POST /api/places/:id/verifications`: requires a Better Auth session and at least one HTTPS Zabihah, Instagram, TikTok, or YouTube link or validated R2 upload. New rows are `pending` and the user/IP rate-limit buckets are consumed before the write.
 - `GET /api/places/:id/rating`: returns `counts` for `mashallah`, `alhamdulillah`, and `astaghfirullah`, plus `rating` for the current signed-in user (or `null`).
 - `PUT/POST /api/places/:id/rating`: requires a Better Auth session and `{ "rating": "mashallah" | "alhamdulillah" | "astaghfirullah" }`; upserts that user's reaction and returns the refreshed aggregate counts. Invalid UUIDs or reactions are rejected, and both user/IP rating buckets must allow the write.
@@ -354,6 +354,17 @@ node scripts/generate-assets.mjs
 - Ops has populated all 11,957 coordinates with city centroids plus about 1–3 km of jitter. These are **approximate locations**, not verified restaurant coordinates. The UI asks visitors to confirm the address. There is no runtime centroid fallback or client-side jitter.
 - `src/data/city_coords.json` is retained as a reference only; it is not imported into runtime code.
 - SQL values are parameterized; search wildcard characters are escaped. API failures return generic errors without database details or credentials.
+
+### Listing inclusion, reviewed evidence, and certification
+
+`places.halal_confirmed` is the publication flag that controls whether a place
+appears in the directory; it is not a reviewed evidence result. Place pages
+show `Evidence-backed` only when one or more community verification submissions
+have been approved by moderation, with the approved count and latest reviewed
+timestamp. They show `Unverified` when no approved evidence exists, which does
+not mean non-halal. Neither state is a formal certification or a substitute for
+checking with the restaurant. Pending submissions remain pending and are visible
+only to their submitter until reviewed.
 
 Rating aggregates use query-time filtered `COUNT` values from `place_ratings`
 instead of denormalized counters. This keeps a changed reaction and its totals
@@ -444,8 +455,10 @@ missing the `HALAL_EVIDENCE_R2` declaration, stop before deploying and inspect
 the vinext build output. The runtime reads this binding with vinext's native
 `cloudflare:workers` environment module and fails closed when it is absent.
 
-For Ops moderation, update only the status column after reviewing the evidence
-(there is intentionally no admin UI in this feature):
+For Ops moderation, review the submitted links/files, then update only the
+status column (there is intentionally no admin UI in this feature). Approval
+adds community evidence to the place-page summary; it does not create a formal
+certification or change the listing flag:
 
 ```sh
 npx wrangler d1 execute halalfood-world --remote --command "

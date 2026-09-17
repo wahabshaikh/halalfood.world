@@ -15,8 +15,10 @@ import {
   type HalalVerificationRepository,
 } from "../src/lib/halal-verifications";
 import {
+  handleVerificationGet,
   handleVerificationPost,
 } from "../app/api/places/[id]/verifications/route";
+import type { HalalStatusRepository } from "../src/lib/halal-status";
 import { handleR2Upload } from "../app/api/uploads/r2/route";
 import {
   evidenceOwnerPrefix,
@@ -31,6 +33,184 @@ const USER_ID = "contributor-123";
 const AUTHENTICATED = async () => ({
   status: "authenticated" as const,
   userId: USER_ID,
+});
+
+const APPROVED_VERIFICATION = {
+  id: "verification-approved",
+  status: "approved" as const,
+  note: "Reviewed community evidence",
+  createdAt: "2026-09-01T12:00:00.000Z",
+  evidence: [{ kind: "link" as const, url: "https://youtu.be/example" }],
+};
+const PENDING_VERIFICATION = {
+  id: "verification-pending",
+  status: "pending" as const,
+  note: "Awaiting review",
+  createdAt: "2026-09-02T12:00:00.000Z",
+  evidence: [{ kind: "link" as const, url: "https://www.zabihah.com/biz/example" }],
+};
+
+function readRepository(
+  options: {
+    hasPlace?: boolean;
+    list?: HalalVerificationRepository["list"];
+  } = {},
+): HalalVerificationRepository {
+  return {
+    async hasPlace() {
+      return options.hasPlace ?? true;
+    },
+    async list(placeId, userId) {
+      return options.list ? options.list(placeId, userId) : [];
+    },
+    async create() {
+      throw new Error("create is not available in a read-only test repository");
+    },
+    async getUploadAccess() {
+      return null;
+    },
+  };
+}
+
+test("verification GET rejects a malformed place id without reading dependencies", async () => {
+  const response = await handleVerificationGet(
+    new Request("https://halalfood.world/api/places/not-a-place/verifications"),
+    { params: Promise.resolve({ id: "not-a-place" }) },
+    {
+      getAuth: async () => {
+        throw new Error("authentication should not run");
+      },
+      repository: readRepository(),
+      statusRepository: {
+        async get() {
+          throw new Error("status should not run");
+        },
+      },
+    },
+  );
+
+  assert.equal(response.status, 400);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.deepEqual(await response.json(), { error: "Invalid place id." });
+});
+
+test("verification GET returns not found for a missing published place", async () => {
+  const response = await handleVerificationGet(
+    new Request(`https://halalfood.world/api/places/${PLACE_ID}/verifications`),
+    { params: Promise.resolve({ id: PLACE_ID }) },
+    {
+      getAuth: async () => ({ status: "unauthenticated" }),
+      repository: readRepository({ hasPlace: false }),
+      statusRepository: {
+        async get() {
+          throw new Error("status should not run for a missing place");
+        },
+      },
+    },
+  );
+
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.deepEqual(await response.json(), {
+    error: "That halal place could not be found.",
+  });
+});
+
+test("verification GET returns public evidence and an independently aggregated summary", async () => {
+  const statusRepository: HalalStatusRepository = {
+    async get() {
+      return {
+        approvedCount: "2",
+        latestReviewedAt: "2026-09-10 14:30:00Z",
+      };
+    },
+  };
+  const repository = readRepository({
+    async list(_placeId, userId) {
+      return userId
+        ? [APPROVED_VERIFICATION, PENDING_VERIFICATION]
+        : [APPROVED_VERIFICATION];
+    },
+  });
+
+  const response = await handleVerificationGet(
+    new Request(`https://halalfood.world/api/places/${PLACE_ID}/verifications`),
+    { params: Promise.resolve({ id: PLACE_ID }) },
+    {
+      getAuth: async () => ({ status: "unauthenticated" }),
+      repository,
+      statusRepository,
+    },
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Cache-Control"), "public, max-age=60");
+  assert.deepEqual(await response.json(), {
+    verifications: [APPROVED_VERIFICATION],
+    summary: {
+      status: "evidence-backed",
+      approvedCount: 2,
+      latestReviewedAt: "2026-09-10T14:30:00.000Z",
+    },
+  });
+});
+
+test("verification GET includes the signed-in user's pending evidence without counting it", async () => {
+  const response = await handleVerificationGet(
+    new Request(`https://halalfood.world/api/places/${PLACE_ID}/verifications`),
+    { params: Promise.resolve({ id: PLACE_ID }) },
+    {
+      getAuth: AUTHENTICATED,
+      repository: readRepository({
+        async list(_placeId, userId) {
+          return userId === USER_ID
+            ? [PENDING_VERIFICATION, APPROVED_VERIFICATION]
+            : [APPROVED_VERIFICATION];
+        },
+      }),
+      statusRepository: {
+        async get() {
+          return {
+            approvedCount: 1,
+            latestReviewedAt: 1_704_067_200_000,
+          };
+        },
+      },
+    },
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.deepEqual(await response.json(), {
+    verifications: [PENDING_VERIFICATION, APPROVED_VERIFICATION],
+    summary: {
+      status: "evidence-backed",
+      approvedCount: 1,
+      latestReviewedAt: "2024-01-01T00:00:00.000Z",
+    },
+  });
+});
+
+test("verification GET returns the existing unavailable response when status lookup fails", async () => {
+  const response = await handleVerificationGet(
+    new Request(`https://halalfood.world/api/places/${PLACE_ID}/verifications`),
+    { params: Promise.resolve({ id: PLACE_ID }) },
+    {
+      getAuth: async () => ({ status: "unauthenticated" }),
+      repository: readRepository(),
+      statusRepository: {
+        async get() {
+          throw new Error("status storage unavailable");
+        },
+      },
+    },
+  );
+
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.deepEqual(await response.json(), {
+    error: "Halal verification is temporarily unavailable. Please try again.",
+  });
 });
 
 test("halal evidence URLs allow the supported platforms and reject other hosts", () => {
