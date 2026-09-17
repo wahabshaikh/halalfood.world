@@ -151,6 +151,9 @@ export default function AddPlaceForm() {
       const body = await responseBody(response);
       if (response.status === 401) {
         setAuthState("signed-out");
+        setSearchError(
+          errorFrom(body, "Sign in to search Google Places, or enter the place manually below."),
+        );
         return;
       }
       if (!response.ok) {
