@@ -249,7 +249,7 @@ export function buildRestaurantPageModel(
       source: place.source,
       halalConfirmed: place.halal_confirmed,
       layers: COMMUNITY_LAYERS,
-      note: "Save this place or share a halal reaction, review, photo, or verification evidence to help fellow diners.",
+      note: "Halal status is community-submitted evidence; listing facts come from public sources. Add a dated photo, a visit note, or a source link so the next diner can judge the claim.",
     },
   };
 }
