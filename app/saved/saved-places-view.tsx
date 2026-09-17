@@ -5,7 +5,6 @@ import { ArrowUpRight, Star, Utensils } from "lucide-react";
 import type { SavedPlace } from "../../src/lib/saved-places";
 import { formatAddress, formatCount, plural } from "../../src/lib/seo";
 import SavePlaceButton from "../../src/components/save-place-button";
-import { Badge } from "../../src/components/ui/badge";
 
 type ViewState = "loading" | "ready" | "unauthenticated" | "error";
 
@@ -88,8 +87,7 @@ export default function SavedPlacesView() {
             <li key={place.id}>
               <article className="place-card saved-place-card">
                 <div className="place-card-visual" aria-hidden="true">
-                  <Utensils size={31} strokeWidth={1.4} />
-                  <span>HALALFOOD GUIDE</span>
+                  <Utensils size={28} strokeWidth={1.4} />
                 </div>
                 <div className="place-card-heading">
                   <div>
@@ -109,7 +107,6 @@ export default function SavedPlacesView() {
                 </div>
                 <p className="place-card-address">{formatAddress(place)}</p>
                 <div className="place-card-meta">
-                  <Badge variant="default">Halal listed</Badge>
                   {place.rating_value && (
                     <span className="rating-chip">
                       <Star size={12} fill="currentColor" aria-hidden="true" /> {place.rating_value}

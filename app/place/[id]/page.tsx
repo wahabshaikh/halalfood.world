@@ -143,8 +143,7 @@ export default async function PlacePage({
         <article className="place-detail">
           <div className="place-hero">
             <div className="place-hero-visual" aria-hidden="true">
-              <Utensils size={60} strokeWidth={1.1} />
-              <span className="place-hero-visual-label">HALALFOOD GUIDE</span>
+              <Utensils size={52} strokeWidth={1.2} />
             </div>
             <div className="place-hero-copy">
               <div className="place-status-row">

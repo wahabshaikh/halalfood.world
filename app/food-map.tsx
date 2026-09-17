@@ -18,7 +18,6 @@ import {
 import type { Map as MapInstance, Marker } from "maplibre-gl";
 import type { Place } from "../src/lib/places";
 import SavePlaceButton from "../src/components/save-place-button";
-import { Badge } from "../src/components/ui/badge";
 import { Button } from "../src/components/ui/button";
 import { cn } from "../src/lib/utils";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -113,14 +112,12 @@ function PlaceCard({
         onClick={() => onSelect(place)}
       >
         <span className="place-card-visual map-card-visual" aria-hidden="true">
-          <Utensils size={25} strokeWidth={1.5} />
-          <span>HALAL LISTED</span>
+          <Utensils size={22} strokeWidth={1.5} />
         </span>
         <span className="map-place-card-copy">
           <span className="map-place-card-title">{place.name}</span>
           <span className="map-place-card-subtitle">{address(place)}</span>
           <span className="map-place-card-meta">
-            <Badge variant="default">Halal listed</Badge>
             {place.rating_value && (
               <span>
                 <Star className="star" size={12} fill="currentColor" aria-hidden="true" />{" "}
@@ -128,6 +125,7 @@ function PlaceCard({
                 {place.review_count ? " · " + place.review_count.toLocaleString() : ""}
               </span>
             )}
+            <span>{cityLabel(place)}</span>
           </span>
         </span>
       </button>
@@ -167,7 +165,6 @@ function PlacePreview({
       </div>
       <p className="selected-preview-address">{address(place)}</p>
       <div className="selected-preview-meta">
-        <Badge variant="default">Halal listed</Badge>
         <span>{cityLabel(place)}</span>
         {place.rating_value && (
           <span>
