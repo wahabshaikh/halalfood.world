@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
+  <style>
+    body { margin: 0; }
+    .a { font-family: "DM Sans", system-ui, sans-serif; color: #1E2A22; -webkit-font-smoothing: antialiased; }
+    .a-serif { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: -0.01em; }
+    .a-eyebrow { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #7C8A76; }
+    .a-num { font-variant-numeric: tabular-nums; }
+    .a-screen { width: 390px; height: 844px; background: #F2F0E8; overflow: hidden; display: flex; flex-direction: column; }
+    .a-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 12px; flex-shrink: 0; }
+    .a-icobtn { width: 44px; height: 44px; border-radius: 10px; background: #FFFFFF; border: 1px solid #DDDCCF; display: grid; place-items: center; }
+    .a-card { background: #FFFFFF; border: 1px solid #DDDCCF; border-radius: 16px; }
+    .a-cta { height: 52px; border-radius: 13px; background: #31462F; color: #F4F2EA; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15.5px; font-weight: 700; }
+    a { color: #31462F; text-decoration: none; }
+    a:hover { color: #4A6B3F; }
+  </style>
+</helmet>
+<div class="a a-screen">
+
+  <div class="a-top">
+    <div class="a-icobtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E2A22" stroke-width="2.1" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></div>
+    <div style="font-size: 13.5px; font-weight: 700;">Add a place</div>
+    <div style="font-size: 12.5px; font-weight: 700; color: #8A937F;">Step 2 of 3</div>
+  </div>
+
+  <div style="height: 3px; background: #E1E0D3; margin: 0 20px 0;">
+    <div style="width: 66%; height: 3px; background: #31462F;"></div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 16px 20px 0;">
+    <div class="a-serif" style="font-size: 29px; line-height: 1.15; margin: 0 0 6px;">Is it halal, and how do you know?</div>
+    <div style="font-size: 13px; color: #6B7568; line-height: 1.55;">Be honest about what you actually saw. “Not sure” is a useful answer — it puts the place on the map for someone else to check.</div>
+
+    <div class="a-eyebrow" style="margin: 16px 0 8px;">Meat</div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="border: 2px solid #31462F; background: #FFFFFF; border-radius: 13px; padding: 11px 15px; display: flex; align-items: center; gap: 12px;">
+        <span style="width: 20px; height: 20px; border-radius: 50%; border: 5.5px solid #31462F; background: #FFFFFF; flex-shrink: 0;"></span>
+        <div style="flex: 1;">
+          <div style="font-size: 14.5px; font-weight: 700;">Hand-slaughtered (zabiha)</div>
+          <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;">Staff confirmed, or it's on the certificate</div>
+        </div>
+      </div>
+      <div style="border: 1px solid #DDDCCF; background: #FFFFFF; border-radius: 13px; padding: 13px 15px; display: flex; align-items: center; gap: 12px;">
+        <span style="width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #C9C7B7; flex-shrink: 0;"></span>
+        <div style="flex: 1;">
+          <div style="font-size: 14.5px; font-weight: 700; color: #4B584A;">Machine-slaughtered</div>
+          <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;">Certified, but not hand-slaughtered</div>
+        </div>
+      </div>
+      <div style="border: 1px solid #DDDCCF; background: #FFFFFF; border-radius: 13px; padding: 13px 15px; display: flex; align-items: center; gap: 12px;">
+        <span style="width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #C9C7B7; flex-shrink: 0;"></span>
+        <div style="flex: 1;">
+          <div style="font-size: 14.5px; font-weight: 700; color: #4B584A;">Not sure yet</div>
+          <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;">Lists it as unverified until someone checks</div>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="a-eyebrow" style="margin: 16px 0 8px;">Where you're putting it</div>
+    <div class="a-card" style="overflow: hidden;">
+      <div style="position: relative; height: 84px; background: #E7E7DA;">
+        <div style="position: absolute; inset: 0; background:
+          linear-gradient(#EFEFE3 0 0) 0 0/100% 100%,
+          repeating-linear-gradient(96deg, transparent 0 40px, #DEDED0 40px 43px),
+          repeating-linear-gradient(6deg, transparent 0 52px, #DEDED0 52px 55px);"></div>
+        <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -100%);">
+          <svg width="26" height="32" viewBox="0 0 24 30" fill="#31462F"><path d="M12 30c5.5-8 9-12.4 9-17.4A9 9 0 0 0 3 12.6C3 17.6 6.5 22 12 30Z"/><circle cx="12" cy="12" r="3.4" fill="#F2F0E8"/></svg>
+        </div>
+        <div style="position: absolute; right: 10px; bottom: 10px; height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 999px; background: #FFFFFFF0; border: 1px solid #DDDCCF; font-size: 11.5px; font-weight: 700;">Drag to adjust</div>
+      </div>
+      <div style="padding: 12px 15px; border-top: 1px solid #EDEBE0;">
+        <div style="font-size: 14.5px; font-weight: 700;">Karak House</div>
+        <div style="font-size: 12px; color: #6B7568; margin-top: 3px;">208 Stratford Road, Birmingham B11 1AR</div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-top: 12px; padding: 11px 14px; background: #E9EFE0; border: 1px solid #C9DCCB; border-radius: 13px; align-items: center;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#31462F" style="flex-shrink: 0;"><path d="m12 2 2.4 1.8 3-.3 1 2.8 2.5 1.6-1 2.9 1 2.9-2.5 1.6-1 2.8-3-.3L12 22l-2.4-1.8-3 .3-1-2.8L3.1 16l1-2.9-1-2.9 2.5-1.6 1-2.8 3 .3Z"/><path d="m8.6 12.2 2.3 2.3 4.4-4.6" stroke="#E9EFE0" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div style="font-size: 11.5px; color: #2F4630; line-height: 1.55;"><strong>50 barakah</strong> when this place is published, <strong>75 more</strong> if you add the certificate on the next step.</div>
+    </div>
+  </div>
+
+  <div style="padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px)); background: #F2F0E8; border-top: 1px solid #E5E3D7; flex-shrink: 0; display: flex; gap: 9px;">
+    <div style="width: 92px; height: 52px; border-radius: 13px; border: 1px solid #DDDCCF; background: #FFFFFF; display: grid; place-items: center; font-size: 15px; font-weight: 700; color: #4B584A;">Back</div>
+    <div class="a-cta" style="flex: 1;">Continue</div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

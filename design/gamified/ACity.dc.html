@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
+  <style>
+    body { margin: 0; }
+    .a { font-family: "DM Sans", system-ui, sans-serif; color: #1E2A22; -webkit-font-smoothing: antialiased; }
+    .a-serif { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: -0.01em; }
+    .a-eyebrow { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #7C8A76; }
+    .a-num { font-variant-numeric: tabular-nums; }
+    .a-screen { width: 390px; height: 844px; background: #F2F0E8; overflow: hidden; display: flex; flex-direction: column; }
+    .a-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 12px; flex-shrink: 0; }
+    .a-icobtn { width: 44px; height: 44px; border-radius: 10px; background: #FFFFFF; border: 1px solid #DDDCCF; display: grid; place-items: center; }
+    .a-card { background: #FFFFFF; border: 1px solid #DDDCCF; border-radius: 16px; }
+    .a-cta { height: 52px; border-radius: 13px; background: #31462F; color: #F4F2EA; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15.5px; font-weight: 700; }
+    a { color: #31462F; text-decoration: none; }
+    a:hover { color: #4A6B3F; }
+  </style>
+</helmet>
+<div class="a" style="width: 390px; height: 844px; background: #F2F0E8; overflow: hidden; display: flex; flex-direction: column;">
+
+  <!-- site header -->
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: #F6F7F2; border-bottom: 1px solid #DDDCCF; flex-shrink: 0;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 28px; border: 1.5px solid #31462F; border-radius: 48% 48% 48% 48% / 40% 40% 60% 60%; display: grid; place-items: center; background: #DCE9C2;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="1.8" stroke-linecap="round"><path d="M12 21c4.5-3.4 7-7 7-10.6A7 7 0 0 0 5 10.4C5 14 7.5 17.6 12 21Z"/><circle cx="12" cy="10" r="2.4"/></svg>
+      </div>
+      <div style="font-size: 17px; font-weight: 700; letter-spacing: -0.5px;">Halalfood</div>
+    </div>
+    <div style="display: flex; gap: 4px; font-size: 13px; font-weight: 600; color: #3C4A38;">
+      <span style="padding: 6px 11px; border-radius: 999px;">Map</span>
+      <span style="padding: 6px 11px; border-radius: 999px; background: #E9EFE0;">Cities</span>
+    </div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 20px 20px 0;">
+
+    <div style="font-size: 12px; color: #6B7568; margin-bottom: 11px;">
+      <a href="#">Halalfood</a> <span style="color: #B0B6A8;">/</span> <a href="#">Cities</a> <span style="color: #B0B6A8;">/</span> Birmingham
+    </div>
+
+    <h1 class="a-serif" style="font-size: 34px; line-height: 1.12; letter-spacing: -0.5px; margin: 0 0 12px; font-weight: 400;">Halal food in Birmingham</h1>
+    <p style="font-size: 15px; line-height: 1.6; color: #4C584C; margin: 0 0 16px;"><span class="a-num">612</span> halal places, <span class="a-num">248</span> of them with a proof on file — a certificate photo, a named supplier or a staff answer added by someone who went.</p>
+
+    <!-- trust stats -->
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #DDDCCF; border: 1px solid #DDDCCF; border-radius: 14px; overflow: hidden;">
+      <div style="background: #FFFFFF; padding: 10px 12px;">
+        <div class="a-serif a-num" style="font-size: 24px; line-height: 1; color: #2E6B4A;">248</div>
+        <div style="font-size: 10.5px; color: #6B7568; margin-top: 5px; line-height: 1.35;">Zabiha confirmed</div>
+      </div>
+      <div style="background: #FFFFFF; padding: 10px 12px;">
+        <div class="a-serif a-num" style="font-size: 24px; line-height: 1; color: #9A7B33;">119</div>
+        <div style="font-size: 10.5px; color: #6B7568; margin-top: 5px; line-height: 1.35;">Certified only</div>
+      </div>
+      <div style="background: #FFFFFF; padding: 10px 12px;">
+        <div class="a-serif a-num" style="font-size: 24px; line-height: 1; color: #6B7568;">245</div>
+        <div style="font-size: 10.5px; color: #6B7568; margin-top: 5px; line-height: 1.35;">Need a proof</div>
+      </div>
+    </div>
+
+    <h2 class="a-serif" style="font-size: 21px; font-weight: 400; margin: 16px 0 4px;">Best rated, verified first</h2>
+
+    <div style="border-top: 1px solid #E5E3D7; padding: 11px 0;">
+      <div style="display: flex; align-items: center; gap: 7px;">
+        <span class="a-num" style="font-size: 12px; font-weight: 700; color: #8A937F;">1</span>
+        <a href="#" style="font-size: 16px; font-weight: 700; letter-spacing: -0.2px;">Zaitoon Grill</a>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="#31462F"><path d="m12 2 2.4 1.8 3-.3 1 2.8 2.5 1.6-1 2.9 1 2.9-2.5 1.6-1 2.8-3-.3L12 22l-2.4-1.8-3 .3-1-2.8L3.1 16l1-2.9-1-2.9 2.5-1.6 1-2.8 3 .3Z"/><path d="m8.6 12.2 2.3 2.3 4.4-4.6" stroke="#F2F0E8" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+      </div>
+      <div style="font-size: 12.5px; color: #6B7568; margin: 4px 0 0 19px;">412 Coventry Road · Turkish grill</div>
+      <div style="display: flex; gap: 10px; margin: 7px 0 0 19px; font-size: 12px; font-weight: 600;">
+        <span style="color: #2E6B4A;">Mashallah <span class="a-num">184</span></span>
+        <span style="color: #9A7B33;">Alhamdulillah <span class="a-num">46</span></span>
+      </div>
+    </div>
+
+    <div style="border-top: 1px solid #E5E3D7; padding: 11px 0;">
+      <div style="display: flex; align-items: center; gap: 7px;">
+        <span class="a-num" style="font-size: 12px; font-weight: 700; color: #8A937F;">2</span>
+        <a href="#" style="font-size: 16px; font-weight: 700; letter-spacing: -0.2px;">Bismillah Biryani</a>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="#31462F"><path d="m12 2 2.4 1.8 3-.3 1 2.8 2.5 1.6-1 2.9 1 2.9-2.5 1.6-1 2.8-3-.3L12 22l-2.4-1.8-3 .3-1-2.8L3.1 16l1-2.9-1-2.9 2.5-1.6 1-2.8 3 .3Z"/><path d="m8.6 12.2 2.3 2.3 4.4-4.6" stroke="#F2F0E8" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+      </div>
+      <div style="font-size: 12.5px; color: #6B7568; margin: 4px 0 0 19px;">96 Ladypool Road · Hyderabadi</div>
+      <div style="display: flex; gap: 10px; margin: 7px 0 0 19px; font-size: 12px; font-weight: 600;">
+        <span style="color: #2E6B4A;">Mashallah <span class="a-num">203</span></span>
+        <span style="color: #9A7B33;">Alhamdulillah <span class="a-num">71</span></span>
+      </div>
+    </div>
+
+
+    <!-- contributors -->
+    <h2 class="a-serif" style="font-size: 21px; font-weight: 400; margin: 13px 0 8px;">Who keeps Birmingham honest</h2>
+    <div class="a-card" style="padding: 13px 15px; display: flex; align-items: center; gap: 10px;">
+      <div style="display: flex;">
+        <span style="width: 28px; height: 28px; border-radius: 50%; background: #31462F; color: #F2F0E8; font-size: 10px; font-weight: 700; display: grid; place-items: center; border: 1.5px solid #FFFFFF;">YR</span>
+        <span style="width: 28px; height: 28px; border-radius: 50%; background: #4A6B3F; color: #FFF; font-size: 10px; font-weight: 700; display: grid; place-items: center; border: 1.5px solid #FFFFFF; margin-left: -9px;">FN</span>
+        <span style="width: 28px; height: 28px; border-radius: 50%; background: #9A7B33; color: #FFF; font-size: 10px; font-weight: 700; display: grid; place-items: center; border: 1.5px solid #FFFFFF; margin-left: -9px;">OD</span>
+      </div>
+      <div style="flex: 1; min-width: 0; font-size: 12.5px; color: #4C584C; line-height: 1.5;"><strong>Yusuf R.</strong> and <span class="a-num">340</span> others added proofs here this season.</div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>
+    </div>
+
+    <h2 class="a-serif" style="font-size: 21px; font-weight: 400; margin: 13px 0 8px;">Questions</h2>
+    <div style="border-top: 1px solid #E5E3D7; padding: 12px 0; display: flex; justify-content: space-between; gap: 12px; align-items: center;">
+      <span style="font-size: 14px; font-weight: 600;">What does “Zabiha confirmed” mean here?</span>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B7568" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </div>
+  </div>
+
+  <div style="padding: 14px 20px calc(16px + env(safe-area-inset-bottom, 0px)); background: #F6F7F2; border-top: 1px solid #DDDCCF; flex-shrink: 0;">
+    <div class="a-cta" style="height: 46px; font-size: 14.5px;">Open Birmingham on the map</div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
