@@ -23,3 +23,10 @@ test("guide copy explains the ranking and evidence boundary", () => {
   assert.equal(guideKicker(city), "London · United Kingdom");
   assert.match(GUIDE_SELECTION_NOTE, /not paid placements/);
 });
+
+
+test("guide descriptions stay readable for large directories", () => {
+  const copy = guideDescription({ city_slug: "san-francisco", place_count: 12345 });
+  assert.ok(copy.length <= 160);
+  assert.match(copy, /San Francisco/);
+});
