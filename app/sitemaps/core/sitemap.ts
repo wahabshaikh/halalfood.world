@@ -13,5 +13,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "weekly",
       priority: 0.8,
     },
+    {
+      url: canonical("/guides"),
+      changeFrequency: "weekly",
+      priority: 0.85,
+    },
+    {
+      url: canonical("/leaderboard"),
+      changeFrequency: "weekly",
+      priority: 0.5,
+    },
   ];
 }
