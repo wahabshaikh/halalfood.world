@@ -237,13 +237,15 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
     <section className="place-photos" aria-labelledby="place-photos-title">
       <div className="place-photos-heading">
         <div>
-          <p className="eyebrow">COMMUNITY PHOTOS</p>
-          <h2 id="place-photos-title">See the halal place</h2>
+          <p className="eyebrow">VISUAL EVIDENCE</p>
+          <h2 id="place-photos-title">Show the food and menu</h2>
         </div>
         {!!photos.length && <span className="photo-count">{photos.length} photo{photos.length === 1 ? "" : "s"}</span>}
       </div>
       <p className="photos-intro">
-        Share a helpful photo of the food, menu, or atmosphere for fellow halal diners.
+        Photos are dated and tied to the signed-in contributor who uploaded them. Share
+        the food, menu, storefront, or atmosphere that another halal diner can actually
+        use.
       </p>
 
       {loading && <p className="form-help">Loading halal place photos…</p>}
@@ -267,14 +269,14 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
                 <img
                   className="photo-image"
                   src={photo.url}
-                  alt="Community halal place photo"
+                  alt="Community photo of the halal place"
                   loading="lazy"
                 />
               </a>
               <figcaption className="photo-caption">
                 <span>
                   <time dateTime={photo.createdAt}>{formatTimestamp(photo.createdAt)}</time>
-                  <small>{formatBytes(photo.byteSize)}</small>
+                  <small>Community photo · {formatBytes(photo.byteSize)}</small>
                 </span>
                 {photo.isOwn && (
                   <button
@@ -297,8 +299,8 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
       )}
       {authState === "signed-out" && !loadError && (
         <div className="photos-auth-card">
-          <strong>Have a halal place photo to share?</strong>
-          <p>Sign in with a one-time email code to add it to this gallery.</p>
+          <strong>Have a place photo to share?</strong>
+          <p>Sign in with a one-time email code. Your upload date is shown with the photo.</p>
           <a className="action primary" href={loginUrl(placeId)}>
             Sign in to add a photo
           </a>
@@ -306,7 +308,7 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
       )}
       {authState === "signed-in" && !loadError && (
         <form className="photo-form" onSubmit={(event) => void submit(event)}>
-          <h3>Share a halal place photo</h3>
+          <h3>Add visual evidence from your visit</h3>
           <label className="field">
             <span>Photo</span>
             <input
@@ -318,7 +320,7 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
                 setFormError("");
               }}
             />
-            <small className="field-note">JPEG, PNG, or WebP · 8 MiB maximum</small>
+            <small className="field-note">JPEG, PNG, or WebP · 8 MiB maximum · Never upload personal information</small>
           </label>
           {success && <p className="form-success" role="status">{success}</p>}
           {formError && <p className="form-error" role="alert">{formError}</p>}
