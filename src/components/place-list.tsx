@@ -1,7 +1,13 @@
-import { ArrowUpRight, Star, Utensils } from "lucide-react";
+import { ArrowUpRight, Star } from "lucide-react";
 import type { Place } from "../lib/places";
 import { formatAddress, formatCount } from "../lib/seo";
 import SavePlaceButton from "./save-place-button";
+
+function placeInitials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const initials = words.slice(0, 2).map((word) => word[0]?.toUpperCase() ?? "").join("");
+  return initials || "HF";
+}
 
 export function PlaceList({ places }: { places: Place[] }) {
   if (!places.length)
@@ -18,11 +24,12 @@ export function PlaceList({ places }: { places: Place[] }) {
         <li key={place.id}>
           <article className="place-card">
             <div className="place-card-visual" aria-hidden="true">
-              <Utensils size={28} strokeWidth={1.4} />
+              <strong className="place-card-monogram">{placeInitials(place.name)}</strong>
+              <small className="place-card-visual-caption">Halal place</small>
             </div>
             <div className="place-card-heading">
               <div>
-                <p className="place-card-kicker">HALAL LISTING</p>
+                <p className="place-card-kicker">HALAL LISTING · {place.address_locality || place.city_slug.replace(/-/g, " ")}</p>
                 <h3>
                   <a href={"/place/" + place.id}>{place.name}</a>
                 </h3>
@@ -34,6 +41,7 @@ export function PlaceList({ places }: { places: Place[] }) {
               {place.rating_value && (
                 <span className="rating-chip">
                   <Star size={12} fill="currentColor" aria-hidden="true" /> {place.rating_value}
+                  <small>Google</small>
                   {place.review_count ? " (" + formatCount(place.review_count) + ")" : ""}
                 </span>
               )}
