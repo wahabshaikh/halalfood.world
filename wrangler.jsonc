@@ -23,7 +23,7 @@
       "binding": "DB",
       "database_name": "halalfood-world",
       // Replace with the id printed by `wrangler d1 create halalfood-world`.
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "database_id": "3e4b080f-0559-4235-9923-2d6e4dec528f",
       "migrations_dir": "migrations"
     }
   ],
