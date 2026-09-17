@@ -2529,6 +2529,72 @@ p {
   margin-bottom: 9px;
 }
 
+.place-halal-status {
+  display: grid;
+  flex: 1 1 100%;
+  min-width: 0;
+  gap: 3px;
+}
+
+.place-halal-status.is-compact {
+  max-width: 680px;
+}
+
+.halal-status-badge {
+  width: max-content;
+  border: 1px solid transparent;
+}
+
+.halal-status-evidence-backed .halal-status-badge {
+  background: #e0f0e6;
+  color: var(--primary-dark);
+}
+
+.halal-status-unverified .halal-status-badge {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  border-color: var(--border);
+}
+
+.halal-status-unavailable .halal-status-badge {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  border-color: var(--border);
+}
+
+.halal-status-detail,
+.halal-status-explanation {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.halal-status-detail {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.halal-status-panel {
+  display: grid;
+  gap: 4px;
+  margin: 14px 0 17px;
+  padding: 12px 13px;
+  border: 1px solid #c6d8cb;
+  border-radius: 11px;
+  background: #f7fbf7;
+}
+
+.halal-status-panel.halal-status-unverified {
+  border-color: var(--border);
+  background: var(--secondary);
+}
+
+.halal-status-panel.halal-status-unavailable {
+  border-color: var(--border);
+  background: var(--secondary);
+}
+
 .place-source-label {
   color: var(--muted-foreground);
   font-size: 11px;
