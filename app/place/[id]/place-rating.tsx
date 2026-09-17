@@ -70,8 +70,24 @@ function loginUrl(placeId: string) {
   return `/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`;
 }
 
+const RATING_LABELS: Record<PlaceRating, string> = {
+  mashallah: "MashaAllah",
+  alhamdulillah: "Alhamdulillah",
+  astaghfirullah: "Astaghfirullah",
+};
+
+const RATING_DESCRIPTIONS: Record<PlaceRating, string> = {
+  mashallah: "A place you would happily return to",
+  alhamdulillah: "A useful halal option for this visit",
+  astaghfirullah: "A caution for the next visitor",
+};
+
 function label(rating: PlaceRating) {
-  return rating.charAt(0).toUpperCase() + rating.slice(1);
+  return RATING_LABELS[rating];
+}
+
+function description(rating: PlaceRating) {
+  return RATING_DESCRIPTIONS[rating];
 }
 
 export default function PlaceRating({ placeId }: { placeId: string }) {
@@ -177,18 +193,19 @@ export default function PlaceRating({ placeId }: { placeId: string }) {
     <section className="place-rating" aria-labelledby="place-rating-title">
       <div className="place-rating-heading">
         <div>
-          <p className="eyebrow">COMMUNITY REACTIONS</p>
-          <h2 id="place-rating-title">Share your halal reaction</h2>
+          <p className="eyebrow">VISIT SIGNALS</p>
+          <h2 id="place-rating-title">Share one signal from your visit</h2>
         </div>
         {payload && (
           <span className="rating-total">
-            {payload.counts.total} {payload.counts.total === 1 ? "reaction" : "reactions"}
+            {payload.counts.total} {payload.counts.total === 1 ? "community signal" : "community signals"}
           </span>
         )}
       </div>
       <p className="rating-intro">
-        Let other visitors know how this halal place feels to you. Choose one reaction;
-        you can change it anytime.
+        Give the next diner a small, attributable signal. These signals are personal
+        visit impressions—not halal certification or a replacement for the evidence below.
+        Choose one and change it anytime.
       </p>
 
       {loading && <p className="form-help">Loading halal reactions…</p>}
@@ -199,11 +216,12 @@ export default function PlaceRating({ placeId }: { placeId: string }) {
       )}
       {!loading && !error && payload && (
         <>
-          <div className="rating-counts" aria-label="Halal reaction counts">
+          <div className="rating-counts" aria-label="Community visit signal counts">
             {RATING_VALUES.map((rating) => (
               <div className="rating-count" key={rating}>
                 <span>{label(rating)}</span>
                 <strong>{payload.counts[rating]}</strong>
+                <small>{description(rating)}</small>
               </div>
             ))}
           </div>
@@ -213,15 +231,15 @@ export default function PlaceRating({ placeId }: { placeId: string }) {
           )}
           {authState === "signed-out" && (
             <div className="rating-auth-card">
-              <strong>Want to share your halal reaction?</strong>
-              <p>Sign in with a one-time email code to rate this place.</p>
+              <strong>Want to share a visit signal?</strong>
+              <p>Sign in with a one-time email code to add your own signal.</p>
               <a className="action primary" href={loginUrl(placeId)}>
                 Sign in to rate
               </a>
             </div>
           )}
           {authState === "signed-in" && (
-            <div className="rating-choice-list" aria-label="Choose a halal reaction">
+            <div className="rating-choice-list" aria-label="Choose a visit signal">
               {RATING_VALUES.map((rating) => {
                 const selected = payload.rating === rating;
                 return (
@@ -235,7 +253,7 @@ export default function PlaceRating({ placeId }: { placeId: string }) {
                     onClick={() => void choose(rating)}
                   >
                     <span>{busy === rating ? "Saving…" : label(rating)}</span>
-                    <small>{selected ? "Your reaction" : "Choose"}</small>
+                    <small>{selected ? "Your signal" : description(rating)}</small>
                   </button>
                 );
               })}
