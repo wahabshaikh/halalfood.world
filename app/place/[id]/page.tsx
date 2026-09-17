@@ -227,11 +227,25 @@ export default async function PlacePage({
                   </div>
                 </div>
                 <p className="section-intro">{community.note}</p>
+                <ol className="trust-ladder" aria-label="How to read this place evidence">
+                  <li>
+                    <strong>Halal status</strong>
+                    <span>Read the status and the source checks before relying on the claim.</span>
+                  </li>
+                  <li>
+                    <strong>Visit notes and photos</strong>
+                    <span>Use dated community observations for practical, on-the-ground context.</span>
+                  </li>
+                  <li>
+                    <strong>Visit signals</strong>
+                    <span>Personal impressions are directional, not certification or a score.</span>
+                  </li>
+                </ol>
                 <div className="community-layers">
-                  <PlacePhotos placeId={place.id} />
-                  <PlaceRating placeId={place.id} />
-                  <PlaceReviews placeId={place.id} />
                   <PlaceHalalVerification placeId={place.id} />
+                  <PlacePhotos placeId={place.id} />
+                  <PlaceReviews placeId={place.id} />
+                  <PlaceRating placeId={place.id} />
                 </div>
               </section>
               <p className="detail-more">
