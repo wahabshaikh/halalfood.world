@@ -7,7 +7,6 @@ import {
   Navigation,
   Phone,
   Star,
-  Utensils,
 } from "lucide-react";
 import { getPlaceById } from "../../../src/lib/places";
 import {
@@ -53,6 +52,12 @@ const loadPlace = cache(async (raw: string) => {
       : null;
   });
 });
+
+function placeInitials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const initials = words.slice(0, 2).map((word) => word[0]?.toUpperCase() ?? "").join("");
+  return initials || "HF";
+}
 
 function safeWebsite(value: string | null) {
   if (!value) return null;
@@ -121,7 +126,7 @@ export default async function PlacePage({
   const hasCoords = place.lat !== null && place.lng !== null;
   const cuisine = place.serves_cuisine?.filter(Boolean).slice(0, 3).join(" · ");
   const trail = [
-    { name: "Halalfood", path: "/" },
+    { name: "halalfood.world", path: "/" },
     { name: city, path: "/city/" + place.city_slug },
     { name: place.name, path: "/place/" + place.id },
   ];
@@ -143,14 +148,15 @@ export default async function PlacePage({
         <article className="place-detail">
           <div className="place-hero">
             <div className="place-hero-visual" aria-hidden="true">
-              <Utensils size={52} strokeWidth={1.2} />
+              <span className="place-hero-mark">{placeInitials(place.name)}</span>
+              <span className="place-hero-label">Halal place<br />{city}</span>
             </div>
             <div className="place-hero-copy">
               <div className="place-status-row">
                 <PlaceHalalStatus placeId={place.id} compact />
-                {google.linked && <span className="place-source-label">Google listing linked</span>}
+                {google.linked && <span className="place-source-label">Source linked: Google Places</span>}
               </div>
-              <p className="eyebrow">HALAL LISTING · {city.toUpperCase()}</p>
+              <p className="eyebrow">HALAL PLACE · {city.toUpperCase()}</p>
               <h1>{place.name}</h1>
               <p className="place-summary">
                 {placeDescription(place, { includeCommunity: true })}
@@ -160,14 +166,18 @@ export default async function PlacePage({
                   <span className="place-fact">
                     <Star className="star" size={15} fill="currentColor" aria-hidden="true" />
                     <strong>{google.ratingValue}</strong>
+                    {" Google rating"}
                     {google.reviewCount
-                      ? " from " + formatCount(google.reviewCount) + " reviews"
+                      ? " · " + formatCount(google.reviewCount) + " reviews"
                       : ""}
                   </span>
                 )}
                 <span className="place-fact">
                   <MapPin size={15} aria-hidden="true" />
                   {city}
+                </span>
+                <span className="place-fact place-fact-evidence">
+                  Halal evidence shown below
                 </span>
                 {cuisine && <span className="place-fact">{cuisine}</span>}
               </div>
@@ -212,8 +222,8 @@ export default async function PlacePage({
               <section className="community-section" aria-labelledby="community-evidence-title">
                 <div className="place-section-heading">
                   <div>
-                    <p className="eyebrow">COMMUNITY EVIDENCE</p>
-                    <h2 id="community-evidence-title">Help the next visitor</h2>
+                    <p className="eyebrow">DECISION EVIDENCE</p>
+                    <h2 id="community-evidence-title">What to know before you go</h2>
                   </div>
                 </div>
                 <p className="section-intro">{community.note}</p>
@@ -238,9 +248,9 @@ export default async function PlacePage({
                 <div className="place-section-heading">
                   <div>
                     <p className="eyebrow">
-                      {google.linked ? "GOOGLE / LISTING FACTS" : "LISTING FACTS"}
+                      {google.linked ? "SOURCE / LISTING FACTS" : "LISTING FACTS"}
                     </p>
-                    <h2 id="listing-facts-title">Restaurant details</h2>
+                    <h2 id="listing-facts-title">Practical details</h2>
                   </div>
                   {google.linked && (
                     <span className={"listing-cache-status " + google.cacheStatus}>
@@ -264,7 +274,7 @@ export default async function PlacePage({
                   )}
                   {google.address && (
                     <div>
-                      <dt>{google.addressSource === "google" ? "Google address" : "Address"}</dt>
+                      <dt>{google.addressSource === "google" ? "Google address" : "Listed address"}</dt>
                       <dd>{google.address}</dd>
                     </div>
                   )}
@@ -298,10 +308,10 @@ export default async function PlacePage({
                   )}
                   {maps && (
                     <div>
-                      <dt>Map listing</dt>
+                      <dt>Directions</dt>
                       <dd>
                         <a href={maps} target="_blank" rel="noopener noreferrer nofollow">
-                          Open in Google Maps
+                          Open directions
                         </a>
                       </dd>
                     </div>

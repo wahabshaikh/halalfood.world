@@ -35,8 +35,8 @@ const foodIcon =
 
 const filters: Array<{ key: FilterKey; label: string }> = [
   { key: "all", label: "All places" },
-  { key: "rated", label: "Top rated" },
-  { key: "contact", label: "With contact" },
+  { key: "rated", label: "Google rated" },
+  { key: "contact", label: "Phone or website" },
 ];
 
 function BrandGlyph() {
@@ -63,6 +63,13 @@ function address(place: Place) {
 
 function cityLabel(place: Place) {
   return place.address_locality || place.city_slug.replace(/-/g, " ");
+}
+
+function placeInitials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "HF";
+  const initials = words.slice(0, 2).map((word) => word[0]?.toUpperCase() ?? "").join("");
+  return initials || "HF";
 }
 
 function safeWebsite(value: string | null) {
@@ -112,18 +119,23 @@ function PlaceCard({
         onClick={() => onSelect(place)}
       >
         <span className="place-card-visual map-card-visual" aria-hidden="true">
-          <Utensils size={22} strokeWidth={1.5} />
+          <strong className="place-card-monogram">{placeInitials(place.name)}</strong>
+          <small className="place-card-visual-caption">Halal place</small>
         </span>
         <span className="map-place-card-copy">
+          <span className="map-place-card-kicker">HALAL LISTING · {cityLabel(place)}</span>
           <span className="map-place-card-title">{place.name}</span>
           <span className="map-place-card-subtitle">{address(place)}</span>
           <span className="map-place-card-meta">
-            {place.rating_value && (
-              <span>
+            {place.rating_value ? (
+              <span className="map-place-card-rating">
                 <Star className="star" size={12} fill="currentColor" aria-hidden="true" />{" "}
-                {place.rating_value}
+                <strong>{place.rating_value}</strong>
+                <small>Google</small>
                 {place.review_count ? " · " + place.review_count.toLocaleString() : ""}
               </span>
+            ) : (
+              <span className="map-place-card-unrated">No Google rating yet</span>
             )}
             <span>{cityLabel(place)}</span>
           </span>
@@ -165,12 +177,15 @@ function PlacePreview({
       </div>
       <p className="selected-preview-address">{address(place)}</p>
       <div className="selected-preview-meta">
+        <span className="selected-preview-evidence">HALAL LISTING</span>
         <span>{cityLabel(place)}</span>
-        {place.rating_value && (
+        {place.rating_value ? (
           <span>
             <Star className="star" size={12} fill="currentColor" aria-hidden="true" />{" "}
-            {place.rating_value}
+            <strong>{place.rating_value}</strong> Google
           </span>
+        ) : (
+          <span>No Google rating yet</span>
         )}
       </div>
       <div className="selected-preview-actions">
