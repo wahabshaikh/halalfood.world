@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { DataFastAnalytics } from "../src/components/datafast-analytics";
 import { SITE_NAME, SITE_URL, OG_IMAGE } from "../src/lib/seo";
 import "./globals.css";
 
@@ -78,6 +79,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>{children}</body>
+      <DataFastAnalytics />
     </html>
   );
 }
