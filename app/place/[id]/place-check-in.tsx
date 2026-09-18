@@ -5,6 +5,8 @@ import { Camera, Check, MapPin, Plus, X } from "lucide-react";
 import {
   DISH_VERDICTS,
   DISH_VERDICT_COPY,
+  SERVICE_COPY,
+  SERVICE_VERDICTS,
   VALUE_COPY,
   VALUE_VERDICTS,
   VISIT_CONTEXT_KEYS,
@@ -12,6 +14,7 @@ import {
   WOULD_RETURN,
   WOULD_RETURN_COPY,
   type DishVerdict,
+  type ServiceVerdict,
   type ValueVerdict,
   type WouldReturn,
 } from "../../../src/lib/check-in";
@@ -67,6 +70,7 @@ export default function PlaceCheckIn({
   const [phase, setPhase] = useState<Phase>("idle");
   const [wouldReturn, setWouldReturn] = useState<WouldReturn | null>(null);
   const [valueVerdict, setValueVerdict] = useState<ValueVerdict | null>(null);
+  const [serviceVerdict, setServiceVerdict] = useState<ServiceVerdict | null>(null);
   const [dishes, setDishes] = useState<DishEntry[]>([]);
   const [dishDraft, setDishDraft] = useState("");
   const [note, setNote] = useState("");
@@ -128,6 +132,7 @@ export default function PlaceCheckIn({
         body: JSON.stringify({
           wouldReturn,
           valueVerdict,
+          serviceVerdict,
           dishes,
           note: note.trim() || undefined,
           spendMinor,
@@ -300,7 +305,7 @@ export default function PlaceCheckIn({
       </fieldset>
 
       <fieldset className="check-in-field">
-        <legend>Was it worth it?</legend>
+        <legend>Was it worth it, and how was the service?</legend>
         <div className="chip-row">
           {VALUE_VERDICTS.map((option) => (
             <button
@@ -311,6 +316,25 @@ export default function PlaceCheckIn({
               onClick={() => setValueVerdict(option)}
             >
               {VALUE_COPY[option]}
+            </button>
+          ))}
+        </div>
+        <p className="check-in-hint">
+          Service is asked separately, because good food with slow service is a
+          different answer from both being good.
+        </p>
+        <div className="chip-row">
+          {SERVICE_VERDICTS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`filter-chip${serviceVerdict === option ? " is-active" : ""}`}
+              aria-pressed={serviceVerdict === option}
+              onClick={() =>
+                setServiceVerdict(serviceVerdict === option ? null : option)
+              }
+            >
+              {SERVICE_COPY[option]}
             </button>
           ))}
         </div>

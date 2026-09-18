@@ -94,13 +94,13 @@ export async function recordVisit(
     await tx.run(sql`
       INSERT INTO place_check_ins (
         visit_id, place_id, user_id, would_return, would_bring_friend,
-        value_verdict, spend_minor, currency, note, incentivized, relationship,
-        created_at, updated_at
+        value_verdict, service_verdict, spend_minor, currency, note, incentivized,
+        relationship, created_at, updated_at
       ) VALUES (
         ${visitId}, ${input.placeId}, ${input.userId}, ${checkIn.wouldReturn},
-        ${checkIn.wouldBringFriend}, ${checkIn.valueVerdict}, ${checkIn.spendMinor},
-        ${checkIn.currency}, ${checkIn.note}, ${checkIn.incentivized ? 1 : 0},
-        ${checkIn.relationship}, ${now}, ${now}
+        ${checkIn.wouldBringFriend}, ${checkIn.valueVerdict}, ${checkIn.serviceVerdict},
+        ${checkIn.spendMinor}, ${checkIn.currency}, ${checkIn.note},
+        ${checkIn.incentivized ? 1 : 0}, ${checkIn.relationship}, ${now}, ${now}
       )
     `);
     for (const dish of checkIn.dishes) {
@@ -132,6 +132,7 @@ export async function getCheckInSummary(
     SELECT
       c.would_return,
       c.value_verdict,
+      c.service_verdict,
       c.spend_minor,
       c.currency,
       c.incentivized,
@@ -148,6 +149,12 @@ export async function getCheckInSummary(
   const records: CheckInRecord[] = rows.map((row) => ({
     wouldReturn: row.would_return as WouldReturn,
     valueVerdict: row.value_verdict as ValueVerdict,
+    serviceVerdict:
+      row.service_verdict === "good" ||
+      row.service_verdict === "fine" ||
+      row.service_verdict === "poor"
+        ? row.service_verdict
+        : null,
     spendMinor: num(row.spend_minor),
     currency: typeof row.currency === "string" ? row.currency : null,
     verified:

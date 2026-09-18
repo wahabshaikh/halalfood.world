@@ -25,6 +25,14 @@ export type WouldBringFriend = (typeof WOULD_BRING_FRIEND)[number];
 export const VALUE_VERDICTS = ["great", "fair", "overpriced"] as const;
 export type ValueVerdict = (typeof VALUE_VERDICTS)[number];
 
+/**
+ * Service is recorded separately from value and from food. They answer
+ * different questions and a single blended number would hide the case the
+ * product exists to expose: excellent food with poor service, or the reverse.
+ */
+export const SERVICE_VERDICTS = ["good", "fine", "poor"] as const;
+export type ServiceVerdict = (typeof SERVICE_VERDICTS)[number];
+
 export const DISH_VERDICTS = ["order-again", "fine", "avoid"] as const;
 export type DishVerdict = (typeof DISH_VERDICTS)[number];
 
@@ -62,6 +70,12 @@ export const VALUE_COPY: Record<ValueVerdict, string> = {
   overpriced: "Overpriced",
 };
 
+export const SERVICE_COPY: Record<ServiceVerdict, string> = {
+  good: "Good service",
+  fine: "Fine",
+  poor: "Poor service",
+};
+
 export const DISH_VERDICT_COPY: Record<DishVerdict, string> = {
   "order-again": "Order again",
   fine: "Fine",
@@ -78,6 +92,7 @@ export type ValidatedCheckIn = {
   wouldReturn: WouldReturn;
   wouldBringFriend: WouldBringFriend | null;
   valueVerdict: ValueVerdict;
+  serviceVerdict: ServiceVerdict | null;
   spendMinor: number | null;
   currency: string | null;
   note: string | null;
@@ -127,6 +142,13 @@ export function validateCheckIn(input: unknown): CheckInValidation {
     if (!(WOULD_BRING_FRIEND as readonly unknown[]).includes(body.wouldBringFriend))
       return { ok: false, error: "Would bring a friend must be yes, maybe or no." };
     wouldBringFriend = body.wouldBringFriend as WouldBringFriend;
+  }
+
+  let serviceVerdict: ServiceVerdict | null = null;
+  if (body.serviceVerdict !== undefined && body.serviceVerdict !== null) {
+    if (!(SERVICE_VERDICTS as readonly unknown[]).includes(body.serviceVerdict))
+      return { ok: false, error: "Service must be good, fine or poor." };
+    serviceVerdict = body.serviceVerdict as ServiceVerdict;
   }
 
   let spendMinor: number | null = null;
@@ -215,6 +237,7 @@ export function validateCheckIn(input: unknown): CheckInValidation {
       wouldReturn: body.wouldReturn as WouldReturn,
       wouldBringFriend,
       valueVerdict: body.valueVerdict as ValueVerdict,
+      serviceVerdict,
       spendMinor,
       currency,
       note,
@@ -232,6 +255,7 @@ export function validateCheckIn(input: unknown): CheckInValidation {
 export type CheckInRecord = {
   wouldReturn: WouldReturn;
   valueVerdict: ValueVerdict;
+  serviceVerdict?: ServiceVerdict | null;
   spendMinor?: number | null;
   currency?: string | null;
   /** Derived from the visit's verification, not self-asserted. */
@@ -256,6 +280,8 @@ export type CheckInSummary = {
   unverified: ReturnIntentBucket;
   excludedCount: number;
   value: { great: number; fair: number; overpriced: number };
+  /** Kept apart from value and food; `rated` is the sample behind it. */
+  service: { good: number; fine: number; poor: number; rated: number };
   medianSpendMinor: number | null;
   currency: string | null;
 };
@@ -294,6 +320,7 @@ export function summarizeCheckIns(
   const verified = emptyBucket();
   const unverified = emptyBucket();
   const value = { great: 0, fair: 0, overpriced: 0 };
+  const service = { good: 0, fine: 0, poor: 0, rated: 0 };
   const spends: number[] = [];
   const currencies = new Set<string>();
   let excludedCount = 0;
@@ -307,6 +334,10 @@ export function summarizeCheckIns(
     bucket.count += 1;
     bucket[record.wouldReturn] += 1;
     value[record.valueVerdict] += 1;
+    if (record.serviceVerdict) {
+      service[record.serviceVerdict] += 1;
+      service.rated += 1;
+    }
     if (typeof record.spendMinor === "number" && record.spendMinor >= 0) {
       spends.push(record.spendMinor);
       if (record.currency) currencies.add(record.currency);
@@ -325,6 +356,7 @@ export function summarizeCheckIns(
     unverified: finishBucket(unverified),
     excludedCount,
     value,
+    service,
     medianSpendMinor,
     currency: currencies.size === 1 ? [...currencies][0] : null,
   };

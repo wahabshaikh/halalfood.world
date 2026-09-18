@@ -11,6 +11,8 @@ import {
 } from "./contributions";
 import { FACT_COLUMNS, type FactKey } from "./place-facts";
 import { auditValue, type AuditEntry } from "./moderation";
+import { appendObservation } from "./observations-repository";
+import { refreshStanding } from "./reputation-repository";
 
 type DatabaseClient = Awaited<ReturnType<typeof database>>;
 
@@ -163,7 +165,14 @@ export async function submitEditSuggestion(
   return { id, status, reason: decision.reason };
 }
 
-/** Write an accepted correction onto the place or its facts row. */
+/**
+ * Write an accepted correction.
+ *
+ * The observation is appended first and is the record of what was claimed, by
+ * whom and when. The `places` / `place_facts` write that follows is only a
+ * projection of the newest reading, kept because the discovery query filters on
+ * it — the previous value is never lost, it stays in the observation log.
+ */
 export async function applyEdit(
   suggestionId: string,
   moderatorUserId: string | null,
@@ -171,7 +180,8 @@ export async function applyEdit(
 ): Promise<boolean> {
   const db = await client;
   const rows = await db.all<Record<string, unknown>>(sql`
-    SELECT place_id, field, proposed_value, current_value
+    SELECT place_id, field, proposed_value, current_value, source_url,
+      submitted_by_user_id
     FROM place_edit_suggestions WHERE id = ${suggestionId} LIMIT 1
   `);
   const row = rows[0];
@@ -181,6 +191,26 @@ export async function applyEdit(
   const field = String(row.field) as EditableField;
   const value = String(row.proposed_value ?? "");
   const now = Date.now();
+
+  await appendObservation(
+    {
+      placeId,
+      predicate: field,
+      value,
+      // A cited correction is a claim about that source; an uncited one is the
+      // contributor's own observation. Both are recorded as such.
+      source: typeof row.source_url === "string" && row.source_url
+        ? "contributor-cited source"
+        : "community contribution",
+      sourceClass: "community",
+      sourceUrl: typeof row.source_url === "string" ? row.source_url : null,
+      observedAt: now,
+      confidence: typeof row.source_url === "string" && row.source_url ? "high" : "medium",
+      submittedByUserId:
+        typeof row.submitted_by_user_id === "string" ? row.submitted_by_user_id : null,
+    },
+    client,
+  );
 
   const placeColumn = PLACE_COLUMNS[field];
   const factsColumn = FACTS_COLUMNS[field];
@@ -246,6 +276,17 @@ export async function resolveEdit(
     },
     client,
   );
+
+  // A decision changes the contributor's accuracy, so their standing is
+  // recomputed from source rather than nudged.
+  const db2 = await client;
+  const owner = await db2.all<{ submitted_by_user_id?: unknown }>(sql`
+    SELECT submitted_by_user_id FROM place_edit_suggestions WHERE id = ${suggestionId} LIMIT 1
+  `);
+  const ownerId = owner[0]?.submitted_by_user_id;
+  if (typeof ownerId === "string" && ownerId)
+    await refreshStanding(ownerId, client);
+
   return true;
 }
 

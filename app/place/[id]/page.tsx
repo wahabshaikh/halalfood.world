@@ -56,6 +56,18 @@ import { getPreferences } from "../../../src/lib/preferences-repository";
 import PersonalSuitability from "./personal-suitability";
 import { d1HalalVerificationRepository } from "../../../src/lib/halal-verifications";
 import { listDishes } from "../../../src/lib/dishes-repository";
+import {
+  getObservedFacts,
+  listInspections,
+} from "../../../src/lib/observations-repository";
+import { coverageLevel } from "../../../src/lib/coverage";
+import { refreshCoverageLevel } from "../../../src/lib/coverage-repository";
+import {
+  CoverageBadge,
+  InspectionPanel,
+  ProvenancePanel,
+  ServicePanel,
+} from "../../../src/components/provenance-panels";
 import PlaceRating from "./place-rating";
 import PlaceReviews from "./place-reviews";
 import PlacePhotos from "./place-photos";
@@ -86,13 +98,46 @@ function placeInitials(name: string) {
 async function loadDecision(placeId: string, userId: string | null) {
   try {
     const preferences = userId ? await getPreferences(userId) : null;
-    const [decision, history, verifications, dishes] = await Promise.all([
-      getDecisionSummary(placeId, preferences),
-      listStatusHistory(placeId),
-      d1HalalVerificationRepository().list(placeId, userId),
-      listDishes(placeId),
-    ]);
-    return { decision, history, verifications, dishes };
+    const now = Date.now();
+    const [decision, history, verifications, dishes, observed, inspections] =
+      await Promise.all([
+        getDecisionSummary(placeId, preferences),
+        listStatusHistory(placeId),
+        d1HalalVerificationRepository().list(placeId, userId),
+        listDishes(placeId),
+        getObservedFacts(placeId, now),
+        listInspections(placeId),
+      ]);
+
+    // Coverage is derived from what is actually attached, so the badge can
+    // never promise more than the page can show.
+    const coverage = coverageLevel({
+      evidenceCount: decision.assessment.currentEvidenceCount,
+      observationCount: observed.size,
+      dishCount: dishes.length,
+      checkInCount:
+        decision.checkIns.verified.count + decision.checkIns.unverified.count,
+      verifiedCheckInCount: decision.checkIns.verified.count,
+      distinctContributors: decision.assessment.contributorCount,
+      hasInspection: inspections.length > 0,
+    });
+
+    // The stored column is a projection used by the city aggregates; the page
+    // derives the level live and writes it back so the two cannot drift apart
+    // and show a visitor two different answers. Same pattern as the Google
+    // details cache above it.
+    await refreshCoverageLevel(placeId, coverage).catch(() => {});
+
+    return {
+      decision,
+      history,
+      verifications,
+      dishes,
+      facts: [...observed.values()],
+      inspections,
+      coverage,
+      now,
+    };
   } catch {
     return null;
   }
@@ -270,6 +315,7 @@ export default async function PlacePage({
               />
               <PersonalSuitability placeId={place.id} />
               <ScopeNote assessment={decisionBundle.decision.assessment} />
+              <CoverageBadge level={decisionBundle.coverage} />
             </>
           )}
 
@@ -284,6 +330,12 @@ export default async function PlacePage({
                   />
                   <FactChips facts={decisionBundle.decision.facts} />
                   <ReturnIntentPanel checkIns={decisionBundle.decision.checkIns} />
+                  <ServicePanel checkIns={decisionBundle.decision.checkIns} />
+                  <InspectionPanel inspections={decisionBundle.inspections} />
+                  <ProvenancePanel
+                    facts={decisionBundle.facts}
+                    now={decisionBundle.now}
+                  />
                   <DishHighlightPanel dishes={decisionBundle.decision.dishes} />
                   {decisionBundle.dishes.length > 0 && (
                     <section className="menu-panel" aria-labelledby="menu-panel-title">

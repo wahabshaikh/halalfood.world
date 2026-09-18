@@ -170,6 +170,31 @@ Two operational notes:
   access with
   `npx wrangler d1 execute halalfood-world --remote --command "INSERT INTO moderators (user_id, role, created_at) VALUES ('<user id>', 'admin', unixepoch() * 1000)"`.
 
+### Provenance, coverage and the reputation ladder
+
+`migrations/0010_observations_and_coverage.sql` adds the provenance layer from
+the data expansion strategy: append-only `place_observations` carrying source,
+source class, observation date, validity and confidence; `place_source_records`
+holding licence and attribution per retrieval; `place_inspections` for official
+hygiene and licence records; coverage levels on places; city coverage requests;
+the contributor standing ladder; and sponsored placements kept in their own
+table.
+
+The rules these enforce are in
+[`docs/product/trust-platform.md`](docs/product/trust-platform.md). The ones
+easiest to break by accident:
+
+- **Never update an observation's value.** A change is a new row. The
+  `places` / `place_facts` columns are a projection the discovery query filters
+  on, not the record.
+- **Nothing in a ranking query may join `sponsored_placements`.** Sponsored
+  slots are returned as a separate list and always carry a disclosure.
+- **Official inspection records are never mixed into a diner-derived figure.**
+  They render in their own panel with the authority, date and match confidence.
+- **Coverage levels are derived from what is attached**, never set by hand. The
+  place page recomputes and writes the projection back so the city aggregate
+  cannot disagree with the place badge.
+
 ### Feature 10: contributor leaderboard
 
 The public [`/leaderboard`](/leaderboard) page celebrates ummah contributions to

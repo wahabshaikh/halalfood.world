@@ -140,3 +140,106 @@ comparisons, the taste graph and personal match, follows and trusted-person
 weighting, merchant claiming and analytics, group shortlists, travel mode, and
 the AI concierge. The catalogue's own gate applies — those wait for real usage
 data rather than being simulated at launch.
+
+---
+
+# The data expansion strategy
+
+A second document — the product data expansion and monetization strategy — sets
+out how this becomes a global provenance network rather than one city's guide.
+What it adds to the rules above, and what this codebase now enforces:
+
+## Provenance is structural, not a field
+
+The strategy's non-negotiables include *every important fact has provenance and
+an observation date* and *historical values are appended, not overwritten*.
+`place_observations` is append-only: there is no code path that updates an
+observation's value. A change is a new row with a later `observedAt`, and
+`projectFacts` in `src/lib/observations.ts` collapses the log into what is
+published today while keeping the history, the staleness and the disagreement
+attached.
+
+When two current observations conflict, the stronger **source class** wins — a
+government record outranks an official API, which outranks the restaurant's own
+page, which outranks a web extraction — then declared confidence, then recency.
+The losing reading is not discarded: it is published as a disagreement, because
+*conflicting sources are represented rather than averaged away*.
+
+An accepted community correction appends an observation **before** the
+`places` / `place_facts` projection is written. Those columns are a cache the
+discovery query filters on; the observation log is the record.
+
+## Independent dimensions
+
+The strategy separates food, dish, value, service, hygiene and halal, each with
+its own preferred evidence. This codebase keeps them apart:
+
+| Dimension | Where it lives |
+| --- | --- |
+| Food | Return intent from verified visits (`summarizeCheckIns`) |
+| Dish | Per-dish verdicts (`summarizeDishes`) |
+| Value | `valueVerdict` and spend, reported separately |
+| Service | `serviceVerdict`, asked and reported as its own question |
+| Hygiene | `place_inspections`, its own panel, never mixed into a diner figure |
+| Halal | The evidence taxonomy above |
+
+An official record carries its authority, grade, inspection date, licence status
+and a link, plus an explicit **match confidence** — matching a government
+register to a restaurant is error-prone, and a low-confidence match says so on
+the page rather than presenting a possibly-wrong record as fact.
+
+## Coverage is stated honestly
+
+Places carry a coverage level — indexed, enriched, intelligent, trusted —
+derived in `coverageLevel()` from what is actually attached, never from intent.
+The place page recomputes it and writes the projection back, so the city
+aggregate and the place badge cannot show a visitor two different answers.
+
+City pages publish the real counts and never round up: a city with nothing
+enriched says so, and an unindexed city says *"not indexed yet"*. Both offer the
+request action, which is the point — launch traffic arrives from everywhere at
+once, and a "coming soon" page throws away the most valuable signal of the
+launch. Requests are de-duplicated by a salted hash rather than a visitor log,
+and feed `cityDemandScore`.
+
+## The reputation ladder
+
+`src/lib/reputation.ts` implements new → contributor → trusted → city expert →
+city moderator. Promotion needs accepted volume, **accuracy** and verified
+visits together, so a prolific but frequently-rejected contributor does not
+advance while a careful one does. Standing is recomputed from the contributions
+themselves on every decision, so a reversal actually costs standing. City
+moderator is never automatic — it carries the power to overrule other
+contributors, so a human grants it.
+
+This controls privileges only. There is still no public reviewer score.
+
+## Money cannot reach a ranking
+
+`sponsored_placements` is a separate table that **no discovery query joins**.
+`attachSponsored` returns sponsored slots as a distinct list from the organic
+order, so a caller cannot splice them into the ranking, and every slot carries
+its disclosure. `stripCommercialSignals` drops anything commercial before a
+ranking input is read — the unit tests assert that the organic order comes back
+unchanged and that no commercial key survives.
+
+Transaction handoffs name the provider and disclose a possible commission. They
+are recorded in `transaction_handoffs`, which likewise joins nothing in scoring.
+
+## Deliberately not built here
+
+The strategy is a multi-quarter plan; this branch implements the parts that are
+product rules rather than data operations. Not built: source adapters and
+ingestion (Overture, OSM, commercial platforms, FSSAI matching), the CityPack
+configuration and global shell import, dish canonicalisation across restaurants,
+Restaurant Pro and the claim flow, the derived-intelligence API, and consumer
+Pro. The schema is shaped so those attach without rewriting the product model —
+which is the strategy's own first instruction: *freeze the evidence model before
+adding more source-specific fields.*
+
+Nothing here is legal advice, and no scraping adapter is included. The
+strategy's acquisition posture — open and licensed data as the durable base,
+commercial extraction as a replaceable adapter reviewed by counsel — is recorded
+in `place_source_records`, which stores the licence and attribution alongside
+every retrieval so an export cannot silently redistribute something the terms
+did not permit.

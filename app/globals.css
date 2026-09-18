@@ -3771,6 +3771,8 @@ h3,
   }
   .guide-next-step > .action {
     justify-self: start;
+  }
+}
 
 /* ===========================================================================
    Trust-first surfaces: decision summary, evidence, check-in, filters,
@@ -4705,6 +4707,236 @@ h3,
   .return-option,
   .milestone-bar span {
     transition: none;
-
   }
 }
+
+/* ===========================================================================
+   Provenance, coverage, official records and the reputation ladder.
+   =========================================================================== */
+
+/* --- coverage ----------------------------------------------------------- */
+
+.coverage-badge {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--muted);
+}
+
+.coverage-badge-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.coverage-badge.is-indexed .coverage-badge-label { color: var(--tone-unknown); }
+.coverage-badge.is-enriched .coverage-badge-label { color: var(--tone-options); }
+.coverage-badge.is-intelligent .coverage-badge-label { color: var(--tone-community); }
+.coverage-badge.is-trusted .coverage-badge-label { color: var(--tone-verified); }
+
+.coverage-badge-meaning { font-size: 13px; }
+.coverage-badge-date { font-size: 12px; color: var(--muted-foreground); }
+
+.city-coverage {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.coverage-headline { margin: 0 0 12px; font-size: 16px; font-weight: 600; }
+
+.coverage-bar {
+  height: 8px;
+  margin-bottom: 16px;
+  border-radius: 999px;
+  background: var(--secondary);
+  overflow: hidden;
+}
+
+.coverage-bar-fill { display: block; height: 100%; background: var(--primary); }
+
+.coverage-levels {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.coverage-level {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--muted);
+}
+
+.coverage-level strong { display: block; font-size: 20px; letter-spacing: -0.02em; }
+.coverage-level-label { display: block; font-size: 13px; font-weight: 600; }
+.coverage-level-meaning { display: block; font-size: 12px; color: var(--muted-foreground); }
+
+.coverage-request { display: grid; gap: 10px; justify-items: start; }
+.coverage-requests { margin: 0; font-size: 13px; color: var(--muted-foreground); }
+
+/* --- provenance --------------------------------------------------------- */
+
+.provenance-panel,
+.inspection-panel {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.provenance-list,
+.inspection-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.provenance-list li,
+.inspection-item {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--muted);
+}
+
+.provenance-list li.is-stale { border-style: dashed; }
+
+.provenance-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.provenance-predicate {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+}
+
+.provenance-value { font-size: 15px; font-weight: 600; }
+
+.provenance-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.provenance-stale { color: var(--tone-options); font-weight: 600; }
+
+.provenance-disagreement {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--tone-options-soft);
+  color: var(--tone-options);
+  font-size: 12px;
+}
+
+.provenance-history { margin-top: 8px; font-size: 12px; }
+.provenance-history summary { cursor: pointer; color: var(--muted-foreground); }
+.provenance-history ol { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.provenance-history-source { color: var(--muted-foreground); }
+
+/* --- official records --------------------------------------------------- */
+
+.inspection-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.inspection-kind {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+}
+
+.inspection-meta {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  margin: 0;
+}
+
+.inspection-meta dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+}
+
+.inspection-meta dd { margin: 2px 0 0; font-size: 14px; }
+
+.inspection-match {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--tone-options);
+}
+
+.inspection-source { display: inline-block; margin-top: 8px; font-size: 13px; }
+
+.service-breakdown {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+/* --- sponsored, always outside the ranking ------------------------------ */
+
+.sponsored-slot {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px dashed var(--input);
+  border-radius: 12px;
+  background: var(--muted);
+}
+
+.sponsored-label {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--secondary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sponsored-disclosure { margin: 6px 0 0; font-size: 12px; color: var(--muted-foreground); }
+
+/* --- reputation --------------------------------------------------------- */
+
+.standing-card {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--muted);
+}
+
+.standing-role { font-size: 15px; font-weight: 700; }
+.standing-qualification,
+.standing-privileges { font-size: 13px; color: var(--muted-foreground); }
