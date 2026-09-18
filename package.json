@@ -5,9 +5,11 @@
   "packageManager": "npm@10.9.8",
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.4",
+    "@datafast/ai-crawl": "^1.0.9",
     "@vinext/cloudflare": "latest",
     "better-auth": "^1.7.4",
     "crisp-sdk-web": "^1.2.1",
+    "datafast": "^3.0.18",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.45.0",
     "maplibre-gl": "^6.9.0",
