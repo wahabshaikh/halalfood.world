@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
+import { DataFastAnalytics } from "../src/components/datafast-analytics";
 import { SITE_NAME, SITE_URL, OG_IMAGE } from "../src/lib/seo";
 import "./globals.css";
 
@@ -79,12 +79,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>{children}</body>
-      <Script
-        src="https://datafa.st/js/script.js"
-        data-website-id="dfid_ZgOOfrW4AAKMqIY9gqUEs"
-        data-domain="halalfood.world"
-        strategy="afterInteractive"
-      />
+      <DataFastAnalytics />
     </html>
   );
 }
