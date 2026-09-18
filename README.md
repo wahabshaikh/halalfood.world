@@ -455,6 +455,8 @@ codebase or CI, since it requires production credentials for both databases:
 
 Wrangler prints the workers.dev URL on success. Configure the custom domain `halalfood.world` in Cloudflare after deployment if desired. Local `.dev.vars` does **not** upload production secrets. Set `EMAIL_FROM` as a Worker variable (or leave the preferred default), and use `onboarding@resend.dev` until the custom domain is verified. No tile token is needed. Deployment also requires Cloudflare authentication.
 
+[`wrangler.jsonc`](wrangler.jsonc) enables [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) (`observability.enabled`), so console output and exceptions from every invocation are ingested and queryable in the Cloudflare dashboard for 7 days without any extra setup.
+
 The optional email smoke check is disabled unless `EMAIL_HEALTHCHECK_ENABLED=true`. To enable it, configure `EMAIL_HEALTHCHECK_TO` and store a long random bearer token as `EMAIL_HEALTHCHECK_TOKEN` (use `npx wrangler secret put EMAIL_HEALTHCHECK_TOKEN` for production), then send an authenticated `POST` to `/api/admin/email/healthcheck` with `Authorization: Bearer <token>`. The endpoint has no request-supplied recipient and returns 404 while disabled, so it cannot be used as an unauthenticated spam endpoint. Use it only for occasional operator checks; it is not a queue or mass-mailing mechanism.
 
 ### Community verification R2 uploads
@@ -525,6 +527,8 @@ Configure these GitHub Actions settings before opening a PR:
 | `CLOUDFLARE_ACCOUNT_ID` | Repository secret | Cloudflare account ID |
 
 `CLOUDFLARE_API_TOKEN` needs Workers Scripts edit and D1 edit permissions. Fork pull requests are intentionally skipped because the preview deployment requires infrastructure credentials.
+
+Before touching D1 or Workers, the deploy job calls Cloudflare's [token-verify endpoint](https://developers.cloudflare.com/fundamentals/api/reference/permissions/#verify-a-token) so an invalid, expired, or revoked `CLOUDFLARE_API_TOKEN` fails fast with an actionable message instead of a bare 401 partway through the D1/Workers calls. If that step fails, generate a fresh token at [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) with the permissions above, scoped to this account, and update the repository secret.
 
 The upload intentionally uses `--keep-vars`. It changes only the `BETTER_AUTH_URL` variable and the `DB` D1 binding; it reuses production Worker variables and secrets for Resend, Turnstile, Google Places, `BETTER_AUTH_SECRET`, and the R2 binding `halalfood-world-evidence`. Preview code can therefore send through production integrations and read or write the production R2 bucket. Future isolation could use a `preview/` key prefix or a separate bucket; that is not implemented here.
 
