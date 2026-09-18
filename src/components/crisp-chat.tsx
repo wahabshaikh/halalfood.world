@@ -1,16 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Crisp } from "crisp-sdk-web";
 import { authClient } from "../lib/auth-client";
 
 const CRISP_WEBSITE_ID = "b8333f3b-1afa-40e7-9103-08bbd21ebf00";
-
-declare global {
-  interface Window {
-    $crisp?: unknown[];
-    CRISP_WEBSITE_ID?: string;
-  }
-}
 
 type IdentityResponse = {
   email?: string;
@@ -36,29 +30,17 @@ export function CrispChat() {
   const identifiedRef = useRef(false);
 
   useEffect(() => {
-    if (!window.$crisp) {
-      window.$crisp = [];
-      window.CRISP_WEBSITE_ID = CRISP_WEBSITE_ID;
-
-      const script = document.createElement("script");
-      script.src = "https://client.crisp.chat/l.js";
-      script.async = true;
-      document.head.appendChild(script);
-    }
-
+    Crisp.configure(CRISP_WEBSITE_ID);
     return authClient.useSession.subscribe((session) => {
       setEmail(session.data?.user?.email ?? null);
     });
   }, []);
 
   useEffect(() => {
-    const crisp = window.$crisp;
-    if (!crisp) return;
-
     if (!email) {
       if (identifiedRef.current) {
         identifiedRef.current = false;
-        crisp.push(["do", "session:reset"]);
+        Crisp.session.reset();
       }
       return;
     }
@@ -67,8 +49,8 @@ export function CrispChat() {
     fetchSignedIdentity().then((identity) => {
       if (cancelled || !identity?.email || !identity.signature) return;
       identifiedRef.current = true;
-      crisp.push(["set", "user:email", [identity.email, identity.signature]]);
-      if (identity.name) crisp.push(["set", "user:nickname", [identity.name]]);
+      Crisp.user.setEmail(identity.email, identity.signature);
+      if (identity.name) Crisp.user.setNickname(identity.name);
     });
     return () => {
       cancelled = true;
