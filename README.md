@@ -35,7 +35,6 @@ TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
 TURNSTILE_SECRET_KEY=<Cloudflare Turnstile server secret>
 GOOGLE_PLACES_API_KEY=<your Google Places API key>
 # GOOGLE_MAPS_API_KEY=<fallback Google Maps API key>
-CRISP_IDENTITY_SECRET=<Crisp "Verify visitor identity" secret key>
 ```
 
 `GOOGLE_PLACES_API_KEY` is preferred; `GOOGLE_MAPS_API_KEY` is accepted as a
@@ -63,7 +62,7 @@ account before scaling.
 
 Email delivery uses the Workers-compatible Resend REST API. `noreply@halalfood.world` is the preferred sender after the domain is verified in Resend. Until then, set `EMAIL_FROM=onboarding@resend.dev` in the relevant environment. `RESEND_API_KEY` is required only when sending mail; the email helper has no bulk-send behavior and is intended for low-volume transactional messages. OTP delivery is additionally guarded by the durable limits described below.
 
-The Crisp chat widget (`src/components/crisp-chat.tsx`) auto-identifies signed-in users so support agents see their real email instead of an anonymous visitor. `GET /api/crisp/identity` signs the current session's email with `CRISP_IDENTITY_SECRET` (HMAC-SHA256) and the client pushes `$crisp.push(["set", "user:email", [email, signature]])`. `CRISP_IDENTITY_SECRET` is server-only and must never be client-exposed or committed; find it in the Crisp dashboard under Settings → Website Settings → Security → "Verify your users' identity", and enable that same toggle there so Crisp rejects unsigned identify calls (this is what makes the identified email trustworthy rather than merely advisory). Without the secret configured, `/api/crisp/identity` fails closed with a 503 and the widget stays anonymous.
+The Crisp chat widget (`src/components/crisp-chat.tsx`) loads on every page and, when someone is signed in, sets their email and name on the Crisp session automatically. Signed-out visitors stay anonymous, and signing out resets the chat session. This is identify only. Do not turn on Crisp's "Verify your users' identity" setting, and do not add an identity secret.
 
 ```sh
 npm run dev
@@ -424,7 +423,6 @@ npx wrangler secret put RESEND_API_KEY
 npx wrangler secret put BETTER_AUTH_SECRET
 npx wrangler secret put TURNSTILE_SECRET_KEY
 npx wrangler secret put GOOGLE_PLACES_API_KEY
-npx wrangler secret put CRISP_IDENTITY_SECRET
 npm run deploy
 ```
 
@@ -436,9 +434,9 @@ TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
 EMAIL_FROM=noreply@halalfood.world
 ```
 
-`TURNSTILE_SITE_KEY` may be a normal public Worker variable (or a dashboard secret if preferred); only `TURNSTILE_SECRET_KEY` belongs in `wrangler secret put` and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, `GOOGLE_PLACES_API_KEY`, and `CRISP_IDENTITY_SECRET` are secret names only here; enter their values at the Wrangler prompts. Use `GOOGLE_MAPS_API_KEY` instead only when retaining an existing secret name.
+`TURNSTILE_SITE_KEY` may be a normal public Worker variable (or a dashboard secret if preferred); only `TURNSTILE_SECRET_KEY` belongs in `wrangler secret put` and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, `GOOGLE_PLACES_API_KEY` are secret names only here; enter their values at the Wrangler prompts. Use `GOOGLE_MAPS_API_KEY` instead only when retaining an existing secret name.
 
-Enter the Resend API key, Better Auth secret, Turnstile server secret, and Crisp identity secret at their respective Wrangler prompts. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
+Enter the Resend API key, Better Auth secret, and Turnstile server secret at their respective Wrangler prompts. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
 
 ```sh
 npx @vinext/cloudflare deploy --config dist/server/wrangler.json
