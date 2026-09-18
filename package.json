@@ -5,8 +5,11 @@
   "packageManager": "npm@10.9.8",
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.4",
+    "@datafast/ai-crawl": "^1.0.9",
     "@vinext/cloudflare": "latest",
     "better-auth": "^1.7.4",
+    "crisp-sdk-web": "^1.2.1",
+    "datafast": "^3.0.18",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.45.0",
     "maplibre-gl": "^6.9.0",
@@ -39,10 +42,11 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "backfill:places": "tsx scripts/backfill-place-coordinates.ts",
+    "backfill:mumbai-place-details": "tsx scripts/backfill-mumbai-place-details.ts",
     "test:api": "node tests/api-smoke.mjs",
     "test:browser": "node tests/browser-smoke.mjs",
     "db:migrate:local": "wrangler d1 migrations apply halalfood-world --local",
-    "db:migrate:remote": "wrangler d1 migrations apply halalfood-world --remote"
+    "db:migrate:remote": "tsx scripts/apply-d1-migrations.ts"
   },
   "engines": {
     "node": ">=22 <23"

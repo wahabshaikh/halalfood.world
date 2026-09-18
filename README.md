@@ -62,6 +62,8 @@ account before scaling.
 
 Email delivery uses the Workers-compatible Resend REST API. `noreply@halalfood.world` is the preferred sender after the domain is verified in Resend. Until then, set `EMAIL_FROM=onboarding@resend.dev` in the relevant environment. `RESEND_API_KEY` is required only when sending mail; the email helper has no bulk-send behavior and is intended for low-volume transactional messages. OTP delivery is additionally guarded by the durable limits described below.
 
+The Crisp chat widget (`src/components/crisp-chat.tsx`) loads on every page and, when someone is signed in, sets their email and name on the Crisp session automatically. Signed-out visitors stay anonymous, and signing out resets the chat session. This is identify only. Do not turn on Crisp's "Verify your users' identity" setting, and do not add an identity secret.
+
 ```sh
 npm run dev
 npm run typecheck
@@ -82,7 +84,9 @@ Use the URL printed by the dev server. Development runs against the local D1 dat
 | --- | --- | --- |
 | `/` | Client map + SSR `WebSite`/`FAQPage` JSON-LD | The map. Accepts the deep links below. |
 | `/cities` | SSR | Directory of every city, largest first. |
-| `/leaderboard` | SSR | Public halal community contributor leaderboard. |
+| `/leaderboard` | SSR | Public halal community curator leaderboard. |
+| `/guides` | SSR | Curated city starting points built from ranked listings and an explicit selection rubric. |
+| `/guides/[citySlug]` | SSR | A readable city shortlist with source and evidence guidance. |
 | `/city/[citySlug]` | SSR | Listings for one city, 60 per page, with `ItemList` + `BreadcrumbList` JSON-LD. |
 | `/place/[id]` | SSR | Canonical restaurant page with Google/listing facts, community layers, and `Restaurant` + `BreadcrumbList` JSON-LD. |
 | `/saved` | Client list + SSR chrome | Authenticated user's saved halal places; unauthenticated visitors get a sign-in CTA. |
@@ -131,7 +135,7 @@ Use the URL printed by the dev server. Development runs against the local D1 dat
 
 ### The trust-first platform
 
-`migrations/0008_trust_platform.sql` and the libraries under `src/lib/` turn the
+`migrations/0009_trust_platform.sql` and the libraries under `src/lib/` turn the
 directory into the trust-first product described in the feature catalogue:
 a six-status halal taxonomy derived from dated, scoped, expiring evidence; the
 ten-second check-in that replaces star ratings with return intent and dish
@@ -257,6 +261,29 @@ Keep `--delay-ms` and `--limit` within the project's quota; lower batch sizes
 and longer delays are appropriate if Google returns quota errors. The script
 reports provider failures and exits non-zero when any candidate fails.
 
+### Mumbai Place Details backfill
+
+The Mumbai-only payload backfill is safe to commit and runs sequentially through
+the same D1 client. It uses the legacy Place Details endpoint without a `fields`
+query parameter because the Places API (New) is blocked on this key. It waits
+about 250ms between Google calls, does not change `name` or `street_address`,
+and skips rows that already have a non-empty `google_place_payload`.
+
+Ops should apply `npm run db:migrate:remote` first; that migration path is
+idempotent when the two payload columns were already added. Set these environment
+variables with placeholders from the production secret store:
+
+```sh
+export CLOUDFLARE_ACCOUNT_ID=<your Cloudflare account id>
+export CLOUDFLARE_D1_DATABASE_ID=<the halalfood-world D1 database id>
+export CLOUDFLARE_API_TOKEN=<a token with D1 edit permission>
+export GOOGLE_PLACES_API_KEY=<your Google Places API key>
+
+npm run backfill:mumbai-place-details
+```
+
+There is no city flag: this command only processes `city_slug = 'mumbai'`.
+
 ## Email OTP auth
 
 The `/login` page renders a Cloudflare Turnstile widget, then uses the Better Auth `emailOTP` plugin to request and verify a 6-digit sign-in code. The client uses `emailOTPClient`; successful verification creates a database-backed Better Auth session and secure, HTTP-only cookie. OTP mail is sent only through `src/lib/email.ts`, uses `EMAIL_FROM` when set, and includes both text and HTML bodies.
@@ -330,12 +357,20 @@ Apply [`migrations/0006_place_reviews.sql`](migrations/0006_place_reviews.sql) a
 
 Apply [`migrations/0007_place_photos.sql`](migrations/0007_place_photos.sql) after it. It creates the additive `place_photos` table with cascading place/user foreign keys, unique R2 keys, image-only content types, an 8 MiB size check, and a place/created-at gallery index. The migration is safe to re-run.
 
+Apply [`migrations/0008_place_google_payload.sql`](migrations/0008_place_google_payload.sql) after it. It adds the full legacy Google Place Details payload and its Unix-millisecond fetch timestamp to `places`.
+
 Apply them in order with wrangler's own migration tracking, which skips migrations it has already recorded as applied:
 
 ```sh
 npm run db:migrate:local   # local development database
 npm run db:migrate:remote  # deployed halalfood-world D1 database
 ```
+
+Production must use `npm run db:migrate:remote`: its remote apply path skips an
+`ADD COLUMN` in `0008_place_google_payload.sql` when that column already exists.
+Do not hand-apply `0008_place_google_payload.sql` with raw wrangler on production
+if Ops has already altered either payload column. Local and preview databases
+remain on plain `wrangler d1 migrations apply` because they start empty.
 
 The Drizzle definitions in `src/db/schema.ts` must stay aligned with this SQL. If Better Auth is upgraded or plugins are added, regenerate/review the Drizzle schema with the Better Auth CLI and create a new migration rather than changing the existing table names silently.
 
@@ -458,7 +493,7 @@ TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
 EMAIL_FROM=noreply@halalfood.world
 ```
 
-`TURNSTILE_SITE_KEY` may be a normal public Worker variable (or a dashboard secret if preferred); only `TURNSTILE_SECRET_KEY` belongs in `wrangler secret put` and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, and `GOOGLE_PLACES_API_KEY` are secret names only here; enter their values at the Wrangler prompts. Use `GOOGLE_MAPS_API_KEY` instead only when retaining an existing secret name.
+`TURNSTILE_SITE_KEY` may be a normal public Worker variable (or a dashboard secret if preferred); only `TURNSTILE_SECRET_KEY` belongs in `wrangler secret put` and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, `GOOGLE_PLACES_API_KEY` are secret names only here; enter their values at the Wrangler prompts. Use `GOOGLE_MAPS_API_KEY` instead only when retaining an existing secret name.
 
 Enter the Resend API key, Better Auth secret, and Turnstile server secret at their respective Wrangler prompts. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
 

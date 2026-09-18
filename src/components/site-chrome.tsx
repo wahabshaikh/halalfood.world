@@ -33,6 +33,9 @@ export function SiteHeader({ backTo }: { backTo?: { href: string; label: string 
           <a className="page-nav-link" href="/cities">
             Cities
           </a>
+          <a className="page-nav-link" href="/guides">
+            Guides
+          </a>
           <a className="page-nav-link" href="/leaderboard">
             <Trophy size={16} aria-hidden="true" />
             Community
@@ -77,11 +80,12 @@ export function SiteFooter() {
             <BrandMark />
             <span className="brand-word">{SITE_NAME}</span>
           </a>
-          <p>Find it. Share it. Keep the community moving.</p>
+          <p>A living guide to halal food, built from visits and evidence.</p>
         </div>
         <nav className="page-footer-links" aria-label="Footer">
           <a href="/">Explore</a>
           <a href="/cities">Cities</a>
+          <a href="/guides">Guides</a>
           <a href="/leaderboard">Community</a>
           <a href="/add">Add a place</a>
           <a href="/lists">Lists</a>
@@ -92,10 +96,10 @@ export function SiteFooter() {
         </nav>
         <div className="page-footer-note">
           <p>{APPROXIMATE_NOTE}</p>
-          <p>Listings come from public directories and community submissions. Confirm details before visiting.</p>
+          <p>Listings combine public sources and community evidence. Check the status before you travel.</p>
           <p>
-            Unverified never means not halal. Halal status is shown with its
-            evidence, scope and date, and no restaurant can pay to change a
+            Unverified never means not halal. Every halal status is shown with
+            its evidence, scope and date, and no restaurant can pay to change a
             status, a ranking or a search result.
           </p>
         </div>

@@ -20,7 +20,7 @@ export default function Home() {
               name: SITE_NAME,
               url: SITE_URL,
               description:
-                "A world map of halal restaurants, searchable by city or name.",
+                "A world map of halal food, searchable by city or name, with transparent halal evidence.",
             },
             {
               "@context": "https://schema.org",
@@ -36,7 +36,7 @@ export default function Home() {
                   name: "Are all the restaurants on Halalfood halal?",
                   acceptedAnswer: {
                     "@type": "Answer",
-                    text: "Halalfood only lists places published as halal by the public directories it collects from. Certification varies by country, so check with the restaurant if that matters to you.",
+                    text: "halalfood.world only lists places published as halal by the public directories it collects from. Certification varies by country, so check with the restaurant if that matters to you.",
                   },
                 },
               ],
@@ -47,7 +47,7 @@ export default function Home() {
       <FoodMap />
       <noscript>
         <div className="noscript-fallback">
-          <h1>Halalfood — find halal food anywhere in the world</h1>
+          <h1>halalfood.world — find halal food anywhere in the world</h1>
           <p>
             The interactive map needs JavaScript. The full directory works
             without it:

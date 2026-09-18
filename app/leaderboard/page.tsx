@@ -22,9 +22,9 @@ import {
 } from "../../src/components/site-chrome";
 import { loadOrDegrade } from "../../src/lib/load";
 
-const TITLE = "Halalfood community contributors";
+const TITLE = "Halalfood community curators";
 const DESCRIPTION =
-  "Meet the people helping the Halalfood community build a more useful map with places, verifications, reviews, photos and ratings.";
+  "Meet the people helping the halalfood.world community build a more useful map with places, verifications, reviews, photos and ratings.";
 
 const loadLeaderboard = cache(() =>
   loadOrDegrade(() => listContributors(CONTRIBUTOR_LEADERBOARD_LIMIT)),
@@ -72,7 +72,7 @@ export default async function LeaderboardPage() {
 
   const contributors = loaded.data;
   const trail = [
-    { name: "Halalfood", path: "/" },
+    { name: "halalfood.world", path: "/" },
     { name: "Community", path: "/leaderboard" },
   ];
 
@@ -93,13 +93,14 @@ export default async function LeaderboardPage() {
               <Trophy size={12} aria-hidden="true" />
               Community board
             </span>
-            <span>{formatCount(contributors.length)} ranked contributors</span>
+            <span>{formatCount(contributors.length)} ranked curators</span>
           </div>
-          <p className="eyebrow">THE PEOPLE BEHIND THE MAP</p>
+          <p className="eyebrow">THE PEOPLE WHO KEEP IT USEFUL</p>
           <h1>Make the next visit easier.</h1>
           <p className="lead">
             Every useful listing, photo, review and halal verification gives another
-            visitor a better answer when they are hungry somewhere new.
+            visitor a better answer when they are hungry somewhere new. Curators earn
+            recognition for the quality signals they leave behind.
           </p>
           <div className="detail-actions">
             <a className="action primary" href="/add">
@@ -109,6 +110,9 @@ export default async function LeaderboardPage() {
             <a className="action" href="/">
               <MapPinned size={15} aria-hidden="true" />
               Explore the map
+            </a>
+            <a className="action" href="/guides">
+              Read a city guide
             </a>
           </div>
           <p className="leaderboard-method">
@@ -125,7 +129,7 @@ export default async function LeaderboardPage() {
           <div className="section-bar">
             <div>
               <p className="eyebrow">RECOGNITION</p>
-              <h2 id="leaderboard-heading">Top contributors</h2>
+              <h2 id="leaderboard-heading">Top curators</h2>
             </div>
             <span className="section-bar-note">Updated with every contribution</span>
           </div>
@@ -141,7 +145,7 @@ export default async function LeaderboardPage() {
                   </span>
                   <div className="leaderboard-contributor">
                     <strong>{contributor.displayName}</strong>
-                    {contributor.rank <= 3 && <span>Top community helper</span>}
+                    {contributor.rank <= 3 && <span>Map curator</span>}
                   </div>
                   <dl className="leaderboard-counts">
                     <ContributionCount label="Places" value={contributor.contributions.placesAdded} />
@@ -174,9 +178,14 @@ export default async function LeaderboardPage() {
               Small actions compound into a better map.
             </p>
           </div>
-          <a className="action" href="/add">
-            Start contributing <ArrowUpRight size={14} aria-hidden="true" />
-          </a>
+          <div className="detail-actions">
+            <a className="action" href="/add">
+              Start contributing <ArrowUpRight size={14} aria-hidden="true" />
+            </a>
+            <a className="action" href="/guides">
+              Browse guides <ArrowUpRight size={14} aria-hidden="true" />
+            </a>
+          </div>
         </section>
       </main>
       <SiteFooter />

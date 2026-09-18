@@ -52,7 +52,8 @@ function sourceLabel(url: string) {
     if (host === "zabihah.com") return "Zabihah source";
     if (host === "instagram.com" || host === "m.instagram.com") return "Instagram source";
     if (host.endsWith("tiktok.com")) return "TikTok source";
-    return "YouTube source";
+    if (host === "youtube.com" || host === "m.youtube.com") return "YouTube source";
+    return "External source";
   } catch {
     return "Community source";
   }
@@ -261,16 +262,16 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
     <section className="community-verification" aria-labelledby="community-verification-title">
       <div className="community-verification-heading">
         <div>
-          <p className="eyebrow">COMMUNITY EVIDENCE</p>
-          <h2 id="community-verification-title">Halal verification</h2>
+          <p className="eyebrow">SOURCE CHECKS</p>
+          <h2 id="community-verification-title">Show the source behind the halal claim</h2>
         </div>
         <span className="verification-count">
           {verifications.length} {verifications.length === 1 ? "submission" : "submissions"}
         </span>
       </div>
       <p className="verification-intro">
-        See evidence shared by the community. Approved submissions are shown publicly;
-        new submissions go to review.
+        This is the strongest trust layer on the page. Approved submissions are shown
+        publicly; new submissions stay marked as pending until they are reviewed.
       </p>
 
       {statusView && (
@@ -303,7 +304,7 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
             <li className="verification-card" key={verification.id}>
               <div className="verification-card-topline">
                 <span className={`verification-status ${verification.status}`}>
-                  {verification.status === "approved" ? "Approved" : "Pending review"}
+                  {verification.status === "approved" ? "Source checked" : "Awaiting review"}
                 </span>
                 <time dateTime={verification.createdAt}>
                   {new Date(verification.createdAt).toLocaleDateString()}
@@ -333,8 +334,8 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
       )}
       {authState === "signed-out" && (
         <div className="verification-auth-card">
-          <strong>Have halal evidence to share?</strong>
-          <p>Sign in with a one-time email code to submit it for review.</p>
+          <strong>Can you substantiate the halal claim?</strong>
+          <p>Sign in with a one-time email code to submit a source for review.</p>
           <a
             className="action primary"
             href={`/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`}
@@ -345,10 +346,11 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
       )}
       {authState === "signed-in" && (
         <form className="verification-form" onSubmit={submit}>
-          <h3>Share halal evidence</h3>
+          <h3>Submit a source for review</h3>
           <p className="field-note">
-            Add one link per line from Zabihah, Instagram, TikTok, or YouTube, and/or
-            upload a certificate, supplier document, or menu.
+            Add one link per line from Zabihah, Instagram, TikTok, YouTube, or another
+            public source, and/or upload a certificate, supplier document, or menu. We
+            show the submission state so diners can tell checked evidence from a claim.
           </p>
           <label className="field">
             <span>Evidence links</span>

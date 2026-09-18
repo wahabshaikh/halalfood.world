@@ -68,6 +68,13 @@ function cityLabel(place: Place) {
   return place.address_locality || place.city_slug.replace(/-/g, " ");
 }
 
+function placeInitials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "HF";
+  const initials = words.slice(0, 2).map((word) => word[0]?.toUpperCase() ?? "").join("");
+  return initials || "HF";
+}
+
 function safeWebsite(value: string | null) {
   if (!value) return null;
   try {
@@ -143,12 +150,24 @@ function PlaceCard({
         onClick={() => onSelect(place)}
       >
         <span className="place-card-visual map-card-visual" aria-hidden="true">
-          <Utensils size={22} strokeWidth={1.5} />
+          <strong className="place-card-monogram">{placeInitials(place.name)}</strong>
+          <small className="place-card-visual-caption">Halal place</small>
         </span>
         <span className="map-place-card-copy">
+          <span className="map-place-card-kicker">HALAL LISTING · {cityLabel(place)}</span>
           <span className="map-place-card-title">{place.name}</span>
           <span className="map-place-card-subtitle">{address(place)}</span>
           <span className="map-place-card-meta">
+            {place.rating_value ? (
+              <span className="map-place-card-rating">
+                <Star className="star" size={12} fill="currentColor" aria-hidden="true" />{" "}
+                <strong>{place.rating_value}</strong>
+                <small>Google</small>
+                {place.review_count ? " · " + place.review_count.toLocaleString() : ""}
+              </span>
+            ) : (
+              <span className="map-place-card-unrated">No Google rating yet</span>
+            )}
             <span>{cityLabel(place)}</span>
             {place.price_band !== null && <span>{"$".repeat(place.price_band)}</span>}
           </span>
@@ -191,12 +210,15 @@ function PlacePreview({
       </div>
       <p className="selected-preview-address">{address(place)}</p>
       <div className="selected-preview-meta">
+        <span className="selected-preview-evidence">HALAL LISTING</span>
         <span>{cityLabel(place)}</span>
-        {place.rating_value && (
+        {place.rating_value ? (
           <span>
             <Star className="star" size={12} fill="currentColor" aria-hidden="true" />{" "}
-            {place.rating_value}
+            <strong>{place.rating_value}</strong> Google
           </span>
+        ) : (
+          <span>No Google rating yet</span>
         )}
       </div>
       <div className="selected-preview-actions">
@@ -621,7 +643,7 @@ export default function FoodMap() {
         <div className="rail-header">
           <a className="map-brand" href="/" aria-label="Halalfood home">
             <BrandGlyph />
-            <span>Halalfood</span>
+            <span>halalfood.world</span>
           </a>
           <div className="rail-header-actions">
             <a className="header-contribute" href="/add">Contribute</a>
@@ -629,9 +651,9 @@ export default function FoodMap() {
         </div>
         <div className="rail-scroll">
           <div className="rail-intro">
-            <p className="eyebrow">THE COMMUNITY FOOD MAP</p>
-            <h1>Find a table worth sharing.</h1>
-            <p>Explore halal places, then leave the next useful detail for someone else.</p>
+            <p className="eyebrow">HALAL FOOD ATLAS</p>
+            <h1>Find halal food with evidence you can inspect.</h1>
+            <p>Explore the map, compare halal confidence, and leave the next useful detail for someone else.</p>
           </div>
           <SearchBox
             query={query}
@@ -685,7 +707,7 @@ export default function FoodMap() {
       <div className="mobile-map-chrome">
         <a className="mobile-brand" href="/" aria-label="Halalfood home">
           <BrandGlyph />
-          <span>Halalfood</span>
+          <span>halalfood.world</span>
         </a>
         <div className="mobile-map-actions">
           <a className="mobile-icon-button" href="/add" aria-label="Contribute">
