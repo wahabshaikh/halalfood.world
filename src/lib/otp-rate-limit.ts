@@ -269,12 +269,10 @@ type StoredOtpRateLimitRow = {
 };
 
 /**
- * D1 is a single Durable Object per database, so a `db.transaction()` block
- * already serializes concurrent writers against the same rows the way the
- * Postgres advisory locks used to: the decision is computed from a read
- * inside the transaction and only written back if every bucket allows it, so
- * concurrent requests cannot both pass a stale read and spend the same
- * email/IP budget.
+ * D1 rejects SQL `BEGIN` (error 7500), so this does not use `db.transaction()`.
+ * The database is one Durable Object, so statements already run one at a time.
+ * The decision is computed from a read and only written if every bucket allows
+ * it.
  */
 export function d1OtpRateLimitStore(
   client: DatabaseClient | Promise<DatabaseClient> = database(),
@@ -283,10 +281,9 @@ export function d1OtpRateLimitStore(
     async consume(buckets, now) {
       const db = await client;
       const nowMs = now.getTime();
-      return db.transaction(async (tx) => {
-        const states = await Promise.all(
+      const states = await Promise.all(
           buckets.map(async (bucket) => {
-            const rows = await tx.all<StoredOtpRateLimitRow>(sql`
+            const rows = await db.all<StoredOtpRateLimitRow>(sql`
               SELECT window_started_at, window_count, last_action_at
               FROM auth_otp_rate_limit
               WHERE key = ${bucket.key}
@@ -314,7 +311,7 @@ export function d1OtpRateLimitStore(
         if (allowed) {
           await Promise.all(
             states.map(({ bucket, decision }) =>
-              tx.run(sql`
+              db.run(sql`
                 INSERT INTO auth_otp_rate_limit (
                   key, window_started_at, window_count, last_action_at, updated_at
                 ) VALUES (
@@ -332,7 +329,6 @@ export function d1OtpRateLimitStore(
         }
 
         return { allowed, retryAfterMs };
-      });
     },
   };
 }
