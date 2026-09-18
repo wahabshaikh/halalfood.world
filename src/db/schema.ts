@@ -165,6 +165,12 @@ export const places = sqliteTable("places", {
     mode: "timestamp_ms",
   }),
   googleDetailsSnapshot: text("google_details_snapshot"),
+  /** Full legacy Place Details `result` JSON, retained for backfill provenance. */
+  googlePlacePayload: text("google_place_payload"),
+  /** Unix epoch milliseconds when the legacy Place Details payload was fetched. */
+  googlePlaceFetchedAt: integer("google_place_fetched_at", {
+    mode: "timestamp_ms",
+  }),
 });
 
 export const savedPlaces = sqliteTable(

@@ -39,10 +39,11 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "backfill:places": "tsx scripts/backfill-place-coordinates.ts",
+    "backfill:mumbai-place-details": "tsx scripts/backfill-mumbai-place-details.ts",
     "test:api": "node tests/api-smoke.mjs",
     "test:browser": "node tests/browser-smoke.mjs",
     "db:migrate:local": "wrangler d1 migrations apply halalfood-world --local",
-    "db:migrate:remote": "wrangler d1 migrations apply halalfood-world --remote"
+    "db:migrate:remote": "tsx scripts/apply-d1-migrations.ts"
   },
   "engines": {
     "node": ">=22 <23"
