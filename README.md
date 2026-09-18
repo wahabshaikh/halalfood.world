@@ -200,6 +200,29 @@ Keep `--delay-ms` and `--limit` within the project's quota; lower batch sizes
 and longer delays are appropriate if Google returns quota errors. The script
 reports provider failures and exits non-zero when any candidate fails.
 
+### Mumbai Place Details backfill
+
+The Mumbai-only payload backfill is safe to commit and runs sequentially through
+the same D1 client. It uses the legacy Place Details endpoint without a `fields`
+query parameter because the Places API (New) is blocked on this key. It waits
+about 250ms between Google calls, does not change `name` or `street_address`,
+and skips rows that already have a non-empty `google_place_payload`.
+
+Ops should apply `npm run db:migrate:remote` first; that migration path is
+idempotent when the two payload columns were already added. Set these environment
+variables with placeholders from the production secret store:
+
+```sh
+export CLOUDFLARE_ACCOUNT_ID=<your Cloudflare account id>
+export CLOUDFLARE_D1_DATABASE_ID=<the halalfood-world D1 database id>
+export CLOUDFLARE_API_TOKEN=<a token with D1 edit permission>
+export GOOGLE_PLACES_API_KEY=<your Google Places API key>
+
+npm run backfill:mumbai-place-details
+```
+
+There is no city flag: this command only processes `city_slug = 'mumbai'`.
+
 ## Email OTP auth
 
 The `/login` page renders a Cloudflare Turnstile widget, then uses the Better Auth `emailOTP` plugin to request and verify a 6-digit sign-in code. The client uses `emailOTPClient`; successful verification creates a database-backed Better Auth session and secure, HTTP-only cookie. OTP mail is sent only through `src/lib/email.ts`, uses `EMAIL_FROM` when set, and includes both text and HTML bodies.
@@ -273,12 +296,20 @@ Apply [`migrations/0006_place_reviews.sql`](migrations/0006_place_reviews.sql) a
 
 Apply [`migrations/0007_place_photos.sql`](migrations/0007_place_photos.sql) after it. It creates the additive `place_photos` table with cascading place/user foreign keys, unique R2 keys, image-only content types, an 8 MiB size check, and a place/created-at gallery index. The migration is safe to re-run.
 
+Apply [`migrations/0008_place_google_payload.sql`](migrations/0008_place_google_payload.sql) after it. It adds the full legacy Google Place Details payload and its Unix-millisecond fetch timestamp to `places`.
+
 Apply them in order with wrangler's own migration tracking, which skips migrations it has already recorded as applied:
 
 ```sh
 npm run db:migrate:local   # local development database
 npm run db:migrate:remote  # deployed halalfood-world D1 database
 ```
+
+Production must use `npm run db:migrate:remote`: its remote apply path skips an
+`ADD COLUMN` in `0008_place_google_payload.sql` when that column already exists.
+Do not hand-apply `0008_place_google_payload.sql` with raw wrangler on production
+if Ops has already altered either payload column. Local and preview databases
+remain on plain `wrangler d1 migrations apply` because they start empty.
 
 The Drizzle definitions in `src/db/schema.ts` must stay aligned with this SQL. If Better Auth is upgraded or plugins are added, regenerate/review the Drizzle schema with the Better Auth CLI and create a new migration rather than changing the existing table names silently.
 
