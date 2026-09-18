@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { SITE_NAME, SITE_URL, OG_IMAGE } from "../src/lib/seo";
+import { CrispChat } from "../src/components/crisp-chat";
 import "./globals.css";
 
 const DESCRIPTION =
@@ -77,7 +78,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <CrispChat />
+      </body>
     </html>
   );
 }
