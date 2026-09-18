@@ -11,6 +11,11 @@
 import { sql } from "drizzle-orm";
 import { database } from "../db";
 import {
+  placeCheckInDishes,
+  placeCheckIns,
+  placeVisits,
+} from "../db/schema";
+import {
   normalizeDishName,
   summarizeCheckIns,
   summarizeDishes,
@@ -78,42 +83,54 @@ export async function recordVisit(
   const now = Date.now();
   const { checkIn, verification } = input;
 
-  await db.transaction(async (tx) => {
-    await tx.run(sql`
-      INSERT INTO place_visits (
-        id, user_id, place_id, visited_at, verification_method,
-        verification_confidence, verification_detail, receipt_r2_key, context,
-        visibility, created_at, updated_at
-      ) VALUES (
-        ${visitId}, ${input.userId}, ${input.placeId}, ${input.visitedAt},
-        ${verification.method}, ${verification.confidence}, ${verification.detail},
-        ${input.receiptR2Key}, ${JSON.stringify(checkIn.context)},
-        ${checkIn.visibility}, ${now}, ${now}
-      )
-    `);
-    await tx.run(sql`
-      INSERT INTO place_check_ins (
-        visit_id, place_id, user_id, would_return, would_bring_friend,
-        value_verdict, service_verdict, spend_minor, currency, note, incentivized,
-        relationship, created_at, updated_at
-      ) VALUES (
-        ${visitId}, ${input.placeId}, ${input.userId}, ${checkIn.wouldReturn},
-        ${checkIn.wouldBringFriend}, ${checkIn.valueVerdict}, ${checkIn.serviceVerdict},
-        ${checkIn.spendMinor}, ${checkIn.currency}, ${checkIn.note},
-        ${checkIn.incentivized ? 1 : 0}, ${checkIn.relationship}, ${now}, ${now}
-      )
-    `);
-    for (const dish of checkIn.dishes) {
-      await tx.run(sql`
-        INSERT INTO place_check_in_dishes (
-          id, visit_id, place_id, dish_id, dish_name, normalized_name, verdict, created_at
-        ) VALUES (
-          ${crypto.randomUUID()}, ${visitId}, ${input.placeId}, ${dish.dishId ?? null},
-          ${dish.name}, ${normalizeDishName(dish.name)}, ${dish.verdict}, ${now}
-        )
-      `);
-    }
-  });
+  // D1 rejects SQL `BEGIN`, so `db.transaction()` fails at runtime (error
+  // 7500). `db.batch()` is the D1-native equivalent: the statements run in one
+  // implicit transaction and the whole batch rolls back if any of them fails,
+  // which is what keeps a visit from existing without its check-in.
+  await db.batch([
+    db.insert(placeVisits).values({
+      id: visitId,
+      userId: input.userId,
+      placeId: input.placeId,
+      visitedAt: new Date(input.visitedAt),
+      verificationMethod: verification.method,
+      verificationConfidence: verification.confidence,
+      verificationDetail: verification.detail,
+      receiptR2Key: input.receiptR2Key,
+      context: checkIn.context,
+      visibility: checkIn.visibility,
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    }),
+    db.insert(placeCheckIns).values({
+      visitId,
+      placeId: input.placeId,
+      userId: input.userId,
+      wouldReturn: checkIn.wouldReturn,
+      wouldBringFriend: checkIn.wouldBringFriend,
+      valueVerdict: checkIn.valueVerdict,
+      serviceVerdict: checkIn.serviceVerdict,
+      spendMinor: checkIn.spendMinor,
+      currency: checkIn.currency,
+      note: checkIn.note,
+      incentivized: checkIn.incentivized,
+      relationship: checkIn.relationship,
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    }),
+    ...checkIn.dishes.map((dish) =>
+      db.insert(placeCheckInDishes).values({
+        id: crypto.randomUUID(),
+        visitId,
+        placeId: input.placeId,
+        dishId: dish.dishId ?? null,
+        dishName: dish.name,
+        normalizedName: normalizeDishName(dish.name),
+        verdict: dish.verdict,
+        createdAt: new Date(now),
+      }),
+    ),
+  ] as unknown as Parameters<typeof db.batch>[0]);
 
   return {
     visitId,

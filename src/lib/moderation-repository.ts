@@ -1,7 +1,8 @@
 /** D1 access for the evidence queue, reports, appeals and the audit log. */
 
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { database } from "../db";
+import { contentReports, reportAppeals } from "../db/schema";
 import {
   canAppeal,
   prioritizeQueue,
@@ -280,17 +281,24 @@ export async function createAppeal(
 
   const id = crypto.randomUUID();
   const now = Date.now();
-  await db.transaction(async (tx) => {
-    await tx.run(sql`
-      INSERT INTO report_appeals (
-        id, report_id, submitted_by_user_id, reason, status, created_at, updated_at
-      ) VALUES (${id}, ${reportId}, ${userId}, ${reason}, 'open', ${now}, ${now})
-    `);
-    await tx.run(sql`
-      UPDATE content_reports SET status = 'appealed', updated_at = ${now}
-      WHERE id = ${reportId}
-    `);
-  });
+  // D1 rejects SQL `BEGIN`; `db.batch()` gives the same all-or-nothing write.
+  // An appeal row without its report moving to `appealed` would leave the
+  // appeal invisible to the queue, so the two must land together.
+  await db.batch([
+    db.insert(reportAppeals).values({
+      id,
+      reportId,
+      submittedByUserId: userId,
+      reason,
+      status: "open",
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    }),
+    db
+      .update(contentReports)
+      .set({ status: "appealed", updatedAt: new Date(now) })
+      .where(eq(contentReports.id, reportId)),
+  ]);
   await writeAudit(
     {
       actorUserId: userId,

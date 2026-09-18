@@ -1,5 +1,9 @@
 import { sql } from "drizzle-orm";
 import { database } from "../db";
+import {
+  placeHalalVerificationEvidence,
+  placeHalalVerifications,
+} from "../db/schema";
 import type {
   HalalVerificationStatus,
   ValidatedHalalVerification,
@@ -221,69 +225,73 @@ export function d1HalalVerificationRepository(
       const verificationId = crypto.randomUUID();
       const now = Date.now();
       const attributes = input.attributes;
-      await db.transaction(async (tx) => {
-        await tx.run(sql`
-          INSERT INTO place_halal_verifications (
-            id, place_id, submitted_by_user_id, status, note, created_at, updated_at,
-            evidence_kind, claimed_status, scope, scope_note, certification_body,
-            certificate_id, captured_at, expires_at, relationship, incentivized, visibility
-          ) VALUES (
-            ${verificationId},
-            ${placeId},
-            ${userId},
-            'pending',
-            ${input.note},
-            ${now},
-            ${now},
-            ${attributes.kind},
-            ${attributes.claimedStatus},
-            ${attributes.scope},
-            ${attributes.scopeNote},
-            ${attributes.certificationBody},
-            ${attributes.certificateId},
-            ${attributes.capturedAt},
-            ${attributes.expiresAt},
-            ${attributes.relationship},
-            ${attributes.incentivized ? 1 : 0},
-            ${attributes.visibility}
-          )
-        `);
-        if (attributes.sourceUrl) {
-          await tx.run(sql`
-            INSERT INTO place_halal_verification_evidence (
-              id, verification_id, kind, url, r2_key, content_type, file_name,
-              size_bytes, created_at
-            ) VALUES (
-              ${crypto.randomUUID()}, ${verificationId}, 'link', ${attributes.sourceUrl},
-              NULL, NULL, NULL, NULL, ${now}
-            )
-          `);
-        }
-        for (const item of input.evidence) {
-          const evidenceId = crypto.randomUUID();
-          if (item.kind === "link") {
-            await tx.run(sql`
-              INSERT INTO place_halal_verification_evidence (
-                id, verification_id, kind, url, r2_key, content_type, file_name,
-                size_bytes, created_at
-              ) VALUES (
-                ${evidenceId}, ${verificationId}, 'link', ${item.url},
-                NULL, NULL, NULL, NULL, ${now}
-              )
-            `);
-          } else {
-            await tx.run(sql`
-              INSERT INTO place_halal_verification_evidence (
-                id, verification_id, kind, url, r2_key, content_type, file_name,
-                size_bytes, created_at
-              ) VALUES (
-                ${evidenceId}, ${verificationId}, 'upload', NULL,
-                ${item.key}, ${item.contentType}, ${item.fileName}, ${item.sizeBytes}, ${now}
-              )
-            `);
-          }
-        }
-      });
+      // D1 rejects SQL `BEGIN`, so this is a batch: the submission and its
+      // evidence rows land together or not at all. A verification with no
+      // evidence would sit in the moderation queue with nothing to review.
+      await db.batch([
+        db.insert(placeHalalVerifications).values({
+          id: verificationId,
+          placeId,
+          submittedByUserId: userId,
+          status: "pending",
+          note: input.note,
+          createdAt: new Date(now),
+          updatedAt: new Date(now),
+          evidenceKind: attributes.kind,
+          claimedStatus: attributes.claimedStatus,
+          scope: attributes.scope,
+          scopeNote: attributes.scopeNote,
+          certificationBody: attributes.certificationBody,
+          certificateId: attributes.certificateId,
+          capturedAt: new Date(attributes.capturedAt),
+          expiresAt: new Date(attributes.expiresAt),
+          relationship: attributes.relationship,
+          incentivized: attributes.incentivized,
+          visibility: attributes.visibility,
+        }),
+        // The declared source is stored as a link so the evidence panel can
+        // show it alongside the uploads.
+        ...(attributes.sourceUrl
+          ? [
+              db.insert(placeHalalVerificationEvidence).values({
+                id: crypto.randomUUID(),
+                verificationId,
+                kind: "link",
+                url: attributes.sourceUrl,
+                r2Key: null,
+                contentType: null,
+                fileName: null,
+                sizeBytes: null,
+                createdAt: new Date(now),
+              }),
+            ]
+          : []),
+        ...input.evidence.map((item) =>
+          item.kind === "link"
+            ? db.insert(placeHalalVerificationEvidence).values({
+                id: crypto.randomUUID(),
+                verificationId,
+                kind: "link",
+                url: item.url,
+                r2Key: null,
+                contentType: null,
+                fileName: null,
+                sizeBytes: null,
+                createdAt: new Date(now),
+              })
+            : db.insert(placeHalalVerificationEvidence).values({
+                id: crypto.randomUUID(),
+                verificationId,
+                kind: "upload",
+                url: null,
+                r2Key: item.key,
+                contentType: item.contentType,
+                fileName: item.fileName,
+                sizeBytes: item.sizeBytes,
+                createdAt: new Date(now),
+              }),
+        ),
+      ] as unknown as Parameters<typeof db.batch>[0]);
       return { id: verificationId, status: "pending" };
     },
 

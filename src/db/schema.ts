@@ -321,6 +321,23 @@ export const placeHalalVerifications = sqliteTable(
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),
+    /* Source attribution and scope, added by migration 0009. */
+    evidenceKind: text("evidence_kind").notNull().default("first-hand"),
+    claimedStatus: text("claimed_status").notNull().default("self-declared"),
+    scope: text("scope").notNull().default("venue"),
+    scopeNote: text("scope_note"),
+    certificationBody: text("certification_body"),
+    certificateId: text("certificate_id"),
+    capturedAt: integer("captured_at", { mode: "timestamp_ms" }),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+    relationship: text("relationship").notNull().default("none"),
+    incentivized: integer("incentivized", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    visibility: text("visibility").notNull().default("public"),
+    reviewedByUserId: text("reviewed_by_user_id"),
+    reviewReason: text("review_reason"),
+    supersededById: text("superseded_by_id"),
   },
   (table) => [
     index("place_halal_verifications_place_status_created_idx").on(
@@ -539,6 +556,9 @@ export const placeCheckIns = sqliteTable(
     valueVerdict: text("value_verdict", {
       enum: ["great", "fair", "overpriced"],
     }).notNull(),
+    serviceVerdict: text("service_verdict", {
+      enum: ["good", "fine", "poor"],
+    }),
     spendMinor: integer("spend_minor"),
     currency: text("currency"),
     note: text("note"),
@@ -752,6 +772,197 @@ export const auditLog = sqliteTable(
     index("audit_log_target_idx").on(
       table.targetType,
       table.targetId,
+      sql`${table.createdAt} DESC`,
+    ),
+  ],
+);
+
+
+/* ---------------------------------------------------------------------------
+ * Provenance, coverage and reputation (migration 0010).
+ * ------------------------------------------------------------------------ */
+
+export const placeSourceRecords = sqliteTable(
+  "place_source_records",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    source: text("source").notNull(),
+    sourceClass: text("source_class").notNull(),
+    externalId: text("external_id"),
+    url: text("url"),
+    observedAt: integer("observed_at", { mode: "timestamp_ms" }).notNull(),
+    licence: text("licence"),
+    attribution: text("attribution"),
+    payloadHash: text("payload_hash"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("place_source_records_place_idx").on(
+      table.placeId,
+      sql`${table.observedAt} DESC`,
+    ),
+  ],
+);
+
+/** Append-only. Nothing updates `value`; a change is a new row. */
+export const placeObservations = sqliteTable(
+  "place_observations",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    predicate: text("predicate").notNull(),
+    value: text("value").notNull(),
+    source: text("source").notNull(),
+    sourceClass: text("source_class").notNull(),
+    sourceRecordId: text("source_record_id"),
+    sourceUrl: text("source_url"),
+    submittedByUserId: text("submitted_by_user_id"),
+    observedAt: integer("observed_at", { mode: "timestamp_ms" }).notNull(),
+    validUntil: integer("valid_until", { mode: "timestamp_ms" }),
+    confidence: text("confidence", { enum: ["high", "medium", "low"] })
+      .notNull()
+      .default("medium"),
+    supersededById: text("superseded_by_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("place_observations_current_idx").on(
+      table.placeId,
+      table.predicate,
+      sql`${table.observedAt} DESC`,
+    ),
+  ],
+);
+
+export const placeInspections = sqliteTable(
+  "place_inspections",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    authority: text("authority").notNull(),
+    kind: text("kind", { enum: ["hygiene", "licence", "inspection"] }).notNull(),
+    grade: text("grade"),
+    score: integer("score"),
+    licenceStatus: text("licence_status", {
+      enum: ["active", "expired", "suspended", "not-found"],
+    }),
+    licenceNumber: text("licence_number"),
+    inspectedAt: integer("inspected_at", { mode: "timestamp_ms" }),
+    validUntil: integer("valid_until", { mode: "timestamp_ms" }),
+    sourceUrl: text("source_url"),
+    retrievedAt: integer("retrieved_at", { mode: "timestamp_ms" }).notNull(),
+    matchConfidence: text("match_confidence", {
+      enum: ["high", "medium", "low"],
+    })
+      .notNull()
+      .default("medium"),
+    matchReviewedByUserId: text("match_reviewed_by_user_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("place_inspections_place_idx").on(
+      table.placeId,
+      sql`${table.inspectedAt} DESC`,
+    ),
+  ],
+);
+
+export const cityCoverageRequests = sqliteTable(
+  "city_coverage_requests",
+  {
+    id: text("id").primaryKey(),
+    citySlug: text("city_slug").notNull(),
+    requestedByUserId: text("requested_by_user_id"),
+    /** Salted hash, never a raw identifier: a spam control, not a visitor log. */
+    requesterHash: text("requester_hash"),
+    wantsToContribute: integer("wants_to_contribute", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    note: text("note"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("city_coverage_requests_city_idx").on(
+      table.citySlug,
+      sql`${table.createdAt} DESC`,
+    ),
+  ],
+);
+
+export const contributorStanding = sqliteTable(
+  "contributor_standing",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    role: text("role", {
+      enum: ["new", "contributor", "trusted", "city-expert", "city-moderator"],
+    })
+      .notNull()
+      .default("new"),
+    citySlug: text("city_slug"),
+    acceptedCount: integer("accepted_count").notNull().default(0),
+    rejectedCount: integer("rejected_count").notNull().default(0),
+    verifiedVisits: integer("verified_visits").notNull().default(0),
+    restrictedUntil: integer("restricted_until", { mode: "timestamp_ms" }),
+    acceptedSinceRestriction: integer("accepted_since_restriction")
+      .notNull()
+      .default(0),
+    foundingContributorCity: text("founding_contributor_city"),
+    promotedAt: integer("promoted_at", { mode: "timestamp_ms" }),
+    promotedReason: text("promoted_reason"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("contributor_standing_city_idx").on(table.citySlug, table.role)],
+);
+
+/** Deliberately isolated: no discovery or ranking query joins this table. */
+export const sponsoredPlacements = sqliteTable(
+  "sponsored_placements",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    citySlug: text("city_slug"),
+    label: text("label").notNull(),
+    startsAt: integer("starts_at", { mode: "timestamp_ms" }).notNull(),
+    endsAt: integer("ends_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("sponsored_placements_window_idx").on(
+      table.citySlug,
+      table.startsAt,
+      table.endsAt,
+    ),
+  ],
+);
+
+export const transactionHandoffs = sqliteTable(
+  "transaction_handoffs",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    action: text("action", {
+      enum: ["order", "book", "pickup", "directions", "menu", "call"],
+    }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("transaction_handoffs_place_idx").on(
+      table.placeId,
       sql`${table.createdAt} DESC`,
     ),
   ],

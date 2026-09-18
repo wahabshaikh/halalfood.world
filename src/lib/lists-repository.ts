@@ -1,7 +1,8 @@
 /** D1 access for personal lists and their ordered items. */
 
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { database } from "../db";
+import { placeListItems, placeLists } from "../db/schema";
 import type { PlaceList, ValidatedList } from "./place-lists";
 
 type DatabaseClient = Awaited<ReturnType<typeof database>>;
@@ -181,21 +182,41 @@ export async function replaceListItems(
 ): Promise<void> {
   const db = await client;
   const now = Date.now();
-  await db.transaction(async (tx) => {
-    await tx.run(sql`DELETE FROM place_list_items WHERE list_id = ${listId}`);
-    for (const [index, item] of items.entries()) {
-      await tx.run(sql`
-        INSERT INTO place_list_items (list_id, place_id, position, note, created_at)
-        SELECT ${listId}, ${item.placeId}, ${index + 1}, ${item.note}, ${now}
-        WHERE EXISTS (
-          SELECT 1 FROM places WHERE id = ${item.placeId} AND halal_confirmed = 1
-        )
-      `);
-    }
-    await tx.run(sql`
-      UPDATE place_lists SET updated_at = ${now} WHERE id = ${listId}
+
+  // Only keep entries that point at a real, listed place. This used to be a
+  // `WHERE EXISTS` guard inside each insert; resolving it up front keeps the
+  // writes expressible as builders, which is what `db.batch()` needs.
+  const valid = new Set<string>();
+  if (items.length) {
+    const rows = await db.all<{ id: string }>(sql`
+      SELECT id FROM places
+      WHERE halal_confirmed = 1
+        AND id IN (${sql.join(items.map((item) => sql`${item.placeId}`), sql`, `)})
     `);
-  });
+    for (const row of rows) valid.add(row.id);
+  }
+
+  // D1 rejects SQL `BEGIN`, so this is a batch rather than a transaction: the
+  // delete and the re-inserts still land together or not at all, which matters
+  // because a half-applied reorder would silently drop places from the list.
+  await db.batch([
+    db.delete(placeListItems).where(eq(placeListItems.listId, listId)),
+    ...items
+      .filter((item) => valid.has(item.placeId))
+      .map((item, index) =>
+        db.insert(placeListItems).values({
+          listId,
+          placeId: item.placeId,
+          position: index + 1,
+          note: item.note,
+          createdAt: new Date(now),
+        }),
+      ),
+    db
+      .update(placeLists)
+      .set({ updatedAt: new Date(now) })
+      .where(eq(placeLists.id, listId)),
+  ] as unknown as Parameters<typeof db.batch>[0]);
 }
 
 /** Public lists a viewer may open without signing in. */

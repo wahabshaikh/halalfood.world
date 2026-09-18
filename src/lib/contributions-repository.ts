@@ -1,7 +1,8 @@
 /** D1 access for factual edits, duplicate reports and contribution status. */
 
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { database } from "../db";
+import { placeDuplicateReports, places } from "../db/schema";
 import {
   buildMergePlan,
   editModerationDecision,
@@ -411,43 +412,56 @@ export async function mergeDuplicate(
   const plan = buildMergePlan(keepPlaceId, mergePlaceId);
   const now = Date.now();
 
-  await db.transaction(async (tx) => {
-    for (const move of plan.moves) {
-      // Composite-key tables can collide on the target; drop the loser first.
-      if (move.table === "saved_places")
-        await tx.run(sql`
-          DELETE FROM saved_places WHERE place_id = ${mergePlaceId}
-            AND user_id IN (SELECT user_id FROM saved_places WHERE place_id = ${keepPlaceId})
-        `);
-      if (move.table === "place_ratings")
-        await tx.run(sql`
-          DELETE FROM place_ratings WHERE place_id = ${mergePlaceId}
-            AND user_id IN (SELECT user_id FROM place_ratings WHERE place_id = ${keepPlaceId})
-        `);
-      if (move.table === "place_reviews")
-        await tx.run(sql`
-          DELETE FROM place_reviews WHERE place_id = ${mergePlaceId}
-            AND user_id IN (SELECT user_id FROM place_reviews WHERE place_id = ${keepPlaceId})
-        `);
-      if (move.table === "place_list_items")
-        await tx.run(sql`
-          DELETE FROM place_list_items WHERE place_id = ${mergePlaceId}
-            AND list_id IN (SELECT list_id FROM place_list_items WHERE place_id = ${keepPlaceId})
-        `);
-      await tx.run(sql`
-        UPDATE ${sql.raw(move.table)} SET ${sql.raw(move.column)} = ${keepPlaceId}
-        WHERE ${sql.raw(move.column)} = ${mergePlaceId}
+  // D1 rejects SQL `BEGIN`, and these statements name their tables
+  // dynamically from the merge plan, so they cannot be expressed as the
+  // drizzle builders `db.batch()` requires. They run sequentially instead.
+  //
+  // That is safe here because every statement is idempotent: the DELETEs
+  // remove rows that would collide on a composite key, and the UPDATEs move
+  // `place_id` from the merged place to the kept one, so re-running finds
+  // nothing left to move. An interrupted merge can simply be run again — and
+  // the report stays `pending` until the last statement, so a half-finished
+  // merge is still visible in the queue rather than silently marked done.
+  for (const move of plan.moves) {
+    if (move.table === "saved_places")
+      await db.run(sql`
+        DELETE FROM saved_places WHERE place_id = ${mergePlaceId}
+          AND user_id IN (SELECT user_id FROM saved_places WHERE place_id = ${keepPlaceId})
       `);
-    }
-    await tx.run(sql`
-      UPDATE places SET halal_confirmed = 0 WHERE id = ${mergePlaceId}
+    if (move.table === "place_ratings")
+      await db.run(sql`
+        DELETE FROM place_ratings WHERE place_id = ${mergePlaceId}
+          AND user_id IN (SELECT user_id FROM place_ratings WHERE place_id = ${keepPlaceId})
+      `);
+    if (move.table === "place_reviews")
+      await db.run(sql`
+        DELETE FROM place_reviews WHERE place_id = ${mergePlaceId}
+          AND user_id IN (SELECT user_id FROM place_reviews WHERE place_id = ${keepPlaceId})
+      `);
+    if (move.table === "place_list_items")
+      await db.run(sql`
+        DELETE FROM place_list_items WHERE place_id = ${mergePlaceId}
+          AND list_id IN (SELECT list_id FROM place_list_items WHERE place_id = ${keepPlaceId})
+      `);
+    await db.run(sql`
+      UPDATE ${sql.raw(move.table)} SET ${sql.raw(move.column)} = ${keepPlaceId}
+      WHERE ${sql.raw(move.column)} = ${mergePlaceId}
     `);
-    await tx.run(sql`
-      UPDATE place_duplicate_reports
-      SET status = 'accepted', reviewed_by_user_id = ${moderatorUserId}, updated_at = ${now}
-      WHERE id = ${reportId}
-    `);
-  });
+  }
+
+  // Retiring the duplicate and closing the report go last and together, so the
+  // report is only marked accepted once every move above has landed.
+  await db.batch([
+    db.update(places).set({ halalConfirmed: false }).where(eq(places.id, mergePlaceId)),
+    db
+      .update(placeDuplicateReports)
+      .set({
+        status: "accepted",
+        reviewedByUserId: moderatorUserId,
+        updatedAt: new Date(now),
+      })
+      .where(eq(placeDuplicateReports.id, reportId)),
+  ]);
 
   await writeAudit(
     {
