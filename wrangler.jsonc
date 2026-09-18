@@ -29,5 +29,10 @@
   ],
   "cache": {
     "enabled": true
+  },
+  // Workers Logs: ingests, indexes, and stores console/exception logs from
+  // every invocation for 7 days. https://developers.cloudflare.com/workers/observability/logs/workers-logs/
+  "observability": {
+    "enabled": true
   }
 }
