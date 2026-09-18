@@ -90,6 +90,13 @@ Use the URL printed by the dev server. Development runs against the local D1 dat
 | `/city/[citySlug]` | SSR | Listings for one city, 60 per page, with `ItemList` + `BreadcrumbList` JSON-LD. |
 | `/place/[id]` | SSR | Canonical restaurant page with Google/listing facts, community layers, and `Restaurant` + `BreadcrumbList` JSON-LD. |
 | `/saved` | Client list + SSR chrome | Authenticated user's saved halal places; unauthenticated visitors get a sign-in CTA. |
+| `/preferences` | Client form + SSR chrome | The signed-in user's dietary standards (halal threshold, factual requirements, allergies, privacy). |
+| `/lists` | Client list + SSR chrome | The signed-in user's ranked and unranked collections. |
+| `/list/[id]` | SSR | One public or unlisted list, readable without an account. |
+| `/passport` | Client view + SSR chrome | Food passport: coverage, milestones and the personal food map. |
+| `/u/[handle]` | SSR | Public diner profile, addressed by pseudonym and gated by the owner's privacy settings. |
+| `/contributions` | Client view + SSR chrome | Status and reason for every submission, plus the appeal path. |
+| `/admin` | Client console + SSR chrome | Moderation console; 403 for any account not in `moderators`. |
 | `/add` | Client form + SSR chrome | Authenticated users can submit a halal place using Google Places or manual entry. |
 | `/login` | Client form + SSR chrome | Email OTP sign-in protected by Cloudflare Turnstile. |
 | `/robots.txt`, `/sitemap.xml` | Metadata routes | See below. |
@@ -105,11 +112,88 @@ Use the URL printed by the dev server. Development runs against the local D1 dat
 | `GET/POST /api/places/[id]/photos` | JSON/multipart | Public newest-first halal place photo gallery; authenticated image upload. |
 | `DELETE /api/places/[id]/photos/[photoId]` | JSON | Authenticated, ownership-checked deletion of the current user's photo. |
 | `GET /api/leaderboard` | JSON | Cacheable top-50 halal community contributor scores. |
+| `GET /api/discover` | JSON | Filtered, trust-aware discovery: halal status, facts, food and distance filters with explicit sorting. |
+| `GET /api/places/[id]/decision` | JSON | Decision summary: assessment, facts, return intent, dishes, status history, personal suitability. |
+| `GET/POST /api/places/[id]/check-ins` | JSON | Public return-intent aggregate; authenticated, rate-limited ten-second check-in. |
+| `GET/POST /api/places/[id]/dishes` | JSON | Community dish catalogue; a cited source publishes, an uncited one queues. |
+| `POST /api/places/[id]/edits` | JSON | Factual correction. Halal-sensitive fields always queue for moderation. |
+| `POST /api/places/[id]/duplicates` | JSON | Duplicate report for a moderator-performed merge. |
+| `GET/PUT /api/preferences` | JSON | The signed-in user's dietary standards. |
+| `GET/PUT /api/profile` | JSON | Pseudonymous public profile (handle, display name, bio, home city). |
+| `GET/POST /api/lists`, `GET/PUT/DELETE /api/lists/[id]` | JSON | Personal lists. |
+| `PUT /api/lists/[id]/items` | JSON | Replace a list's ordered contents; a published ranked list must hold only confirmed visits. |
+| `GET/POST /api/reports`, `POST /api/reports/[id]/appeal` | JSON | Report an error, fraud, harassment or misrepresentation, and appeal a decision. |
+| `GET /api/passport` | JSON | Coverage, milestones and visited places for the signed-in user. |
+| `GET /api/contributions` | JSON | Every submission by the signed-in user with its status and reason. |
+| `GET /api/admin/queue`, `GET /api/admin/audit` | JSON | Moderator-only queue and audit log. |
+| `POST /api/admin/review/[kind]/[id]` | JSON | One moderator decision on evidence, an edit, a duplicate, a report or an appeal. |
 | `GET /api/places/google-search` | JSON | Authenticated, rate-limited Google Places (New) Text Search for the add form. |
 | `GET/POST /api/places/[id]/verifications` | JSON | Public approved evidence lookup; authenticated, rate-limited community halal verification submission. |
 | `POST/GET /api/uploads/r2` | Multipart/stream | Authenticated direct R2 upload and approved/own-pending evidence download. |
 | `/api/auth/*` | Better Auth catch-all | Email OTP request, verification, session, and sign-out endpoints. |
 | `POST /api/admin/email/healthcheck` | JSON | Optional operator smoke check; disabled by default and bearer-token gated when enabled. |
+
+### The trust-first platform
+
+`migrations/0009_trust_platform.sql` and the libraries under `src/lib/` turn the
+directory into the trust-first product described in the feature catalogue:
+a six-status halal taxonomy derived from dated, scoped, expiring evidence; the
+ten-second check-in that replaces star ratings with return intent and dish
+verdicts; privacy-preserving visit verification; personal dietary standards;
+lists, the food passport and the diner profile; community contributions with
+visible status; and a moderation console backed by an audit log.
+
+The product rules, the safeguards they implement, and the places where two code
+paths have to agree are written up in
+[`docs/product/trust-platform.md`](docs/product/trust-platform.md). Read that
+before changing `src/lib/halal-taxonomy.ts` or `src/lib/discovery.ts`, which
+derive the same status two different ways (in TypeScript for the profile, in SQL
+for the map) and must stay consistent.
+
+Three rules are worth repeating here because they are easy to break by accident:
+
+- **Unverified never means Not halal.** Missing, stale or conflicting evidence
+  yields `unverified`; `not-halal` requires direct current evidence.
+- **No public percentage from a thin sample.** Below five check-ins the API
+  returns `wouldReturnPercent: null` and `insufficientData: true`, and verified
+  and unverified visits are never averaged together.
+- **Only derived verification results are stored.** A location proof is reduced
+  to a method, a confidence level and a sentence before anything is written;
+  `place_visits` holds no coordinates.
+
+Two operational notes:
+
+- D1's SQLite build has `ASIN`, `RADIANS`, `SIN`, `COS` and `SQRT` but **not**
+  `POWER`. The distance expression in `src/lib/discovery.ts` squares inline for
+  that reason.
+- The moderation console is gated on a row in the `moderators` table. Grant
+  access with
+  `npx wrangler d1 execute halalfood-world --remote --command "INSERT INTO moderators (user_id, role, created_at) VALUES ('<user id>', 'admin', unixepoch() * 1000)"`.
+
+### Provenance, coverage and the reputation ladder
+
+`migrations/0010_observations_and_coverage.sql` adds the provenance layer from
+the data expansion strategy: append-only `place_observations` carrying source,
+source class, observation date, validity and confidence; `place_source_records`
+holding licence and attribution per retrieval; `place_inspections` for official
+hygiene and licence records; coverage levels on places; city coverage requests;
+the contributor standing ladder; and sponsored placements kept in their own
+table.
+
+The rules these enforce are in
+[`docs/product/trust-platform.md`](docs/product/trust-platform.md). The ones
+easiest to break by accident:
+
+- **Never update an observation's value.** A change is a new row. The
+  `places` / `place_facts` columns are a projection the discovery query filters
+  on, not the record.
+- **Nothing in a ranking query may join `sponsored_placements`.** Sponsored
+  slots are returned as a separate list and always carry a disclosure.
+- **Official inspection records are never mixed into a diner-derived figure.**
+  They render in their own panel with the authority, date and match confidence.
+- **Coverage levels are derived from what is attached**, never set by hand. The
+  place page recomputes and writes the projection back so the city aggregate
+  cannot disagree with the place badge.
 
 ### Feature 10: contributor leaderboard
 

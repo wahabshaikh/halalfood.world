@@ -1,9 +1,24 @@
 import { sql } from "drizzle-orm";
 import { database } from "../db";
+import {
+  placeHalalVerificationEvidence,
+  placeHalalVerifications,
+} from "../db/schema";
 import type {
   HalalVerificationStatus,
   ValidatedHalalVerification,
 } from "./halal-verification";
+import {
+  isEvidenceKind,
+  isEvidenceScope,
+  isHalalTaxonomyStatus,
+  isRelationship,
+  type EvidenceKind,
+  type EvidenceRecord,
+  type EvidenceScope,
+  type HalalTaxonomyStatus,
+  type Relationship,
+} from "./halal-taxonomy";
 
 export type PublicHalalEvidence =
   | { kind: "link"; url: string }
@@ -20,6 +35,20 @@ export type PublicHalalVerification = {
   note: string | null;
   createdAt: string;
   evidence: PublicHalalEvidence[];
+  /** Source attribution and scope, shown in the evidence panel. */
+  kind: EvidenceKind;
+  claimedStatus: HalalTaxonomyStatus;
+  scope: EvidenceScope;
+  scopeNote: string | null;
+  certificationBody: string | null;
+  certificateId: string | null;
+  sourceUrl: string | null;
+  capturedAt: string | null;
+  expiresAt: string | null;
+  relationship: Relationship;
+  incentivized: boolean;
+  /** True once the effective expiry has passed; stale evidence never ranks. */
+  stale: boolean;
 };
 
 export type UploadAccess = {
@@ -54,6 +83,13 @@ function isoDate(value: unknown): string {
   if (typeof value === "number") return new Date(value).toISOString();
   if (typeof value === "string") return value;
   return new Date(0).toISOString();
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "string" && /^-?\d+$/.test(value)) return Number(value);
+  return null;
 }
 
 function visibleStatus(value: unknown): Extract<HalalVerificationStatus, "pending" | "approved"> {
@@ -123,6 +159,16 @@ export function d1HalalVerificationRepository(
           v.status,
           v.note,
           v.created_at,
+          v.evidence_kind,
+          v.claimed_status,
+          v.scope,
+          v.scope_note,
+          v.certification_body,
+          v.certificate_id,
+          v.captured_at,
+          v.expires_at,
+          v.relationship,
+          v.incentivized,
           COALESCE(
             (
               SELECT json_group_array(json_object(
@@ -145,58 +191,107 @@ export function d1HalalVerificationRepository(
         ORDER BY v.created_at DESC, v.id DESC
         LIMIT 25
       `);
-      return rows.map((row) => ({
-        id: String(row.id),
-        status: visibleStatus(row.status),
-        note: typeof row.note === "string" ? row.note : null,
-        createdAt: isoDate(row.created_at),
-        evidence: mapEvidence(row.evidence),
-      }));
+      const now = Date.now();
+      return rows.map((row) => {
+        const capturedAt = numberOrNull(row.captured_at) ?? numberOrNull(row.created_at);
+        const expiresAt = numberOrNull(row.expires_at);
+        return {
+          id: String(row.id),
+          status: visibleStatus(row.status),
+          note: typeof row.note === "string" ? row.note : null,
+          createdAt: isoDate(row.created_at),
+          evidence: mapEvidence(row.evidence),
+          kind: isEvidenceKind(row.evidence_kind) ? row.evidence_kind : "first-hand",
+          claimedStatus: isHalalTaxonomyStatus(row.claimed_status)
+            ? row.claimed_status
+            : "self-declared",
+          scope: isEvidenceScope(row.scope) ? row.scope : "venue",
+          scopeNote: typeof row.scope_note === "string" ? row.scope_note : null,
+          certificationBody:
+            typeof row.certification_body === "string" ? row.certification_body : null,
+          certificateId: typeof row.certificate_id === "string" ? row.certificate_id : null,
+          sourceUrl: null,
+          capturedAt: capturedAt === null ? null : new Date(capturedAt).toISOString(),
+          expiresAt: expiresAt === null ? null : new Date(expiresAt).toISOString(),
+          relationship: isRelationship(row.relationship) ? row.relationship : "none",
+          incentivized: row.incentivized === 1 || row.incentivized === true,
+          stale: expiresAt !== null && expiresAt <= now,
+        } satisfies PublicHalalVerification;
+      });
     },
 
     async create(userId, placeId, input) {
       const db = await client;
       const verificationId = crypto.randomUUID();
       const now = Date.now();
-      await db.transaction(async (tx) => {
-        await tx.run(sql`
-          INSERT INTO place_halal_verifications (
-            id, place_id, submitted_by_user_id, status, note, created_at, updated_at
-          ) VALUES (
-            ${verificationId},
-            ${placeId},
-            ${userId},
-            'pending',
-            ${input.note},
-            ${now},
-            ${now}
-          )
-        `);
-        for (const item of input.evidence) {
-          const evidenceId = crypto.randomUUID();
-          if (item.kind === "link") {
-            await tx.run(sql`
-              INSERT INTO place_halal_verification_evidence (
-                id, verification_id, kind, url, r2_key, content_type, file_name,
-                size_bytes, created_at
-              ) VALUES (
-                ${evidenceId}, ${verificationId}, 'link', ${item.url},
-                NULL, NULL, NULL, NULL, ${now}
-              )
-            `);
-          } else {
-            await tx.run(sql`
-              INSERT INTO place_halal_verification_evidence (
-                id, verification_id, kind, url, r2_key, content_type, file_name,
-                size_bytes, created_at
-              ) VALUES (
-                ${evidenceId}, ${verificationId}, 'upload', NULL,
-                ${item.key}, ${item.contentType}, ${item.fileName}, ${item.sizeBytes}, ${now}
-              )
-            `);
-          }
-        }
-      });
+      const attributes = input.attributes;
+      // D1 rejects SQL `BEGIN`, so this is a batch: the submission and its
+      // evidence rows land together or not at all. A verification with no
+      // evidence would sit in the moderation queue with nothing to review.
+      await db.batch([
+        db.insert(placeHalalVerifications).values({
+          id: verificationId,
+          placeId,
+          submittedByUserId: userId,
+          status: "pending",
+          note: input.note,
+          createdAt: new Date(now),
+          updatedAt: new Date(now),
+          evidenceKind: attributes.kind,
+          claimedStatus: attributes.claimedStatus,
+          scope: attributes.scope,
+          scopeNote: attributes.scopeNote,
+          certificationBody: attributes.certificationBody,
+          certificateId: attributes.certificateId,
+          capturedAt: new Date(attributes.capturedAt),
+          expiresAt: new Date(attributes.expiresAt),
+          relationship: attributes.relationship,
+          incentivized: attributes.incentivized,
+          visibility: attributes.visibility,
+        }),
+        // The declared source is stored as a link so the evidence panel can
+        // show it alongside the uploads.
+        ...(attributes.sourceUrl
+          ? [
+              db.insert(placeHalalVerificationEvidence).values({
+                id: crypto.randomUUID(),
+                verificationId,
+                kind: "link",
+                url: attributes.sourceUrl,
+                r2Key: null,
+                contentType: null,
+                fileName: null,
+                sizeBytes: null,
+                createdAt: new Date(now),
+              }),
+            ]
+          : []),
+        ...input.evidence.map((item) =>
+          item.kind === "link"
+            ? db.insert(placeHalalVerificationEvidence).values({
+                id: crypto.randomUUID(),
+                verificationId,
+                kind: "link",
+                url: item.url,
+                r2Key: null,
+                contentType: null,
+                fileName: null,
+                sizeBytes: null,
+                createdAt: new Date(now),
+              })
+            : db.insert(placeHalalVerificationEvidence).values({
+                id: crypto.randomUUID(),
+                verificationId,
+                kind: "upload",
+                url: null,
+                r2Key: item.key,
+                contentType: item.contentType,
+                fileName: item.fileName,
+                sizeBytes: item.sizeBytes,
+                createdAt: new Date(now),
+              }),
+        ),
+      ] as unknown as Parameters<typeof db.batch>[0]);
       return { id: verificationId, status: "pending" };
     },
 
@@ -249,4 +344,68 @@ export async function submitHalalVerification(
     ok: true,
     verification: await repository.create(userId, placeId, input),
   };
+}
+
+
+/* ------------------------------------------------- assessment source rows -- */
+
+/**
+ * Approved evidence for one place, shaped for `deriveHalalAssessment`.
+ *
+ * The query is keyed on `place_id` alone, which is what keeps branch scoping
+ * honest: every branch is its own `places` row, so evidence for one location
+ * can never reach another.
+ */
+export async function listApprovedEvidenceRecords(
+  placeId: string,
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
+): Promise<EvidenceRecord[]> {
+  const db = await client;
+  const rows = await db.all<Record<string, unknown>>(sql`
+    SELECT
+      v.id,
+      v.evidence_kind,
+      v.claimed_status,
+      v.scope,
+      v.scope_note,
+      v.captured_at,
+      v.expires_at,
+      v.created_at,
+      v.submitted_by_user_id,
+      v.relationship,
+      v.incentivized,
+      v.certification_body
+    FROM place_halal_verifications AS v
+    INNER JOIN places AS p ON p.id = v.place_id
+    WHERE v.place_id = ${placeId}
+      AND v.status = 'approved'
+      AND v.superseded_by_id IS NULL
+      AND p.halal_confirmed = 1
+    ORDER BY v.created_at DESC
+    LIMIT 200
+  `);
+
+  return rows.flatMap((row): EvidenceRecord[] => {
+    const capturedAt = numberOrNull(row.captured_at) ?? numberOrNull(row.created_at);
+    if (capturedAt === null || typeof row.id !== "string") return [];
+    return [
+      {
+        id: row.id,
+        kind: isEvidenceKind(row.evidence_kind) ? row.evidence_kind : "first-hand",
+        claimedStatus: isHalalTaxonomyStatus(row.claimed_status)
+          ? row.claimed_status
+          : "self-declared",
+        scope: isEvidenceScope(row.scope) ? row.scope : "venue",
+        scopeNote: typeof row.scope_note === "string" ? row.scope_note : null,
+        capturedAt,
+        expiresAt: numberOrNull(row.expires_at),
+        submittedByUserId:
+          typeof row.submitted_by_user_id === "string" ? row.submitted_by_user_id : "",
+        relationship: isRelationship(row.relationship) ? row.relationship : "none",
+        incentivized: row.incentivized === 1 || row.incentivized === true,
+        certificationBody:
+          typeof row.certification_body === "string" ? row.certification_body : null,
+      },
+    ];
+  });
 }
