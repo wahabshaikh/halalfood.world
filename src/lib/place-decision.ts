@@ -17,7 +17,12 @@ import {
   type HalalAssessment,
 } from "./halal-taxonomy";
 import { listApprovedEvidenceRecords } from "./halal-verifications";
-import { mapPlaceFacts, priceBandLabel, type PlaceFacts } from "./place-facts";
+import {
+  emptyFacts,
+  mapPlaceFacts,
+  priceBandLabel,
+  type PlaceFacts,
+} from "./place-facts";
 import { getCheckInSummary, getDishHighlights } from "./visits";
 import type { CheckInSummary, DishHighlights } from "./check-in";
 import {
@@ -27,6 +32,38 @@ import {
 } from "./user-preferences";
 
 type DatabaseClient = Awaited<ReturnType<typeof database>>;
+
+/** Fallbacks that read as "nothing recorded", never as "nothing here is good". */
+const EMPTY_CHECK_IN_SUMMARY: CheckInSummary = {
+  verified: {
+    count: 0,
+    wouldReturnPercent: null,
+    definitely: 0,
+    maybe: 0,
+    no: 0,
+    insufficientData: true,
+  },
+  unverified: {
+    count: 0,
+    wouldReturnPercent: null,
+    definitely: 0,
+    maybe: 0,
+    no: 0,
+    insufficientData: true,
+  },
+  excludedCount: 0,
+  value: { great: 0, fair: 0, overpriced: 0 },
+  service: { good: 0, fine: 0, poor: 0, rated: 0 },
+  medianSpendMinor: null,
+  currency: null,
+};
+
+const EMPTY_DISH_HIGHLIGHTS: DishHighlights = {
+  mostOrdered: [],
+  mostRecommended: [],
+  commonlyAvoided: [],
+  insufficientData: true,
+};
 
 export type DecisionSummary = {
   placeId: string;
@@ -98,11 +135,29 @@ export async function getDecisionSummary(
   now: number = Date.now(),
   client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): Promise<DecisionSummary> {
+  // The halal status is the page's core promise, so it does not share a
+  // failure with anything else: each read settles on its own and falls back to
+  // an empty result. A check-in query that fails — for instance against a
+  // database where 0010 has not been applied and `service_verdict` is missing
+  // — must not take the status, the evidence and the facts down with it.
+  const settle = async <T,>(
+    label: string,
+    read: () => Promise<T>,
+    fallback: T,
+  ): Promise<T> => {
+    try {
+      return await read();
+    } catch (error) {
+      console.error(`decision.${label} failed`, placeId, error);
+      return fallback;
+    }
+  };
+
   const [evidence, facts, checkIns, dishes] = await Promise.all([
-    listApprovedEvidenceRecords(placeId, client),
-    getPlaceFacts(placeId, client),
-    getCheckInSummary(placeId, client),
-    getDishHighlights(placeId, client),
+    settle("evidence", () => listApprovedEvidenceRecords(placeId, client), []),
+    settle("facts", () => getPlaceFacts(placeId, client), emptyFacts(placeId)),
+    settle("check-ins", () => getCheckInSummary(placeId, client), EMPTY_CHECK_IN_SUMMARY),
+    settle("dishes", () => getDishHighlights(placeId, client), EMPTY_DISH_HIGHLIGHTS),
   ]);
 
   const assessment = deriveHalalAssessment(evidence, now);

@@ -60,6 +60,7 @@ import {
   getObservedFacts,
   listInspections,
 } from "../../../src/lib/observations-repository";
+import type { ObservedFact } from "../../../src/lib/observations";
 import { coverageLevel } from "../../../src/lib/coverage";
 import { refreshCoverageLevel } from "../../../src/lib/coverage-repository";
 import {
@@ -96,51 +97,85 @@ function placeInitials(name: string) {
  * readable by a crawler and by a visitor with JavaScript switched off.
  */
 async function loadDecision(placeId: string, userId: string | null) {
-  try {
-    const preferences = userId ? await getPreferences(userId) : null;
-    const now = Date.now();
-    const [decision, history, verifications, dishes, observed, inspections] =
-      await Promise.all([
-        getDecisionSummary(placeId, preferences),
-        listStatusHistory(placeId),
-        d1HalalVerificationRepository().list(placeId, userId),
-        listDishes(placeId),
-        getObservedFacts(placeId, now),
-        listInspections(placeId),
-      ]);
+  // Each piece is settled on its own. One `Promise.all` here would mean a
+  // single missing table — say `place_observations` before migration 0010 has
+  // been applied — silently removing the halal status, the evidence panel and
+  // the check-in along with it. The status is the point of the page, so it
+  // fails alone or not at all, and every degraded piece is logged rather than
+  // disappearing quietly behind a 200.
+  const now = Date.now();
+  const preferences = userId
+    ? await getPreferences(userId).catch(() => null)
+    : null;
 
-    // Coverage is derived from what is actually attached, so the badge can
-    // never promise more than the page can show.
-    const coverage = coverageLevel({
-      evidenceCount: decision.assessment.currentEvidenceCount,
-      observationCount: observed.size,
-      dishCount: dishes.length,
-      checkInCount:
-        decision.checkIns.verified.count + decision.checkIns.unverified.count,
-      verifiedCheckInCount: decision.checkIns.verified.count,
-      distinctContributors: decision.assessment.contributorCount,
-      hasInspection: inspections.length > 0,
-    });
+  const decision = await getDecisionSummary(placeId, preferences).catch(
+    (error: unknown) => {
+      console.error("place.decision-summary failed", placeId, error);
+      return null;
+    },
+  );
+  // Without the decision summary there is no page to degrade into.
+  if (!decision) return null;
 
-    // The stored column is a projection used by the city aggregates; the page
-    // derives the level live and writes it back so the two cannot drift apart
-    // and show a visitor two different answers. Same pattern as the Google
-    // details cache above it.
-    await refreshCoverageLevel(placeId, coverage).catch(() => {});
+  const settle = async <T,>(
+    label: string,
+    read: () => Promise<T>,
+    fallback: T,
+  ): Promise<T> => {
+    try {
+      return await read();
+    } catch (error) {
+      console.error(`place.${label} failed`, placeId, error);
+      return fallback;
+    }
+  };
 
-    return {
-      decision,
-      history,
-      verifications,
-      dishes,
-      facts: [...observed.values()],
-      inspections,
-      coverage,
-      now,
-    };
-  } catch {
-    return null;
-  }
+  const [history, verifications, dishes, observed, inspections] =
+    await Promise.all([
+      settle("status-history", () => listStatusHistory(placeId), []),
+      settle(
+        "verifications",
+        () => d1HalalVerificationRepository().list(placeId, userId),
+        [],
+      ),
+      settle("dishes", () => listDishes(placeId), []),
+      settle(
+        "observations",
+        () => getObservedFacts(placeId, now),
+        new Map<string, ObservedFact>(),
+      ),
+      settle("inspections", () => listInspections(placeId), []),
+    ]);
+
+  // Coverage is derived from what is actually attached, so the badge can
+  // never promise more than the page can show.
+  const coverage = coverageLevel({
+    evidenceCount: decision.assessment.currentEvidenceCount,
+    observationCount: observed.size,
+    dishCount: dishes.length,
+    checkInCount:
+      decision.checkIns.verified.count + decision.checkIns.unverified.count,
+    verifiedCheckInCount: decision.checkIns.verified.count,
+    distinctContributors: decision.assessment.contributorCount,
+    hasInspection: inspections.length > 0,
+  });
+
+  // The stored column is a projection used by the city aggregates; the page
+  // derives the level live and writes it back so the two cannot drift apart
+  // and show a visitor two different answers. Same pattern as the Google
+  // details cache above it.
+  await refreshCoverageLevel(placeId, coverage).catch(() => {});
+
+  return {
+    decision,
+    history,
+    verifications,
+    dishes,
+    facts: [...observed.values()],
+    inspections,
+    coverage,
+    now,
+  };
 }
 
 function safeWebsite(value: string | null) {
