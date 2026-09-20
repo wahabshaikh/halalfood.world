@@ -12,3 +12,8 @@ dist
 .worktrees/
 .vinext
 next-env.d.ts
+
+# Impeccable design skill: platform-specific engine binary, re-downloaded by
+# the launcher on first run. The skill's instructions and references are
+# committed; this 16MB artifact is not.
+.claude/skills/impeccable/scripts/bin/
