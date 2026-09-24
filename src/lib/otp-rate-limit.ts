@@ -567,3 +567,83 @@ export async function consumeHalalVerificationUploadLimits(
 export function retryAfterSeconds(milliseconds: number): number {
   return Math.max(1, Math.ceil(milliseconds / 1000));
 }
+
+/* ------------------------------------------------ trust-platform budgets -- */
+
+/** A check-in is cheap to write but easy to farm, so the daily cap is low. */
+export const CHECK_IN_RATE_LIMITS = {
+  mutationUser: { windowMs: 24 * 60 * 60 * 1000, maxCount: 40, cooldownMs: 2000 },
+  mutationIp: { windowMs: 24 * 60 * 60 * 1000, maxCount: 200, cooldownMs: 500 },
+} as const;
+
+/** Lists, preferences and other low-risk personal writes. */
+export const PERSONAL_RATE_LIMITS = {
+  mutationUser: { windowMs: 60 * 60 * 1000, maxCount: 120, cooldownMs: 250 },
+  mutationIp: { windowMs: 60 * 60 * 1000, maxCount: 300, cooldownMs: 100 },
+} as const;
+
+/** Community contributions: edits, dishes, duplicate reports, abuse reports. */
+export const CONTRIBUTION_RATE_LIMITS = {
+  mutationUser: { windowMs: 24 * 60 * 60 * 1000, maxCount: 60, cooldownMs: 1000 },
+  mutationIp: { windowMs: 24 * 60 * 60 * 1000, maxCount: 200, cooldownMs: 500 },
+} as const;
+
+export async function consumeCheckInLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("check-in:mutate:user", userId),
+    identifierKey("check-in:mutate:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: CHECK_IN_RATE_LIMITS.mutationUser },
+      { key: ipKey, rule: CHECK_IN_RATE_LIMITS.mutationIp },
+    ],
+    store,
+    now,
+  );
+}
+
+export async function consumePersonalWriteLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("personal:mutate:user", userId),
+    identifierKey("personal:mutate:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: PERSONAL_RATE_LIMITS.mutationUser },
+      { key: ipKey, rule: PERSONAL_RATE_LIMITS.mutationIp },
+    ],
+    store,
+    now,
+  );
+}
+
+export async function consumeContributionLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("contribution:mutate:user", userId),
+    identifierKey("contribution:mutate:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: CONTRIBUTION_RATE_LIMITS.mutationUser },
+      { key: ipKey, rule: CONTRIBUTION_RATE_LIMITS.mutationIp },
+    ],
+    store,
+    now,
+  );
+}

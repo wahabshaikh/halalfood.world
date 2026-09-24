@@ -38,6 +38,37 @@ import ShareButton from "../../../src/components/share-button";
 import SavePlaceButton from "../../../src/components/save-place-button";
 import PlaceHalalStatus from "./place-halal-status";
 import PlaceHalalVerification from "./place-halal-verification";
+import PlaceCheckIn from "./place-check-in";
+import PlaceContribute from "./place-contribute";
+import {
+  DecisionHeadline,
+  DishHighlightPanel,
+  FactChips,
+  ReturnIntentPanel,
+  ScopeNote,
+} from "../../../src/components/decision-summary";
+import EvidencePanel from "../../../src/components/evidence-panel";
+import {
+  getDecisionSummary,
+  listStatusHistory,
+} from "../../../src/lib/place-decision";
+import { getPreferences } from "../../../src/lib/preferences-repository";
+import PersonalSuitability from "./personal-suitability";
+import { d1HalalVerificationRepository } from "../../../src/lib/halal-verifications";
+import { listDishes } from "../../../src/lib/dishes-repository";
+import {
+  getObservedFacts,
+  listInspections,
+} from "../../../src/lib/observations-repository";
+import type { ObservedFact } from "../../../src/lib/observations";
+import { coverageLevel } from "../../../src/lib/coverage";
+import { refreshCoverageLevel } from "../../../src/lib/coverage-repository";
+import {
+  CoverageBadge,
+  InspectionPanel,
+  ProvenancePanel,
+  ServicePanel,
+} from "../../../src/components/provenance-panels";
 import PlaceRating from "./place-rating";
 import PlaceReviews from "./place-reviews";
 import PlacePhotos from "./place-photos";
@@ -57,6 +88,94 @@ function placeInitials(name: string) {
   const words = name.trim().split(/\s+/).filter(Boolean);
   const initials = words.slice(0, 2).map((word) => word[0]?.toUpperCase() ?? "").join("");
   return initials || "HF";
+}
+
+/**
+ * The decision bundle is loaded separately from the listing so a failure here
+ * degrades one section rather than 404-ing a page that does exist. Everything
+ * is server-rendered: the status, its evidence and the dish verdicts have to be
+ * readable by a crawler and by a visitor with JavaScript switched off.
+ */
+async function loadDecision(placeId: string, userId: string | null) {
+  // Each piece is settled on its own. One `Promise.all` here would mean a
+  // single missing table — say `place_observations` before migration 0010 has
+  // been applied — silently removing the halal status, the evidence panel and
+  // the check-in along with it. The status is the point of the page, so it
+  // fails alone or not at all, and every degraded piece is logged rather than
+  // disappearing quietly behind a 200.
+  const now = Date.now();
+  const preferences = userId
+    ? await getPreferences(userId).catch(() => null)
+    : null;
+
+  const decision = await getDecisionSummary(placeId, preferences).catch(
+    (error: unknown) => {
+      console.error("place.decision-summary failed", placeId, error);
+      return null;
+    },
+  );
+  // Without the decision summary there is no page to degrade into.
+  if (!decision) return null;
+
+  const settle = async <T,>(
+    label: string,
+    read: () => Promise<T>,
+    fallback: T,
+  ): Promise<T> => {
+    try {
+      return await read();
+    } catch (error) {
+      console.error(`place.${label} failed`, placeId, error);
+      return fallback;
+    }
+  };
+
+  const [history, verifications, dishes, observed, inspections] =
+    await Promise.all([
+      settle("status-history", () => listStatusHistory(placeId), []),
+      settle(
+        "verifications",
+        () => d1HalalVerificationRepository().list(placeId, userId),
+        [],
+      ),
+      settle("dishes", () => listDishes(placeId), []),
+      settle(
+        "observations",
+        () => getObservedFacts(placeId, now),
+        new Map<string, ObservedFact>(),
+      ),
+      settle("inspections", () => listInspections(placeId), []),
+    ]);
+
+  // Coverage is derived from what is actually attached, so the badge can
+  // never promise more than the page can show.
+  const coverage = coverageLevel({
+    evidenceCount: decision.assessment.currentEvidenceCount,
+    observationCount: observed.size,
+    dishCount: dishes.length,
+    checkInCount:
+      decision.checkIns.verified.count + decision.checkIns.unverified.count,
+    verifiedCheckInCount: decision.checkIns.verified.count,
+    distinctContributors: decision.assessment.contributorCount,
+    hasInspection: inspections.length > 0,
+  });
+
+  // The stored column is a projection used by the city aggregates; the page
+  // derives the level live and writes it back so the two cannot drift apart
+  // and show a visitor two different answers. Same pattern as the Google
+  // details cache above it.
+  await refreshCoverageLevel(placeId, coverage).catch(() => {});
+
+  return {
+    decision,
+    history,
+    verifications,
+    dishes,
+    facts: [...observed.values()],
+    inspections,
+    coverage,
+    now,
+  };
 }
 
 function safeWebsite(value: string | null) {
@@ -120,6 +239,10 @@ export default async function PlacePage({
     );
 
   const { place, google, community } = loaded.data;
+  // Loaded without a session so the page stays publicly cacheable and fully
+  // crawlable. The signed-in suitability check is layered on by
+  // <PersonalSuitability>, which reads the same data from /decision.
+  const decisionBundle = await loadDecision(place.id, null);
   const city = cityName(place.city_slug);
   const website = safeWebsite(google.website);
   const maps = safeWebsite(google.mapsUrl);
@@ -217,8 +340,67 @@ export default async function PlacePage({
             </div>
           </div>
 
+          {decisionBundle && (
+            <>
+              <DecisionHeadline
+                assessment={decisionBundle.decision.assessment}
+                headline={decisionBundle.decision.headline}
+                evidenceLine={decisionBundle.decision.evidenceLine}
+                suitability={null}
+              />
+              <PersonalSuitability placeId={place.id} />
+              <ScopeNote assessment={decisionBundle.decision.assessment} />
+              <CoverageBadge level={decisionBundle.coverage} />
+            </>
+          )}
+
           <div className="place-detail-grid">
             <div className="place-detail-main">
+              {decisionBundle && (
+                <>
+                  <EvidencePanel
+                    assessment={decisionBundle.decision.assessment}
+                    verifications={decisionBundle.verifications}
+                    history={decisionBundle.history}
+                  />
+                  <FactChips facts={decisionBundle.decision.facts} />
+                  <ReturnIntentPanel checkIns={decisionBundle.decision.checkIns} />
+                  <ServicePanel checkIns={decisionBundle.decision.checkIns} />
+                  <InspectionPanel inspections={decisionBundle.inspections} />
+                  <ProvenancePanel
+                    facts={decisionBundle.facts}
+                    now={decisionBundle.now}
+                  />
+                  <DishHighlightPanel dishes={decisionBundle.decision.dishes} />
+                  {decisionBundle.dishes.length > 0 && (
+                    <section className="menu-panel" aria-labelledby="menu-panel-title">
+                      <div className="place-section-heading">
+                        <div>
+                          <p className="eyebrow">MENU CONTRIBUTED BY THE COMMUNITY</p>
+                          <h2 id="menu-panel-title">Dishes on file</h2>
+                        </div>
+                      </div>
+                      <ul className="menu-list">
+                        {decisionBundle.dishes.map((dish) => (
+                          <li key={dish.id} className={`menu-item is-${dish.halalScope}`}>
+                            <span className="menu-item-name">{dish.name}</span>
+                            <span className="menu-item-meta">
+                              {dish.halalScope === "unknown"
+                                ? "Halal scope unknown"
+                                : dish.halalScope === "halal"
+                                  ? "Halal"
+                                  : "Not halal"}
+                              {dish.status === "pending" ? " · awaiting review" : ""}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+                  <PlaceCheckIn placeId={place.id} placeName={place.name} />
+                  <PlaceContribute placeId={place.id} />
+                </>
+              )}
               <section className="community-section" aria-labelledby="community-evidence-title">
                 <div className="place-section-heading">
                   <div>
