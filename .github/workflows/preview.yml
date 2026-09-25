@@ -27,13 +27,13 @@ jobs:
 
     steps:
       - name: Check out pull request
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -51,7 +51,7 @@ jobs:
         run: tar -czf preview-build.tgz dist migrations
 
       - name: Upload Cloudflare build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: halalfood-world-preview-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
           path: preview-build.tgz
@@ -74,13 +74,13 @@ jobs:
 
     steps:
       - name: Check out trusted deployment tooling
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -89,7 +89,7 @@ jobs:
         run: npm ci
 
       - name: Download Cloudflare build artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: halalfood-world-preview-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
           path: .
@@ -109,6 +109,38 @@ jobs:
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CLOUDFLARE_API_TOKEN repository secret"; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CLOUDFLARE_ACCOUNT_ID repository secret"; exit 1; }
+
+      - name: Verify Cloudflare API token is active
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          # Uses Cloudflare's own token-verification endpoint
+          # (https://developers.cloudflare.com/fundamentals/api/reference/permissions/#verify-a-token)
+          # so an invalid/expired/revoked CLOUDFLARE_API_TOKEN fails fast with an
+          # actionable message instead of a bare 401 from a random D1/Workers call.
+          node --input-type=module <<'NODE'
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const response = await fetch('https://api.cloudflare.com/client/v4/user/tokens/verify', {
+            headers: { Authorization: 'Bearer ' + token },
+          });
+          const raw = await response.text();
+          let payload;
+          try {
+            payload = raw ? JSON.parse(raw) : {};
+          } catch {
+            throw new Error('Cloudflare token verification returned non-JSON: ' + raw.slice(0, 500));
+          }
+          if (!response.ok || payload.success !== true) {
+            throw new Error(
+              'CLOUDFLARE_API_TOKEN failed Cloudflare\'s token-verify check (' + response.status + '): ' +
+                raw.slice(0, 500) +
+                '\nGenerate a fresh token at https://dash.cloudflare.com/profile/api-tokens with ' +
+                '"Workers Scripts:Edit" and "D1:Edit" permissions scoped to this account, then update ' +
+                'the CLOUDFLARE_API_TOKEN repository secret.',
+            );
+          }
+          console.log('Cloudflare API token is active (status: ' + payload.result?.status + ')');
+          NODE
 
       - name: Create or reuse Cloudflare D1 preview database
         id: d1
@@ -300,7 +332,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment preview URL on pull request
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           PREVIEW_URL: ${{ steps.upload.outputs.preview_url }}
           D1_DATABASE_NAME: halalfood-world-pr-${{ github.event.pull_request.number }}
@@ -353,7 +385,7 @@ jobs:
             }
 
       - name: Publish GitHub preview deployment
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           PREVIEW_URL: ${{ steps.upload.outputs.preview_url }}
           PREVIEW_ALIAS: pr-${{ github.event.pull_request.number }}
@@ -601,7 +633,7 @@ jobs:
 
       - name: Mark GitHub preview deployment inactive
         if: always()
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const { owner, repo } = context.repo;
