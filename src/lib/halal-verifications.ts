@@ -1,8 +1,11 @@
 import { sql } from "drizzle-orm";
 import { database } from "../db";
-import type {
-  HalalVerificationStatus,
-  ValidatedHalalVerification,
+import {
+  HALAL_CHECK_ANSWER_VALUES,
+  type HalalCheckAnswers,
+  type HalalCheckQuestion,
+  type HalalVerificationStatus,
+  type ValidatedHalalVerification,
 } from "./halal-verification";
 
 export type PublicHalalEvidence =
@@ -20,6 +23,8 @@ export type PublicHalalVerification = {
   note: string | null;
   createdAt: string;
   evidence: PublicHalalEvidence[];
+  /** Structured answers from a step-by-step check, when the submitter gave any. */
+  answers: HalalCheckAnswers | null;
 };
 
 export type UploadAccess = {
@@ -62,6 +67,24 @@ function visibleStatus(value: unknown): Extract<HalalVerificationStatus, "pendin
 
 function uploadUrl(key: string): string {
   return `/api/uploads/r2?key=${encodeURIComponent(key)}`;
+}
+
+function answerValue<Question extends HalalCheckQuestion>(
+  question: Question,
+  value: unknown,
+): HalalCheckAnswers[Question] {
+  const allowed = HALAL_CHECK_ANSWER_VALUES[question] as readonly unknown[];
+  return (allowed.includes(value) ? value : null) as HalalCheckAnswers[Question];
+}
+
+/** Map the LEFT JOINed answer columns; a missing row means no structured check. */
+export function mapCheckAnswers(row: Record<string, unknown>): HalalCheckAnswers | null {
+  if (typeof row.answers_id !== "string") return null;
+  return {
+    certificate: answerValue("certificate", row.certificate),
+    alcohol: answerValue("alcohol", row.alcohol),
+    meat: answerValue("meat", row.meat),
+  };
 }
 
 function mapEvidence(value: unknown): PublicHalalEvidence[] {
@@ -123,6 +146,10 @@ export function d1HalalVerificationRepository(
           v.status,
           v.note,
           v.created_at,
+          a.verification_id AS answers_id,
+          a.certificate,
+          a.alcohol,
+          a.meat,
           COALESCE(
             (
               SELECT json_group_array(json_object(
@@ -139,6 +166,7 @@ export function d1HalalVerificationRepository(
           ) AS evidence
         FROM place_halal_verifications AS v
         INNER JOIN places AS p ON p.id = v.place_id
+        LEFT JOIN place_halal_check_answers AS a ON a.verification_id = v.id
         WHERE v.place_id = ${placeId}
           AND p.halal_confirmed = 1
           AND ${visibility}
@@ -151,6 +179,7 @@ export function d1HalalVerificationRepository(
         note: typeof row.note === "string" ? row.note : null,
         createdAt: isoDate(row.created_at),
         evidence: mapEvidence(row.evidence),
+        answers: mapCheckAnswers(row),
       }));
     },
 
@@ -158,45 +187,49 @@ export function d1HalalVerificationRepository(
       const db = await client;
       const verificationId = crypto.randomUUID();
       const now = Date.now();
-      await db.transaction(async (tx) => {
-        await tx.run(sql`
+      // D1 rejects SQL BEGIN, so the rows are written as one atomic batch.
+      const statements = [
+        db.run(sql`
           INSERT INTO place_halal_verifications (
             id, place_id, submitted_by_user_id, status, note, created_at, updated_at
           ) VALUES (
-            ${verificationId},
-            ${placeId},
-            ${userId},
-            'pending',
-            ${input.note},
-            ${now},
-            ${now}
+            ${verificationId}, ${placeId}, ${userId}, 'pending', ${input.note}, ${now}, ${now}
           )
-        `);
-        for (const item of input.evidence) {
-          const evidenceId = crypto.randomUUID();
-          if (item.kind === "link") {
-            await tx.run(sql`
-              INSERT INTO place_halal_verification_evidence (
-                id, verification_id, kind, url, r2_key, content_type, file_name,
-                size_bytes, created_at
-              ) VALUES (
-                ${evidenceId}, ${verificationId}, 'link', ${item.url},
-                NULL, NULL, NULL, NULL, ${now}
-              )
-            `);
-          } else {
-            await tx.run(sql`
-              INSERT INTO place_halal_verification_evidence (
-                id, verification_id, kind, url, r2_key, content_type, file_name,
-                size_bytes, created_at
-              ) VALUES (
-                ${evidenceId}, ${verificationId}, 'upload', NULL,
-                ${item.key}, ${item.contentType}, ${item.fileName}, ${item.sizeBytes}, ${now}
-              )
-            `);
-          }
-        }
-      });
+        `),
+        ...input.evidence.map((item) =>
+          item.kind === "link"
+            ? db.run(sql`
+                INSERT INTO place_halal_verification_evidence (
+                  id, verification_id, kind, url, r2_key, content_type, file_name,
+                  size_bytes, created_at
+                ) VALUES (
+                  ${crypto.randomUUID()}, ${verificationId}, 'link', ${item.url},
+                  NULL, NULL, NULL, NULL, ${now}
+                )
+              `)
+            : db.run(sql`
+                INSERT INTO place_halal_verification_evidence (
+                  id, verification_id, kind, url, r2_key, content_type, file_name,
+                  size_bytes, created_at
+                ) VALUES (
+                  ${crypto.randomUUID()}, ${verificationId}, 'upload', NULL,
+                  ${item.key}, ${item.contentType}, ${item.fileName}, ${item.sizeBytes}, ${now}
+                )
+              `),
+        ),
+      ];
+      const answers = input.answers;
+      if (answers && Object.values(answers).some((value) => value !== null))
+        statements.push(
+          db.run(sql`
+            INSERT INTO place_halal_check_answers (
+              verification_id, certificate, alcohol, meat, created_at
+            ) VALUES (
+              ${verificationId}, ${answers.certificate}, ${answers.alcohol}, ${answers.meat}, ${now}
+            )
+          `),
+        );
+      await db.batch(statements as [(typeof statements)[number], ...(typeof statements)[number][]]);
       return { id: verificationId, status: "pending" };
     },
 
@@ -249,4 +282,67 @@ export async function submitHalalVerification(
     ok: true,
     verification: await repository.create(userId, placeId, input),
   };
+}
+
+export type HalalGlanceItem<Value> = { value: Value; reviewedAt: string } | null;
+
+export type HalalCheckGlance = {
+  [Question in HalalCheckQuestion]: HalalGlanceItem<
+    Exclude<HalalCheckAnswers[Question], "unsure" | null>
+  >;
+};
+
+export type ApprovedCheckRow = {
+  certificate: unknown;
+  alcohol: unknown;
+  meat: unknown;
+  reviewedAt: unknown;
+};
+
+/**
+ * Reduce approved checks to the most recent definite answer per question.
+ * "Not sure" never overrides an earlier definite answer.
+ */
+export function summarizeHalalChecks(rows: ApprovedCheckRow[]): HalalCheckGlance {
+  const glance: HalalCheckGlance = { certificate: null, alcohol: null, meat: null };
+  const sorted = rows
+    .map((row) => ({ row, at: new Date(isoDate(row.reviewedAt)).getTime() }))
+    .filter((entry) => Number.isFinite(entry.at) && entry.at > 0)
+    .sort((left, right) => right.at - left.at);
+  for (const { row, at } of sorted) {
+    for (const question of Object.keys(glance) as HalalCheckQuestion[]) {
+      if (glance[question]) continue;
+      const value = answerValue(question, row[question]);
+      if (value === null || value === "unsure") continue;
+      (glance as Record<HalalCheckQuestion, HalalGlanceItem<string>>)[question] = {
+        value,
+        reviewedAt: new Date(at).toISOString(),
+      };
+    }
+  }
+  return glance;
+}
+
+/** Latest approved answers for a place page. Pending checks are never shown. */
+export async function getHalalCheckGlance(
+  placeId: string,
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
+): Promise<HalalCheckGlance> {
+  const db = await client;
+  const rows = await db.all<Record<string, unknown>>(sql`
+    SELECT a.certificate, a.alcohol, a.meat, v.updated_at AS reviewed_at
+    FROM place_halal_check_answers AS a
+    INNER JOIN place_halal_verifications AS v ON v.id = a.verification_id
+    WHERE v.place_id = ${placeId} AND v.status = 'approved'
+    ORDER BY v.updated_at DESC
+    LIMIT 50
+  `);
+  return summarizeHalalChecks(
+    rows.map((row) => ({
+      certificate: row.certificate,
+      alcohol: row.alcohol,
+      meat: row.meat,
+      reviewedAt: row.reviewed_at,
+    })),
+  );
 }

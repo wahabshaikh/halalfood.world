@@ -27,7 +27,7 @@ export default async function LoginPage({
   return (
     <div className="page">
       <SiteHeader />
-      <main className="page-main auth-main">
+      <main className="page-main">
         <LoginForm
           siteKey={process.env.TURNSTILE_SITE_KEY?.trim() || ""}
           returnTo={returnTo}

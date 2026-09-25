@@ -5,12 +5,12 @@ import { CrispChat } from "../src/components/crisp-chat";
 import "./globals.css";
 
 const DESCRIPTION =
-  "Find halal food around the world through transparent evidence, real visits and community knowledge.";
+  "Find halal food you'll love, near you or anywhere you travel. Every halal check comes with a name and a date.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "halalfood.world — discover halal food with evidence you can inspect",
+    default: "halalfood.world — halal food you'll love, checked by people like you",
     template: "%s · " + SITE_NAME,
   },
   description: DESCRIPTION,
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     type: "website",
     siteName: SITE_NAME,
     url: SITE_URL,
-    title: "halalfood.world — discover halal food with evidence you can inspect",
+    title: "halalfood.world — halal food you'll love, checked by people like you",
     description: DESCRIPTION,
     locale: "en_US",
     images: [
@@ -35,13 +35,13 @@ export const metadata: Metadata = {
         url: OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: "Halalfood — a community map of halal restaurants",
+        alt: "halalfood.world — halal food you'll love, checked by people like you",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "halalfood.world — discover halal food with evidence you can inspect",
+    title: "halalfood.world — halal food you'll love, checked by people like you",
     description: DESCRIPTION,
     images: [OG_IMAGE],
   },
@@ -68,7 +68,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f4f0e8",
+  themeColor: "#ffffff",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

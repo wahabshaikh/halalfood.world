@@ -4,6 +4,7 @@ import {
   GOOGLE_PLACES_ADD_FIELD_MASK,
   getGooglePlaceDetails,
   getGooglePlacesApiKey,
+  googlePlaceLocality,
   googlePlaceMapsUrl,
 } from "../../../src/lib/google-places";
 import { getRequestAuth } from "../../../src/lib/auth-session";
@@ -13,7 +14,7 @@ import {
   retryAfterSeconds,
 } from "../../../src/lib/otp-rate-limit";
 import { canonical } from "../../../src/lib/seo";
-import { validatePlaceSubmission } from "../../../src/lib/place-submission";
+import { slugifyCity, validatePlaceSubmission } from "../../../src/lib/place-submission";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
@@ -64,18 +65,18 @@ function isUniqueViolation(error: unknown) {
 function googleDetailsError(code: string) {
   if (code === "NOT_CONFIGURED") {
     return Response.json(
-      { error: "Google Places is not configured. Choose manual entry instead." },
+      { error: "Adding places is paused right now. Please try again later." },
       { status: 503, headers: noStore() },
     );
   }
   if (code === "INVALID_RESPONSE") {
     return Response.json(
-      { error: "Google did not return enough place details. Try manual entry." },
+      { error: "Google didn’t return enough details for that place. Try another result." },
       { status: 422, headers: noStore() },
     );
   }
   return Response.json(
-    { error: "Google could not verify that place. Try again or use manual entry." },
+    { error: "Google couldn’t confirm that place. Please try again." },
     { status: 502, headers: noStore() },
   );
 }
@@ -133,49 +134,45 @@ export async function POST(request: Request) {
   }
 
   const input = validation.data;
-  let name = input.name;
-  let address = input.address;
-  let googlePlaceId = input.googlePlaceId;
-  let lat: number | null = null;
-  let lng: number | null = null;
-
-  if (input.mode === "google") {
-    if (!getGooglePlacesApiKey()) {
-      return Response.json(
-        { error: "Google Places is not configured. Choose manual entry instead." },
-        { status: 503, headers: noStore() },
-      );
-    }
-    let details;
-    try {
-      details = await getGooglePlaceDetails(input.googlePlaceId!, {
-        fieldMask: GOOGLE_PLACES_ADD_FIELD_MASK,
-      });
-    } catch {
-      return googleDetailsError("NETWORK_ERROR");
-    }
-    if (!details.ok) return googleDetailsError(details.code);
-
-    const detailsName = details.place.displayName?.text?.trim();
-    const detailsAddress = details.place.formattedAddress?.trim();
-    if (!detailsName || !detailsAddress || !details.coordinates) {
-      return googleDetailsError("INVALID_RESPONSE");
-    }
-    name = detailsName;
-    address = detailsAddress;
-    googlePlaceId = details.place.id?.trim() || input.googlePlaceId;
-    lat = details.coordinates.lat;
-    lng = details.coordinates.lng;
+  if (!getGooglePlacesApiKey()) {
+    return Response.json(
+      { error: "Adding places is paused right now. Please try again later." },
+      { status: 503, headers: noStore() },
+    );
   }
+  let details;
+  try {
+    details = await getGooglePlaceDetails(input.googlePlaceId, {
+      fieldMask: GOOGLE_PLACES_ADD_FIELD_MASK,
+    });
+  } catch {
+    return googleDetailsError("NETWORK_ERROR");
+  }
+  if (!details.ok) return googleDetailsError(details.code);
+
+  const name = details.place.displayName?.text?.trim();
+  const address = details.place.formattedAddress?.trim();
+  if (!name || !address || !details.coordinates) {
+    return googleDetailsError("INVALID_RESPONSE");
+  }
+  const googlePlaceId = details.place.id?.trim() || input.googlePlaceId;
+  const { lat, lng } = details.coordinates;
+  const city = googlePlaceLocality(details.place);
+  const citySlug = city ? slugifyCity(city) : "";
+  if (!city || !citySlug)
+    return Response.json(
+      { error: "Google doesn’t say which city this place is in, so we can’t list it yet." },
+      { status: 422, headers: noStore() },
+    );
 
   const mapsUrl = googlePlaceId ? googlePlaceMapsUrl(googlePlaceId) : null;
   try {
     const created = await createPlace({
       name,
-      citySlug: input.citySlug,
-      cityUrl: canonical(`/city/${input.citySlug}`),
+      citySlug,
+      cityUrl: canonical(`/city/${citySlug}`),
       streetAddress: address,
-      addressLocality: input.city,
+      addressLocality: city,
       mapsUrl,
       googlePlaceId,
       sourceUrl: mapsUrl || canonical("/add"),

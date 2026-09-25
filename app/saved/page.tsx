@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
-import {
-  Breadcrumbs,
-  SiteFooter,
-  SiteHeader,
-} from "../../src/components/site-chrome";
+import { SiteFooter, SiteHeader } from "../../src/components/site-chrome";
 import SavedPlacesView from "./saved-places-view";
 
 export const metadata: Metadata = {
   title: "Saved places",
-  description: "Your saved halal places on halalfood.world.",
+  description: "Your saved places on halalfood.world.",
   alternates: { canonical: "/saved" },
   robots: { index: false, follow: true },
 };
@@ -18,15 +14,9 @@ export default function SavedPage() {
     <div className="page">
       <SiteHeader />
       <main className="page-main">
-        <Breadcrumbs
-          trail={[
-            { name: "Halalfood", path: "/" },
-            { name: "Saved", path: "/saved" },
-          ]}
-        />
         <SavedPlacesView />
       </main>
-      <SiteFooter />
+      <SiteFooter active="saved" />
     </div>
   );
 }

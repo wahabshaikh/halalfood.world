@@ -360,3 +360,43 @@ export const placeHalalVerificationEvidence = sqliteTable(
     index("place_halal_verification_evidence_r2_key_idx").on(table.r2Key),
   ],
 );
+
+/** Structured answers from a step-by-step halal check (one per verification). */
+export const placeHalalCheckAnswers = sqliteTable("place_halal_check_answers", {
+  verificationId: text("verification_id")
+    .primaryKey()
+    .references(() => placeHalalVerifications.id, { onDelete: "cascade" }),
+  certificate: text("certificate", { enum: ["seen", "not-seen", "unsure"] }),
+  alcohol: text("alcohol", { enum: ["none", "served", "unsure"] }),
+  meat: text("meat", { enum: ["hand", "machine", "unsure"] }),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/** Creator videos linked to places. Read and written through raw SQL in media-links.ts. */
+export const placeMediaLinks = sqliteTable(
+  "place_media_links",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    submittedByUserId: text("submitted_by_user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    platform: text("platform", { enum: ["instagram", "tiktok", "youtube"] }).notNull(),
+    url: text("url").notNull(),
+    authorHandle: text("author_handle"),
+    authorName: text("author_name"),
+    title: text("title"),
+    thumbnailUrl: text("thumbnail_url"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("place_media_links_place_created_idx").on(table.placeId, table.createdAt),
+    index("place_media_links_author_idx").on(table.platform, table.authorHandle),
+  ],
+);

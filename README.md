@@ -2,7 +2,11 @@
 
 A full-screen halal food map built with vinext, React, MapLibre GL, Drizzle and Cloudflare D1, deployed as a Cloudflare Worker. The interface uses CARTO Positron with OpenStreetMap attribution.
 
-The map is the product; server-rendered city and place pages sit underneath it so the listings are crawlable, linkable and shareable without JavaScript.
+The home page is a server-rendered Explore view with rows of places per city; the interactive map lives at `/map` (old `/?place=` and `/?city=` links redirect there). City, place, search, guide and creator pages are server-rendered so they are crawlable, linkable and shareable without JavaScript.
+
+Places can only be added by picking a Google Maps result: the name, address, city and pin come from Google Places on the server. Halal checks are structured (certificate seen, alcohol served, slaughter method) and go to moderators before they count. Creator videos are linked by pasting an Instagram, TikTok or YouTube URL; the creator's handle, name and thumbnail come from the platform's public oEmbed response.
+
+Brand PNGs in `public/` are rendered from `public/icon.svg` with `node scripts/generate-assets.mjs` (set `PLAYWRIGHT_CHROMIUM_PATH` if Chromium isn't in Playwright's default location).
 
 ## Local setup
 

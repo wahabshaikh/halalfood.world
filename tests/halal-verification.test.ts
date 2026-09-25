@@ -7,11 +7,14 @@ import {
   type OtpRateLimitStore,
 } from "../src/lib/otp-rate-limit";
 import {
+  EMPTY_HALAL_CHECK_ANSWERS,
   validateHalalEvidenceUrl,
   validateHalalVerificationSubmission,
 } from "../src/lib/halal-verification";
 import {
+  mapCheckAnswers,
   submitHalalVerification,
+  summarizeHalalChecks,
   type HalalVerificationRepository,
 } from "../src/lib/halal-verifications";
 import {
@@ -41,6 +44,7 @@ const APPROVED_VERIFICATION = {
   note: "Reviewed community evidence",
   createdAt: "2026-09-01T12:00:00.000Z",
   evidence: [{ kind: "link" as const, url: "https://youtu.be/example" }],
+  answers: null,
 };
 const PENDING_VERIFICATION = {
   id: "verification-pending",
@@ -48,6 +52,7 @@ const PENDING_VERIFICATION = {
   note: "Awaiting review",
   createdAt: "2026-09-02T12:00:00.000Z",
   evidence: [{ kind: "link" as const, url: "https://www.zabihah.com/biz/example" }],
+  answers: { certificate: "seen" as const, alcohol: "none" as const, meat: null },
 };
 
 function readRepository(
@@ -248,6 +253,7 @@ test("verification validation requires evidence and accepts a normalized link", 
     data: {
       note: "Confirmed with the supplier.",
       evidence: [{ kind: "link", url: "https://www.zabihah.com/biz/example" }],
+      answers: EMPTY_HALAL_CHECK_ANSWERS,
     },
   });
 });
@@ -378,6 +384,7 @@ test("verification service handles the happy path without a database", async () 
   const result = await submitHalalVerification(repository, USER_ID, PLACE_ID, {
     note: null,
     evidence: [{ kind: "link", url: "https://youtu.be/example" }],
+    answers: EMPTY_HALAL_CHECK_ANSWERS,
   });
   assert.deepEqual(result, {
     ok: true,
@@ -467,4 +474,58 @@ test("R2 upload API stores a valid PDF with the authenticated account scope", as
   assert.equal(body.fileName, "supplier.pdf");
   assert.match(String(body.key), /^community-verification\/[a-f0-9]{64}\/[0-9a-f-]{36}\.pdf$/);
   assert.equal(storedKey, body.key);
+});
+
+test("verification validation accepts a structured check without evidence", () => {
+  const result = validateHalalVerificationSubmission({
+    answers: { certificate: "seen", alcohol: "none", meat: "unsure" },
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.data.answers, {
+    certificate: "seen",
+    alcohol: "none",
+    meat: "unsure",
+  });
+  assert.deepEqual(result.data.evidence, []);
+});
+
+test("verification validation rejects a check with only unsure answers and no evidence", () => {
+  const result = validateHalalVerificationSubmission({
+    answers: { certificate: "unsure", alcohol: "unsure" },
+  });
+  assert.equal(result.ok, false);
+});
+
+test("verification validation rejects unknown answers and questions", () => {
+  assert.equal(
+    validateHalalVerificationSubmission({ answers: { certificate: "definitely" } }).ok,
+    false,
+  );
+  assert.equal(
+    validateHalalVerificationSubmission({ answers: { pork: "none" } }).ok,
+    false,
+  );
+  assert.equal(validateHalalVerificationSubmission({ answers: "seen" }).ok, false);
+});
+
+test("check answers map only when the joined row exists", () => {
+  assert.equal(mapCheckAnswers({ answers_id: null, certificate: "seen" }), null);
+  assert.deepEqual(
+    mapCheckAnswers({ answers_id: "v1", certificate: "seen", alcohol: "bogus", meat: "hand" }),
+    { certificate: "seen", alcohol: null, meat: "hand" },
+  );
+});
+
+test("glance keeps the latest definite answer per question", () => {
+  const glance = summarizeHalalChecks([
+    { certificate: "seen", alcohol: "none", meat: null, reviewedAt: 1_700_000_000_000 },
+    { certificate: "unsure", alcohol: "served", meat: "hand", reviewedAt: 1_800_000_000_000 },
+    { certificate: "not-seen", alcohol: null, meat: null, reviewedAt: "not a date" },
+  ]);
+  assert.deepEqual(glance, {
+    certificate: { value: "seen", reviewedAt: new Date(1_700_000_000_000).toISOString() },
+    alcohol: { value: "served", reviewedAt: new Date(1_800_000_000_000).toISOString() },
+    meat: { value: "hand", reviewedAt: new Date(1_800_000_000_000).toISOString() },
+  });
 });

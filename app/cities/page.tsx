@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cache } from "react";
-import { ArrowUpRight, MapPinned } from "lucide-react";
+import { Map as MapIcon } from "lucide-react";
 import { countCities, listCities } from "../../src/lib/places";
 import {
   breadcrumbJsonLd,
@@ -12,15 +12,15 @@ import {
   plural,
 } from "../../src/lib/seo";
 import {
-  ApproximateNote,
   Breadcrumbs,
+  ExploreTabs,
   SiteFooter,
   SiteHeader,
   Unavailable,
 } from "../../src/components/site-chrome";
 import { loadOrDegrade } from "../../src/lib/load";
 
-const TITLE = "Explore halal food by city";
+const TITLE = "Halal food by city";
 const DESCRIPTION =
   "Browse every city on the Halalfood map, then open a city to see its halal restaurants, addresses, ratings and contact details.";
 
@@ -61,7 +61,7 @@ export default async function CitiesPage() {
         <main className="page-main">
           <Unavailable retryPath="/cities" />
         </main>
-        <SiteFooter />
+        <SiteFooter active="explore" />
       </div>
     );
 
@@ -81,63 +81,55 @@ export default async function CitiesPage() {
             __html: jsonLdScript(breadcrumbJsonLd(trail)),
           }}
         />
+        <ExploreTabs active="guides" />
         <Breadcrumbs trail={trail} />
-        <header className="page-intro directory-intro">
-          <div className="directory-kicker">
-            <span className="ui-badge ui-badge-default">
-              <MapPinned size={12} aria-hidden="true" />
-              Global directory
-            </span>
-            <span>{formatCount(total)} cities mapped</span>
-          </div>
-          <p className="eyebrow">EXPLORE BY CITY</p>
+        <header className="page-intro">
           <h1>{TITLE}</h1>
           <p className="lead">
-            Start with a city, find a table, then help the next person make a more
-            confident choice.
+            {formatCount(total)} {plural(total, "city", "cities")} and counting. Pick one to see
+            its best-loved places.
           </p>
-          <div className="detail-actions">
-            <a className="action primary" href="/">
-              Open the world map <ArrowUpRight size={14} aria-hidden="true" />
+          <div className="button-row">
+            <a className="btn btn-dark" href="/map">
+              <MapIcon size={18} aria-hidden="true" />
+              Show the map
             </a>
-            <a className="action" href="/guides">
+            <a className="btn btn-line" href="/guides">
               Read city guides
             </a>
           </div>
-          <ApproximateNote compact />
         </header>
 
         {cities.length ? (
-          <section aria-labelledby="city-list-title">
-            <div className="section-bar">
-              <div>
-                <p className="eyebrow">PLACES TO START</p>
-                <h2 id="city-list-title">Cities with the most listings</h2>
-              </div>
-              <span className="section-bar-note">Sorted by places listed</span>
-            </div>
-            <ul className="city-grid">
-              {cities.map((city) => (
-                <li key={city.city_slug}>
-                  <a href={"/city/" + city.city_slug}>
+          <ul className="city-grid">
+            {cities.map((city) => (
+              <li key={city.city_slug}>
+                <a className="city-card" href={"/city/" + city.city_slug}>
+                  <span className="city-card-mark" aria-hidden="true">
+                    {cityName(city.city_slug)
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((word) => word[0]?.toUpperCase() ?? "")
+                      .join("")}
+                  </span>
+                  <span>
                     <strong>{cityName(city.city_slug)}</strong>
                     <small>
                       {formatCount(city.place_count)} {plural(city.place_count, "place")}
                       {city.address_country ? " · " + city.address_country : ""}
                     </small>
-                    <ArrowUpRight size={15} aria-hidden="true" />
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </section>
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
         ) : (
           <p className="empty-state">
-            The city directory is empty right now. <a href="/">Try the map</a>.
+            No cities yet. <a href="/add">Add the first place</a>.
           </p>
         )}
       </main>
-      <SiteFooter />
+      <SiteFooter active="explore" />
     </div>
   );
 }

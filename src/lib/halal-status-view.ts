@@ -79,38 +79,38 @@ function reviewedDate(value: string): string | null {
 /** Convert a public status into shared, truthful UI copy. */
 export function formatHalalStatus(status: HalalStatus): HalalStatusViewModel {
   if (status.status === "evidence-backed") {
-    const evidenceNoun = status.approvedCount === 1 ? "submission" : "submissions";
+    const checkNoun = status.approvedCount === 1 ? "check" : "checks";
     const latestReviewed = reviewedDate(status.latestReviewedAt);
     if (!latestReviewed)
       return {
         status: "unavailable",
-        label: "Evidence status unavailable",
-        detail: "We could not load the reviewed halal evidence status right now.",
+        label: "Checks unavailable right now",
+        detail: "We couldn’t load the halal checks. Please try again shortly.",
         explanation: "Please try again later.",
       };
     return {
       status: status.status,
-      label: "Evidence-backed",
+      label: "Checked by the community",
       detail:
-        `${status.approvedCount} approved community evidence ${evidenceNoun}. ` +
-        `Latest reviewed ${latestReviewed}.`,
+        `${status.approvedCount} approved ${checkNoun}. ` +
+        `Latest approved ${latestReviewed}.`,
       explanation:
-        "This is community-submitted evidence reviewed by moderators, not formal certification.",
+        "People shared what they saw and a moderator reviewed it. We don’t certify places ourselves.",
     };
   }
 
   if (status.status === "unverified")
     return {
       status: status.status,
-      label: "Unverified",
-      detail: "No halal evidence has been reviewed yet.",
-      explanation: "Unverified does not mean non-halal.",
+      label: "Not checked yet",
+      detail: "Nobody has shared a halal check for this place yet.",
+      explanation: "Not checked doesn’t mean not halal.",
     };
 
   return {
     status: status.status,
-    label: "Evidence status unavailable",
-    detail: "We could not load the reviewed halal evidence status right now.",
+    label: "Checks unavailable right now",
+    detail: "We couldn’t load the halal checks. Please try again shortly.",
     explanation: "Please try again later.",
   };
 }

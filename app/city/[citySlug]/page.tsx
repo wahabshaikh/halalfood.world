@@ -22,7 +22,8 @@ import {
   Unavailable,
 } from "../../../src/components/site-chrome";
 import { loadOrDegrade } from "../../../src/lib/load";
-import { PlaceList } from "../../../src/components/place-list";
+import { PlaceGrid } from "../../../src/components/place-tile";
+import { Map as MapIcon } from "lucide-react";
 import ShareButton from "../../../src/components/share-button";
 import { guidePath } from "../../../src/lib/guides";
 
@@ -115,8 +116,8 @@ export default async function CityPage({
   ];
   const mapLink =
     city.center_lat !== null && city.center_lng !== null
-      ? `/?city=${encodeURIComponent(city.city_slug)}`
-      : "/";
+      ? `/map?city=${encodeURIComponent(city.city_slug)}`
+      : "/map";
 
   return (
     <div className="page">
@@ -145,40 +146,46 @@ export default async function CityPage({
         />
         <Breadcrumbs trail={trail} />
         <header className="page-intro">
-          <p className="eyebrow">HALAL RESTAURANTS</p>
           <h1>{cityTitle(city.city_slug, city.place_count)}</h1>
           <p className="lead">{cityDescription(city.city_slug, city.place_count)}</p>
-          <div className="detail-actions">
-            <a className="action primary" href={mapLink}>
-              Open {name} on the map
+          <div className="button-row">
+            <a className="btn btn-dark" href={mapLink}>
+              <MapIcon size={18} aria-hidden="true" />
+              Show on map
             </a>
-            <a className="action" href={guidePath(city.city_slug)}>
-              Read the city guide
+            <a className="btn btn-line" href={guidePath(city.city_slug)}>
+              Read the {name} guide
             </a>
             <ShareButton
               url={path}
               title={`Halal food in ${name}`}
               text={`${formatCount(city.place_count)} halal ${plural(city.place_count, "place")} in ${name}`}
-              className="action share-button"
             />
           </div>
-          <ApproximateNote compact />
         </header>
 
         <section aria-labelledby="listings">
-          <h2 id="listings">
-            {page > 0
-              ? `Places ${page * PAGE_SIZE + 1}–${page * PAGE_SIZE + places.length}`
-              : `Top-rated halal places in ${name}`}
-          </h2>
-          <PlaceList places={places} />
+          <div className="section-head">
+            <h2 id="listings" className="section-title">
+              {page > 0
+                ? `Places ${page * PAGE_SIZE + 1}–${page * PAGE_SIZE + places.length}`
+                : `Top-rated in ${name}`}
+            </h2>
+          </div>
+          {places.length ? (
+            <PlaceGrid places={places} />
+          ) : (
+            <p className="empty-state">
+              No places here yet. <a href="/add">Add the first one</a>.
+            </p>
+          )}
         </section>
 
         {lastPage > 0 && (
           <nav className="pagination" aria-label="Pagination">
             {page > 0 && (
               <a href={page === 1 ? path : `${path}?page=${page - 1}`} rel="prev">
-                ← Previous
+                Previous
               </a>
             )}
             <span>
@@ -186,11 +193,14 @@ export default async function CityPage({
             </span>
             {page < lastPage && (
               <a href={`${path}?page=${page + 1}`} rel="next">
-                Next →
+                Next
               </a>
             )}
           </nav>
         )}
+        <div style={{ marginTop: 28 }}>
+          <ApproximateNote compact />
+        </div>
       </main>
       <SiteFooter />
     </div>

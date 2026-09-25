@@ -1,6 +1,6 @@
 "use client";
 
-import { Bookmark } from "lucide-react";
+import { Heart } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type SavedPlacesPayload = {
@@ -69,12 +69,15 @@ async function responseError(response: Response, fallback: string) {
 export default function SavePlaceButton({
   placeId,
   compact = false,
+  heart = false,
   initialSaved = false,
   className = "",
   onSavedChange,
 }: {
   placeId: string;
   compact?: boolean;
+  /** Icon-only heart that sits on top of a photo, like a wishlist toggle. */
+  heart?: boolean;
   initialSaved?: boolean;
   className?: string;
   onSavedChange?: (saved: boolean) => void;
@@ -146,6 +149,7 @@ export default function SavePlaceButton({
   const buttonClass = [
     "save-place-button",
     compact ? "compact" : "",
+    heart ? "is-heart" : "",
     saved ? "is-saved" : "",
     className,
   ]
@@ -163,8 +167,15 @@ export default function SavePlaceButton({
         disabled={busy}
         onClick={() => void toggleSaved()}
       >
-        <Bookmark size={compact ? 15 : 17} fill={saved ? "currentColor" : "none"} />
-        <span>{busy ? (saved ? "Removing…" : "Saving…") : saved ? "Saved" : "Save"}</span>
+        <Heart
+          size={heart ? 24 : compact ? 15 : 17}
+          fill={saved ? "currentColor" : heart ? "rgba(0,0,0,0.45)" : "none"}
+          strokeWidth={heart ? 2.2 : 2}
+          aria-hidden="true"
+        />
+        {!heart && (
+          <span>{busy ? (saved ? "Removing…" : "Saving…") : saved ? "Saved" : "Save"}</span>
+        )}
       </button>
       {error && (
         <span className="save-place-error" role="alert">

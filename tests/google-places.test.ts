@@ -6,6 +6,7 @@ import {
   GOOGLE_PLACES_FIELD_MASK,
   GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK,
   GOOGLE_PLACES_USEFUL_FIELD_MASK,
+  googlePlaceLocality,
   enrichPlaceCoordinates,
   getGooglePlaceDetails,
   getGooglePlacesApiKey,
@@ -215,4 +216,28 @@ test("Google Text Search uses a small mask and returns selectable places", async
     "https://places.googleapis.com/v1/places:searchText",
   );
   assert.match(googlePlaceMapsUrl("ChIJ/example"), /query_place_id=ChIJ%2Fexample/);
+});
+
+test("googlePlaceLocality prefers the locality, then the postal town", () => {
+  assert.equal(
+    googlePlaceLocality({
+      addressComponents: [
+        { longText: "E1 1JE", types: ["postal_code"] },
+        { longText: "London", types: ["postal_town"] },
+        { longText: "Greater London", types: ["administrative_area_level_2", "political"] },
+      ],
+    }),
+    "London",
+  );
+  assert.equal(
+    googlePlaceLocality({
+      addressComponents: [
+        { longText: "Mumbai", types: ["locality", "political"] },
+        { longText: "Maharashtra", types: ["administrative_area_level_1"] },
+      ],
+    }),
+    "Mumbai",
+  );
+  assert.equal(googlePlaceLocality({}), null);
+  assert.equal(googlePlaceLocality({ addressComponents: [{ longText: "  ", types: ["locality"] }] }), null);
 });

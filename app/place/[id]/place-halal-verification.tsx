@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ClipboardCheck, FileText, Link2 } from "lucide-react";
 import {
   formatHalalStatus,
   parseHalalStatus,
   type HalalStatus,
 } from "../../../src/lib/halal-status-view";
+import { answerLabel, type GlanceQuestion } from "../../../src/lib/halal-glance-view";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
 type Evidence =
@@ -18,12 +20,14 @@ type UploadedEvidence = {
   sizeBytes: number;
   fileName: string;
 };
+type Answers = Record<GlanceQuestion, string | null>;
 type Verification = {
   id: string;
   status: "pending" | "approved";
   note: string | null;
   createdAt: string;
   evidence: Evidence[];
+  answers: Answers | null;
 };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -57,6 +61,19 @@ function sourceLabel(url: string) {
   } catch {
     return "Community source";
   }
+}
+
+function readAnswers(value: unknown): Answers | null {
+  const item = record(value);
+  if (!item) return null;
+  const pick = (key: string) => (typeof item[key] === "string" ? (item[key] as string) : null);
+  return { certificate: pick("certificate"), alcohol: pick("alcohol"), meat: pick("meat") };
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
 }
 
 function readVerifications(body: Record<string, unknown> | null): Verification[] {
@@ -97,6 +114,7 @@ function readVerifications(body: Record<string, unknown> | null): Verification[]
             note: item.note,
             createdAt: item.createdAt,
             evidence,
+            answers: readAnswers(item.answers),
           },
         ]
       : [];
@@ -258,137 +276,174 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
     }
   };
 
+  const checkHref = `/place/${encodeURIComponent(placeId)}/check`;
+
   return (
-    <section className="community-verification" aria-labelledby="community-verification-title">
-      <div className="community-verification-heading">
-        <div>
-          <p className="eyebrow">SOURCE CHECKS</p>
-          <h2 id="community-verification-title">Show the source behind the halal claim</h2>
-        </div>
-        <span className="verification-count">
-          {verifications.length} {verifications.length === 1 ? "submission" : "submissions"}
-        </span>
-      </div>
-      <p className="verification-intro">
-        This is the strongest trust layer on the page. Approved submissions are shown
-        publicly; new submissions stay marked as pending until they are reviewed.
+    <section aria-labelledby="community-verification-title">
+      <h2 id="community-verification-title" style={{ fontSize: 22, marginBottom: 6 }}>
+        How we know it’s halal
+      </h2>
+      <p className="section-intro">
+        Every check has a date. New checks show as “Awaiting review” until a moderator
+        approves them.
       </p>
 
       {statusView && (
         <div
-          className={`halal-status-panel halal-status-${statusView.status}`}
+          className={`status-banner is-${statusView.status}`}
           aria-label={`Halal evidence status: ${statusView.label}`}
           role="status"
         >
-          <span className="ui-badge halal-status-badge">{statusView.label}</span>
-          <p className="halal-status-detail">{statusView.detail}</p>
-          <p className="halal-status-explanation">{statusView.explanation}</p>
+          <ClipboardCheck size={26} aria-hidden="true" />
+          <div>
+            <strong>{statusView.label}</strong>
+            <p>{statusView.detail}</p>
+            <p>{statusView.explanation}</p>
+          </div>
         </div>
       )}
 
-      {loading && <p className="form-help">Loading community evidence…</p>}
+      {loading && <p className="form-help">Loading checks…</p>}
       {loadError && (
         <p className="form-error" role="alert">
           {loadError}
         </p>
       )}
       {!loading && !loadError && !verifications.length && (
-        <p className="empty-state verification-empty">
-          No community verification has been submitted yet. You can help by sharing a
-          reliable source or document.
+        <p className="empty-state">
+          Nobody has shared a check yet. Been here? It takes about a minute.
         </p>
       )}
       {!!verifications.length && (
-        <ul className="verification-list">
-          {verifications.map((verification) => (
-            <li className="verification-card" key={verification.id}>
-              <div className="verification-card-topline">
-                <span className={`verification-status ${verification.status}`}>
-                  {verification.status === "approved" ? "Source checked" : "Awaiting review"}
-                </span>
-                <time dateTime={verification.createdAt}>
-                  {new Date(verification.createdAt).toLocaleDateString()}
-                </time>
-              </div>
-              {verification.note && <p className="verification-note">{verification.note}</p>}
-              <ul className="verification-evidence-list">
-                {verification.evidence.map((evidence, index) => (
-                  <li key={`${verification.id}-${index}`}>
-                    <a
-                      href={evidence.url}
-                      target="_blank"
-                      rel="noopener noreferrer nofollow"
-                    >
-                      {evidence.kind === "link" ? sourceLabel(evidence.url) : `Uploaded ${evidence.fileName}`}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
+        <ul className="entry-list">
+          {verifications.map((verification) => {
+            const answers = verification.answers
+              ? (Object.keys(verification.answers) as GlanceQuestion[])
+                  .map((question) => answerLabel(question, verification.answers?.[question] ?? null))
+                  .filter((label): label is string => Boolean(label))
+              : [];
+            return (
+              <li className="entry" key={verification.id}>
+                <div className="entry-head">
+                  <span className="avatar" aria-hidden="true">
+                    <ClipboardCheck size={20} />
+                  </span>
+                  <div>
+                    <strong>{answers.length ? "In-person check" : "Shared a source"}</strong>
+                    <span>
+                      <time dateTime={verification.createdAt}>{formatDate(verification.createdAt)}</time>
+                    </span>
+                  </div>
+                  <span
+                    className={`tag ${verification.status === "approved" ? "is-approved" : "is-pending"}`}
+                    style={{ marginLeft: "auto" }}
+                  >
+                    {verification.status === "approved" ? "Approved" : "Awaiting review"}
+                  </span>
+                </div>
+                {!!answers.length && (
+                  <div className="answer-chips">
+                    {answers.map((label) => (
+                      <span className="answer-chip" key={label}>
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {verification.note && <p className="entry-body">{verification.note}</p>}
+                {!!verification.evidence.length && (
+                  <ul className="entry-links">
+                    {verification.evidence.map((evidence, index) => (
+                      <li key={`${verification.id}-${index}`}>
+                        <a href={evidence.url} target="_blank" rel="noopener noreferrer nofollow">
+                          {evidence.kind === "link" ? (
+                            <Link2 size={14} aria-hidden="true" />
+                          ) : (
+                            <FileText size={14} aria-hidden="true" />
+                          )}
+                          {evidence.kind === "link" ? sourceLabel(evidence.url) : evidence.fileName}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 
-      {authState === "checking" && !loading && (
-        <p className="form-help">Checking sign-in…</p>
-      )}
+      <div className="button-row" style={{ margin: "18px 0" }}>
+        <a className="btn btn-dark" href={checkHref}>
+          I’ve been here, let me check
+        </a>
+      </div>
+
       {authState === "signed-out" && (
-        <div className="verification-auth-card">
-          <strong>Can you substantiate the halal claim?</strong>
-          <p>Sign in with a one-time email code to submit a source for review.</p>
+        <div className="inline-card">
+          <strong>Have a certificate photo or a source?</strong>
+          <p>Log in with a one-time email code to share it for review.</p>
           <a
-            className="action primary"
+            className="btn btn-outline btn-sm"
             href={`/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`}
           >
-            Sign in to submit
+            Log in to share
           </a>
         </div>
       )}
       {authState === "signed-in" && (
-        <form className="verification-form" onSubmit={submit}>
-          <h3>Submit a source for review</h3>
-          <p className="field-note">
-            Add one link per line from Zabihah, Instagram, TikTok, YouTube, or another
-            public source, and/or upload a certificate, supplier document, or menu. We
-            show the submission state so diners can tell checked evidence from a claim.
-          </p>
-          <label className="field">
-            <span>Evidence links</span>
-            <textarea
-              value={links}
-              onChange={(event) => setLinks(event.target.value)}
-              maxLength={8192}
-              rows={3}
-              placeholder="https://www.zabihah.com/..."
-            />
-          </label>
-          <label className="field">
-            <span>Documents or menus</span>
-            <input
-              ref={fileInput}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,application/pdf"
-              multiple
-              onChange={(event) => setFiles(Array.from(event.target.files || []))}
-            />
-            <small className="field-note">JPEG, PNG, WebP, or PDF · 8 MiB maximum per file</small>
-          </label>
-          <label className="field">
-            <span>Optional note</span>
-            <textarea
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              maxLength={1000}
-              rows={2}
-              placeholder="Share helpful context for the review team"
-            />
-          </label>
-          {success && <p className="form-success" role="status">Submitted for halal review. Thank you for helping the community.</p>}
-          {formError && <p className="form-error" role="alert">{formError}</p>}
-          <button className="action primary verification-submit" type="submit" disabled={busy}>
-            {busy ? "Uploading and submitting…" : "Submit for review"}
-          </button>
-        </form>
+        <details className="stack-form">
+          <summary style={{ cursor: "pointer", fontWeight: 800 }}>
+            Share a source instead (link, certificate or menu)
+          </summary>
+          <form className="stack" onSubmit={submit} style={{ marginTop: 14 }}>
+            <label className="field">
+              <span>Links, one per line</span>
+              <textarea
+                value={links}
+                onChange={(event) => setLinks(event.target.value)}
+                maxLength={8192}
+                rows={3}
+                placeholder="https://www.instagram.com/p/…"
+              />
+              <small className="field-note">Zabihah, Instagram, TikTok or YouTube.</small>
+            </label>
+            <label className="field">
+              <span>Certificate, supplier document or menu</span>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                multiple
+                onChange={(event) => setFiles(Array.from(event.target.files || []))}
+              />
+              <small className="field-note">JPEG, PNG, WebP or PDF, up to 8 MB each.</small>
+            </label>
+            <label className="field">
+              <span>Anything else? (optional)</span>
+              <textarea
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                maxLength={1000}
+                rows={2}
+                placeholder="Helpful context for the reviewer"
+              />
+            </label>
+            {success && (
+              <p className="form-success" role="status">
+                Thank you! It’s with our reviewers now.
+              </p>
+            )}
+            {formError && (
+              <p className="form-error" role="alert">
+                {formError}
+              </p>
+            )}
+            <button className="btn btn-dark" type="submit" disabled={busy}>
+              {busy ? "Sending…" : "Send for review"}
+            </button>
+          </form>
+        </details>
       )}
     </section>
   );

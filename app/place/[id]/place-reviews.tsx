@@ -238,20 +238,15 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
   }
 
   return (
-    <section className="place-reviews" aria-labelledby="place-reviews-title">
-      <div className="place-reviews-heading">
-        <div>
-          <p className="eyebrow">VISIT NOTES</p>
-          <h2 id="place-reviews-title">Share a visit, not a score</h2>
-        </div>
-      </div>
-      <p className="reviews-intro">
-        Help fellow visitors choose with a specific note about what you ordered, the
-        halal options you saw, and whether you would return. Reviews are tied to a
-        signed-in account and shown newest first.
+    <section aria-labelledby="place-reviews-title">
+      <h2 id="place-reviews-title" style={{ fontSize: 22, marginBottom: 6 }}>
+        {reviews.length ? `${reviews.length} ${reviews.length === 1 ? "review" : "reviews"}` : "Reviews"}
+      </h2>
+      <p className="section-intro">
+        What people ordered, what they saw, and whether they’d go back.
       </p>
 
-      {loading && <p className="form-help">Loading halal reviews…</p>}
+      {loading && <p className="form-help">Loading reviews…</p>}
       {loadError && (
         <p className="form-error" role="alert">
           {loadError}
@@ -259,46 +254,40 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
       )}
 
       {!loading && !loadError && !reviews.length && (
-        <p className="empty-state reviews-empty">
-          No community reviews yet. Be the first to share a halal experience.
-        </p>
+        <p className="empty-state">No reviews yet. Be the first to say how it was.</p>
       )}
 
       {!loading && !loadError && !!reviews.length && (
-        <ul className="review-list">
+        <ul className="entry-list">
           {reviews.map((review, index) => (
-            <li className="review-card" key={`${review.createdAt}-${index}`}>
-              <div className="review-card-topline">
-                <div className="review-author">
+            <li className="entry" key={`${review.createdAt}-${index}`}>
+              <div className="entry-head">
+                <span className="avatar" aria-hidden="true">
+                  {review.authorDisplayName.trim().slice(0, 1).toUpperCase() || "H"}
+                </span>
+                <div>
                   <strong>{review.authorDisplayName}</strong>
-                  <span>Signed-in community member</span>
-                </div>
-                <div className="review-dates">
                   <span>
-                    Posted <time dateTime={review.createdAt}>{formatTimestamp(review.createdAt)}</time>
+                    <time dateTime={review.createdAt}>{formatTimestamp(review.createdAt)}</time>
+                    {review.updatedAt !== review.createdAt && " · edited"}
                   </span>
-                  {review.updatedAt !== review.createdAt && (
-                    <span>
-                      Updated <time dateTime={review.updatedAt}>{formatTimestamp(review.updatedAt)}</time>
-                    </span>
-                  )}
                 </div>
               </div>
-              {review.title && <h3 className="review-title">{review.title}</h3>}
-              <p className="review-body">{review.body}</p>
+              {review.title && <p className="entry-meta">{review.title}</p>}
+              <p className="entry-body">{review.body}</p>
               {review.isOwn && (
-                <div className="review-actions">
+                <div className="button-row">
                   <button
                     type="button"
-                    className="action review-action"
+                    className="btn btn-line btn-sm"
                     onClick={startEditing}
                     disabled={busy !== null}
                   >
-                    Edit your review
+                    Edit
                   </button>
                   <button
                     type="button"
-                    className="action review-action danger"
+                    className="btn btn-line btn-sm"
                     onClick={() => void deleteReview()}
                     disabled={busy !== null}
                   >
@@ -311,44 +300,40 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
         </ul>
       )}
 
-      {authState === "checking" && !loading && !loadError && (
-        <p className="form-help">Checking sign-in…</p>
-      )}
       {authState === "signed-out" && !loadError && (
-        <div className="reviews-auth-card">
-          <strong>Have a halal experience to share?</strong>
-          <p>Sign in with a one-time email code to write a review.</p>
-          <a className="action primary" href={loginUrl(placeId)}>
-            Sign in to review
+        <div className="inline-card" style={{ marginTop: 16 }}>
+          <strong>Eaten here?</strong>
+          <p>Log in with a one-time email code to write a review.</p>
+          <a className="btn btn-outline btn-sm" href={loginUrl(placeId)}>
+            Log in to review
           </a>
         </div>
       )}
       {authState === "signed-in" && !loadError && (!ownReview || editing) && (
-        <form className="review-form" onSubmit={(event) => void submit(event)}>
-          <h3>{editing ? "Edit your halal review" : "Write a halal review"}</h3>
+        <form className="stack-form" style={{ marginTop: 16 }} onSubmit={(event) => void submit(event)}>
+          <h3>{editing ? "Edit your review" : "Write a review"}</h3>
           <p className="field-note">
-            Keep it useful and respectful. Mention the dish, the halal signal you relied
-            on, and any practical detail another diner can verify. Do not include personal
-            information about staff or other guests.
+            Mention what you ordered and anything a halal diner should know. Please keep
+            staff and other guests out of it.
           </p>
           <label className="field">
-            <span>Optional title</span>
+            <span>Title (optional)</span>
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               maxLength={TITLE_MAX_LENGTH}
-              placeholder="What should the next diner know?"
+              placeholder="The lamb is worth the trip"
             />
           </label>
           <label className="field">
-            <span>Your visit note</span>
+            <span>Your review</span>
             <textarea
               value={body}
               onChange={(event) => setBody(event.target.value)}
               maxLength={BODY_MAX_LENGTH}
               required
               rows={5}
-              placeholder="What did you order, and what should a halal diner know before visiting?"
+              placeholder="What did you order? What should the next person know?"
             />
           </label>
           {formError && (
@@ -356,19 +341,19 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
               {formError}
             </p>
           )}
-          <div className="review-form-actions">
-            <button type="submit" className="action primary review-submit" disabled={busy !== null}>
+          <div className="button-row">
+            <button type="submit" className="btn btn-dark" disabled={busy !== null}>
               {busy === "save" ? "Saving…" : editing ? "Update review" : "Post review"}
             </button>
             {editing && (
-              <button type="button" className="action review-action" onClick={cancelEditing} disabled={busy !== null}>
+              <button type="button" className="btn btn-line" onClick={cancelEditing} disabled={busy !== null}>
                 Cancel
               </button>
             )}
           </div>
         </form>
       )}
-      {success && <p className="form-success">{success}</p>}
+      {success && <p className="form-success" style={{ marginTop: 12 }}>{success}</p>}
     </section>
   );
 }
