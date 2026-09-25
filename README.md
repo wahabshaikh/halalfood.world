@@ -384,6 +384,8 @@ Apply [`migrations/0007_place_photos.sql`](migrations/0007_place_photos.sql) aft
 
 Apply [`migrations/0008_place_google_payload.sql`](migrations/0008_place_google_payload.sql) after it. It adds the full legacy Google Place Details payload and its Unix-millisecond fetch timestamp to `places`.
 
+Apply [`migrations/0009_places_map_bounds_index.sql`](migrations/0009_places_map_bounds_index.sql) after it. It adds a partial `(lat, lng)` index for confirmed, geocoded listings and runs `PRAGMA optimize` for map bounding-box query planning.
+
 Apply them in order with wrangler's own migration tracking, which skips migrations it has already recorded as applied:
 
 ```sh

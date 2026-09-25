@@ -29,8 +29,5 @@
   ],
   "vars": {
     "BETTER_AUTH_URL": "https://halalfood.world"
-  },
-  "cache": {
-    "enabled": true
   }
 }
