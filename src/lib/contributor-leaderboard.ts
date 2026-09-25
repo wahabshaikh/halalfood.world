@@ -241,32 +241,3 @@ export async function listContributors(
 ): Promise<RankedContributor[]> {
   return getContributorLeaderboard(repository, limit);
 }
-
-/**
- * Levels are recognition only: they describe how much someone has helped,
- * and never change how their checks are reviewed.
- */
-export const CONTRIBUTOR_LEVELS = [
-  { name: "Newcomer", minScore: 0, blurb: "Welcome in. Every check counts." },
-  { name: "Regular", minScore: 50, blurb: "You’ve helped a good few people decide." },
-  { name: "Trusted", minScore: 200, blurb: "People lean on your checks." },
-  { name: "Keeper", minScore: 600, blurb: "One of the people keeping the map honest." },
-] as const;
-
-export type ContributorLevel = (typeof CONTRIBUTOR_LEVELS)[number];
-
-export function contributorLevel(score: number): ContributorLevel {
-  const safe = Number.isFinite(score) ? score : 0;
-  let level: ContributorLevel = CONTRIBUTOR_LEVELS[0];
-  for (const candidate of CONTRIBUTOR_LEVELS) if (safe >= candidate.minScore) level = candidate;
-  return level;
-}
-
-/** The next level and how many points are left, or null at the top. */
-export function nextContributorLevel(
-  score: number,
-): { level: ContributorLevel; pointsToGo: number } | null {
-  const safe = Number.isFinite(score) ? Math.max(0, score) : 0;
-  const next = CONTRIBUTOR_LEVELS.find((level) => level.minScore > safe);
-  return next ? { level: next, pointsToGo: next.minScore - safe } : null;
-}

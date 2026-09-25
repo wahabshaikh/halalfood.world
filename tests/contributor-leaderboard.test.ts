@@ -163,16 +163,3 @@ test("leaderboard ranking uses an injectable repository", async () => {
   assert.equal(ranked[0].score, 10);
   assert.match(ranked[0].displayName, /^Contributor · /);
 });
-
-test("contributor levels follow score thresholds", async () => {
-  const { contributorLevel, nextContributorLevel } = await import("../src/lib/contributor-leaderboard");
-  assert.equal(contributorLevel(0).name, "Newcomer");
-  assert.equal(contributorLevel(49).name, "Newcomer");
-  assert.equal(contributorLevel(50).name, "Regular");
-  assert.equal(contributorLevel(250).name, "Trusted");
-  assert.equal(contributorLevel(10_000).name, "Keeper");
-  assert.equal(contributorLevel(Number.NaN).name, "Newcomer");
-  assert.deepEqual(nextContributorLevel(180)?.pointsToGo, 20);
-  assert.equal(nextContributorLevel(180)?.level.name, "Trusted");
-  assert.equal(nextContributorLevel(700), null);
-});

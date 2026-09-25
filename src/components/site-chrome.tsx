@@ -73,8 +73,12 @@ export function SiteHeader({
               <a href="/guides">City guides</a>
               <a href="/leaderboard">Community</a>
               <a href="/saved">Saved</a>
+              <a href="/lists">Lists</a>
+              <a href="/passport">Food passport</a>
               <hr />
               <a href="/add">Add a place</a>
+              <a href="/contributions">Your contributions</a>
+              <a href="/preferences">Dietary standards</a>
             </nav>
           </details>
         </div>
@@ -126,13 +130,24 @@ export function SiteFooter({ active }: { active?: TabKey } = {}) {
               <h2>Community</h2>
               <a href="/leaderboard">Community</a>
               <a href="/add">Add a place</a>
+              <a href="/contributions">Your contributions</a>
+            </div>
+            <div>
+              <h2>You</h2>
               <a href="/saved">Saved places</a>
+              <a href="/lists">Lists</a>
+              <a href="/passport">Food passport</a>
+              <a href="/preferences">Dietary standards</a>
             </div>
             <div>
               <h2>How it works</h2>
               <p>
                 Place details come from Google. Halal checks come from people who ate
                 there, with a name and a date on each one.
+              </p>
+              <p>
+                Unverified never means not halal. No restaurant can pay to change a
+                status, a ranking or a search result.
               </p>
             </div>
           </div>

@@ -1,9 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LayoutGrid, LocateFixed, Map as MapIcon, Minus, Plus, Star, X } from "lucide-react";
+import {
+  LayoutGrid,
+  LocateFixed,
+  Map as MapIcon,
+  Minus,
+  Plus,
+  Search,
+  Star,
+  X,
+} from "lucide-react";
 import type { Map as MapInstance, Marker } from "maplibre-gl";
 import type { Place } from "../../src/lib/places";
+import type { DiscoveredPlace } from "../../src/lib/discovery";
+import {
+  EMPTY_FILTERS,
+  activeFilterCount,
+  parseDiscoveryFilters,
+  serializeDiscoveryFilters,
+  type DiscoveryFilters,
+} from "../../src/lib/discovery-filters";
+import MapFilters from "../map-filters";
 import { PlaceTile } from "../../src/components/place-tile";
 import { PlacePhoto } from "../../src/components/place-photo";
 import SavePlaceButton from "../../src/components/save-place-button";
@@ -11,18 +29,26 @@ import { cn } from "../../src/lib/utils";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
-type Results = { places: Place[]; total: number; limit: number };
-type FilterKey = "all" | "top" | "contact";
+type Results = { places: DiscoveredPlace[]; total: number; limit: number };
 
 const VIEWPORT_LIMIT = 600;
 /** Markers beyond this many become plain dots so the map stays readable. */
 const LABELLED_MARKERS = 120;
 const DEFAULT_VIEW = { center: [72.8777, 19.055] as [number, number], zoom: 14 };
 
-const filters: Array<{ key: FilterKey; label: string }> = [
-  { key: "all", label: "All places" },
-  { key: "top", label: "Rated 4.5+" },
-  { key: "contact", label: "Has phone or website" },
+/** Query keys owned by the discovery filters, cleared before each rewrite. */
+const FILTER_PARAMS = [
+  "status",
+  "facts",
+  "cuisine",
+  "dish",
+  "price",
+  "service",
+  "meal",
+  "open",
+  "within",
+  "sort",
+  "mine",
 ];
 
 function locality(place: Place) {
@@ -94,7 +120,16 @@ export default function MapView() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<Place | null>(null);
-  const [filter, setFilter] = useState<FilterKey>("all");
+  // Filters are seeded from and written back to the URL, so a filtered view is
+  // shareable and survives a reload.
+  const [filters, setFilters] = useState<DiscoveryFilters>(() =>
+    typeof window === "undefined"
+      ? EMPTY_FILTERS
+      : parseDiscoveryFilters(new URLSearchParams(window.location.search)),
+  );
+  // Panning only offers a refresh, so results never swap out mid-browse.
+  const [areaMoved, setAreaMoved] = useState(false);
+  const [searchArea, setSearchArea] = useState(0);
   const [showList, setShowList] = useState(false);
   const [retry, setRetry] = useState(0);
 
@@ -120,6 +155,14 @@ export default function MapView() {
     },
     [syncUrl],
   );
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    for (const key of FILTER_PARAMS) url.searchParams.delete(key);
+    for (const [key, value] of new URLSearchParams(serializeDiscoveryFilters(filters)))
+      url.searchParams.set(key, value);
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, [filters]);
 
   const closeSelected = useCallback(() => {
     setSelected(null);
@@ -209,12 +252,12 @@ export default function MapView() {
     if (!ready || !map.current) return;
     const instance = map.current;
     let controller: AbortController | undefined;
-    let timer: ReturnType<typeof setTimeout>;
     async function loadPlaces() {
       controller?.abort();
       controller = new AbortController();
       setLoading(true);
       setError("");
+      setAreaMoved(false);
       const bounds = instance.getBounds();
       const wrap = (value: number) => ((((value + 180) % 360) + 360) % 360) - 180;
       const world = bounds.getEast() - bounds.getWest() >= 360;
@@ -225,9 +268,15 @@ export default function MapView() {
         Math.min(90, bounds.getNorth()),
       ];
       try {
-        const response = await fetch("/api/places?bbox=" + bbox.join(",") + "&limit=" + VIEWPORT_LIMIT, {
-          signal: controller.signal,
-        });
+        const query = serializeDiscoveryFilters(filters);
+        const response = await fetch(
+          "/api/discover?bbox=" +
+            bbox.join(",") +
+            "&limit=" +
+            VIEWPORT_LIMIT +
+            (query ? "&" + query : ""),
+          { signal: controller.signal },
+        );
         if (!response.ok) throw new Error("Places couldn’t load.");
         setResults(await response.json());
         setLoading(false);
@@ -239,25 +288,16 @@ export default function MapView() {
         }
       }
     }
-    const schedule = () => {
-      clearTimeout(timer);
-      controller?.abort();
-      timer = setTimeout(() => void loadPlaces(), 180);
-    };
-    instance.on("moveend", schedule);
+    const markMoved = () => setAreaMoved(true);
+    instance.on("moveend", markMoved);
     void loadPlaces();
     return () => {
-      clearTimeout(timer);
       controller?.abort();
-      instance.off("moveend", schedule);
+      instance.off("moveend", markMoved);
     };
-  }, [ready, retry]);
+  }, [ready, retry, filters, searchArea]);
 
-  const visible = results.places.filter((place) => {
-    if (filter === "top") return Number(place.rating_value) >= 4.5;
-    if (filter === "contact") return Boolean(place.telephone || place.website);
-    return true;
-  });
+  const visible = results.places;
 
   useEffect(() => {
     markers.current.forEach((marker) => marker.remove());
@@ -284,7 +324,7 @@ export default function MapView() {
     });
     // `visible` is derived from results + filter on each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results.places, filter, ready, selected?.id, selectPlace]);
+  }, [results.places, ready, selected?.id, selectPlace]);
 
   function locate() {
     if (!navigator.geolocation) {
@@ -315,9 +355,8 @@ export default function MapView() {
     ? "Finding places…"
     : error
       ? "Places unavailable"
-      : filter === "all"
-        ? results.total.toLocaleString() + (results.total === 1 ? " place" : " places") + " in this area"
-        : visible.length.toLocaleString() + " shown";
+      : results.total.toLocaleString() + (results.total === 1 ? " place" : " places") + " in this area";
+  const filterCount = activeFilterCount(filters);
 
   return (
     <div className={cn("map-page", showList && "show-list")}>
@@ -326,18 +365,8 @@ export default function MapView() {
           <h1>{heading}</h1>
           {results.total > results.limit && !loading && <p>Zoom in to see them all</p>}
         </div>
-        <div className="map-filters" role="group" aria-label="Filter places">
-          {filters.map((item) => (
-            <button
-              type="button"
-              key={item.key}
-              className={cn("chip", filter === item.key && "is-active")}
-              aria-pressed={filter === item.key}
-              onClick={() => setFilter(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
+        <div className="map-filters">
+          <MapFilters filters={filters} onChange={setFilters} />
         </div>
         {error && (
           <p className="map-status">
@@ -348,7 +377,16 @@ export default function MapView() {
           </p>
         )}
         {!loading && !error && !visible.length && (
-          <p className="map-status">No places here yet. Try moving the map or zooming out.</p>
+          <p className="map-status">
+            {filterCount
+              ? "No places here match these filters. Widen them or move the map and search again."
+              : "No places here yet. Try moving the map or zooming out."}
+            {filterCount > 0 && (
+              <button type="button" onClick={() => setFilters(EMPTY_FILTERS)}>
+                Clear filters
+              </button>
+            )}
+          </p>
         )}
         {!error && (
           <ul className="place-grid">
@@ -364,7 +402,7 @@ export default function MapView() {
                   if (selected?.id !== place.id) marker?.getElement().classList.remove("is-selected");
                 }}
               >
-                <PlaceTile place={place} />
+                <PlaceTile place={place} status={place.halal_status} />
               </li>
             ))}
           </ul>
@@ -395,6 +433,16 @@ export default function MapView() {
               <X size={15} aria-hidden="true" />
             </button>
           </div>
+        )}
+        {areaMoved && !loading && (
+          <button
+            type="button"
+            className="floating-pill map-search-area"
+            onClick={() => setSearchArea((value) => value + 1)}
+          >
+            <Search size={15} strokeWidth={2.6} aria-hidden="true" />
+            Search this area
+          </button>
         )}
         {selected && <SelectedCard place={selected} onClose={closeSelected} />}
       </div>

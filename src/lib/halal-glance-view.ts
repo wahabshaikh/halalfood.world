@@ -69,24 +69,3 @@ export function answerLabel(question: GlanceQuestion, value: string | null): str
   if (!value || value === "unsure") return null;
   return COPY[question].values[value] ?? null;
 }
-
-/** Approved checks a place needs before it can be called a community favourite. */
-export const COMMUNITY_FAVOURITE_MIN_CHECKS = 3;
-export const COMMUNITY_FAVOURITE_MIN_RATING = 4.5;
-
-/**
- * "Community favourite" is only shown when people have both checked the place
- * and rated it highly, so the badge never rests on a rating alone.
- */
-export function isCommunityFavourite(
-  approvedChecks: number,
-  googleRating: string | number | null | undefined,
-): boolean {
-  const rating = Number(googleRating);
-  return (
-    Number.isFinite(approvedChecks) &&
-    approvedChecks >= COMMUNITY_FAVOURITE_MIN_CHECKS &&
-    Number.isFinite(rating) &&
-    rating >= COMMUNITY_FAVOURITE_MIN_RATING
-  );
-}

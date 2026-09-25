@@ -2,9 +2,7 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import {
   CONTRIBUTOR_LEADERBOARD_LIMIT,
-  CONTRIBUTOR_LEVELS,
   CONTRIBUTOR_SCORE_WEIGHTS,
-  contributorLevel,
   listContributors,
   type RankedContributor,
 } from "../../src/lib/contributor-leaderboard";
@@ -84,12 +82,6 @@ function summary(contributor: RankedContributor) {
   return parts.slice(0, 3).join(" · ") || "Just getting started";
 }
 
-function LevelPill({ score }: { score: number }) {
-  const level = contributorLevel(score);
-  const tone = level.name === "Keeper" ? " is-keeper" : level.name === "Trusted" ? " is-trusted" : "";
-  return <span className={"level-pill" + tone}>{level.name}</span>;
-}
-
 const AVATAR_TINTS = ["#F6C9B0", "#CFE0F2", "#FBE3A8", "#CDE8D8", "#F4CFE0", "#E3D6F2"];
 
 export default async function LeaderboardPage() {
@@ -161,7 +153,6 @@ export default async function LeaderboardPage() {
                   {initials(contributor.displayName)}
                 </span>
                 <strong>{contributor.displayName}</strong>
-                <LevelPill score={contributor.score} />
                 <div className="podium-block" style={{ height: contributor.rank === 1 ? 118 : contributor.rank === 2 ? 92 : 72 }}>
                   <b>{contributor.rank}</b>
                   <span>{formatCount(contributor.score)} pts</span>
@@ -184,10 +175,7 @@ export default async function LeaderboardPage() {
                   {initials(contributor.displayName)}
                 </span>
                 <div>
-                  <strong>
-                    {contributor.displayName}
-                    <LevelPill score={contributor.score} />
-                  </strong>
+                  <strong>{contributor.displayName}</strong>
                   <small>{summary(contributor)}</small>
                 </div>
                 <span className="points">{formatCount(contributor.score)}</span>
@@ -203,24 +191,18 @@ export default async function LeaderboardPage() {
         )}
 
         <hr className="rule" />
-        <section aria-labelledby="levels-title">
-          <h2 id="levels-title" className="section-title">
-            Levels
+        <section aria-labelledby="points-title">
+          <h2 id="points-title" className="section-title">
+            How points work
           </h2>
-          <div className="level-grid">
-            {CONTRIBUTOR_LEVELS.map((level) => (
-              <div className="level-card" key={level.name}>
-                <span>{formatCount(level.minScore)}+ points</span>
-                <strong>{level.name}</strong>
-                <p>{level.blurb}</p>
-              </div>
-            ))}
-          </div>
           <p className="muted">
             Points: {CONTRIBUTOR_SCORE_WEIGHTS.placesAdded} for a place you add,{" "}
             {CONTRIBUTOR_SCORE_WEIGHTS.verificationsSubmitted} for a halal check,{" "}
             {CONTRIBUTOR_SCORE_WEIGHTS.reviews} for a review, {CONTRIBUTOR_SCORE_WEIGHTS.photos} for a
             photo and {CONTRIBUTOR_SCORE_WEIGHTS.ratings} for a visit signal.
+            Points say thanks for helping. They never change how anyone’s checks are
+            reviewed, and trust roles are earned separately through accurate
+            contributions.
           </p>
         </section>
 

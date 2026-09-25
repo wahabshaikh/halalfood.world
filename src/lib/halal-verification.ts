@@ -4,6 +4,17 @@ import {
   R2_UPLOAD_CONTENT_TYPES,
   type R2UploadContentType,
 } from "./r2";
+import {
+  DEFAULT_EVIDENCE_TTL_DAYS,
+  isEvidenceKind,
+  isEvidenceScope,
+  isHalalTaxonomyStatus,
+  isRelationship,
+  type EvidenceKind,
+  type EvidenceScope,
+  type HalalTaxonomyStatus,
+  type Relationship,
+} from "./halal-taxonomy";
 
 export const HALAL_VERIFICATION_STATUSES = [
   "pending",
@@ -44,10 +55,31 @@ export const EMPTY_HALAL_CHECK_ANSWERS: HalalCheckAnswers = {
   meat: null,
 };
 
+/**
+ * Source attribution and scope travel with every submission. Nothing here is
+ * optional in the product sense: a missing capture date or scope is filled with
+ * an explicit, conservative default rather than left unknown.
+ */
+export type HalalVerificationAttributes = {
+  kind: EvidenceKind;
+  claimedStatus: HalalTaxonomyStatus;
+  scope: EvidenceScope;
+  scopeNote: string | null;
+  certificationBody: string | null;
+  certificateId: string | null;
+  capturedAt: number;
+  expiresAt: number;
+  sourceUrl: string | null;
+  relationship: Relationship;
+  incentivized: boolean;
+  visibility: "public" | "private";
+};
+
 export type ValidatedHalalVerification = {
   note: string | null;
   evidence: (HalalVerificationLinkEvidence | HalalVerificationUploadEvidence)[];
   answers: HalalCheckAnswers;
+  attributes: HalalVerificationAttributes;
 };
 
 export type HalalVerificationValidationResult =
@@ -225,5 +257,150 @@ export function validateHalalVerificationSubmission(
     evidence.push({ kind: "upload", key, contentType, sizeBytes, fileName });
   }
 
-  return { ok: true, data: { note, evidence, answers } };
+  const attributes = validateVerificationAttributes(input);
+  if (!attributes.ok) return attributes;
+
+  return {
+    ok: true,
+    data: { note, evidence, answers, attributes: attributes.data },
+  };
+}
+
+const DAY_MS = 86_400_000;
+const MAX_BACKDATE_MS = 10 * 365 * DAY_MS;
+
+/** Any HTTPS origin, for "official website" and "restaurant statement" sources. */
+export function validateSourceUrl(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > 2048) return null;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+type AttributeResult =
+  | { ok: true; data: HalalVerificationAttributes }
+  | { ok: false; error: string };
+
+/**
+ * Scope, source, dates and disclosure. The defaults are the cautious ones: an
+ * undeclared claim is `self-declared`, an undeclared scope is `venue` only
+ * because the submitter is asked for it explicitly in the UI, and an undeclared
+ * expiry falls back to the per-kind duration rather than to "never expires".
+ */
+export function validateVerificationAttributes(
+  input: Record<string, unknown>,
+  now: number = Date.now(),
+): AttributeResult {
+  const kind = input.evidenceKind ?? "first-hand";
+  if (!isEvidenceKind(kind))
+    return { ok: false, error: "Choose the type of evidence you are submitting." };
+
+  const claimedStatus = input.claimedStatus ?? "self-declared";
+  if (!isHalalTaxonomyStatus(claimedStatus))
+    return { ok: false, error: "Choose what this evidence shows." };
+
+  const scope = input.scope ?? "venue";
+  if (!isEvidenceScope(scope))
+    return { ok: false, error: "Declare what the evidence covers." };
+
+  let scopeNote: string | null = null;
+  if (input.scopeNote !== undefined && input.scopeNote !== null && input.scopeNote !== "") {
+    const value = textValue(input.scopeNote, "scope note", 500);
+    if (!value) return { ok: false, error: "The scope note must be 500 characters or fewer." };
+    scopeNote = value;
+  }
+  if (
+    (scope === "selected-dishes" || scope === "time-period" || scope === "meat-only") &&
+    !scopeNote
+  )
+    return {
+      ok: false,
+      error: "Say exactly what this evidence covers, and any shared-kitchen constraints.",
+    };
+
+  let certificationBody: string | null = null;
+  if (
+    input.certificationBody !== undefined &&
+    input.certificationBody !== null &&
+    input.certificationBody !== ""
+  ) {
+    const value = textValue(input.certificationBody, "certification body", 120);
+    if (!value) return { ok: false, error: "The certification body must be 120 characters or fewer." };
+    certificationBody = value;
+  }
+  if (kind === "certification" && !certificationBody)
+    return { ok: false, error: "Name the certification body shown on the certificate." };
+
+  let certificateId: string | null = null;
+  if (
+    input.certificateId !== undefined &&
+    input.certificateId !== null &&
+    input.certificateId !== ""
+  ) {
+    const value = textValue(input.certificateId, "certificate id", 80);
+    if (!value) return { ok: false, error: "The certificate identifier must be 80 characters or fewer." };
+    certificateId = value;
+  }
+
+  let capturedAt = now;
+  if (input.capturedAt !== undefined && input.capturedAt !== null) {
+    if (
+      typeof input.capturedAt !== "number" ||
+      !Number.isFinite(input.capturedAt) ||
+      input.capturedAt > now + DAY_MS ||
+      input.capturedAt < now - MAX_BACKDATE_MS
+    )
+      return { ok: false, error: "The capture date is not plausible." };
+    capturedAt = input.capturedAt;
+  }
+
+  let expiresAt = capturedAt + DEFAULT_EVIDENCE_TTL_DAYS[kind] * DAY_MS;
+  if (input.expiresAt !== undefined && input.expiresAt !== null) {
+    if (
+      typeof input.expiresAt !== "number" ||
+      !Number.isFinite(input.expiresAt) ||
+      input.expiresAt <= capturedAt ||
+      input.expiresAt > capturedAt + 10 * 365 * DAY_MS
+    )
+      return { ok: false, error: "The expiry date must be after the capture date." };
+    expiresAt = input.expiresAt;
+  }
+
+  let sourceUrl: string | null = null;
+  if (input.sourceUrl !== undefined && input.sourceUrl !== null && input.sourceUrl !== "") {
+    sourceUrl = validateSourceUrl(input.sourceUrl);
+    if (!sourceUrl) return { ok: false, error: "The source must be a valid HTTPS link." };
+  }
+  if (kind === "official-website" && !sourceUrl)
+    return { ok: false, error: "Link the official page this claim comes from." };
+
+  const relationship = input.relationship ?? "none";
+  if (!isRelationship(relationship))
+    return { ok: false, error: "Declare any relationship with the restaurant." };
+
+  const visibility = input.visibility ?? "public";
+  if (visibility !== "public" && visibility !== "private")
+    return { ok: false, error: "Evidence visibility must be public or private." };
+
+  return {
+    ok: true,
+    data: {
+      kind,
+      claimedStatus,
+      scope,
+      scopeNote,
+      certificationBody,
+      certificateId,
+      capturedAt,
+      expiresAt,
+      sourceUrl,
+      relationship,
+      incentivized: input.incentivized === true,
+      visibility,
+    },
+  };
 }

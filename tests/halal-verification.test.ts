@@ -38,7 +38,39 @@ const AUTHENTICATED = async () => ({
   userId: USER_ID,
 });
 
+/** Defaults for the source-attribution columns added in migration 0008. */
+const EVIDENCE_ATTRIBUTES = {
+  kind: "first-hand" as const,
+  claimedStatus: "self-declared" as const,
+  scope: "venue" as const,
+  scopeNote: null,
+  certificationBody: null,
+  certificateId: null,
+  sourceUrl: null,
+  capturedAt: "2026-09-01T12:00:00.000Z",
+  expiresAt: "2027-03-01T12:00:00.000Z",
+  relationship: "none" as const,
+  incentivized: false,
+  stale: false,
+};
+
+const SUBMISSION_ATTRIBUTES = {
+  kind: "first-hand" as const,
+  claimedStatus: "self-declared" as const,
+  scope: "venue" as const,
+  scopeNote: null,
+  certificationBody: null,
+  certificateId: null,
+  capturedAt: Date.parse("2026-09-01T12:00:00.000Z"),
+  expiresAt: Date.parse("2027-03-01T12:00:00.000Z"),
+  sourceUrl: null,
+  relationship: "none" as const,
+  incentivized: false,
+  visibility: "public" as const,
+};
+
 const APPROVED_VERIFICATION = {
+  ...EVIDENCE_ATTRIBUTES,
   id: "verification-approved",
   status: "approved" as const,
   note: "Reviewed community evidence",
@@ -47,6 +79,7 @@ const APPROVED_VERIFICATION = {
   answers: null,
 };
 const PENDING_VERIFICATION = {
+  ...EVIDENCE_ATTRIBUTES,
   id: "verification-pending",
   status: "pending" as const,
   note: "Awaiting review",
@@ -248,14 +281,21 @@ test("verification validation requires evidence and accepts a normalized link", 
     note: "  Confirmed with the supplier.  ",
     evidence: [{ kind: "link", url: " https://www.zabihah.com/biz/example " }],
   });
-  assert.deepEqual(result, {
-    ok: true,
-    data: {
-      note: "Confirmed with the supplier.",
-      evidence: [{ kind: "link", url: "https://www.zabihah.com/biz/example" }],
-      answers: EMPTY_HALAL_CHECK_ANSWERS,
-    },
-  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.data.note, "Confirmed with the supplier.");
+  assert.deepEqual(result.data.evidence, [
+    { kind: "link", url: "https://www.zabihah.com/biz/example" },
+  ]);
+  // Source attribution defaults are conservative: an undeclared submission is
+  // a dated, expiring, self-declared claim from an uninterested party.
+  assert.equal(result.data.attributes.kind, "first-hand");
+  assert.equal(result.data.attributes.claimedStatus, "self-declared");
+  assert.equal(result.data.attributes.scope, "venue");
+  assert.equal(result.data.attributes.relationship, "none");
+  assert.equal(result.data.attributes.incentivized, false);
+  assert.ok(result.data.attributes.expiresAt > result.data.attributes.capturedAt);
+  assert.deepEqual(result.data.answers, EMPTY_HALAL_CHECK_ANSWERS);
 });
 
 test("verification validation rejects malformed upload metadata", async () => {
@@ -385,6 +425,7 @@ test("verification service handles the happy path without a database", async () 
     note: null,
     evidence: [{ kind: "link", url: "https://youtu.be/example" }],
     answers: EMPTY_HALAL_CHECK_ANSWERS,
+    attributes: SUBMISSION_ATTRIBUTES,
   });
   assert.deepEqual(result, {
     ok: true,

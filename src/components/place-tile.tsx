@@ -1,6 +1,7 @@
 import { ChevronRight, Star } from "lucide-react";
 import type { Place } from "../lib/places";
 import { cityName, formatCount } from "../lib/seo";
+import { STATUS_COPY, type HalalTaxonomyStatus } from "../lib/halal-taxonomy";
 import { PlacePhoto } from "./place-photo";
 import SavePlaceButton from "./save-place-button";
 
@@ -19,8 +20,11 @@ export function PlaceTile({
   size = "default",
   saved = false,
   onSavedChange,
+  status,
 }: {
   place: TilePlace;
+  /** Derived halal status, when the caller already has it (map, discovery). */
+  status?: HalalTaxonomyStatus;
   size?: "default" | "large";
   /** Start in the saved state (the Saved page already knows). */
   saved?: boolean;
@@ -54,6 +58,11 @@ export function PlaceTile({
             </span>
           )}
         </div>
+        {status && (
+          <p className={`place-tile-status tone-${STATUS_COPY[status].tone}`}>
+            {STATUS_COPY[status].label}
+          </p>
+        )}
         <p className="place-tile-meta">{locality(place)}</p>
         <p className="place-tile-meta">
           {place.review_count
