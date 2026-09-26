@@ -12,3 +12,4 @@ dist
 .worktrees/
 .vinext
 next-env.d.ts
+.turbo

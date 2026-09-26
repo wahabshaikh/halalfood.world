@@ -1,0 +1,20 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "radix-nova",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "src/styles/globals.css",
+    "baseColor": "stone",
+    "cssVariables": true
+  },
+  "iconLibrary": "hugeicons",
+  "aliases": {
+    "components": "@halalfood/ui/components",
+    "utils": "@halalfood/ui/lib/utils",
+    "hooks": "@halalfood/ui/hooks",
+    "lib": "@halalfood/ui/lib",
+    "ui": "@halalfood/ui/components"
+  }
+}

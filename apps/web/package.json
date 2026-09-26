@@ -1,0 +1,53 @@
+{
+  "name": "@halalfood/web",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.4",
+    "@datafast/ai-crawl": "^1.0.9",
+    "@halalfood/core": "*",
+    "@halalfood/ui": "*",
+    "@hugeicons/core-free-icons": "^4.3.5",
+    "@hugeicons/react": "^1.1.10",
+    "@vinext/cloudflare": "latest",
+    "better-auth": "^1.7.4",
+    "crisp-sdk-web": "^1.2.1",
+    "datafast": "^3.0.18",
+    "drizzle-orm": "^0.45.2",
+    "maplibre-gl": "^6.9.0",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-server-dom-webpack": "latest",
+    "vinext": "latest"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "latest",
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/postcss": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "@vitejs/plugin-rsc": "latest",
+    "tailwindcss": "latest",
+    "tsx": "^4.23.13",
+    "typescript": "latest",
+    "vite": "latest",
+    "wrangler": "latest"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vinext dev",
+    "build": "vinext build",
+    "start": "wrangler dev --config dist/server/wrangler.json",
+    "deploy": "vinext-cloudflare deploy --config dist/server/wrangler.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "backfill:places": "tsx scripts/backfill-place-coordinates.ts",
+    "backfill:mumbai-place-details": "tsx scripts/backfill-mumbai-place-details.ts",
+    "test:api": "node tests/api-smoke.mjs",
+    "test:browser": "node tests/browser-smoke.mjs",
+    "db:migrate:local": "wrangler d1 migrations apply halalfood-world --local",
+    "db:migrate:remote": "tsx scripts/apply-d1-migrations.ts"
+  }
+}
