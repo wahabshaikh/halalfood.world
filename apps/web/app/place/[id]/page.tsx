@@ -24,6 +24,8 @@ import {
 import {
   ApproximateNote,
   Breadcrumbs,
+  Page,
+  PageMain,
   SiteFooter,
   SiteHeader,
   Unavailable,
@@ -257,13 +259,13 @@ export default async function PlacePage({
   if (loaded.status === "missing") notFound();
   if (loaded.status === "error")
     return (
-      <div className="page">
+      <Page>
         <SiteHeader />
-        <main className="page-main">
+        <PageMain>
           <Unavailable retryPath={"/place/" + encodeURIComponent(id)} />
-        </main>
+        </PageMain>
         <SiteFooter />
-      </div>
+      </Page>
     );
 
   const { place, google, community } = loaded.data;
@@ -299,7 +301,7 @@ export default async function PlacePage({
   const galleryPhotos = photos.slice(0, 5);
 
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
       <main className="page-main place-page">
         <script
@@ -595,6 +597,6 @@ export default async function PlacePage({
         )}
       </div>
       <SiteFooter />
-    </div>
+    </Page>
   );
 }

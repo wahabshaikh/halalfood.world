@@ -5,6 +5,25 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Location01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import ShareButton from "../../src/components/share-button";
 import { Illustration } from "../../src/components/art";
+import { PageIntro } from "../../src/components/site-chrome";
+import { Button } from "@halalfood/ui/components/button";
+import { Card } from "@halalfood/ui/components/card";
+import { FieldDescription, FieldError } from "@halalfood/ui/components/field";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@halalfood/ui/components/input-group";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "@halalfood/ui/components/item";
+import { Spinner } from "@halalfood/ui/components/spinner";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
 type GooglePlace = { id: string; name: string; address: string };
@@ -200,122 +219,151 @@ export default function AddPlaceForm({
 
   if (success)
     return (
-      <section className="success-card" aria-labelledby="add-success-title">
-        <Illustration name="visits" size={88} />
-        <h1 id="add-success-title">{success.name} is on the map</h1>
-        <p>Thank you! Seen a certificate or the menu? Share it in a minute.</p>
-        <div className="button-row">
-          <a className="btn btn-primary" href={`/place/${success.id}/check`}>
-            Add a halal check
-          </a>
-          <a className="btn btn-line" href={`/place/${success.id}`}>
-            See the place
-          </a>
-          <ShareButton
-            url={`/place/${success.id}`}
-            title={success.name}
-            text={success.name + " is now on halalfood.world."}
-          />
-        </div>
+      <section aria-labelledby="add-success-title" className="mx-auto my-10 max-w-xl">
+        <Card className="items-start gap-3.5 rounded-3xl px-9 py-9 shadow-lg ring-border">
+          <Illustration name="visits" size={88} />
+          <h1 id="add-success-title" className="text-[26px]">
+            {success.name} is on the map
+          </h1>
+          <p className="text-muted-foreground">
+            Thank you! Seen a certificate or the menu? Share it in a minute.
+          </p>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button asChild size="xl">
+              <a href={`/place/${success.id}/check`}>Add a halal check</a>
+            </Button>
+            <Button asChild size="xl" variant="outline">
+              <a href={`/place/${success.id}`}>See the place</a>
+            </Button>
+            <ShareButton
+              url={`/place/${success.id}`}
+              title={success.name}
+              text={success.name + " is now on halalfood.world."}
+            />
+          </div>
+        </Card>
       </section>
     );
 
   return (
-    <section className="stack" aria-labelledby="add-place-title" style={{ maxWidth: 640 }}>
-      <header className="page-intro" style={{ paddingBottom: 8 }}>
-        <h1 id="add-place-title">Add a place</h1>
-        <p className="lead">Find it on Google Maps. We’ll fill in the rest.</p>
-      </header>
+    <section className="grid max-w-2xl gap-4" aria-labelledby="add-place-title">
+      <PageIntro
+        className="pb-2"
+        titleId="add-place-title"
+        title="Add a place"
+        lead="Find it on Google Maps. We’ll fill in the rest."
+      />
 
       {selected ? (
-        <div className="selected-place">
-          <HugeiconsIcon icon={Location01Icon} size={24} aria-hidden="true" />
-          <div style={{ flex: 1 }}>
-            <strong>{selected.name}</strong>
-            <span>{selected.address}</span>
-          </div>
-          <button
-            type="button"
-            className="link-underline"
-            onClick={() => {
-              setSelected(null);
-              setFormError("");
-            }}
-          >
-            Change
-          </button>
-        </div>
+        <Item variant="outline" className="rounded-2xl p-4.5">
+          <ItemMedia>
+            <HugeiconsIcon icon={Location01Icon} size={24} aria-hidden="true" />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle className="text-base font-extrabold">{selected.name}</ItemTitle>
+            <ItemDescription>{selected.address}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Button
+              variant="link"
+              className="font-extrabold text-foreground underline"
+              onClick={() => {
+                setSelected(null);
+                setFormError("");
+              }}
+            >
+              Change
+            </Button>
+          </ItemActions>
+        </Item>
       ) : (
-        <div className="picker-card">
-          <form className="picker-search" role="search" onSubmit={(event) => void search(event)}>
-            <HugeiconsIcon icon={Search01Icon} size={20} aria-hidden="true" />
-            <label className="sr-only" htmlFor="google-place-search">
-              Search Google Maps
-            </label>
-            <input
-              id="google-place-search"
-              type="search"
-              maxLength={120}
-              placeholder={area ? `Restaurant, ${area}` : "Restaurant name and area"}
-              autoFocus
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            <button className="btn btn-dark btn-sm" type="submit" disabled={searchBusy || authState === "checking"}>
-              {searchBusy ? "Searching…" : "Search"}
-            </button>
+        <Card className="gap-0 overflow-hidden rounded-2xl py-0 shadow-lg ring-border">
+          <form className="p-2.5" role="search" onSubmit={(event) => void search(event)}>
+            <InputGroup className="h-12 border-0 shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0">
+              <InputGroupAddon>
+                <HugeiconsIcon icon={Search01Icon} size={20} aria-hidden="true" />
+              </InputGroupAddon>
+              <label className="sr-only" htmlFor="google-place-search">
+                Search Google Maps
+              </label>
+              <InputGroupInput
+                id="google-place-search"
+                type="search"
+                maxLength={120}
+                placeholder={area ? `Restaurant, ${area}` : "Restaurant name and area"}
+                autoFocus
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="text-base"
+              />
+              <InputGroupAddon align="inline-end">
+                <Button
+                  size="lg"
+                  type="submit"
+                  disabled={searchBusy || authState === "checking"}
+                >
+                  {searchBusy && <Spinner />}
+                  {searchBusy ? "Searching…" : "Search"}
+                </Button>
+              </InputGroupAddon>
+            </InputGroup>
           </form>
           {results.length > 0 && (
-            <div className="picker-results" role="list" aria-label="Google Maps results">
+            <ItemGroup
+              className="gap-0 border-t"
+              role="list"
+              aria-label="Google Maps results"
+            >
               {results.map((place) => (
-                <button
-                  type="button"
-                  role="listitem"
-                  className="picker-result"
+                <Item
+                  asChild
                   key={place.id}
-                  onClick={() => {
-                    setSelected(place);
-                    setResults([]);
-                    setSearchMessage("");
-                  }}
+                  className="rounded-none border-0 border-b px-4 py-3 last:border-b-0 hover:bg-muted"
                 >
-                  <HugeiconsIcon icon={Location01Icon} size={20} aria-hidden="true" />
-                  <span>
-                    <strong>{place.name}</strong>
-                    <small>{place.address}</small>
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    role="listitem"
+                    onClick={() => {
+                      setSelected(place);
+                      setResults([]);
+                      setSearchMessage("");
+                    }}
+                  >
+                    <ItemMedia>
+                      <HugeiconsIcon icon={Location01Icon} size={20} aria-hidden="true" />
+                    </ItemMedia>
+                    <ItemContent className="text-left">
+                      <ItemTitle className="font-bold">{place.name}</ItemTitle>
+                      <ItemDescription>{place.address}</ItemDescription>
+                    </ItemContent>
+                  </button>
+                </Item>
               ))}
-            </div>
+            </ItemGroup>
           )}
-          <div className="picker-attribution">Results from Google</div>
-        </div>
+          <div className="border-t bg-secondary px-4 py-2 text-xs text-muted-foreground">
+            Results from Google
+          </div>
+        </Card>
       )}
-      {searchMessage && (
-        <p className="form-help" role="status">
-          {searchMessage}
-        </p>
-      )}
+      {searchMessage && <FieldDescription role="status">{searchMessage}</FieldDescription>}
 
       {selected && (
-        <form className="stack" onSubmit={(event) => void submit(event)}>
-          {formError && (
-            <p className="form-error" role="alert">
-              {formError}
-            </p>
-          )}
-          <button className="btn btn-primary" type="submit" disabled={submitBusy}>
+        <form className="grid gap-3" onSubmit={(event) => void submit(event)}>
+          {formError && <FieldError>{formError}</FieldError>}
+          <Button size="xl" type="submit" disabled={submitBusy}>
+            {submitBusy && <Spinner />}
             {submitBusy ? "Adding…" : `Add ${selected.name}`}
-          </button>
-          <p className="form-help">By adding it, you’re telling us it serves halal food.</p>
+          </Button>
+          <FieldDescription>By adding it, you’re telling us it serves halal food.</FieldDescription>
         </form>
       )}
       {!selected && (
-        <p className="form-help">
+        <FieldDescription>
           {authState === "signed-out"
             ? "You’ll confirm your email with a quick code, then we’ll run your search."
             : "Only places on Google Maps can be added, so the details stay accurate."}
-        </p>
+        </FieldDescription>
       )}
     </section>
   );

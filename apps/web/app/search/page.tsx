@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Button } from "@halalfood/ui/components/button";
+import { ChipLink, ChipRow, FloatingPill } from "../../src/components/blocks";
 import { MapsIcon } from "@hugeicons/core-free-icons";
 import { findPlaces, findPlacesByCity } from "../../src/lib/places";
 import {
@@ -9,9 +11,15 @@ import {
 import type { LocalContext } from "../../src/lib/local-context";
 import { loadOrDegrade } from "../../src/lib/load";
 import { cityName, formatCount, plural } from "../../src/lib/seo";
-import { SiteFooter, SiteHeader } from "../../src/components/site-chrome";
+import {
+  EmptyPanel,
+  Page,
+  PageIntro,
+  PageMain,
+  SiteFooter,
+  SiteHeader,
+} from "../../src/components/site-chrome";
 import { PlaceGrid, PlaceRow } from "../../src/components/place-tile";
-import { Illustration } from "../../src/components/art";
 
 const RESULT_LIMIT = 48;
 const SUGGESTION_LIMIT = 12;
@@ -77,32 +85,30 @@ export default async function SearchPage({
   const suggested = loaded.status === "ok" ? loaded.data.suggested : null;
 
   return (
-    <div className="page">
+    <Page>
       <SiteHeader searchValue={q} />
-      <main className="page-main">
+      <PageMain>
         {!searchable && (
-          <header className="page-intro">
-            <h1>What are you craving?</h1>
-            <p className="lead">Try a restaurant, a dish or a city.</p>
-          </header>
+          <PageIntro title="What are you craving?" lead="Try a restaurant, a dish or a city." />
         )}
 
         {searchable && loaded.status !== "ok" && (
-          <div className="empty-panel">
-            <h1>Search is taking a moment</h1>
-            <p>Please try again shortly.</p>
-            <a className="btn btn-dark" href={"/search?q=" + encodeURIComponent(q)}>
-              Try again
-            </a>
-          </div>
+          <EmptyPanel
+            art={null}
+            title="Search is taking a moment"
+            description="Please try again shortly."
+          >
+            <Button asChild size="xl">
+              <a href={"/search?q=" + encodeURIComponent(q)}>Try again</a>
+            </Button>
+          </EmptyPanel>
         )}
 
         {searchable && loaded.status === "ok" && (
           <>
-            <div className="results-head">
-              <div>
-                <h1>Halal places matching “{q}”</h1>
-                <p>
+            <div className="mb-5 grid gap-1">
+              <h1 className="text-[clamp(24px,3vw,32px)] leading-tight">Halal places matching “{q}”</h1>
+              <p className="text-muted-foreground">
                   {loaded.data.results.total
                     ? formatCount(loaded.data.results.total) +
                       " " +
@@ -111,45 +117,47 @@ export default async function SearchPage({
                         ? ` · showing the top ${RESULT_LIMIT}`
                         : "")
                     : "No places found yet"}
-                </p>
-              </div>
+              </p>
             </div>
 
             {loaded.data.cities.length > 0 && (
-              <nav className="city-chips" aria-label="Matching cities">
+              <ChipRow role="navigation" className="mt-2 mb-9" aria-label="Matching cities">
                 {loaded.data.cities.map((city) => (
-                  <a className="chip" key={city.city_slug} href={"/city/" + city.city_slug}>
+                  <ChipLink
+                    key={city.city_slug}
+                    href={"/city/" + city.city_slug}
+                    hint={`${formatCount(city.place_count)} ${plural(city.place_count, "place")}`}
+                  >
                     {cityName(city.city_slug)}
-                    <small>
-                      {formatCount(city.place_count)} {plural(city.place_count, "place")}
-                    </small>
-                  </a>
+                  </ChipLink>
                 ))}
-              </nav>
+              </ChipRow>
             )}
 
             {loaded.data.results.places.length ? (
               <PlaceGrid places={loaded.data.results.places} />
             ) : (
-              <div className="empty-panel">
-                <Illustration name="visits" size={72} />
-                <h2>Know “{q}”?</h2>
-                <p>Add it in under a minute.</p>
-                <a className="btn btn-primary" href={"/add?q=" + encodeURIComponent(q)}>
-                  Add “{q}”
-                </a>
-              </div>
+              <EmptyPanel
+                art="visits"
+                titleAs="h2"
+                title={`Know “${q}”?`}
+                description="Add it in under a minute."
+              >
+                <Button asChild size="xl">
+                  <a href={"/add?q=" + encodeURIComponent(q)}>Add “{q}”</a>
+                </Button>
+              </EmptyPanel>
             )}
           </>
         )}
         {suggested && (
           <PlaceRow title={suggested.title} href={suggested.href} places={suggested.places} />
         )}
-      </main>
-      <a className="floating-pill" href="/map">
+      </PageMain>
+      <FloatingPill href="/map">
         Show map <HugeiconsIcon icon={MapsIcon} size={16} aria-hidden="true" />
-      </a>
+      </FloatingPill>
       <SiteFooter active="explore" />
-    </div>
+    </Page>
   );
 }

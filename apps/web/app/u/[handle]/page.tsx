@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   Breadcrumbs,
+  Page,
+  PageMain,
   SiteFooter,
   SiteHeader,
   Unavailable,
@@ -81,22 +83,22 @@ export default async function DinerProfilePage({
   if (loaded.status === "missing") notFound();
   if (loaded.status === "error")
     return (
-      <div className="page">
+      <Page>
         <SiteHeader />
-        <main className="page-main">
+        <PageMain>
           <Unavailable retryPath={`/u/${encodeURIComponent(handle)}`} />
-        </main>
+        </PageMain>
         <SiteFooter />
-      </div>
+      </Page>
     );
 
   const { profile, passport, places, lists, visitsPrivate, listsPrivate } = loaded.data;
   const name = profile.displayName ?? profile.handle;
 
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <Breadcrumbs
           trail={[
             { name: "Halalfood", path: "/" },
@@ -116,7 +118,7 @@ export default async function DinerProfilePage({
               url={`/u/${profile.handle}`}
               title={`${name} on Halalfood`}
               text={`${passport.distinctPlaces} halal places`}
-              className="action share-button"
+              variant="outline"
             />
           </div>
         </div>
@@ -192,8 +194,8 @@ export default async function DinerProfilePage({
             </ul>
           )}
         </section>
-      </main>
+      </PageMain>
       <SiteFooter />
-    </div>
+    </Page>
   );
 }

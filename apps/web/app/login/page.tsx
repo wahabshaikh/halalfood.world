@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { SiteFooter, SiteHeader } from "../../src/components/site-chrome";
+import {
+  Page,
+  PageMain,
+  SiteFooter,
+  SiteHeader,
+} from "../../src/components/site-chrome";
 import LoginForm from "./login-form";
 
 export const metadata: Metadata = {
@@ -37,21 +42,21 @@ export default async function LoginPage({
             : "Log in or sign up";
 
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <LoginForm
           siteKey={process.env.TURNSTILE_SITE_KEY?.trim() || ""}
           returnTo={returnTo}
           heading={heading}
         />
-      </main>
+      </PageMain>
       <SiteFooter />
       <script
         src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
         async
         defer
       />
-    </div>
+    </Page>
   );
 }

@@ -1,5 +1,16 @@
 "use client";
 
+import { Alert, AlertDescription, AlertTitle } from "@halalfood/ui/components/alert";
+import { Badge } from "@halalfood/ui/components/badge";
+import { Button } from "@halalfood/ui/components/button";
+import { Card } from "@halalfood/ui/components/card";
+import { Field, FieldDescription, FieldLabel } from "@halalfood/ui/components/field";
+import { Input } from "@halalfood/ui/components/input";
+import { Textarea } from "@halalfood/ui/components/textarea";
+import { cn } from "@halalfood/ui/lib/utils";
+import { EmptyState, InlineCard, Loading } from "../../../src/components/blocks";
+import { Disclosure, FormMessage, SectionIntro } from "../../../src/components/section";
+
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { File01Icon, Link01Icon, TaskDone01Icon } from "@hugeicons/core-free-icons";
@@ -281,42 +292,49 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
 
   return (
     <section aria-labelledby="community-verification-title">
-      <h2 id="community-verification-title" style={{ fontSize: 22, marginBottom: 6 }}>
+      <h2 id="community-verification-title" className="mb-1.5 text-[22px]">
         How we know it’s halal
       </h2>
-      <p className="section-intro">
+      <SectionIntro>
         Every check has a date. New checks show as “Awaiting review” until a moderator
         approves them.
-      </p>
+      </SectionIntro>
 
       {statusView && (
-        <div
-          className={`status-banner is-${statusView.status}`}
+        <Alert
+          className={cn(
+            "mb-4.5 gap-x-4 border-0 px-5 py-4.5",
+            statusView.status === "evidence-backed"
+              ? "bg-warning-muted text-warning-foreground"
+              : "bg-muted",
+          )}
           aria-label={`Halal evidence status: ${statusView.label}`}
           role="status"
         >
-          <HugeiconsIcon icon={TaskDone01Icon} size={26} aria-hidden="true" />
-          <div>
-            <strong>{statusView.label}</strong>
+          <HugeiconsIcon icon={TaskDone01Icon} className="size-6.5!" aria-hidden="true" />
+          <AlertTitle className="text-base font-extrabold text-foreground">
+            {statusView.label}
+          </AlertTitle>
+          <AlertDescription
+            className={
+              statusView.status === "evidence-backed"
+                ? "text-warning-foreground"
+                : "text-muted-foreground"
+            }
+          >
             <p>{statusView.detail}</p>
             <p>{statusView.explanation}</p>
-          </div>
-        </div>
+          </AlertDescription>
+        </Alert>
       )}
 
-      {loading && <p className="form-help">Loading checks…</p>}
-      {loadError && (
-        <p className="form-error" role="alert">
-          {loadError}
-        </p>
-      )}
+      {loading && <Loading>Loading checks…</Loading>}
+      {loadError && <FormMessage tone="error">{loadError}</FormMessage>}
       {!loading && !loadError && !verifications.length && (
-        <p className="empty-state">
-          Nobody has shared a check yet. Been here? It takes about a minute.
-        </p>
+        <EmptyState>Nobody has shared a check yet. Been here? It takes about a minute.</EmptyState>
       )}
       {!!verifications.length && (
-        <ul className="entry-list">
+        <ul className="divide-y">
           {verifications.map((verification) => {
             const answers = verification.answers
               ? (Object.keys(verification.answers) as GlanceQuestion[])
@@ -324,46 +342,53 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
                   .filter((label): label is string => Boolean(label))
               : [];
             return (
-              <li className="entry" key={verification.id}>
-                <div className="entry-head">
-                  <span className="avatar" aria-hidden="true">
+              <li className="grid gap-2 py-5 first:pt-1" key={verification.id}>
+                <div className="flex items-center gap-3">
+                  <span
+                    className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground"
+                    aria-hidden="true"
+                  >
                     <HugeiconsIcon icon={TaskDone01Icon} size={20} />
                   </span>
                   <div>
-                    <strong>{answers.length ? "In-person check" : "Shared a source"}</strong>
-                    <span>
+                    <strong className="block text-[15px]">
+                      {answers.length ? "In-person check" : "Shared a source"}
+                    </strong>
+                    <span className="text-[13px] text-muted-foreground">
                       <time dateTime={verification.createdAt}>{formatDate(verification.createdAt)}</time>
                     </span>
                   </div>
-                  <span
-                    className={`tag ${verification.status === "approved" ? "is-approved" : "is-pending"}`}
-                    style={{ marginLeft: "auto" }}
+                  <Badge
+                    variant={verification.status === "approved" ? "success" : "warning"}
+                    className="ml-auto font-extrabold"
                   >
                     {verification.status === "approved" ? "Approved" : "Awaiting review"}
-                  </span>
+                  </Badge>
                 </div>
                 {!!answers.length && (
-                  <div className="answer-chips">
+                  <div className="flex flex-wrap gap-2">
                     {answers.map((label) => (
-                      <span className="answer-chip" key={label}>
+                      <Badge variant="secondary" className="h-7 px-3 text-[13px] font-bold" key={label}>
                         {label}
-                      </span>
+                      </Badge>
                     ))}
                   </div>
                 )}
-                {verification.note && <p className="entry-body">{verification.note}</p>}
+                {verification.note && <p className="text-[15px] leading-normal">{verification.note}</p>}
                 {!!verification.evidence.length && (
-                  <ul className="entry-links">
+                  <ul className="flex flex-wrap gap-2">
                     {verification.evidence.map((evidence, index) => (
                       <li key={`${verification.id}-${index}`}>
-                        <a href={evidence.url} target="_blank" rel="noopener noreferrer nofollow">
-                          {evidence.kind === "link" ? (
-                            <HugeiconsIcon icon={Link01Icon} size={14} aria-hidden="true" />
-                          ) : (
-                            <HugeiconsIcon icon={File01Icon} size={14} aria-hidden="true" />
-                          )}
-                          {evidence.kind === "link" ? sourceLabel(evidence.url) : evidence.fileName}
-                        </a>
+                        <Button asChild variant="outline" size="sm" className="rounded-full font-bold">
+                          <a href={evidence.url} target="_blank" rel="noopener noreferrer nofollow">
+                            <HugeiconsIcon
+                              icon={evidence.kind === "link" ? Link01Icon : File01Icon}
+                              size={14}
+                              aria-hidden="true"
+                            />
+                            {evidence.kind === "link" ? sourceLabel(evidence.url) : evidence.fileName}
+                          </a>
+                        </Button>
                       </li>
                     ))}
                   </ul>
@@ -374,77 +399,76 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
         </ul>
       )}
 
-      <div className="button-row" style={{ margin: "18px 0" }}>
-        <a className="btn btn-dark" href={checkHref}>
-          I’ve been here, let me check
-        </a>
+      <div className="my-4.5">
+        <Button asChild size="xl">
+          <a href={checkHref}>I’ve been here, let me check</a>
+        </Button>
       </div>
 
       {authState === "signed-out" && (
-        <div className="inline-card">
-          <strong>Have a certificate photo or a source?</strong>
-          <p>Log in with a one-time email code to share it for review.</p>
-          <a
-            className="btn btn-outline btn-sm"
-            href={`/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`}
-          >
-            Log in to share
-          </a>
-        </div>
+        <InlineCard
+          title="Have a certificate photo or a source?"
+          description="Log in with a one-time email code to share it for review."
+          action={
+            <Button asChild variant="outline">
+              <a href={`/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`}>
+                Log in to share
+              </a>
+            </Button>
+          }
+        />
       )}
       {authState === "signed-in" && (
-        <details className="stack-form">
-          <summary style={{ cursor: "pointer", fontWeight: 800 }}>
-            Share a source instead (link, certificate or menu)
-          </summary>
-          <form className="stack" onSubmit={submit} style={{ marginTop: 14 }}>
-            <label className="field">
-              <span>Links, one per line</span>
-              <textarea
-                value={links}
-                onChange={(event) => setLinks(event.target.value)}
-                maxLength={8192}
-                rows={3}
-                placeholder="https://www.instagram.com/p/…"
-              />
-              <small className="field-note">Zabihah, Instagram, TikTok or YouTube.</small>
-            </label>
-            <label className="field">
-              <span>Certificate, supplier document or menu</span>
-              <input
-                ref={fileInput}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,application/pdf"
-                multiple
-                onChange={(event) => setFiles(Array.from(event.target.files || []))}
-              />
-              <small className="field-note">JPEG, PNG, WebP or PDF, up to 8 MB each.</small>
-            </label>
-            <label className="field">
-              <span>Anything else? (optional)</span>
-              <textarea
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                maxLength={1000}
-                rows={2}
-                placeholder="Helpful context for the reviewer"
-              />
-            </label>
-            {success && (
-              <p className="form-success" role="status">
-                Thank you! It’s with our reviewers now.
-              </p>
-            )}
-            {formError && (
-              <p className="form-error" role="alert">
-                {formError}
-              </p>
-            )}
-            <button className="btn btn-dark" type="submit" disabled={busy}>
-              {busy ? "Sending…" : "Send for review"}
-            </button>
-          </form>
-        </details>
+        <Card className="px-5.5 py-4">
+          <Disclosure label="Share a source instead (link, certificate or menu)">
+            <form className="mt-3.5 grid gap-4" onSubmit={submit}>
+              <Field>
+                <FieldLabel htmlFor="verification-links">Links, one per line</FieldLabel>
+                <Textarea
+                  id="verification-links"
+                  value={links}
+                  onChange={(event) => setLinks(event.target.value)}
+                  maxLength={8192}
+                  rows={3}
+                  placeholder="https://www.instagram.com/p/…"
+                />
+                <FieldDescription>Zabihah, Instagram, TikTok or YouTube.</FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="verification-files">
+                  Certificate, supplier document or menu
+                </FieldLabel>
+                <Input
+                  id="verification-files"
+                  ref={fileInput}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  multiple
+                  onChange={(event) => setFiles(Array.from(event.target.files || []))}
+                />
+                <FieldDescription>JPEG, PNG, WebP or PDF, up to 8 MB each.</FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="verification-note">Anything else? (optional)</FieldLabel>
+                <Textarea
+                  id="verification-note"
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  maxLength={1000}
+                  rows={2}
+                  placeholder="Helpful context for the reviewer"
+                />
+              </Field>
+              {success && (
+                <FormMessage tone="success">Thank you! It’s with our reviewers now.</FormMessage>
+              )}
+              {formError && <FormMessage tone="error">{formError}</FormMessage>}
+              <Button size="lg" className="justify-self-start" type="submit" disabled={busy}>
+                {busy ? "Sending…" : "Send for review"}
+              </Button>
+            </form>
+          </Disclosure>
+        </Card>
       )}
     </section>
   );

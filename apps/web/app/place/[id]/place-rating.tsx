@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Badge } from "@halalfood/ui/components/badge";
+import { Button } from "@halalfood/ui/components/button";
+import { FieldError } from "@halalfood/ui/components/field";
+import { Spinner } from "@halalfood/ui/components/spinner";
+import { cn } from "@halalfood/ui/lib/utils";
+import { TextLink } from "../../../src/components/blocks";
+import { Note, SectionHeading, SectionIntro } from "../../../src/components/section";
 
 const RATING_VALUES = [
   "mashallah",
@@ -191,55 +198,65 @@ export default function PlaceRating({ placeId }: { placeId: string }) {
 
   return (
     <section aria-labelledby="place-rating-title">
-      <div className="section-head">
-        <div>
-          <h2 id="place-rating-title" style={{ fontSize: 22 }}>
-            How was it?
-          </h2>
-          <p>A quick signal from your visit. It’s your impression, not a halal certificate.</p>
-        </div>
-        {payload && (
-          <span className="status-pill">
-            {payload.counts.total} {payload.counts.total === 1 ? "signal" : "signals"}
-          </span>
-        )}
-      </div>
+      <SectionHeading
+        id="place-rating-title"
+        title="How was it?"
+        action={
+          payload && (
+            <Badge variant="secondary">
+              {payload.counts.total} {payload.counts.total === 1 ? "signal" : "signals"}
+            </Badge>
+          )
+        }
+      />
+      <SectionIntro>
+        A quick signal from your visit. It’s your impression, not a halal certificate.
+      </SectionIntro>
 
-      {loading && <p className="form-help">Loading…</p>}
-      {!loading && error && (
-        <p className="form-error" role="alert">
-          {error}
+      {loading && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Spinner /> Loading…
         </p>
       )}
+      {!loading && error && <FieldError>{error}</FieldError>}
       {!loading && !error && payload && (
         <>
-          <div className="rating-options" role="group" aria-label="Choose a visit signal">
+          <div
+            className="grid grid-cols-1 gap-2.5 sm:grid-cols-3"
+            role="group"
+            aria-label="Choose a visit signal"
+          >
             {RATING_VALUES.map((rating) => {
               const selected = payload.rating === rating;
               return (
-                <button
-                  type="button"
-                  className={`rating-option${selected ? " is-selected" : ""}`}
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "h-auto flex-col items-start gap-0.5 rounded-xl p-4 text-left whitespace-normal hover:border-foreground",
+                    selected && "border-2 border-foreground bg-secondary",
+                  )}
                   key={rating}
                   aria-pressed={selected}
                   aria-busy={busy === rating}
                   disabled={busy !== null || authState === "checking"}
                   onClick={() => void choose(rating)}
                 >
-                  <small>{payload.counts[rating]}</small>
-                  <strong>{busy === rating ? "Saving…" : label(rating)}</strong>
-                  <span>{selected ? "Your signal" : description(rating)}</span>
-                </button>
+                  <small className="text-xs font-bold text-muted-foreground">
+                    {payload.counts[rating]}
+                  </small>
+                  <strong className="text-base">{busy === rating ? "Saving…" : label(rating)}</strong>
+                  <span className="text-[13px] font-normal text-muted-foreground">
+                    {selected ? "Your signal" : description(rating)}
+                  </span>
+                </Button>
               );
             })}
           </div>
           {authState === "signed-out" && (
-            <p className="field-note" style={{ marginTop: 10 }}>
-              <a className="link-underline" href={loginUrl(placeId)}>
-                Log in
-              </a>{" "}
-              to add yours. You can change it any time.
-            </p>
+            <Note className="mt-2.5">
+              <TextLink href={loginUrl(placeId)}>Log in</TextLink> to add yours. You can change
+              it any time.
+            </Note>
           )}
         </>
       )}

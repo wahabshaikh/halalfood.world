@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   Breadcrumbs,
+  Page,
+  PageMain,
   SiteFooter,
   SiteHeader,
   Unavailable,
@@ -60,21 +62,21 @@ export default async function ListPage({
   if (loaded.status === "missing") notFound();
   if (loaded.status === "error")
     return (
-      <div className="page">
+      <Page>
         <SiteHeader />
-        <main className="page-main">
+        <PageMain>
           <Unavailable retryPath={`/list/${encodeURIComponent(id)}`} />
-        </main>
+        </PageMain>
         <SiteFooter />
-      </div>
+      </Page>
     );
 
   const { list, items } = loaded.data;
 
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <Breadcrumbs
           trail={[
             { name: "Halalfood", path: "/" },
@@ -97,7 +99,7 @@ export default async function ListPage({
               url={`/list/${list.id}`}
               title={list.title}
               text={`${list.itemCount} halal places`}
-              className="action share-button"
+              variant="outline"
             />
           </div>
         </div>
@@ -124,8 +126,8 @@ export default async function ListPage({
         <p className="detail-more">
           Want your own? <a href={canonical("/lists")}>Start a list</a>.
         </p>
-      </main>
+      </PageMain>
       <SiteFooter />
-    </div>
+    </Page>
   );
 }

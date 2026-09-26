@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { SiteFooter, SiteHeader } from "../../src/components/site-chrome";
+import {
+  Page,
+  PageMain,
+  SiteFooter,
+  SiteHeader,
+} from "../../src/components/site-chrome";
 import SavedPlacesView from "./saved-places-view";
 
 export const metadata: Metadata = {
@@ -11,12 +16,12 @@ export const metadata: Metadata = {
 
 export default function SavedPage() {
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <SavedPlacesView />
-      </main>
+      </PageMain>
       <SiteFooter active="saved" />
-    </div>
+    </Page>
   );
 }

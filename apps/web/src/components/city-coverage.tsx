@@ -2,6 +2,13 @@
 
 import { useState } from "react";
 import { COVERAGE_COPY, type CityCoverage } from "@halalfood/core/coverage";
+import { Button } from "@halalfood/ui/components/button";
+import { Card } from "@halalfood/ui/components/card";
+import { Checkbox } from "@halalfood/ui/components/checkbox";
+import { Field, FieldLabel } from "@halalfood/ui/components/field";
+import { Progress } from "@halalfood/ui/components/progress";
+import { cn } from "@halalfood/ui/lib/utils";
+import { Note, SectionHeading } from "./section";
 
 /**
  * A city's honest coverage, plus the action a visitor from a thin city needs.
@@ -60,79 +67,80 @@ export default function CityCoverageCard({
   }
 
   return (
-    <section className="city-coverage" aria-labelledby="city-coverage-title">
-      <div className="place-section-heading">
-        <div>
-          <p className="eyebrow">HOW MUCH OF THIS CITY WE ACTUALLY HAVE</p>
-          <h2 id="city-coverage-title">Coverage</h2>
-        </div>
-      </div>
-
-      <p className="coverage-headline">{headline}</p>
-
-      <div
-        className="coverage-bar"
-        role="img"
-        aria-label={`${coverage.enrichedPercent}% of listed places have attached evidence`}
-      >
-        <span
-          className="coverage-bar-fill"
-          style={{ width: `${coverage.enrichedPercent}%` }}
+    <section className="my-6" aria-labelledby="city-coverage-title">
+      <Card className="gap-0 px-5 py-5">
+        <SectionHeading
+          id="city-coverage-title"
+          eyebrow="HOW MUCH OF THIS CITY WE ACTUALLY HAVE"
+          title="Coverage"
         />
-      </div>
 
-      <ul className="coverage-levels">
-        {levels.map((level) => (
-          <li key={level.key} className={`coverage-level is-${level.key}`}>
-            <strong>{level.count.toLocaleString()}</strong>
-            <span className="coverage-level-label">
-              {COVERAGE_COPY[level.key].label}
-            </span>
-            <span className="coverage-level-meaning">
-              {COVERAGE_COPY[level.key].meaning}
-            </span>
-          </li>
-        ))}
-      </ul>
+        <p className="mb-3 text-base font-semibold">{headline}</p>
 
-      <div className="coverage-request">
-        <label className="check-in-check">
-          <input
-            type="checkbox"
-            checked={wantsToContribute}
-            onChange={(event) => setWantsToContribute(event.target.checked)}
-          />
-          <span>I would help build coverage here.</span>
-        </label>
-        <button
-          type="button"
-          className="ui-button ui-button-default"
-          disabled={state === "sending" || state === "sent"}
-          onClick={() => void request()}
-        >
-          {state === "sending"
-            ? "Sending…"
-            : state === "sent"
-              ? "Request counted"
-              : "Ask for deeper coverage here"}
-        </button>
-        {coverage.requests > 0 && (
-          <p className="coverage-requests">
-            {coverage.requests.toLocaleString()}{" "}
-            {coverage.requests === 1 ? "person has" : "people have"} asked for
-            this city
-            {coverage.contributors > 0
-              ? `, ${coverage.contributors} offering to help`
-              : ""}
-            .
-          </p>
-        )}
-        {message && (
-          <p className={state === "error" ? "check-in-error" : "contribute-message"} role="status">
-            {message}
-          </p>
-        )}
-      </div>
+        <Progress
+          value={coverage.enrichedPercent}
+          className="mb-4 h-2"
+          role="img"
+          aria-label={`${coverage.enrichedPercent}% of listed places have attached evidence`}
+        />
+
+        <ul className="mb-4.5 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+          {levels.map((level) => (
+            <li key={level.key} className="rounded-xl border bg-muted p-3">
+              <strong className="block text-xl tracking-tight">{level.count.toLocaleString()}</strong>
+              <span className="block text-[13px] font-semibold">
+                {COVERAGE_COPY[level.key].label}
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                {COVERAGE_COPY[level.key].meaning}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="grid justify-items-start gap-2.5">
+          <Field orientation="horizontal" className="w-auto">
+            <Checkbox
+              id="coverage-contribute"
+              checked={wantsToContribute}
+              onCheckedChange={(checked) => setWantsToContribute(checked === true)}
+            />
+            <FieldLabel htmlFor="coverage-contribute" className="font-normal">
+              I would help build coverage here.
+            </FieldLabel>
+          </Field>
+          <Button
+            size="lg"
+            disabled={state === "sending" || state === "sent"}
+            onClick={() => void request()}
+          >
+            {state === "sending"
+              ? "Sending…"
+              : state === "sent"
+                ? "Request counted"
+                : "Ask for deeper coverage here"}
+          </Button>
+          {coverage.requests > 0 && (
+            <Note>
+              {coverage.requests.toLocaleString()}{" "}
+              {coverage.requests === 1 ? "person has" : "people have"} asked for
+              this city
+              {coverage.contributors > 0
+                ? `, ${coverage.contributors} offering to help`
+                : ""}
+              .
+            </Note>
+          )}
+          {message && (
+            <p
+              className={cn("text-sm", state === "error" ? "text-destructive" : "text-success")}
+              role="status"
+            >
+              {message}
+            </p>
+          )}
+        </div>
+      </Card>
     </section>
   );
 }

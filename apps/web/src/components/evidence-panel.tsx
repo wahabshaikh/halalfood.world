@@ -5,6 +5,11 @@ import {
   STATUS_COPY,
   type HalalAssessment,
 } from "@halalfood/core/halal-taxonomy";
+import { Alert, AlertDescription } from "@halalfood/ui/components/alert";
+import { Badge } from "@halalfood/ui/components/badge";
+import { Card } from "@halalfood/ui/components/card";
+import { cn } from "@halalfood/ui/lib/utils";
+import { Disclosure, InsufficientData, MetaItem, SectionHeading } from "./section";
 import type { PublicHalalVerification } from "../lib/halal-verifications";
 import type { StatusChange } from "../lib/place-decision";
 
@@ -38,130 +43,118 @@ export default function EvidencePanel({
   ]);
 
   return (
-    <section className="evidence-panel" aria-labelledby="evidence-panel-title">
-      <div className="place-section-heading">
-        <div>
-          <p className="eyebrow">EVIDENCE</p>
-          <h2 id="evidence-panel-title">Why this status, and who said so</h2>
-        </div>
-        <span className="verification-count">
-          {assessment.evidenceCount}{" "}
-          {assessment.evidenceCount === 1 ? "item" : "items"}
-        </span>
-      </div>
+    <section className="my-6" aria-labelledby="evidence-panel-title">
+      <SectionHeading
+        id="evidence-panel-title"
+        eyebrow="EVIDENCE"
+        title="Why this status, and who said so"
+        action={
+          <Badge variant="secondary">
+            {assessment.evidenceCount}{" "}
+            {assessment.evidenceCount === 1 ? "item" : "items"}
+          </Badge>
+        }
+      />
 
       {assessment.conflict && (
-        <p className="evidence-conflict" role="status">
-          The items marked below contradict each other. The status stays
-          Unverified and no confidence badge is shown until a moderator resolves
-          the conflict.
-        </p>
+        <Alert variant="warning" className="mb-3" role="status">
+          <AlertDescription>
+            The items marked below contradict each other. The status stays
+            Unverified and no confidence badge is shown until a moderator resolves
+            the conflict.
+          </AlertDescription>
+        </Alert>
       )}
 
       {verifications.length === 0 ? (
-        <p className="insufficient-data">
+        <InsufficientData>
           Nobody has submitted halal evidence for this branch yet. That is why
           the status reads Unverified — it is not a statement that the food is
           not halal.
-        </p>
+        </InsufficientData>
       ) : (
-        <ol className="evidence-list">
+        <ol className="grid gap-3">
           {verifications.map((item) => (
-            <li
-              key={item.id}
-              className={`evidence-item is-${item.status}${item.stale ? " is-stale" : ""}${conflicting.has(item.id) ? " is-conflicting" : ""}`}
-            >
-              <div className="evidence-item-head">
-                <span className="ui-badge evidence-kind">
-                  {EVIDENCE_KIND_COPY[item.kind]}
-                </span>
-                <span className="evidence-claim">
-                  Claims: {STATUS_COPY[item.claimedStatus].label}
-                </span>
-                {item.status === "pending" && (
-                  <span className="evidence-state">Awaiting review</span>
+            <li key={item.id}>
+              <Card
+                size="sm"
+                className={cn(
+                  "gap-2.5 px-4",
+                  (item.status === "pending" || item.stale) && "bg-muted/60",
+                  conflicting.has(item.id) && "ring-warning",
                 )}
-                {item.stale && <span className="evidence-state">Expired</span>}
-                {conflicting.has(item.id) && (
-                  <span className="evidence-state is-conflict">In conflict</span>
-                )}
-              </div>
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">{EVIDENCE_KIND_COPY[item.kind]}</Badge>
+                  <span className="text-sm font-semibold">
+                    Claims: {STATUS_COPY[item.claimedStatus].label}
+                  </span>
+                  {item.status === "pending" && <Badge variant="muted">Awaiting review</Badge>}
+                  {item.stale && <Badge variant="muted">Expired</Badge>}
+                  {conflicting.has(item.id) && <Badge variant="warning">In conflict</Badge>}
+                </div>
 
-              <dl className="evidence-meta">
-                <div>
-                  <dt>Scope</dt>
-                  <dd>
+                <dl className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-x-4 gap-y-2 text-sm">
+                  <MetaItem label="Scope">
                     {EVIDENCE_SCOPE_COPY[item.scope]}
                     {item.scopeNote ? ` — ${item.scopeNote}` : ""}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Captured</dt>
-                  <dd>{date(item.capturedAt)}</dd>
-                </div>
-                <div>
-                  <dt>Expires</dt>
-                  <dd>{date(item.expiresAt)}</dd>
-                </div>
-                {item.certificationBody && (
-                  <div>
-                    <dt>Certification body</dt>
-                    <dd>
+                  </MetaItem>
+                  <MetaItem label="Captured">{date(item.capturedAt)}</MetaItem>
+                  <MetaItem label="Expires">{date(item.expiresAt)}</MetaItem>
+                  {item.certificationBody && (
+                    <MetaItem label="Certification body">
                       {item.certificationBody}
                       {item.certificateId ? ` (${item.certificateId})` : ""}
-                    </dd>
-                  </div>
-                )}
-                <div>
-                  <dt>Submitter</dt>
-                  <dd>
+                    </MetaItem>
+                  )}
+                  <MetaItem label="Submitter">
                     {RELATIONSHIP_COPY[item.relationship]}
                     {item.incentivized ? " · rewarded submission" : ""}
-                  </dd>
-                </div>
-              </dl>
+                  </MetaItem>
+                </dl>
 
-              {item.note && <p className="evidence-note">{item.note}</p>}
+                {item.note && <p className="text-sm">{item.note}</p>}
 
-              {item.evidence.length > 0 && (
-                <ul className="evidence-sources">
-                  {item.evidence.map((source) => (
-                    <li key={source.url}>
-                      <a
-                        href={source.url}
-                        target="_blank"
-                        rel="noopener noreferrer nofollow"
-                      >
-                        {source.kind === "link" ? source.url : source.fileName}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
+                {item.evidence.length > 0 && (
+                  <ul className="grid gap-1 text-sm">
+                    {item.evidence.map((source) => (
+                      <li key={source.url} className="truncate">
+                        <a
+                          href={source.url}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                          className="text-primary underline underline-offset-2"
+                        >
+                          {source.kind === "link" ? source.url : source.fileName}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
             </li>
           ))}
         </ol>
       )}
 
       {history.length > 0 && (
-        <details className="evidence-history">
-          <summary>Status history ({history.length})</summary>
-          <ol>
-            {history.map((change) => (
-              <li key={change.id}>
-                <span className="history-date">
-                  {new Date(change.createdAt).toISOString().slice(0, 10)}
-                </span>{" "}
-                {change.previousStatus
-                  ? `${STATUS_COPY[change.previousStatus as keyof typeof STATUS_COPY]?.label ?? change.previousStatus} → `
-                  : "Set to "}
-                {STATUS_COPY[change.nextStatus as keyof typeof STATUS_COPY]?.label ??
-                  change.nextStatus}
-                {change.reason ? ` — ${change.reason}` : ""}
-              </li>
-            ))}
-          </ol>
-        </details>
+        <Disclosure className="mt-4" label={`Status history (${history.length})`}>
+            <ol className="mt-2 grid gap-1.5 text-sm">
+              {history.map((change) => (
+                <li key={change.id}>
+                  <span className="font-semibold text-muted-foreground tabular-nums">
+                    {new Date(change.createdAt).toISOString().slice(0, 10)}
+                  </span>{" "}
+                  {change.previousStatus
+                    ? `${STATUS_COPY[change.previousStatus as keyof typeof STATUS_COPY]?.label ?? change.previousStatus} → `
+                    : "Set to "}
+                  {STATUS_COPY[change.nextStatus as keyof typeof STATUS_COPY]?.label ??
+                    change.nextStatus}
+                  {change.reason ? ` — ${change.reason}` : ""}
+                </li>
+              ))}
+            </ol>
+        </Disclosure>
       )}
     </section>
   );

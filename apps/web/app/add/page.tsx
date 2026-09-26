@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { SiteFooter, SiteHeader } from "../../src/components/site-chrome";
+import {
+  Page,
+  PageMain,
+  SiteFooter,
+  SiteHeader,
+} from "../../src/components/site-chrome";
 import { getVisitorLocation } from "../../src/lib/visitor-location";
 import AddPlaceForm from "./add-place-form";
 
@@ -19,12 +24,12 @@ export default async function AddPage({
   const initialQuery = typeof raw === "string" ? raw.trim().slice(0, 120) : "";
   const location = await getVisitorLocation();
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <AddPlaceForm initialQuery={initialQuery} area={location?.city ?? null} />
-      </main>
+      </PageMain>
       <SiteFooter active="add" />
-    </div>
+    </Page>
   );
 }

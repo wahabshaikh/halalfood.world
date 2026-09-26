@@ -13,6 +13,18 @@ import {
   type ReturnIntentBucket,
 } from "@halalfood/core/check-in";
 import type { Suitability } from "@halalfood/core/user-preferences";
+import { Alert, AlertDescription, AlertTitle } from "@halalfood/ui/components/alert";
+import { Badge } from "@halalfood/ui/components/badge";
+import { Card } from "@halalfood/ui/components/card";
+import { cn } from "@halalfood/ui/lib/utils";
+import {
+  DividedList,
+  InsufficientData,
+  Note,
+  SectionHeading,
+  SectionIntro,
+} from "./section";
+import { TONE_BADGE, TONE_BORDER } from "./status-tone";
 
 /**
  * The decision summary, server-rendered so it is crawlable and readable
@@ -48,30 +60,31 @@ function ReturnIntent({
   description: string;
 }) {
   return (
-    <div className="return-intent-row">
-      <div className="return-intent-head">
+    <div className="grid gap-1 rounded-xl border bg-muted p-3.5">
+      <div className="flex items-baseline justify-between gap-2">
         <strong>{label}</strong>
-        <span className="return-intent-count">
+        <span className="text-[13px] text-muted-foreground">
           {bucket.count} {bucket.count === 1 ? "check-in" : "check-ins"}
         </span>
       </div>
       {bucket.insufficientData ? (
-        <p className="insufficient-data">
+        <InsufficientData>
           {bucket.count === 0
             ? "No check-ins yet."
             : `Not enough check-ins to publish a percentage — ${MIN_PUBLISHABLE_SAMPLE} are needed. ${bucket.definitely} said definitely, ${bucket.maybe} maybe, ${bucket.no} no.`}
-        </p>
+        </InsufficientData>
       ) : (
         <>
-          <p className="return-intent-value">
-            <strong>{bucket.wouldReturnPercent}%</strong> would definitely return
+          <p>
+            <strong className="text-2xl tracking-tight">{bucket.wouldReturnPercent}%</strong>{" "}
+            would definitely return
           </p>
-          <p className="return-intent-breakdown">
+          <p className="text-[13px] text-muted-foreground">
             {bucket.definitely} definitely · {bucket.maybe} maybe · {bucket.no} no
           </p>
         </>
       )}
-      <p className="return-intent-description">{description}</p>
+      <Note>{description}</Note>
     </div>
   );
 }
@@ -89,101 +102,123 @@ export function DecisionHeadline({
 }) {
   const copy = STATUS_COPY[assessment.status];
   return (
-    <section
-      className={`decision-summary tone-${copy.tone}`}
-      aria-labelledby="decision-summary-title"
-    >
-      <div className="decision-status">
-        <span className="ui-badge decision-badge">{copy.label}</span>
-        {assessment.confidence !== "none" && (
-          <span className="decision-confidence">
-            {CONFIDENCE_COPY[assessment.confidence]}
-          </span>
-        )}
-        {assessment.conflict && (
-          <span className="decision-flag">Conflicting evidence — under review</span>
-        )}
-        {assessment.needsReverification && !assessment.conflict && (
-          <span className="decision-flag">Re-verification needed</span>
-        )}
-      </div>
-      <h2 id="decision-summary-title" className="decision-headline">
-        {headline}
-      </h2>
-      <p className="decision-evidence-line">{evidenceLine}</p>
-
-      {suitability && (
-        <div
-          className={`suitability ${suitability.meets ? "is-met" : "is-blocked"}`}
-          aria-live="polite"
-        >
-          <p className="suitability-verdict">
-            {suitability.meets
-              ? "This meets the dietary standards saved on your account."
-              : "This does not meet the dietary standards saved on your account."}
-          </p>
-          {suitability.blockers.length > 0 && (
-            <ul className="suitability-list">
-              {suitability.blockers.map((note) => (
-                <li key={note.code}>{note.message}</li>
-              ))}
-            </ul>
+    <section aria-labelledby="decision-summary-title" className="mt-5 mb-2">
+      <Card className={cn("gap-0 border-l-4 px-5 py-5 shadow-xs", TONE_BORDER[copy.tone])}>
+        <div className="mb-2.5 flex flex-wrap items-center gap-2">
+          <Badge variant={TONE_BADGE[copy.tone]} className="h-6 px-2.5 text-[13px] font-bold">
+            {copy.label}
+          </Badge>
+          {assessment.confidence !== "none" && (
+            <span className="text-[13px] font-semibold text-muted-foreground">
+              {CONFIDENCE_COPY[assessment.confidence]}
+            </span>
           )}
-          {suitability.warnings.length > 0 && (
-            <ul className="suitability-list is-warning">
-              {suitability.warnings.map((note) => (
-                <li key={note.code}>{note.message}</li>
-              ))}
-            </ul>
+          {assessment.conflict && (
+            <Badge variant="warning">Conflicting evidence — under review</Badge>
           )}
-          <p className="suitability-note">
-            <a href="/preferences">Change your dietary standards</a>
-          </p>
+          {assessment.needsReverification && !assessment.conflict && (
+            <Badge variant="warning">Re-verification needed</Badge>
+          )}
         </div>
-      )}
+        <h2 id="decision-summary-title" className="mb-1.5 text-[19px] leading-snug">
+          {headline}
+        </h2>
+        <p className="text-sm text-muted-foreground">{evidenceLine}</p>
 
-      <ul className="decision-reasons">
-        {assessment.reasons.map((reason) => (
-          <li key={reason}>{reason}</li>
-        ))}
-      </ul>
+        {suitability && <SuitabilityNotice suitability={suitability} className="mt-3.5" />}
+
+        <ul className="mt-3.5 grid list-disc gap-1.5 pl-4.5 text-sm text-muted-foreground">
+          {assessment.reasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      </Card>
     </section>
+  );
+}
+
+/** Whether this place meets the visitor's saved dietary standards, and why not. */
+export function SuitabilityNotice({
+  suitability,
+  className,
+}: {
+  suitability: Suitability;
+  className?: string;
+}) {
+  return (
+    <Alert
+      variant={suitability.meets ? "success" : "destructive"}
+      className={cn("px-4 py-3.5", !suitability.meets && "bg-destructive/5", className)}
+      aria-live="polite"
+    >
+      <AlertTitle className="font-semibold">
+        {suitability.meets
+          ? "This meets the dietary standards saved on your account."
+          : "This does not meet the dietary standards saved on your account."}
+      </AlertTitle>
+      <AlertDescription className="text-foreground">
+        {suitability.blockers.length > 0 && (
+          <ul className="list-disc pl-4.5">
+            {suitability.blockers.map((note) => (
+              <li key={note.code}>{note.message}</li>
+            ))}
+          </ul>
+        )}
+        {suitability.warnings.length > 0 && (
+          <ul className="list-disc pl-4.5 text-warning-foreground">
+            {suitability.warnings.map((note) => (
+              <li key={note.code}>{note.message}</li>
+            ))}
+          </ul>
+        )}
+        <a href="/preferences" className="font-semibold underline underline-offset-2">
+          Change your dietary standards
+        </a>
+      </AlertDescription>
+    </Alert>
   );
 }
 
 export function FactChips({ facts }: { facts: PlaceFacts }) {
   const entries = displayFacts(facts);
   return (
-    <section className="fact-panel" aria-labelledby="fact-panel-title">
-      <div className="place-section-heading">
-        <div>
-          <p className="eyebrow">THE FACTS, SEPARATELY</p>
-          <h2 id="fact-panel-title">Alcohol, pork, kitchen, ownership</h2>
-        </div>
-      </div>
-      <p className="section-intro">
+    <section className="my-6" aria-labelledby="fact-panel-title">
+      <SectionHeading
+        id="fact-panel-title"
+        eyebrow="THE FACTS, SEPARATELY"
+        title="Alcohol, pork, kitchen, ownership"
+      />
+      <SectionIntro>
         These are recorded as independent facts, not folded into one badge. An
         unknown answer means nobody has recorded it yet.
-      </p>
-      <ul className="fact-chips">
+      </SectionIntro>
+      <ul className="flex flex-wrap gap-2">
         {entries.map((entry) => (
-          <li
-            key={entry.key}
-            className={`fact-chip is-${entry.value}${entry.reassuring ? " is-reassuring" : ""}`}
-          >
+          <li key={entry.key}>
             {/* The state is in the text as well as the colour, for
                 colour-independent reading. */}
-            <span className="fact-chip-label">{entry.label}</span>
+            <Badge
+              variant={
+                entry.reassuring
+                  ? "success"
+                  : entry.value === "yes" || entry.value === "no"
+                    ? "warning"
+                    : "muted"
+              }
+              className="h-8 border-border px-3 text-[13px] font-medium"
+            >
+              {entry.label}
+            </Badge>
           </li>
         ))}
       </ul>
       {facts.certificationBody && (
-        <p className="fact-certification">
+        <p className="mt-3 text-sm">
           Certification body on file: <strong>{facts.certificationBody}</strong>
         </p>
       )}
       {facts.branchLabel && (
-        <p className="fact-branch">
+        <p className="mt-2 text-sm">
           Branch: <strong>{facts.branchLabel}</strong>. Evidence is recorded per
           branch and never copied between locations.
         </p>
@@ -195,17 +230,12 @@ export function FactChips({ facts }: { facts: PlaceFacts }) {
 export function DishHighlightPanel({ dishes }: { dishes: DishHighlights }) {
   if (dishes.insufficientData && !dishes.mostOrdered.length)
     return (
-      <section className="dish-panel" aria-labelledby="dish-panel-title">
-        <div className="place-section-heading">
-          <div>
-            <p className="eyebrow">DISHES</p>
-            <h2 id="dish-panel-title">What to order</h2>
-          </div>
-        </div>
-        <p className="insufficient-data">
+      <section className="my-6" aria-labelledby="dish-panel-title">
+        <SectionHeading id="dish-panel-title" eyebrow="DISHES" title="What to order" />
+        <InsufficientData>
           No dish verdicts yet. Record a visit and say what you ordered to start
           this off.
-        </p>
+        </InsufficientData>
       </section>
     );
 
@@ -216,29 +246,33 @@ export function DishHighlightPanel({ dishes }: { dishes: DishHighlights }) {
   ].filter((group) => group.items.length);
 
   return (
-    <section className="dish-panel" aria-labelledby="dish-panel-title">
-      <div className="place-section-heading">
-        <div>
-          <p className="eyebrow">DISHES</p>
-          <h2 id="dish-panel-title">What to order</h2>
-        </div>
-      </div>
-      <div className="dish-groups">
+    <section className="my-6" aria-labelledby="dish-panel-title">
+      <SectionHeading id="dish-panel-title" eyebrow="DISHES" title="What to order" />
+      <div className="mt-3.5 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
         {groups.map((group) => (
-          <div key={group.key} className={`dish-group is-${group.key}`}>
-            <h3>{group.title}</h3>
-            <ul>
+          <div key={group.key}>
+            <h3 className="mb-2 text-sm tracking-widest text-muted-foreground uppercase">
+              {group.title}
+            </h3>
+            <DividedList>
               {group.items.map((dish) => (
-                <li key={dish.normalizedName}>
-                  <span className="dish-name">{dish.name}</span>
-                  <span className="dish-meta">
+                <li key={dish.normalizedName} className="py-2">
+                  <span
+                    className={cn(
+                      "block text-sm font-semibold",
+                      group.key === "avoided" && "text-destructive",
+                    )}
+                  >
+                    {dish.name}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
                     {dish.orderAgainPercent === null
                       ? `${dish.orders} ${dish.orders === 1 ? "verdict" : "verdicts"} — too few to rate`
                       : `${dish.orderAgainPercent}% would order again · ${dish.orders} verdicts`}
                   </span>
                 </li>
               ))}
-            </ul>
+            </DividedList>
           </div>
         ))}
       </div>
@@ -251,18 +285,17 @@ export function ReturnIntentPanel({ checkIns }: { checkIns: CheckInSummary }) {
   const valueTotal =
     checkIns.value.great + checkIns.value.fair + checkIns.value.overpriced;
   return (
-    <section className="return-intent-panel" aria-labelledby="return-intent-title">
-      <div className="place-section-heading">
-        <div>
-          <p className="eyebrow">WOULD DINERS RETURN</p>
-          <h2 id="return-intent-title">Return intent, not stars</h2>
-        </div>
-      </div>
-      <p className="section-intro">
+    <section className="my-6" aria-labelledby="return-intent-title">
+      <SectionHeading
+        id="return-intent-title"
+        eyebrow="WOULD DINERS RETURN"
+        title="Return intent, not stars"
+      />
+      <SectionIntro>
         There are no star ratings here. Diners answer one question — would you
         come back — and verified visits are kept apart from unverified ones.
-      </p>
-      <div className="return-intent-grid">
+      </SectionIntro>
+      <div className="mt-3.5 grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
         <ReturnIntent
           bucket={checkIns.verified}
           label="Verified visits"
@@ -275,18 +308,18 @@ export function ReturnIntentPanel({ checkIns }: { checkIns: CheckInSummary }) {
         />
       </div>
       {valueTotal > 0 && (
-        <p className="value-breakdown">
+        <p className="mt-3 text-sm">
           Value: {checkIns.value.great} {VALUE_COPY.great.toLowerCase()} ·{" "}
           {checkIns.value.fair} fair · {checkIns.value.overpriced} overpriced
           {spend ? ` · typically ${spend} per person` : ""}
         </p>
       )}
       {checkIns.excludedCount > 0 && (
-        <p className="excluded-note">
+        <Note className="mt-2">
           {checkIns.excludedCount} {checkIns.excludedCount === 1 ? "check-in is" : "check-ins are"}{" "}
           excluded from these figures because the diner disclosed a reward or a
           relationship with the restaurant.
-        </p>
+        </Note>
       )}
     </section>
   );
@@ -295,9 +328,9 @@ export function ReturnIntentPanel({ checkIns }: { checkIns: CheckInSummary }) {
 export function ScopeNote({ assessment }: { assessment: HalalAssessment }) {
   if (!assessment.scopes.length) return null;
   return (
-    <p className="scope-note">
+    <Note className="mt-2">
       Scope of the supporting evidence:{" "}
       {assessment.scopes.map((scope) => EVIDENCE_SCOPE_COPY[scope]).join(", ")}.
-    </p>
+    </Note>
   );
 }

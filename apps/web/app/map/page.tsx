@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
-import { SiteHeader, TabBar } from "../../src/components/site-chrome";
+import {
+  Page,
+  SiteHeader,
+  TabBar,
+} from "../../src/components/site-chrome";
 import MapView from "./map-view";
 import { loadLocalContext } from "../../src/lib/local-context-repository";
 import { initialMapView } from "../../src/lib/local-context";
@@ -17,12 +21,12 @@ export default async function MapPage() {
     .then(initialMapView)
     .catch(() => null);
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
       <main>
         <MapView initialView={initialView} />
       </main>
       <TabBar active="map" />
-    </div>
+    </Page>
   );
 }

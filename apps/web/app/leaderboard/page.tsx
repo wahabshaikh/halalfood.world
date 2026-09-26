@@ -17,11 +17,25 @@ import {
 } from "../../src/lib/seo";
 import {
   ExploreTabs,
+  Page,
+  PageIntro,
+  PageMain,
   SiteFooter,
   SiteHeader,
   Unavailable,
 } from "../../src/components/site-chrome";
 import { Illustration } from "../../src/components/art";
+import { Separator } from "@halalfood/ui/components/separator";
+import { cn } from "@halalfood/ui/lib/utils";
+import {
+  CityCard,
+  CityGrid,
+  EmptyState,
+  InitialsAvatar,
+  PromoCard,
+  TextLink,
+} from "../../src/components/blocks";
+import { SectionTitle } from "../../src/components/place-tile";
 import { loadOrDegrade } from "../../src/lib/load";
 
 const TITLE = "The halalfood.world community";
@@ -88,13 +102,13 @@ export default async function LeaderboardPage() {
   const [loaded, creators] = await Promise.all([loadLeaderboard(), loadCreators()]);
   if (loaded.status !== "ok")
     return (
-      <div className="page">
+      <Page>
         <SiteHeader />
-        <main className="page-main">
+        <PageMain>
           <Unavailable retryPath="/leaderboard" />
-        </main>
+        </PageMain>
         <SiteFooter active="community" />
-      </div>
+      </Page>
     );
 
   const contributors = loaded.data;
@@ -109,26 +123,28 @@ export default async function LeaderboardPage() {
   ];
 
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main page-narrow">
+      <PageMain narrow>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbJsonLd(trail)) }}
         />
         <ExploreTabs active="community" />
-        <header className="page-intro">
-          <h1>Community</h1>
-          <p className="lead">
-            The people who add places, check them in person and share what they saw, so the
-            next person can decide.
-          </p>
-        </header>
+        <PageIntro
+          title="Community"
+          lead="The people who add places, check them in person and share what they saw, so the next person can decide."
+        />
 
-        <section className="cup-card" aria-labelledby="cup-title">
+        <section
+          className="mb-6 flex items-center gap-4.5 rounded-3xl bg-warning-muted p-6 text-warning-foreground"
+          aria-labelledby="cup-title"
+        >
           <Illustration name="cup" size={64} />
           <div>
-            <h2 id="cup-title">Top helpers</h2>
+            <h2 id="cup-title" className="text-xl text-foreground">
+              Top helpers
+            </h2>
             <p>
               {contributors.length
                 ? `${formatCount(contributors.length)} ${plural(contributors.length, "person", "people")} ranked by how much they’ve helped.`
@@ -138,23 +154,23 @@ export default async function LeaderboardPage() {
         </section>
 
         {podiumOrder.length > 0 && (
-          <ol className="podium" aria-label="Top three">
+          <ol className="mb-6 grid grid-cols-3 items-end gap-3.5" aria-label="Top three">
             {podiumOrder.map((contributor) => (
-              <li key={contributor.rank} className={contributor.rank === 1 ? "is-first" : undefined}>
-                <span
-                  className="avatar"
-                  aria-hidden="true"
-                  style={{
-                    width: contributor.rank === 1 ? 64 : 52,
-                    height: contributor.rank === 1 ? 64 : 52,
-                    background: AVATAR_TINTS[contributor.rank % AVATAR_TINTS.length],
-                  }}
-                >
-                  {initials(contributor.displayName)}
-                </span>
+              <li key={contributor.rank} className="grid justify-items-center gap-2 text-center">
+                <InitialsAvatar
+                  initials={initials(contributor.displayName)}
+                  tint={AVATAR_TINTS[contributor.rank % AVATAR_TINTS.length]}
+                  size={contributor.rank === 1 ? 64 : 52}
+                />
                 <strong>{contributor.displayName}</strong>
-                <div className="podium-block" style={{ height: contributor.rank === 1 ? 118 : contributor.rank === 2 ? 92 : 72 }}>
-                  <b>{contributor.rank}</b>
+                <div
+                  className={cn(
+                    "grid w-full content-start justify-items-center rounded-t-2xl pt-3 font-extrabold",
+                    contributor.rank === 1 ? "bg-foreground text-background" : "bg-secondary",
+                  )}
+                  style={{ height: contributor.rank === 1 ? 118 : contributor.rank === 2 ? 92 : 72 }}
+                >
+                  <b className="text-[28px]">{contributor.rank}</b>
                   <span>{formatCount(contributor.score)} pts</span>
                 </div>
               </li>
@@ -163,39 +179,39 @@ export default async function LeaderboardPage() {
         )}
 
         {rest.length > 0 && (
-          <ol className="rank-list" start={4}>
+          <ol className="divide-y" start={4}>
             {rest.map((contributor) => (
-              <li className="rank-row" key={contributor.rank + "-" + contributor.displayName}>
-                <span className="rank">{contributor.rank}</span>
-                <span
-                  className="avatar"
-                  aria-hidden="true"
-                  style={{ background: AVATAR_TINTS[contributor.rank % AVATAR_TINTS.length] }}
-                >
-                  {initials(contributor.displayName)}
-                </span>
+              <li
+                className="grid grid-cols-[32px_auto_minmax(0,1fr)_auto] items-center gap-3.5 py-3.5"
+                key={contributor.rank + "-" + contributor.displayName}
+              >
+                <span className="text-center font-extrabold">{contributor.rank}</span>
+                <InitialsAvatar
+                  initials={initials(contributor.displayName)}
+                  tint={AVATAR_TINTS[contributor.rank % AVATAR_TINTS.length]}
+                />
                 <div>
-                  <strong>{contributor.displayName}</strong>
-                  <small>{summary(contributor)}</small>
+                  <strong className="block text-[15px]">{contributor.displayName}</strong>
+                  <small className="text-[13px] text-muted-foreground">{summary(contributor)}</small>
                 </div>
-                <span className="points">{formatCount(contributor.score)}</span>
+                <span className="text-right font-extrabold">{formatCount(contributor.score)}</span>
               </li>
             ))}
           </ol>
         )}
 
         {!contributors.length && (
-          <p className="empty-state">
+          <EmptyState>
             Nobody’s on the board yet. <a href="/add">Add a place</a> to be the first.
-          </p>
+          </EmptyState>
         )}
 
-        <hr className="rule" />
+        <Separator className="my-8" />
         <section aria-labelledby="points-title">
-          <h2 id="points-title" className="section-title">
+          <SectionTitle id="points-title" className="mb-2">
             How points work
-          </h2>
-          <p className="muted">
+          </SectionTitle>
+          <p className="text-muted-foreground">
             Points: {CONTRIBUTOR_SCORE_WEIGHTS.placesAdded} for a place you add,{" "}
             {CONTRIBUTOR_SCORE_WEIGHTS.verificationsSubmitted} for a halal check,{" "}
             {CONTRIBUTOR_SCORE_WEIGHTS.reviews} for a review, {CONTRIBUTOR_SCORE_WEIGHTS.photos} for a
@@ -208,46 +224,55 @@ export default async function LeaderboardPage() {
 
         {creators.length > 0 && (
           <>
-            <hr className="rule" />
+            <Separator className="my-8" />
             <section aria-labelledby="creators-title">
-              <h2 id="creators-title" className="section-title" style={{ marginBottom: 14 }}>
+              <SectionTitle id="creators-title" className="mb-3.5">
                 Creators people have linked
-              </h2>
-              <ul className="city-grid">
+              </SectionTitle>
+              <CityGrid>
                 {creators.map((creator) => (
                   <li key={creator.platform + creator.handle}>
-                    <a className="city-card" href={creatorPath(creator.platform, creator.handle)}>
-                      <span className="city-card-mark" aria-hidden="true">
-                        {initials(creator.authorName || creator.handle)}
-                      </span>
-                      <span>
-                        <strong>{creator.authorName || "@" + creator.handle}</strong>
-                        <small>
-                          {MEDIA_PLATFORM_LABELS[creator.platform]} · {formatCount(creator.placeCount)}{" "}
-                          {plural(creator.placeCount, "place")}
-                        </small>
-                      </span>
-                    </a>
+                    <CityCard
+                      href={creatorPath(creator.platform, creator.handle)}
+                      mark={
+                        <span aria-hidden="true">
+                          {initials(creator.authorName || creator.handle)}
+                        </span>
+                      }
+                      title={creator.authorName || "@" + creator.handle}
+                      meta={
+                        <>
+                          {MEDIA_PLATFORM_LABELS[creator.platform]} ·{" "}
+                          {formatCount(creator.placeCount)} {plural(creator.placeCount, "place")}
+                        </>
+                      }
+                    />
                   </li>
                 ))}
-              </ul>
+              </CityGrid>
             </section>
           </>
         )}
 
-        <hr className="rule" />
-        <section className="promo-card is-honey" aria-labelledby="cta-title">
-          <Illustration name="vouches" size={88} />
-          <div>
-            <h2 id="cta-title">Eaten somewhere lately?</h2>
-            <p>Open the place and tap “I’ve been here, let me check”. It takes about a minute.</p>
-            <a className="link-underline" href="/map">
-              Find the place
-            </a>
-          </div>
+        <Separator className="my-8" />
+        <section aria-labelledby="cta-title">
+          <PromoCard
+            tone="honey"
+            art="vouches"
+            titleId="cta-title"
+            title="Eaten somewhere lately?"
+            description={
+              <>
+                <p className="mb-3">
+                  Open the place and tap “I’ve been here, let me check”. It takes about a minute.
+                </p>
+                <TextLink href="/map">Find the place</TextLink>
+              </>
+            }
+          />
         </section>
-      </main>
+      </PageMain>
       <SiteFooter active="community" />
-    </div>
+    </Page>
   );
 }

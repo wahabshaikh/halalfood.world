@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Suitability } from "@halalfood/core/user-preferences";
+import { SuitabilityNotice } from "../../../src/components/decision-summary";
 
 /**
  * The signed-in visitor's own dietary standards, applied to this place.
@@ -33,33 +34,5 @@ export default function PersonalSuitability({ placeId }: { placeId: string }) {
 
   if (!suitability) return null;
 
-  return (
-    <div
-      className={`suitability ${suitability.meets ? "is-met" : "is-blocked"}`}
-      aria-live="polite"
-    >
-      <p className="suitability-verdict">
-        {suitability.meets
-          ? "This meets the dietary standards saved on your account."
-          : "This does not meet the dietary standards saved on your account."}
-      </p>
-      {suitability.blockers.length > 0 && (
-        <ul className="suitability-list">
-          {suitability.blockers.map((note) => (
-            <li key={note.code}>{note.message}</li>
-          ))}
-        </ul>
-      )}
-      {suitability.warnings.length > 0 && (
-        <ul className="suitability-list is-warning">
-          {suitability.warnings.map((note) => (
-            <li key={note.code}>{note.message}</li>
-          ))}
-        </ul>
-      )}
-      <p className="suitability-note">
-        <a href="/preferences">Change your dietary standards</a>
-      </p>
-    </div>
-  );
+  return <SuitabilityNotice suitability={suitability} className="mt-3.5" />;
 }

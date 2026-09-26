@@ -156,7 +156,7 @@ export default function PassportView() {
                 url="/passport"
                 title="My halal food map"
                 text={`${passport.distinctPlaces} places across ${passport.cities.length} cities`}
-                className="action share-button"
+                variant="outline"
               />
             </div>
             <ul className="visited-list">

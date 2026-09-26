@@ -17,13 +17,25 @@ import {
 import {
   ApproximateNote,
   Breadcrumbs,
+  Page,
+  PageIntro,
+  PageMain,
   SiteFooter,
   SiteHeader,
   Unavailable,
 } from "../../../src/components/site-chrome";
 import { loadOrDegrade } from "../../../src/lib/load";
-import { PlaceGrid } from "../../../src/components/place-tile";
+import { PlaceGrid, SectionTitle } from "../../../src/components/place-tile";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Button } from "@halalfood/ui/components/button";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@halalfood/ui/components/pagination";
+import { EmptyState } from "../../../src/components/blocks";
 import { MapsIcon } from "@hugeicons/core-free-icons";
 import ShareButton from "../../../src/components/share-button";
 import { guidePath } from "../../../src/lib/guides";
@@ -98,13 +110,13 @@ export default async function CityPage({
       : { status: "error" as const };
   if (loaded.status !== "ok" || listing.status !== "ok")
     return (
-      <div className="page">
+      <Page>
         <SiteHeader />
-        <main className="page-main">
+        <PageMain>
           <Unavailable retryPath={`/city/${encodeURIComponent(citySlug)}`} />
-        </main>
+        </PageMain>
         <SiteFooter />
-      </div>
+      </Page>
     );
   const city = loaded.data;
   const { places, total } = listing.data;
@@ -128,9 +140,9 @@ export default async function CityPage({
       : "/map";
 
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -153,24 +165,27 @@ export default async function CityPage({
           }}
         />
         <Breadcrumbs trail={trail} />
-        <header className="page-intro">
-          <h1>{cityTitle(city.city_slug, city.place_count)}</h1>
-          <p className="lead">{cityDescription(city.city_slug, city.place_count)}</p>
-          <div className="button-row">
-            <a className="btn btn-dark" href={mapLink}>
-              <HugeiconsIcon icon={MapsIcon} size={18} aria-hidden="true" />
-              Show on map
-            </a>
-            <a className="btn btn-line" href={guidePath(city.city_slug)}>
-              Read the {name} guide
-            </a>
+        <PageIntro
+          title={cityTitle(city.city_slug, city.place_count)}
+          lead={cityDescription(city.city_slug, city.place_count)}
+        >
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button asChild size="xl">
+              <a href={mapLink}>
+                <HugeiconsIcon icon={MapsIcon} size={18} aria-hidden="true" />
+                Show on map
+              </a>
+            </Button>
+            <Button asChild size="xl" variant="outline">
+              <a href={guidePath(city.city_slug)}>Read the {name} guide</a>
+            </Button>
             <ShareButton
               url={path}
               title={`Halal food in ${name}`}
               text={`${formatCount(city.place_count)} halal ${plural(city.place_count, "place")} in ${name}`}
             />
           </div>
-        </header>
+        </PageIntro>
 
         {coverage && (
           <CityCoverageCard
@@ -180,44 +195,45 @@ export default async function CityPage({
         )}
 
         <section aria-labelledby="listings">
-          <div className="section-head">
-            <h2 id="listings" className="section-title">
-              {page > 0
-                ? `Places ${page * PAGE_SIZE + 1}–${page * PAGE_SIZE + places.length}`
-                : `Top-rated in ${name}`}
-            </h2>
-          </div>
+          <SectionTitle id="listings" className="mb-4">
+            {page > 0
+              ? `Places ${page * PAGE_SIZE + 1}–${page * PAGE_SIZE + places.length}`
+              : `Top-rated in ${name}`}
+          </SectionTitle>
           {places.length ? (
             <PlaceGrid places={places} />
           ) : (
-            <p className="empty-state">
+            <EmptyState>
               No places here yet. <a href="/add">Add the first one</a>.
-            </p>
+            </EmptyState>
           )}
         </section>
 
         {lastPage > 0 && (
-          <nav className="pagination" aria-label="Pagination">
-            {page > 0 && (
-              <a href={page === 1 ? path : `${path}?page=${page - 1}`} rel="prev">
-                Previous
-              </a>
-            )}
-            <span>
-              Page {page + 1} of {lastPage + 1}
-            </span>
-            {page < lastPage && (
-              <a href={`${path}?page=${page + 1}`} rel="next">
-                Next
-              </a>
-            )}
-          </nav>
+          <Pagination className="mt-10">
+            <PaginationContent>
+              {page > 0 && (
+                <PaginationItem>
+                  <PaginationPrevious
+                    href={page === 1 ? path : `${path}?page=${page - 1}`}
+                    rel="prev"
+                  />
+                </PaginationItem>
+              )}
+              <PaginationItem className="px-3 text-sm font-semibold">
+                Page {page + 1} of {lastPage + 1}
+              </PaginationItem>
+              {page < lastPage && (
+                <PaginationItem>
+                  <PaginationNext href={`${path}?page=${page + 1}`} rel="next" />
+                </PaginationItem>
+              )}
+            </PaginationContent>
+          </Pagination>
         )}
-        <div style={{ marginTop: 28 }}>
-          <ApproximateNote compact />
-        </div>
-      </main>
+        <ApproximateNote />
+      </PageMain>
       <SiteFooter />
-    </div>
+    </Page>
   );
 }

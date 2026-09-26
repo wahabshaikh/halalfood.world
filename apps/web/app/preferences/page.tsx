@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import {
   Breadcrumbs,
+  Page,
+  PageIntro,
+  PageMain,
   SiteFooter,
   SiteHeader,
 } from "../../src/components/site-chrome";
@@ -16,28 +19,30 @@ export const metadata: Metadata = {
 
 export default function PreferencesPage() {
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <Breadcrumbs
           trail={[
             { name: "Halalfood", path: "/" },
             { name: "Dietary standards", path: "/preferences" },
           ]}
         />
-        <div className="page-intro">
-          <p className="eyebrow">YOUR STANDARDS, NOT OURS</p>
-          <h1>Dietary standards</h1>
-          <p className="lead">
-            Halalfood does not issue religious rulings. It publishes the
+        <PageIntro
+          eyebrow={<>YOUR STANDARDS, NOT OURS</>}
+          title={<>Dietary standards</>}
+          lead={
+            <>
+              Halalfood does not issue religious rulings. It publishes the
             evidence and lets you set the threshold you are comfortable with.
             These settings decide what counts as suitable <em>for you</em> on
             every place page and in the map filters.
-          </p>
-        </div>
+            </>
+          }
+        />
         <PreferencesForm />
-      </main>
+      </PageMain>
       <SiteFooter />
-    </div>
+    </Page>
   );
 }

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { DataFastAnalytics } from "../src/components/datafast-analytics";
 import { SITE_NAME, SITE_URL, OG_IMAGE } from "../src/lib/seo";
 import { CrispChat } from "../src/components/crisp-chat";
-import "./globals.css";
+import "@halalfood/ui/globals.css";
 
 const DESCRIPTION =
   "Find halal food you'll love, near you or anywhere you travel. Every halal check comes with a name and a date.";

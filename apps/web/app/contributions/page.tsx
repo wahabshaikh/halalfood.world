@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import {
   Breadcrumbs,
+  Page,
+  PageIntro,
+  PageMain,
   SiteFooter,
   SiteHeader,
 } from "../../src/components/site-chrome";
@@ -15,26 +18,28 @@ export const metadata: Metadata = {
 
 export default function ContributionsPage() {
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <Breadcrumbs
           trail={[
             { name: "Halalfood", path: "/" },
             { name: "Contributions", path: "/contributions" },
           ]}
         />
-        <div className="page-intro">
-          <p className="eyebrow">WHAT HAPPENED TO YOUR SUBMISSIONS</p>
-          <h1>Contributions</h1>
-          <p className="lead">
-            Pending, accepted, needs evidence, rejected or superseded — each
+        <PageIntro
+          eyebrow={<>WHAT HAPPENED TO YOUR SUBMISSIONS</>}
+          title={<>Contributions</>}
+          lead={
+            <>
+              Pending, accepted, needs evidence, rejected or superseded — each
             with the reason. Every decision on a report can be appealed.
-          </p>
-        </div>
+            </>
+          }
+        />
         <ContributionsView />
-      </main>
+      </PageMain>
       <SiteFooter />
-    </div>
+    </Page>
   );
 }

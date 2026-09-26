@@ -1,5 +1,11 @@
 "use client";
 
+import { Button } from "@halalfood/ui/components/button";
+import { Field, FieldDescription, FieldLabel } from "@halalfood/ui/components/field";
+import { Input } from "@halalfood/ui/components/input";
+import { EmptyState, FormCard, InlineCard, Loading } from "../../../src/components/blocks";
+import { FormMessage, SectionIntro } from "../../../src/components/section";
+
 import { useEffect, useRef, useState } from "react";
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
@@ -235,40 +241,47 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
 
   return (
     <section aria-labelledby="place-photos-title">
-      <h2 id="place-photos-title" style={{ fontSize: 22, marginBottom: 6 }}>
+      <h2 id="place-photos-title" className="mb-1.5 text-[22px]">
         {photos.length ? `Photos (${photos.length})` : "Photos"}
       </h2>
-      <p className="section-intro">
+      <SectionIntro>
         The food, the menu, the certificate on the wall. Each photo shows the date it was added.
-      </p>
+      </SectionIntro>
 
-      {loading && <p className="form-help">Loading photos…</p>}
-      {loadError && (
-        <p className="form-error" role="alert">
-          {loadError}
-        </p>
-      )}
+      {loading && <Loading>Loading photos…</Loading>}
+      {loadError && <FormMessage tone="error">{loadError}</FormMessage>}
 
       {!loading && !loadError && !photos.length && (
-        <p className="empty-state">No photos yet. Be the first to add one.</p>
+        <EmptyState>No photos yet. Be the first to add one.</EmptyState>
       )}
 
       {!loading && !loadError && !!photos.length && (
-        <ul className="photo-strip">
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2.5">
           {photos.map((photo) => (
             <li key={photo.id}>
-              <figure>
+              <figure className="grid gap-1.5">
                 <a href={photo.url} target="_blank" rel="noopener noreferrer">
-                  <img src={photo.url} alt="Community photo of this place" loading="lazy" />
+                  <img
+                    src={photo.url}
+                    alt="Community photo of this place"
+                    loading="lazy"
+                    className="aspect-square w-full rounded-xl bg-secondary object-cover"
+                  />
                 </a>
-                <figcaption>
+                <figcaption className="text-xs text-muted-foreground">
                   <time dateTime={photo.createdAt}>{formatTimestamp(photo.createdAt)}</time> ·{" "}
                   {formatBytes(photo.byteSize)}
                 </figcaption>
                 {photo.isOwn && (
-                  <button type="button" onClick={() => void deletePhoto(photo)} disabled={busy !== null}>
+                  <Button
+                    variant="link"
+                    size="xs"
+                    className="justify-self-start px-0 font-extrabold text-foreground underline"
+                    onClick={() => void deletePhoto(photo)}
+                    disabled={busy !== null}
+                  >
                     {busy === photo.id ? "Deleting…" : "Delete"}
-                  </button>
+                  </Button>
                 )}
               </figure>
             </li>
@@ -277,20 +290,23 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
       )}
 
       {authState === "signed-out" && !loadError && (
-        <div className="inline-card" style={{ marginTop: 16 }}>
-          <strong>Got a photo from your visit?</strong>
-          <p>Log in with a one-time email code to add it.</p>
-          <a className="btn btn-outline btn-sm" href={loginUrl(placeId)}>
-            Log in to add a photo
-          </a>
-        </div>
+        <InlineCard
+          className="mt-4"
+          title="Got a photo from your visit?"
+          description="Log in with a one-time email code to add it."
+          action={
+            <Button asChild variant="outline">
+              <a href={loginUrl(placeId)}>Log in to add a photo</a>
+            </Button>
+          }
+        />
       )}
       {authState === "signed-in" && !loadError && (
-        <form className="stack-form" style={{ marginTop: 16 }} onSubmit={(event) => void submit(event)}>
-          <h3>Add a photo</h3>
-          <label className="field">
-            <span>Photo</span>
-            <input
+        <FormCard className="mt-4" title="Add a photo" onSubmit={(event) => void submit(event)}>
+          <Field>
+            <FieldLabel htmlFor="place-photo-file">Photo</FieldLabel>
+            <Input
+              id="place-photo-file"
               ref={fileInput}
               type="file"
               accept="image/jpeg,image/png,image/webp"
@@ -299,14 +315,16 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
                 setFormError("");
               }}
             />
-            <small className="field-note">JPEG, PNG or WebP, up to 8 MB. Please keep people’s faces out of it.</small>
-          </label>
-          {success && <p className="form-success" role="status">{success}</p>}
-          {formError && <p className="form-error" role="alert">{formError}</p>}
-          <button className="btn btn-dark" type="submit" disabled={busy !== null}>
+            <FieldDescription>
+              JPEG, PNG or WebP, up to 8 MB. Please keep people’s faces out of it.
+            </FieldDescription>
+          </Field>
+          {success && <FormMessage tone="success">{success}</FormMessage>}
+          {formError && <FormMessage tone="error">{formError}</FormMessage>}
+          <Button size="lg" className="justify-self-start" type="submit" disabled={busy !== null}>
             {busy === "upload" ? "Uploading…" : "Add photo"}
-          </button>
-        </form>
+          </Button>
+        </FormCard>
       )}
     </section>
   );

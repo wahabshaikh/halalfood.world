@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import {
   Breadcrumbs,
+  Page,
+  PageIntro,
+  PageMain,
   SiteFooter,
   SiteHeader,
 } from "../../src/components/site-chrome";
@@ -15,27 +18,29 @@ export const metadata: Metadata = {
 
 export default function AdminPage() {
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <Breadcrumbs
           trail={[
             { name: "Halalfood", path: "/" },
             { name: "Moderation", path: "/admin" },
           ]}
         />
-        <div className="page-intro">
-          <p className="eyebrow">PROTECT THE DATABASE</p>
-          <h1>Moderation console</h1>
-          <p className="lead">
-            Operational tooling is part of the trust product, not back-office
+        <PageIntro
+          eyebrow={<>PROTECT THE DATABASE</>}
+          title={<>Moderation console</>}
+          lead={
+            <>
+              Operational tooling is part of the trust product, not back-office
             polish. Every decision here is recorded in the audit log with its
             actor, reason and source.
-          </p>
-        </div>
+            </>
+          }
+        />
         <AdminConsole />
-      </main>
+      </PageMain>
       <SiteFooter />
-    </div>
+    </Page>
   );
 }

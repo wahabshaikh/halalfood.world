@@ -2,6 +2,8 @@
 
 import { HugeiconsIcon } from "@hugeicons/react";
 import { FavouriteIcon } from "@hugeicons/core-free-icons";
+import { Button } from "@halalfood/ui/components/button";
+import { cn } from "@halalfood/ui/lib/utils";
 import { useEffect, useState } from "react";
 
 type SavedPlacesPayload = {
@@ -179,39 +181,56 @@ export default function SavePlaceButton({
     }
   }
 
-  const buttonClass = [
-    "save-place-button",
-    compact ? "compact" : "",
-    heart ? "is-heart" : "",
-    saved ? "is-saved" : "",
-    className,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const label = busy ? (saved ? "Removing…" : "Saving…") : saved ? "Saved" : "Save";
+  const icon = (
+    <HugeiconsIcon
+      icon={FavouriteIcon}
+      size={heart ? 24 : compact ? 15 : 17}
+      fill={saved ? "currentColor" : heart ? "rgba(0,0,0,0.45)" : "none"}
+      strokeWidth={heart ? 2.2 : 2}
+      className={cn(saved && !heart && "text-brand")}
+      aria-hidden="true"
+    />
+  );
 
   return (
-    <span className="save-place-control">
-      <button
-        type="button"
-        className={buttonClass}
-        aria-label={saved ? "Remove this place from saved places" : "Save this place"}
-        aria-pressed={saved}
-        aria-busy={busy}
-        disabled={busy}
-        onClick={() => void toggleSaved()}
-      >
-        <HugeiconsIcon icon={FavouriteIcon}
-          size={heart ? 24 : compact ? 15 : 17}
-          fill={saved ? "currentColor" : heart ? "rgba(0,0,0,0.45)" : "none"}
-          strokeWidth={heart ? 2.2 : 2}
-          aria-hidden="true"
-        />
-        {!heart && (
-          <span>{busy ? (saved ? "Removing…" : "Saving…") : saved ? "Saved" : "Save"}</span>
-        )}
-      </button>
+    <span className="relative inline-flex flex-col">
+      {heart ? (
+        <button
+          type="button"
+          className={cn(
+            "p-0.5 text-white drop-shadow transition-transform hover:scale-110 disabled:opacity-60",
+            saved && "text-brand [&_svg]:stroke-white",
+            className,
+          )}
+          aria-label={saved ? "Remove this place from saved places" : "Save this place"}
+          aria-pressed={saved}
+          aria-busy={busy}
+          disabled={busy}
+          onClick={() => void toggleSaved()}
+        >
+          {icon}
+        </button>
+      ) : (
+        <Button
+          variant="ghost"
+          size={compact ? "sm" : "lg"}
+          className={cn("font-extrabold underline underline-offset-3", className)}
+          aria-label={saved ? "Remove this place from saved places" : "Save this place"}
+          aria-pressed={saved}
+          aria-busy={busy}
+          disabled={busy}
+          onClick={() => void toggleSaved()}
+        >
+          {icon}
+          <span>{label}</span>
+        </Button>
+      )}
       {error && (
-        <span className="save-place-error" role="alert">
+        <span
+          className="absolute top-[calc(100%+4px)] right-0 z-10 w-50 rounded-lg bg-popover px-2.5 py-2 text-xs text-destructive shadow-lg"
+          role="alert"
+        >
           {error}
         </span>
       )}

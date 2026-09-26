@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import {
   Breadcrumbs,
+  Page,
+  PageIntro,
+  PageMain,
   SiteFooter,
   SiteHeader,
 } from "../../src/components/site-chrome";
@@ -15,27 +18,29 @@ export const metadata: Metadata = {
 
 export default function PassportPage() {
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <Breadcrumbs
           trail={[
             { name: "Halalfood", path: "/" },
             { name: "Food passport", path: "/passport" },
           ]}
         />
-        <div className="page-intro">
-          <p className="eyebrow">WHERE YOU HAVE EATEN</p>
-          <h1>Food passport</h1>
-          <p className="lead">
-            Coverage, not volume. Verified and self-reported visits are counted
+        <PageIntro
+          eyebrow={<>WHERE YOU HAVE EATEN</>}
+          title={<>Food passport</>}
+          lead={
+            <>
+              Coverage, not volume. Verified and self-reported visits are counted
             separately, and the milestones reward exploring widely, going back,
             and keeping halal evidence current.
-          </p>
-        </div>
+            </>
+          }
+        />
         <PassportView />
-      </main>
+      </PageMain>
       <SiteFooter />
-    </div>
+    </Page>
   );
 }

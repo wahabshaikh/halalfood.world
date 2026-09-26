@@ -15,11 +15,22 @@ import {
 } from "../src/lib/seo";
 import {
   ExploreTabs,
+  Lead,
+  Page,
+  PageMain,
   SiteFooter,
   SiteHeader,
 } from "../src/components/site-chrome";
 import { PlaceRow } from "../src/components/place-tile";
-import { Illustration } from "../src/components/art";
+import { Button } from "@halalfood/ui/components/button";
+import {
+  ChipLink,
+  ChipRow,
+  EmptyState,
+  FloatingPill,
+  PromoCard,
+  TextLink,
+} from "../src/components/blocks";
 import {
   findPlacesNear,
   loadLocalContext,
@@ -101,7 +112,7 @@ export default async function Home({
   const addHref = "/add";
 
   return (
-    <div className="page">
+    <Page>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -142,41 +153,41 @@ export default async function Home({
         }}
       />
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <ExploreTabs active="eat" />
-        <header className="explore-hero">
-          <h1>{hero.title}</h1>
-          <p className="lead">
+        <header className="mb-7.5 grid gap-2.5">
+          <h1 className="text-[clamp(28px,4vw,42px)] leading-tight">{hero.title}</h1>
+          <Lead>
             {hero.lead}{" "}
             {hero.addFirst && area && (
-              <a className="link-underline" href={addHref}>
-                Add the first place in {area}
-              </a>
+              <TextLink href={addHref}>Add the first place in {area}</TextLink>
             )}
-          </p>
+          </Lead>
         </header>
 
         {loaded.status === "ok" ? (
           <>
             {loaded.data.context.cities.length > 0 && (
-              <nav
-                className="city-chips"
+              <ChipRow
+                role="navigation"
+                className="mt-2 mb-9"
                 aria-label={context?.location ? "Cities near you" : "Popular cities"}
               >
                 {loaded.data.context.cities.slice(0, CHIP_CITIES).map((city) => (
-                  <a className="chip" key={city.city_slug} href={"/city/" + city.city_slug}>
-                    {cityName(city.city_slug)}
-                    <small>
-                      {city.distance_km !== null && context?.location
+                  <ChipLink
+                    key={city.city_slug}
+                    href={"/city/" + city.city_slug}
+                    hint={
+                      city.distance_km !== null && context?.location
                         ? formatDistance(city.distance_km)
-                        : formatCount(city.place_count) + " " + plural(city.place_count, "place")}
-                    </small>
-                  </a>
+                        : formatCount(city.place_count) + " " + plural(city.place_count, "place")
+                    }
+                  >
+                    {cityName(city.city_slug)}
+                  </ChipLink>
                 ))}
-                <a className="chip" href="/cities">
-                  All cities
-                </a>
-              </nav>
+                <ChipLink href="/cities">All cities</ChipLink>
+              </ChipRow>
             )}
             <PlaceRow title="Closest to you" href="/map" places={loaded.data.near} />
             {loaded.data.rows.map(({ city, places }) => (
@@ -188,52 +199,55 @@ export default async function Home({
               />
             ))}
             {!loaded.data.rows.length && (
-              <p className="empty-state">
+              <EmptyState>
                 No places are listed yet. <a href={addHref}>Add the first one</a>.
-              </p>
+              </EmptyState>
             )}
           </>
         ) : (
-          <p className="empty-state">
+          <EmptyState>
             Places are taking a moment to load. <a href="/map">Open the map</a> or try
             again shortly.
-          </p>
+          </EmptyState>
         )}
 
         {signedIn ? (
-          <section className="promo-card nudge-card">
-            <Illustration name="visits" size={80} />
-            <div>
-              <h2>{area ? `Been somewhere good in ${area}?` : "Been somewhere good?"}</h2>
-              <p>Add it in under a minute and help the next person decide.</p>
-            </div>
-            <a className="btn btn-primary" href={addHref}>
-              Add a place
-            </a>
-          </section>
+          <PromoCard
+            className="mt-3 mb-10"
+            art="visits"
+            title={area ? `Been somewhere good in ${area}?` : "Been somewhere good?"}
+            description="Add it in under a minute and help the next person decide."
+            action={
+              <Button asChild size="xl">
+                <a href={addHref}>Add a place</a>
+              </Button>
+            }
+          />
         ) : (
-          <section className="promo-card nudge-card is-honey">
-            <Illustration name="cup" size={80} />
-            <div>
-              <h2>Keep your favourites in one place</h2>
-              <p>Save spots, build lists and track where you’ve eaten. Just your email.</p>
-            </div>
-            <a className="btn btn-primary" href="/login?returnTo=%2Fsaved&reason=join">
-              Join free
-            </a>
-          </section>
+          <PromoCard
+            className="mt-3 mb-10"
+            tone="honey"
+            art="cup"
+            title="Keep your favourites in one place"
+            description="Save spots, build lists and track where you’ve eaten. Just your email."
+            action={
+              <Button asChild size="xl">
+                <a href="/login?returnTo=%2Fsaved&reason=join">Join free</a>
+              </Button>
+            }
+          />
         )}
-      </main>
-      <a className="floating-pill" href="/map">
+      </PageMain>
+      <FloatingPill href="/map">
         Show map <HugeiconsIcon icon={MapsIcon} size={16} aria-hidden="true" />
-      </a>
+      </FloatingPill>
       <noscript>
-        <div className="noscript-fallback">
+        <div className="mx-auto my-10 grid max-w-3xl gap-3 px-4.5">
           <p>The map needs JavaScript. Every city and place page works without it.</p>
-          <a href="/cities">Browse halal food by city</a>
+          <TextLink href="/cities">Browse halal food by city</TextLink>
         </div>
       </noscript>
       <SiteFooter active="explore" />
-    </div>
+    </Page>
   );
 }

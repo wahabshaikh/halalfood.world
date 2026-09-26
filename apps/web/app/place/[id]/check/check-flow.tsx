@@ -2,8 +2,26 @@
 
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { DrinkIcon, FileRemoveIcon, FileValidationIcon, GlassWaterIcon, HelpCircleIcon, Knife01Icon, Settings02Icon, SteakIcon, ViewOffIcon } from "@hugeicons/core-free-icons";
+import {
+  DrinkIcon,
+  FileRemoveIcon,
+  FileValidationIcon,
+  GlassWaterIcon,
+  HelpCircleIcon,
+  Knife01Icon,
+  Settings02Icon,
+  SteakIcon,
+  ViewOffIcon,
+} from "@hugeicons/core-free-icons";
+import { Alert, AlertDescription } from "@halalfood/ui/components/alert";
+import { Button, buttonVariants } from "@halalfood/ui/components/button";
+import { Field, FieldError, FieldLabel } from "@halalfood/ui/components/field";
+import { Progress } from "@halalfood/ui/components/progress";
+import { Textarea } from "@halalfood/ui/components/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@halalfood/ui/components/toggle-group";
+import { cn } from "@halalfood/ui/lib/utils";
 import { Illustration } from "../../../../src/components/art";
+import { EmptyPanel, Eyebrow } from "../../../../src/components/site-chrome";
 
 type Question = "certificate" | "alcohol" | "meat";
 type Answers = Record<Question, string | null>;
@@ -171,82 +189,87 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
 
   if (auth === "signed-out")
     return (
-      <div className="stepper-body">
+      <StepperBody className="justify-items-start">
         <Illustration name="vouches" size={96} />
-        <h1>Check {placeName}</h1>
-        <p>
+        <h1 className="text-[clamp(26px,4vw,32px)]">Check {placeName}</h1>
+        <p className="text-muted-foreground">
           Log in with a one-time email code so your check has a name on it. It takes a
           minute, and you’ll come straight back here.
         </p>
-        <div className="button-row">
-          <a className="btn btn-primary" href={`/login?returnTo=${encodeURIComponent(selfHref)}`}>
-            Log in to check
-          </a>
-          <a className="btn btn-line" href={placeHref}>
-            Not now
-          </a>
+        <div className="flex flex-wrap gap-2.5">
+          <Button asChild size="xl">
+            <a href={`/login?returnTo=${encodeURIComponent(selfHref)}`}>Log in to check</a>
+          </Button>
+          <Button asChild size="xl" variant="outline">
+            <a href={placeHref}>Not now</a>
+          </Button>
         </div>
-      </div>
+      </StepperBody>
     );
 
   if (step === DONE_STEP)
     return (
-      <div className="stepper-body">
-        <div className="thanks">
-          <Illustration name="vouches" size={120} />
-          <h1>Thank you!</h1>
-          <p>
-            Your check for {placeName} is with our reviewers. Once it’s approved, it’s the
-            first thing the next person will see.
-          </p>
-          <div className="button-row" style={{ justifyContent: "center" }}>
-            <a className="btn btn-dark" href={placeHref}>
-              Back to {placeName}
-            </a>
-            <a className="btn btn-line" href="/leaderboard">
-              See the community
-            </a>
-          </div>
-        </div>
-      </div>
+      <StepperBody>
+        <EmptyPanel
+          art="vouches"
+          title="Thank you!"
+          description={`Your check for ${placeName} is with our reviewers. Once it’s approved, it’s the first thing the next person will see.`}
+        >
+          <Button asChild size="xl">
+            <a href={placeHref}>Back to {placeName}</a>
+          </Button>
+          <Button asChild size="xl" variant="outline">
+            <a href="/leaderboard">See the community</a>
+          </Button>
+        </EmptyPanel>
+      </StepperBody>
     );
 
   return (
     <>
-      <div className="stepper-body">
-        <p className="eyebrow">At {placeName}</p>
+      <StepperBody>
+        <Eyebrow>At {placeName}</Eyebrow>
         {current ? (
           <>
-            <h1>{current.title}</h1>
-            <p>{current.hint}</p>
-            <div className="option-grid" role="group" aria-label={current.title}>
+            <h1 className="text-[clamp(26px,4vw,32px)]">{current.title}</h1>
+            <p className="text-muted-foreground">{current.hint}</p>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              spacing={3}
+              className="mt-3 grid w-full grid-cols-2"
+              aria-label={current.title}
+              value={answers[current.question] ?? ""}
+              onValueChange={(value) => {
+                if (!value) return;
+                setAnswers((previous) => ({ ...previous, [current.question]: value }));
+                setError("");
+              }}
+            >
               {current.options.map((option) => (
-                <button
-                  type="button"
+                <ToggleGroupItem
                   key={option.value}
-                  className="option-tile"
-                  aria-pressed={answers[current.question] === option.value}
-                  onClick={() => {
-                    setAnswers((previous) => ({ ...previous, [current.question]: option.value }));
-                    setError("");
-                  }}
+                  value={option.value}
+                  className="h-auto min-h-27 flex-col items-start justify-start gap-3 rounded-xl p-4 text-left text-[15px] font-bold whitespace-normal hover:border-foreground data-[state=on]:border-2 data-[state=on]:border-foreground data-[state=on]:bg-secondary [&_svg:not([class*='size-'])]:size-7.5"
                 >
                   <span aria-hidden="true">{option.icon}</span>
                   {option.label}
-                </button>
+                </ToggleGroupItem>
               ))}
-            </div>
+            </ToggleGroup>
           </>
         ) : (
           <>
-            <h1>Snap a quick photo</h1>
-            <p>
+            <h1 className="text-[clamp(26px,4vw,32px)]">Snap a quick photo</h1>
+            <p className="text-muted-foreground">
               A clear photo of the certificate or the menu helps everyone after you. It’s
               optional.
             </p>
-            <label className="drop-zone">
+            <label className="grid cursor-pointer justify-items-center gap-3.5 rounded-2xl border-[1.5px] border-dashed border-input bg-secondary px-5 py-9 text-center">
               <Illustration name="photo" size={72} />
-              <span className="btn btn-line">{file ? "Choose a different photo" : "Choose a photo"}</span>
+              <span className={buttonVariants({ variant: "outline", size: "lg" })}>
+                {file ? "Choose a different photo" : "Choose a photo"}
+              </span>
               <input
                 ref={fileInput}
                 type="file"
@@ -254,61 +277,71 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
                 className="sr-only"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
               />
-              <span className="field-note">{file ? file.name : "JPEG, PNG or WebP, up to 8 MB"}</span>
+              <span className="text-[13px] text-muted-foreground">
+                {file ? file.name : "JPEG, PNG or WebP, up to 8 MB"}
+              </span>
             </label>
-            <label className="field" style={{ marginTop: 8 }}>
-              <span>Anything else? (optional)</span>
-              <textarea
+            <Field className="mt-2">
+              <FieldLabel htmlFor="check-note">Anything else? (optional)</FieldLabel>
+              <Textarea
+                id="check-note"
                 value={note}
                 maxLength={1000}
                 rows={3}
                 placeholder="The supplier’s name, when the certificate expires…"
                 onChange={(event) => setNote(event.target.value)}
               />
-            </label>
-            <div className="note-honey">Checks go to a moderator before they show as approved.</div>
+            </Field>
+            <Alert variant="warning">
+              <AlertDescription>Checks go to a moderator before they show as approved.</AlertDescription>
+            </Alert>
           </>
         )}
-        {error && (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
-      <div className="stepper-footer">
-        <div className="stepper-progress" aria-hidden="true">
-          {[0, 1, 2].map((segment) => (
-            <span key={segment}>
-              <i style={{ width: `${Math.max(0, Math.min(1, progress * 3 - segment)) * 100}%` }} />
-            </span>
-          ))}
-        </div>
-        <div className="stepper-actions">
+        {error && <FieldError>{error}</FieldError>}
+      </StepperBody>
+      <div className="fixed inset-x-0 bottom-0 z-70 bg-background">
+        <Progress value={progress * 100} className="h-1 rounded-none" aria-hidden="true" />
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4.5 pt-4 pb-[calc(16px+env(safe-area-inset-bottom))] md:px-6">
           {step === 0 ? (
-            <a className="back" href={placeHref}>
-              Back
-            </a>
+            <Button asChild variant="link" className="px-0 text-base font-extrabold text-foreground underline">
+              <a href={placeHref}>Back</a>
+            </Button>
           ) : (
-            <button type="button" className="back" onClick={() => setStep((value) => value - 1)}>
+            <Button
+              variant="link"
+              className="px-0 text-base font-extrabold text-foreground underline"
+              onClick={() => setStep((value) => value - 1)}
+            >
               Back
-            </button>
+            </Button>
           )}
           {step < PHOTO_STEP ? (
-            <button
-              type="button"
-              className="btn btn-dark"
+            <Button
+              size="xl"
               disabled={auth === "checking"}
               onClick={() => setStep((value) => value + 1)}
             >
               {current && answers[current.question] ? "Next" : "Skip"}
-            </button>
+            </Button>
           ) : (
-            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void send()}>
+            <Button size="xl" disabled={busy} onClick={() => void send()}>
               {busy ? "Sending…" : "Send check"}
-            </button>
+            </Button>
           )}
         </div>
       </div>
     </>
+  );
+}
+
+function StepperBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn(
+        "mx-auto grid w-full max-w-2xl flex-1 content-start gap-3 px-4.5 pt-6 pb-36 md:px-6",
+        className,
+      )}
+      {...props}
+    />
   );
 }

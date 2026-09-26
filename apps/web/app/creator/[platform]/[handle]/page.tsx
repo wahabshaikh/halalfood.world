@@ -15,6 +15,8 @@ import { loadOrDegrade } from "../../../../src/lib/load";
 import { cityName, formatCount, plural } from "../../../../src/lib/seo";
 import {
   Breadcrumbs,
+  Page,
+  PageMain,
   SiteFooter,
   SiteHeader,
   Unavailable,
@@ -57,13 +59,13 @@ export default async function CreatorPage({ params }: { params: Params }) {
   if (loaded.status === "missing") notFound();
   if (loaded.status === "error")
     return (
-      <div className="page">
+      <Page>
         <SiteHeader />
-        <main className="page-main">
+        <PageMain>
           <Unavailable retryPath={`/creator/${platform}/${handle}`} />
-        </main>
+        </PageMain>
         <SiteFooter />
-      </div>
+      </Page>
     );
 
   const creator = loaded.data;
@@ -89,9 +91,9 @@ export default async function CreatorPage({ params }: { params: Params }) {
   }));
 
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <Breadcrumbs
           trail={[
             { name: "halalfood.world", path: "/" },
@@ -168,8 +170,8 @@ export default async function CreatorPage({ params }: { params: Params }) {
             <PlaceGrid places={tiles} />
           </div>
         </div>
-      </main>
+      </PageMain>
       <SiteFooter active="community" />
-    </div>
+    </Page>
   );
 }

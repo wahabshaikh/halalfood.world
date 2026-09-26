@@ -1,5 +1,11 @@
 "use client";
 
+import { Badge } from "@halalfood/ui/components/badge";
+import { Button } from "@halalfood/ui/components/button";
+import { Input } from "@halalfood/ui/components/input";
+import { EmptyState, Loading } from "../../../src/components/blocks";
+import { FormMessage, Note, SectionIntro } from "../../../src/components/section";
+
 import { useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { LinkSquare02Icon, PlayIcon } from "@hugeicons/core-free-icons";
@@ -139,55 +145,23 @@ export default function PlaceVideos({ placeId }: { placeId: string }) {
   }
 
   return (
-    <section className="place-section" id="videos" aria-labelledby="videos-title">
-      <h2 id="videos-title">Seen on</h2>
-      <p className="section-intro">
+    <section className="scroll-mt-24" id="videos" aria-labelledby="videos-title">
+      <h2 id="videos-title" className="mb-1.5 text-[22px]">
+        Seen on
+      </h2>
+      <SectionIntro>
         Videos from creators who ate here. Paste a link and we’ll credit the creator.
-      </p>
-      {loading && <p className="form-help">Loading videos…</p>}
+      </SectionIntro>
+      {loading && <Loading>Loading videos…</Loading>}
       {!loading && !links.length && (
-        <p className="empty-state">No videos yet. Seen this place on Instagram, TikTok or YouTube?</p>
+        <EmptyState>No videos yet. Seen this place on Instagram, TikTok or YouTube?</EmptyState>
       )}
-      {!!links.length && (
-        <ul className="video-track">
-          {links.map((link) => {
-            const creator = link.authorHandle ? "@" + link.authorHandle : link.authorName;
-            return (
-              <li key={link.id} className="video-card">
-                <a
-                  className="video-card-media"
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  aria-label={`Watch on ${LABELS[link.platform]}${creator ? " by " + creator : ""}`}
-                >
-                  {link.thumbnailUrl ? (
-                    // Thumbnails come from the platform's oEmbed response.
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={link.thumbnailUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
-                  ) : (
-                    <HugeiconsIcon icon={PlayIcon} size={32} aria-hidden="true" />
-                  )}
-                  <span className="video-card-platform">{LABELS[link.platform]}</span>
-                </a>
-                {link.authorHandle ? (
-                  <a href={`/creator/${link.platform}/${encodeURIComponent(link.authorHandle)}`}>
-                    <strong>{creator}</strong>
-                  </a>
-                ) : (
-                  <strong>{creator || LABELS[link.platform] + " post"}</strong>
-                )}
-                {link.title && <span>{link.title}</span>}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <form className="link-form" onSubmit={(event) => void submit(event)}>
+      {!!links.length && <VideoTrack links={links} />}
+      <form className="mt-4 flex gap-2" onSubmit={(event) => void submit(event)}>
         <label className="sr-only" htmlFor="video-link">
           Video link
         </label>
-        <input
+        <Input
           id="video-link"
           type="url"
           inputMode="url"
@@ -195,19 +169,72 @@ export default function PlaceVideos({ placeId }: { placeId: string }) {
           value={url}
           maxLength={2048}
           onChange={(event) => setUrl(event.target.value)}
+          className="h-12 min-w-0 flex-1"
         />
-        <button className="btn btn-dark" type="submit" disabled={busy || !url.trim()}>
+        <Button size="xl" type="submit" disabled={busy || !url.trim()}>
           {busy ? "Adding…" : "Add video"}
-        </button>
+        </Button>
       </form>
       {message && (
-        <p className={message.kind === "error" ? "form-error" : "form-success"} role="status" style={{ marginTop: 10 }}>
+        <FormMessage tone={message.kind === "error" ? "error" : "success"} className="mt-2.5">
           {message.text}
-        </p>
+        </FormMessage>
       )}
-      <p className="field-note" style={{ marginTop: 8 }}>
-        <HugeiconsIcon icon={LinkSquare02Icon} size={12} aria-hidden="true" /> Creator names and thumbnails come from the platform.
-      </p>
+      <Note className="mt-2 flex items-center gap-1">
+        <HugeiconsIcon icon={LinkSquare02Icon} size={12} aria-hidden="true" /> Creator names and
+        thumbnails come from the platform.
+      </Note>
     </section>
+  );
+}
+
+function VideoTrack({ links }: { links: Link[] }) {
+  return (
+    <ul className="mt-3.5 grid auto-cols-[160px] grid-flow-col gap-3 overflow-x-auto pb-1.5">
+      {links.map((link) => {
+        const creator = link.authorHandle ? "@" + link.authorHandle : link.authorName;
+        return (
+          <li key={link.id} className="grid content-start gap-2">
+            <a
+              className="relative flex aspect-[9/13] items-center justify-center overflow-hidden rounded-2xl bg-muted"
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              aria-label={`Watch on ${LABELS[link.platform]}${creator ? " by " + creator : ""}`}
+            >
+              {link.thumbnailUrl ? (
+                // Thumbnails come from the platform's oEmbed response.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={link.thumbnailUrl}
+                  alt=""
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  className="size-full object-cover"
+                />
+              ) : (
+                <HugeiconsIcon icon={PlayIcon} size={32} aria-hidden="true" />
+              )}
+              <Badge className="absolute top-2 left-2 bg-background/95 text-[11px] font-extrabold text-foreground">
+                {LABELS[link.platform]}
+              </Badge>
+            </a>
+            {link.authorHandle ? (
+              <a
+                href={`/creator/${link.platform}/${encodeURIComponent(link.authorHandle)}`}
+                className="text-[13px] font-extrabold hover:underline"
+              >
+                {creator}
+              </a>
+            ) : (
+              <strong className="text-[13px] font-extrabold">
+                {creator || LABELS[link.platform] + " post"}
+              </strong>
+            )}
+            {link.title && <span className="text-xs text-muted-foreground">{link.title}</span>}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

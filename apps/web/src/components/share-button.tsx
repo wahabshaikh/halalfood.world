@@ -2,6 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Button } from "@halalfood/ui/components/button";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@halalfood/ui/components/input-group";
+import { cn } from "@halalfood/ui/lib/utils";
 import { Link01Icon, Share08Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 
 /**
@@ -12,12 +19,14 @@ export default function ShareButton({
   url,
   title,
   text,
-  className = "share-button",
+  className,
+  variant = "ghost",
 }: {
   url: string;
   title: string;
   text?: string;
   className?: string;
+  variant?: "outline" | "ghost" | "secondary";
 }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const [absolute, setAbsolute] = useState(url);
@@ -52,16 +61,23 @@ export default function ShareButton({
   }
 
   return (
-    <span className="share-control">
-      <button type="button" className={className} onClick={share}>
-        {state === "copied" ? <HugeiconsIcon icon={Tick02Icon} size={17} /> : <HugeiconsIcon icon={Share08Icon} size={17} />}
+    <span className="relative inline-flex flex-col">
+      <Button type="button" variant={variant} size="lg" className={cn("font-extrabold", variant === "ghost" && "underline underline-offset-3", className)} onClick={share}>
+        <HugeiconsIcon icon={state === "copied" ? Tick02Icon : Share08Icon} size={17} aria-hidden="true" />
         <span>{state === "copied" ? "Link copied" : "Share"}</span>
-      </button>
+      </Button>
       {state === "failed" && (
-        <span className="share-fallback" role="status">
-          <HugeiconsIcon icon={Link01Icon} size={14} aria-hidden="true" />
-          <input readOnly value={absolute} aria-label="Link to copy" onFocus={(e) => e.currentTarget.select()} />
-        </span>
+        <InputGroup className="absolute top-[calc(100%+6px)] right-0 z-10 w-72 bg-popover shadow-lg" role="status">
+          <InputGroupAddon>
+            <HugeiconsIcon icon={Link01Icon} size={14} aria-hidden="true" />
+          </InputGroupAddon>
+          <InputGroupInput
+            readOnly
+            value={absolute}
+            aria-label="Link to copy"
+            onFocus={(e) => e.currentTarget.select()}
+          />
+        </InputGroup>
       )}
     </span>
   );

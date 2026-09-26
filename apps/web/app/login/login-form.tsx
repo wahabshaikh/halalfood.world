@@ -6,6 +6,17 @@ import {
   requestLoginOtp,
   verifyLoginOtp,
 } from "../../src/lib/auth-client";
+import { Alert, AlertDescription } from "@halalfood/ui/components/alert";
+import { Button } from "@halalfood/ui/components/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+} from "@halalfood/ui/components/card";
+import { Field, FieldDescription, FieldLabel } from "@halalfood/ui/components/field";
+import { Input } from "@halalfood/ui/components/input";
+import { Spinner } from "@halalfood/ui/components/spinner";
 
 interface TurnstileApi {
   render(
@@ -87,7 +98,7 @@ function TurnstileCheck({
     };
   }, [onError, onToken, siteKey]);
 
-  return <div ref={container} className="turnstile-check" />;
+  return <div ref={container} className="min-h-16" />;
 }
 
 export default function LoginForm({
@@ -173,91 +184,116 @@ export default function LoginForm({
   };
 
   return (
-    <section className="auth-card" aria-labelledby="login-title">
-      <h1 id="login-title">{heading}</h1>
-      <p>Just your email. We’ll send a code, no password needed.</p>
+    <section aria-labelledby="login-title" className="mx-auto my-10 max-w-xl">
+      <Card className="gap-5 rounded-3xl px-6 py-8 shadow-lg ring-border sm:px-9">
+        <CardHeader className="gap-2 px-0">
+          <h1 id="login-title" className="text-[26px]">
+            {heading}
+          </h1>
+          <CardDescription className="text-base">
+            Just your email. We’ll send a code, no password needed.
+          </CardDescription>
+        </CardHeader>
 
-      {step === "email" ? (
-        <form className="auth-form" onSubmit={requestCode}>
-          <label htmlFor="login-email">Email address</label>
-          <input
-            id="login-email"
-            type="email"
-            autoComplete="email"
-            inputMode="email"
-            autoFocus
-            placeholder="you@example.com"
-            required
-            maxLength={320}
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-          <TurnstileCheck
-            key={turnstileReset}
-            siteKey={siteKey}
-            onToken={onTurnstileToken}
-            onError={onTurnstileError}
-          />
-          {turnstileError && <p className="auth-help">{turnstileError}</p>}
-          <button
-            type="submit"
-            className="btn btn-primary auth-submit"
-            disabled={busy || !email.trim() || !turnstileToken}
-          >
-            {busy ? "Sending…" : "Continue"}
-          </button>
-        </form>
-      ) : (
-        <form className="auth-form" onSubmit={verifyCode}>
-          <p className="auth-status" role="status">
-            {status}
-          </p>
-          <label htmlFor="login-otp">6-digit code</label>
-          <input
-            id="login-otp"
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            autoFocus
-            required
-            pattern="[0-9]{6}"
-            maxLength={6}
-            value={otp}
-            onChange={(event) => {
-              const code = event.target.value.replace(/\D/g, "").slice(0, 6);
-              setOtp(code);
-              // Pasting or typing the last digit is enough; no extra tap.
-              if (code.length === 6) void verifyCode(undefined, code);
-            }}
-          />
-          <button
-            type="submit"
-            className="btn btn-primary auth-submit"
-            disabled={busy || otp.length !== 6}
-          >
-            {busy ? "Checking…" : "Log in"}
-          </button>
-          <button
-            type="button"
-            className="auth-secondary"
-            onClick={() => {
-              setStep("email");
-              setOtp("");
-              setStatus("");
-              setError("");
-              setTurnstileToken("");
-            }}
-          >
-            Use a different email
-          </button>
-        </form>
-      )}
+        <CardContent className="grid gap-3 px-0">
+          {step === "email" ? (
+            <form className="grid gap-3" onSubmit={requestCode}>
+              <Field>
+                <FieldLabel htmlFor="login-email" className="font-extrabold">
+                  Email address
+                </FieldLabel>
+                <Input
+                  id="login-email"
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  autoFocus
+                  placeholder="you@example.com"
+                  required
+                  maxLength={320}
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="h-12 text-base"
+                />
+              </Field>
+              <TurnstileCheck
+                key={turnstileReset}
+                siteKey={siteKey}
+                onToken={onTurnstileToken}
+                onError={onTurnstileError}
+              />
+              {turnstileError && <FieldDescription>{turnstileError}</FieldDescription>}
+              <Button
+                type="submit"
+                size="xl"
+                className="w-full"
+                disabled={busy || !email.trim() || !turnstileToken}
+              >
+                {busy && <Spinner />}
+                {busy ? "Sending…" : "Continue"}
+              </Button>
+            </form>
+          ) : (
+            <form className="grid gap-3" onSubmit={verifyCode}>
+              <p className="text-sm text-muted-foreground" role="status">
+                {status}
+              </p>
+              <Field>
+                <FieldLabel htmlFor="login-otp" className="font-extrabold">
+                  6-digit code
+                </FieldLabel>
+                <Input
+                  id="login-otp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  required
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(event) => {
+                    const code = event.target.value.replace(/\D/g, "").slice(0, 6);
+                    setOtp(code);
+                    // Pasting or typing the last digit is enough; no extra tap.
+                    if (code.length === 6) void verifyCode(undefined, code);
+                  }}
+                  className="h-12 text-center text-xl font-bold tracking-[0.4em]"
+                />
+              </Field>
+              <Button
+                type="submit"
+                size="xl"
+                className="w-full"
+                disabled={busy || otp.length !== 6}
+              >
+                {busy && <Spinner />}
+                {busy ? "Checking…" : "Log in"}
+              </Button>
+              <Button
+                type="button"
+                variant="link"
+                className="justify-self-start px-0 font-extrabold text-foreground underline"
+                onClick={() => {
+                  setStep("email");
+                  setOtp("");
+                  setStatus("");
+                  setError("");
+                  setTurnstileToken("");
+                }}
+              >
+                Use a different email
+              </Button>
+            </form>
+          )}
 
-      {error && (
-        <p className="auth-error" role="alert">
-          {error}
-        </p>
-      )}
+          {error && (
+            <Alert variant="destructive" className="bg-destructive/5" role="alert">
+              <AlertDescription className="font-bold">{error}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
     </section>
   );
 }

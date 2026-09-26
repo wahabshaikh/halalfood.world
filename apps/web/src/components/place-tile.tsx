@@ -102,16 +102,18 @@ export function PlaceTile({
 
 /** A section heading that optionally links to the full list. */
 export function SectionTitle({
+  id,
   href,
   children,
   className,
 }: {
+  id?: string;
   href?: string;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
-    <h2 className={cn("text-[22px] font-extrabold tracking-tight", className)}>
+    <h2 id={id} className={cn("text-[22px] font-extrabold tracking-tight", className)}>
       {href ? (
         <a href={href} className="inline-flex items-center gap-0.5 hover:underline">
           {children}
@@ -149,10 +151,14 @@ export function PlaceRow({
   );
 }
 
+/** Layout for a grid of place tiles, for callers that render their own tiles. */
+export const PLACE_GRID =
+  "grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(230px,1fr))]";
+
 /** A responsive grid of tiles for results, cities and saved lists. */
 export function PlaceGrid({ places }: { places: TilePlace[] }) {
   return (
-    <ul className="grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(230px,1fr))]">
+    <ul className={PLACE_GRID}>
       {places.map((place) => (
         <li key={place.id}>
           <PlaceTile place={place} />

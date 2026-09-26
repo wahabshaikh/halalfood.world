@@ -1,5 +1,18 @@
 "use client";
 
+import { Button } from "@halalfood/ui/components/button";
+import { Field, FieldLabel } from "@halalfood/ui/components/field";
+import { Input } from "@halalfood/ui/components/input";
+import { Textarea } from "@halalfood/ui/components/textarea";
+import {
+  EmptyState,
+  EntryHead,
+  FormCard,
+  InlineCard,
+  Loading,
+} from "../../../src/components/blocks";
+import { FormMessage, SectionIntro } from "../../../src/components/section";
+
 import { useEffect, useState } from "react";
 
 const TITLE_MAX_LENGTH = 120;
@@ -239,60 +252,45 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
 
   return (
     <section aria-labelledby="place-reviews-title">
-      <h2 id="place-reviews-title" style={{ fontSize: 22, marginBottom: 6 }}>
+      <h2 id="place-reviews-title" className="mb-1.5 text-[22px]">
         {reviews.length ? `${reviews.length} ${reviews.length === 1 ? "review" : "reviews"}` : "Reviews"}
       </h2>
-      <p className="section-intro">
-        What people ordered, what they saw, and whether they’d go back.
-      </p>
+      <SectionIntro>What people ordered, what they saw, and whether they’d go back.</SectionIntro>
 
-      {loading && <p className="form-help">Loading reviews…</p>}
-      {loadError && (
-        <p className="form-error" role="alert">
-          {loadError}
-        </p>
-      )}
+      {loading && <Loading>Loading reviews…</Loading>}
+      {loadError && <FormMessage tone="error">{loadError}</FormMessage>}
 
       {!loading && !loadError && !reviews.length && (
-        <p className="empty-state">No reviews yet. Be the first to say how it was.</p>
+        <EmptyState>No reviews yet. Be the first to say how it was.</EmptyState>
       )}
 
       {!loading && !loadError && !!reviews.length && (
-        <ul className="entry-list">
+        <ul className="divide-y">
           {reviews.map((review, index) => (
-            <li className="entry" key={`${review.createdAt}-${index}`}>
-              <div className="entry-head">
-                <span className="avatar" aria-hidden="true">
-                  {review.authorDisplayName.trim().slice(0, 1).toUpperCase() || "H"}
-                </span>
-                <div>
-                  <strong>{review.authorDisplayName}</strong>
-                  <span>
+            <li className="grid gap-2 py-5 first:pt-1" key={`${review.createdAt}-${index}`}>
+              <EntryHead
+                name={review.authorDisplayName}
+                meta={
+                  <>
                     <time dateTime={review.createdAt}>{formatTimestamp(review.createdAt)}</time>
                     {review.updatedAt !== review.createdAt && " · edited"}
-                  </span>
-                </div>
-              </div>
-              {review.title && <p className="entry-meta">{review.title}</p>}
-              <p className="entry-body">{review.body}</p>
+                  </>
+                }
+              />
+              {review.title && <p className="text-[13px] font-bold">{review.title}</p>}
+              <p className="text-[15px] leading-normal">{review.body}</p>
               {review.isOwn && (
-                <div className="button-row">
-                  <button
-                    type="button"
-                    className="btn btn-line btn-sm"
-                    onClick={startEditing}
-                    disabled={busy !== null}
-                  >
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={startEditing} disabled={busy !== null}>
                     Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-line btn-sm"
+                  </Button>
+                  <Button
+                    variant="outline"
                     onClick={() => void deleteReview()}
                     disabled={busy !== null}
                   >
                     {busy === "delete" ? "Deleting…" : "Delete"}
-                  </button>
+                  </Button>
                 </div>
               )}
             </li>
@@ -301,33 +299,38 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
       )}
 
       {authState === "signed-out" && !loadError && (
-        <div className="inline-card" style={{ marginTop: 16 }}>
-          <strong>Eaten here?</strong>
-          <p>Log in with a one-time email code to write a review.</p>
-          <a className="btn btn-outline btn-sm" href={loginUrl(placeId)}>
-            Log in to review
-          </a>
-        </div>
+        <InlineCard
+          className="mt-4"
+          title="Eaten here?"
+          description="Log in with a one-time email code to write a review."
+          action={
+            <Button asChild variant="outline">
+              <a href={loginUrl(placeId)}>Log in to review</a>
+            </Button>
+          }
+        />
       )}
       {authState === "signed-in" && !loadError && (!ownReview || editing) && (
-        <form className="stack-form" style={{ marginTop: 16 }} onSubmit={(event) => void submit(event)}>
-          <h3>{editing ? "Edit your review" : "Write a review"}</h3>
-          <p className="field-note">
-            Mention what you ordered and anything a halal diner should know. Please keep
-            staff and other guests out of it.
-          </p>
-          <label className="field">
-            <span>Title (optional)</span>
-            <input
+        <FormCard
+          className="mt-4"
+          title={editing ? "Edit your review" : "Write a review"}
+          description="Mention what you ordered and anything a halal diner should know. Please keep staff and other guests out of it."
+          onSubmit={(event) => void submit(event)}
+        >
+          <Field>
+            <FieldLabel htmlFor="review-title">Title (optional)</FieldLabel>
+            <Input
+              id="review-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               maxLength={TITLE_MAX_LENGTH}
               placeholder="The lamb is worth the trip"
             />
-          </label>
-          <label className="field">
-            <span>Your review</span>
-            <textarea
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="review-body">Your review</FieldLabel>
+            <Textarea
+              id="review-body"
               value={body}
               onChange={(event) => setBody(event.target.value)}
               maxLength={BODY_MAX_LENGTH}
@@ -335,25 +338,30 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
               rows={5}
               placeholder="What did you order? What should the next person know?"
             />
-          </label>
-          {formError && (
-            <p className="form-error" role="alert">
-              {formError}
-            </p>
-          )}
-          <div className="button-row">
-            <button type="submit" className="btn btn-dark" disabled={busy !== null}>
+          </Field>
+          {formError && <FormMessage tone="error">{formError}</FormMessage>}
+          <div className="flex flex-wrap gap-2.5">
+            <Button type="submit" size="lg" disabled={busy !== null}>
               {busy === "save" ? "Saving…" : editing ? "Update review" : "Post review"}
-            </button>
+            </Button>
             {editing && (
-              <button type="button" className="btn btn-line" onClick={cancelEditing} disabled={busy !== null}>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={cancelEditing}
+                disabled={busy !== null}
+              >
                 Cancel
-              </button>
+              </Button>
             )}
           </div>
-        </form>
+        </FormCard>
       )}
-      {success && <p className="form-success" style={{ marginTop: 12 }}>{success}</p>}
+      {success && (
+        <FormMessage tone="success" className="mt-3">
+          {success}
+        </FormMessage>
+      )}
     </section>
   );
 }

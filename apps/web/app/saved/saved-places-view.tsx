@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import type { SavedPlace } from "../../src/lib/saved-places";
 import { formatCount, plural } from "../../src/lib/seo";
-import { PlaceTile } from "../../src/components/place-tile";
-import { Illustration } from "../../src/components/art";
+import { Button } from "@halalfood/ui/components/button";
+import { Spinner } from "@halalfood/ui/components/spinner";
+import { PLACE_GRID, PlaceTile } from "../../src/components/place-tile";
+import { EmptyPanel, PageIntro } from "../../src/components/site-chrome";
 
 type ViewState = "loading" | "ready" | "unauthenticated" | "error";
 
@@ -45,52 +47,60 @@ export default function SavedPlacesView() {
 
   if (state === "loading")
     return (
-      <p className="form-help" role="status">
-        Loading your saved places…
+      <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+        <Spinner /> Loading your saved places…
       </p>
     );
 
   if (state === "unauthenticated")
     return (
-      <section className="empty-panel" aria-labelledby="saved-login-title">
-        <Illustration name="visits" size={80} />
-        <h1 id="saved-login-title">Keep your favourites close</h1>
-        <p>Log in to save places as you explore and find them again later.</p>
-        <div className="button-row">
-          <a className="btn btn-primary" href="/login?returnTo=%2Fsaved">
-            Log in
-          </a>
-          <a className="btn btn-line" href="/">
-            Keep exploring
-          </a>
-        </div>
+      <section aria-labelledby="saved-login-title">
+        <EmptyPanel
+          art="visits"
+          titleId="saved-login-title"
+          title="Keep your favourites close"
+          description="Log in to save places as you explore and find them again later."
+        >
+          <Button asChild size="xl">
+            <a href="/login?returnTo=%2Fsaved">Log in</a>
+          </Button>
+          <Button asChild size="xl" variant="outline">
+            <a href="/">Keep exploring</a>
+          </Button>
+        </EmptyPanel>
       </section>
     );
 
   if (state === "error")
     return (
-      <section className="empty-panel" aria-labelledby="saved-error-title">
-        <h1 id="saved-error-title">Your saved places aren’t loading</h1>
-        <p>Please try again in a moment.</p>
-        <a className="btn btn-dark" href="/saved">
-          Try again
-        </a>
+      <section aria-labelledby="saved-error-title">
+        <EmptyPanel
+          art={null}
+          titleId="saved-error-title"
+          title="Your saved places aren’t loading"
+          description="Please try again in a moment."
+        >
+          <Button asChild size="xl">
+            <a href="/saved">Try again</a>
+          </Button>
+        </EmptyPanel>
       </section>
     );
 
   return (
     <section aria-labelledby="saved-title">
-      <header className="page-intro">
-        <h1 id="saved-title">Saved</h1>
-        <p className="lead">
-          {total
+      <PageIntro
+        titleId="saved-title"
+        title="Saved"
+        lead={
+          total
             ? formatCount(total) + " saved " + plural(total, "place") + "."
-            : "Tap the heart on any place to keep it here."}
-        </p>
-      </header>
+            : "Tap the heart on any place to keep it here."
+        }
+      />
 
       {places.length ? (
-        <ul className="place-grid">
+        <ul className={PLACE_GRID}>
           {places.map((place) => (
             <li key={place.id}>
               <PlaceTile
@@ -106,14 +116,15 @@ export default function SavedPlacesView() {
           ))}
         </ul>
       ) : (
-        <div className="empty-panel">
-          <Illustration name="eat" size={80} />
-          <h2>Nothing saved yet</h2>
-          <p>When you find somewhere you’d like to try, tap the heart to save it.</p>
-          <a className="btn btn-dark" href="/">
-            Start exploring
-          </a>
-        </div>
+        <EmptyPanel
+          titleAs="h2"
+          title="Nothing saved yet"
+          description="When you find somewhere you’d like to try, tap the heart to save it."
+        >
+          <Button asChild size="xl">
+            <a href="/">Start exploring</a>
+          </Button>
+        </EmptyPanel>
       )}
     </section>
   );

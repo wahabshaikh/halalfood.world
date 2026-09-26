@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { cache } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Button } from "@halalfood/ui/components/button";
+import { CityCard, CityGrid, EmptyState } from "../../src/components/blocks";
 import { MapsIcon } from "@hugeicons/core-free-icons";
 import { listCities } from "../../src/lib/places";
 import {
@@ -13,6 +15,9 @@ import {
 import {
   Breadcrumbs,
   ExploreTabs,
+  Page,
+  PageIntro,
+  PageMain,
   SiteFooter,
   SiteHeader,
   Unavailable,
@@ -63,13 +68,13 @@ export default async function GuidesPage() {
   const loaded = await loadGuides();
   if (loaded.status !== "ok")
     return (
-      <div className="page">
+      <Page>
         <SiteHeader />
-        <main className="page-main">
+        <PageMain>
           <Unavailable retryPath="/guides" />
-        </main>
+        </PageMain>
         <SiteFooter />
-      </div>
+      </Page>
     );
 
   const cities = loaded.data;
@@ -85,9 +90,9 @@ export default async function GuidesPage() {
   }));
 
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -106,49 +111,48 @@ export default async function GuidesPage() {
         />
         <ExploreTabs active="guides" />
         <Breadcrumbs trail={trail} />
-        <header className="page-intro">
-          <h1>City guides</h1>
-          <p className="lead">
-            A short list of places to start with in each city. Open one, compare, then see how
-            we know each place is halal.
-          </p>
-          <div className="button-row">
-            <a className="btn btn-dark" href="/map">
-              <HugeiconsIcon icon={MapsIcon} size={18} aria-hidden="true" />
-              Show the map
-            </a>
-            <a className="btn btn-line" href="/cities">
-              Every city
-            </a>
+        <PageIntro
+          title="City guides"
+          lead="A short list of places to start with in each city. Open one, compare, then see how we know each place is halal."
+        >
+          <div className="flex flex-wrap gap-2.5">
+            <Button asChild size="xl">
+              <a href="/map">
+                <HugeiconsIcon icon={MapsIcon} size={18} aria-hidden="true" />
+                Show the map
+              </a>
+            </Button>
+            <Button asChild size="xl" variant="outline">
+              <a href="/cities">Every city</a>
+            </Button>
           </div>
-        </header>
+        </PageIntro>
         {cities.length ? (
-          <ul className="city-grid">
+          <CityGrid>
             {cities.map((city) => (
               <li key={city.city_slug}>
-                <a className="city-card" href={guidePath(city.city_slug)}>
-                  <span className="city-card-mark" aria-hidden="true">
-                    {cityMark(city.city_slug)}
-                  </span>
-                  <span>
-                    <strong>{guideTitle(city.city_slug)}</strong>
-                    <small>
+                <CityCard
+                  href={guidePath(city.city_slug)}
+                  mark={<span aria-hidden="true">{cityMark(city.city_slug)}</span>}
+                  title={guideTitle(city.city_slug)}
+                  meta={
+                    <>
                       {formatCount(city.place_count)} {city.place_count === 1 ? "place" : "places"} ·{" "}
                       {guideKicker(city)}
-                    </small>
-                    <p>{guideDescription(city)}</p>
-                  </span>
-                </a>
+                    </>
+                  }
+                  description={guideDescription(city)}
+                />
               </li>
             ))}
-          </ul>
+          </CityGrid>
         ) : (
-          <p className="empty-state">
+          <EmptyState>
             No guides yet. <a href="/map">Explore the map</a>.
-          </p>
+          </EmptyState>
         )}
-      </main>
+      </PageMain>
       <SiteFooter />
-    </div>
+    </Page>
   );
 }

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Button } from "@halalfood/ui/components/button";
+import { PromoCard, TextLink } from "../../../src/components/blocks";
 import { MapsLocation01Icon } from "@hugeicons/core-free-icons";
 import { findPlacesByCity, getCity } from "../../../src/lib/places";
 import { citySlugParam } from "@halalfood/core/params";
@@ -16,12 +18,15 @@ import {
 import {
   ApproximateNote,
   Breadcrumbs,
+  Page,
+  PageIntro,
+  PageMain,
   SiteFooter,
   SiteHeader,
   Unavailable,
 } from "../../../src/components/site-chrome";
 import { loadOrDegrade } from "../../../src/lib/load";
-import { PlaceGrid } from "../../../src/components/place-tile";
+import { PlaceGrid, SectionTitle } from "../../../src/components/place-tile";
 import ShareButton from "../../../src/components/share-button";
 import {
   GUIDE_SELECTION_NOTE,
@@ -83,13 +88,13 @@ export default async function GuidePage({
   if (loaded.status === "missing" || (loaded.status === "ok" && !loaded.data)) notFound();
   if (loaded.status === "error")
     return (
-      <div className="page">
+      <Page>
         <SiteHeader />
-        <main className="page-main">
+        <PageMain>
           <Unavailable retryPath={guidePath(citySlug)} />
-        </main>
+        </PageMain>
         <SiteFooter />
-      </div>
+      </Page>
     );
 
   const { city, listing } = loaded.data;
@@ -102,9 +107,9 @@ export default async function GuidePage({
   const path = guidePath(city.city_slug);
 
   return (
-    <div className="page">
+    <Page>
       <SiteHeader />
-      <main className="page-main">
+      <PageMain>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -127,51 +132,50 @@ export default async function GuidePage({
           }}
         />
         <Breadcrumbs trail={trail} />
-        <header className="page-intro">
-          <h1>{guideTitle(city.city_slug)}</h1>
-          <p className="lead">{guideDescription(city)}</p>
-          <p className="muted">
+        <PageIntro title={guideTitle(city.city_slug)} lead={guideDescription(city)}>
+          <p className="text-muted-foreground">
             {formatCount(total)} {plural(total, "place")} in this guide
             {city.address_country ? " · " + city.address_country : ""}
           </p>
-          <div className="button-row">
-            <a className="btn btn-dark" href={"/map?city=" + encodeURIComponent(city.city_slug)}>
-              <HugeiconsIcon icon={MapsLocation01Icon} size={18} aria-hidden="true" />
-              Show on map
-            </a>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button asChild size="xl">
+              <a href={"/map?city=" + encodeURIComponent(city.city_slug)}>
+                <HugeiconsIcon icon={MapsLocation01Icon} size={18} aria-hidden="true" />
+                Show on map
+              </a>
+            </Button>
             <ShareButton url={path} title={guideTitle(city.city_slug)} text={guideDescription(city)} />
           </div>
-        </header>
+        </PageIntro>
 
         <section aria-labelledby="guide-places-title">
-          <div className="section-head">
-            <div>
-              <h2 id="guide-places-title" className="section-title">
-                Places to start with
-              </h2>
-              <p>{GUIDE_SELECTION_NOTE}</p>
-            </div>
+          <div className="mb-4 grid gap-1">
+            <SectionTitle id="guide-places-title">Places to start with</SectionTitle>
+            <p className="text-muted-foreground">{GUIDE_SELECTION_NOTE}</p>
           </div>
           <PlaceGrid places={places} />
         </section>
 
-        <section className="promo-card" style={{ marginTop: 40 }} aria-labelledby="guide-next-step-title">
-          <div>
-            <h2 id="guide-next-step-title">See how we know before you go</h2>
-            <p>
-              Every place shows its halal checks, photos and reviews, each with a date. Been
-              somewhere on this list? Add your check.
-            </p>
-            <a className="link-underline" href={"/map?city=" + encodeURIComponent(city.city_slug)}>
-              See the full map
-            </a>
-          </div>
+        <section className="mt-10" aria-labelledby="guide-next-step-title">
+          <PromoCard
+            titleId="guide-next-step-title"
+            title="See how we know before you go"
+            description={
+              <>
+                <p className="mb-3">
+                  Every place shows its halal checks, photos and reviews, each with a date. Been
+                  somewhere on this list? Add your check.
+                </p>
+                <TextLink href={"/map?city=" + encodeURIComponent(city.city_slug)}>
+                  See the full map
+                </TextLink>
+              </>
+            }
+          />
         </section>
-        <div style={{ marginTop: 24 }}>
-          <ApproximateNote compact />
-        </div>
-      </main>
+        <ApproximateNote />
+      </PageMain>
       <SiteFooter />
-    </div>
+    </Page>
   );
 }
