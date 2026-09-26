@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { ArrowUpRight, MapPinned } from "lucide-react";
+import { MapPinned } from "lucide-react";
 import { findPlacesByCity, getCity } from "../../../src/lib/places";
 import { citySlugParam } from "../../../src/lib/params";
 import {
@@ -20,7 +20,7 @@ import {
   Unavailable,
 } from "../../../src/components/site-chrome";
 import { loadOrDegrade } from "../../../src/lib/load";
-import { PlaceList } from "../../../src/components/place-list";
+import { PlaceGrid } from "../../../src/components/place-tile";
 import ShareButton from "../../../src/components/share-button";
 import {
   GUIDE_SELECTION_NOTE,
@@ -126,57 +126,49 @@ export default async function GuidePage({
           }}
         />
         <Breadcrumbs trail={trail} />
-        <header className="page-intro guide-detail-intro">
-          <p className="eyebrow">HALALFOOD.WORLD GUIDE</p>
+        <header className="page-intro">
           <h1>{guideTitle(city.city_slug)}</h1>
           <p className="lead">{guideDescription(city)}</p>
-          <div className="guide-detail-meta">
-            <span>{formatCount(total)} {plural(total, "place")} in this guide</span>
-            {city.address_country && <span>{city.address_country}</span>}
-          </div>
-          <div className="detail-actions">
-            <a className="action primary" href={"/?city=" + encodeURIComponent(city.city_slug)}>
-              <MapPinned size={15} aria-hidden="true" />
-              Open {city.city_slug.replace(/-/g, " ")} on the map
+          <p className="muted">
+            {formatCount(total)} {plural(total, "place")} in this guide
+            {city.address_country ? " · " + city.address_country : ""}
+          </p>
+          <div className="button-row">
+            <a className="btn btn-dark" href={"/map?city=" + encodeURIComponent(city.city_slug)}>
+              <MapPinned size={18} aria-hidden="true" />
+              Show on map
             </a>
-            <ShareButton
-              url={path}
-              title={guideTitle(city.city_slug)}
-              text={guideDescription(city)}
-              className="action share-button"
-            />
-            <a className="action" href="/guides">
-              All guides <ArrowUpRight size={14} aria-hidden="true" />
-            </a>
+            <ShareButton url={path} title={guideTitle(city.city_slug)} text={guideDescription(city)} />
           </div>
-          <ApproximateNote compact />
         </header>
 
         <section aria-labelledby="guide-places-title">
-          <div className="section-bar">
+          <div className="section-head">
             <div>
-              <p className="eyebrow">START HERE</p>
-              <h2 id="guide-places-title">Places to compare</h2>
+              <h2 id="guide-places-title" className="section-title">
+                Places to start with
+              </h2>
+              <p>{GUIDE_SELECTION_NOTE}</p>
             </div>
-            <span className="section-bar-note">Public rating + review volume</span>
           </div>
-          <p className="section-intro guide-selection-note">{GUIDE_SELECTION_NOTE}</p>
-          <PlaceList places={places} />
+          <PlaceGrid places={places} />
         </section>
 
-        <section className="guide-next-step" aria-labelledby="guide-next-step-title">
+        <section className="promo-card" style={{ marginTop: 40 }} aria-labelledby="guide-next-step-title">
           <div>
-            <p className="eyebrow">KEEP EXPLORING</p>
-            <h2 id="guide-next-step-title">Check the evidence before you go.</h2>
+            <h2 id="guide-next-step-title">See how we know before you go</h2>
             <p>
-              Open any place to see source facts, halal verification submissions, dated
-              community photos, and visit notes in one decision trail.
+              Every place shows its halal checks, photos and reviews, each with a date. Been
+              somewhere on this list? Add your check.
             </p>
+            <a className="link-underline" href={"/map?city=" + encodeURIComponent(city.city_slug)}>
+              See the full map
+            </a>
           </div>
-          <a className="action" href={"/?city=" + encodeURIComponent(city.city_slug)}>
-            See the full map <ArrowUpRight size={14} aria-hidden="true" />
-          </a>
         </section>
+        <div style={{ marginTop: 24 }}>
+          <ApproximateNote compact />
+        </div>
       </main>
       <SiteFooter />
     </div>

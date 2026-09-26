@@ -45,7 +45,7 @@ export async function GET(request: Request) {
       { status: 400, headers: noStore() },
     );
   if (!getGooglePlacesApiKey())
-    return unavailable("Google Places is not configured. Use manual entry instead.");
+    return unavailable("Search is paused right now. Please try again later.");
 
   try {
     const decision = await consumeGooglePlaceSearchLimits(
@@ -74,14 +74,14 @@ export async function GET(request: Request) {
     const result = await searchGooglePlaces(query.query);
     if (!result.ok) {
       if (result.code === "NOT_CONFIGURED")
-        return unavailable("Google Places is not configured. Use manual entry instead.");
+        return unavailable("Search is paused right now. Please try again later.");
       if (result.code === "INVALID_QUERY")
         return Response.json(
           { error: result.message },
           { status: 400, headers: noStore() },
         );
       return Response.json(
-        { error: "Google search failed. Try again or use manual entry." },
+        { error: "Google search didn’t work. Please try again." },
         { status: 502, headers: noStore() },
       );
     }

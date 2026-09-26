@@ -8,21 +8,18 @@ export default function ErrorPage({ reset }: { error: Error; reset: () => void }
   return (
     <div className="page">
       <main className="page-main">
-        <header className="page-intro">
-          <p className="eyebrow">SOMETHING WENT WRONG</p>
-          <h1>This page could not load</h1>
-          <p className="lead">
-            Listings are temporarily unavailable. Please try again in a moment.
-          </p>
-          <div className="detail-actions">
-            <button type="button" className="action primary" onClick={reset}>
+        <div className="empty-panel">
+          <h1>Something went wrong</h1>
+          <p>This page couldn’t load. Please try again in a moment.</p>
+          <div className="button-row">
+            <button type="button" className="btn btn-dark" onClick={reset}>
               Try again
             </button>
-            <a className="action" href="/">
-              Open the map
+            <a className="btn btn-line" href="/">
+              Go home
             </a>
           </div>
-        </header>
+        </div>
       </main>
     </div>
   );

@@ -36,6 +36,7 @@ export const GOOGLE_PLACES_ADD_FIELD_MASK = [
   "id",
   "displayName",
   "formattedAddress",
+  "addressComponents",
   "location",
 ].join(",");
 
@@ -68,7 +69,39 @@ export type GooglePlaceDetails = {
   internationalPhoneNumber?: string;
   regularOpeningHours?: Record<string, unknown>;
   photos?: Record<string, unknown>[];
+  addressComponents?: GoogleAddressComponent[];
 };
+
+export type GoogleAddressComponent = {
+  longText?: string;
+  shortText?: string;
+  types?: string[];
+};
+
+/** Address component types that name a town or city, most specific first. */
+const LOCALITY_TYPES = [
+  "locality",
+  "postal_town",
+  "administrative_area_level_3",
+  "sublocality_level_1",
+  "administrative_area_level_2",
+];
+
+/**
+ * The city a Google place belongs to, taken from its structured address so
+ * nobody has to type it. Returns null when Google gives no usable locality.
+ */
+export function googlePlaceLocality(place: Pick<GooglePlaceDetails, "addressComponents">): string | null {
+  const components = Array.isArray(place.addressComponents) ? place.addressComponents : [];
+  for (const type of LOCALITY_TYPES) {
+    const match = components.find(
+      (component) => Array.isArray(component?.types) && component.types.includes(type),
+    );
+    const text = typeof match?.longText === "string" ? match.longText.trim() : "";
+    if (text && text.length <= 120) return text;
+  }
+  return null;
+}
 
 export type GooglePlacesErrorCode =
   | "NOT_CONFIGURED"

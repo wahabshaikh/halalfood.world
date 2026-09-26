@@ -234,21 +234,15 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
   }
 
   return (
-    <section className="place-photos" aria-labelledby="place-photos-title">
-      <div className="place-photos-heading">
-        <div>
-          <p className="eyebrow">VISUAL EVIDENCE</p>
-          <h2 id="place-photos-title">Show the food and menu</h2>
-        </div>
-        {!!photos.length && <span className="photo-count">{photos.length} photo{photos.length === 1 ? "" : "s"}</span>}
-      </div>
-      <p className="photos-intro">
-        Photos are dated and tied to the signed-in contributor who uploaded them. Share
-        the food, menu, storefront, or atmosphere that another halal diner can actually
-        use.
+    <section aria-labelledby="place-photos-title">
+      <h2 id="place-photos-title" style={{ fontSize: 22, marginBottom: 6 }}>
+        {photos.length ? `Photos (${photos.length})` : "Photos"}
+      </h2>
+      <p className="section-intro">
+        The food, the menu, the certificate on the wall. Each photo shows the date it was added.
       </p>
 
-      {loading && <p className="form-help">Loading halal place photos…</p>}
+      {loading && <p className="form-help">Loading photos…</p>}
       {loadError && (
         <p className="form-error" role="alert">
           {loadError}
@@ -256,59 +250,44 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
       )}
 
       {!loading && !loadError && !photos.length && (
-        <p className="empty-state photos-empty">
-          No community photos yet. Be the first to share a halal view of this place.
-        </p>
+        <p className="empty-state">No photos yet. Be the first to add one.</p>
       )}
 
       {!loading && !loadError && !!photos.length && (
-        <div className="photo-gallery">
+        <ul className="photo-strip">
           {photos.map((photo) => (
-            <figure className="photo-card" key={photo.id}>
-              <a href={photo.url} target="_blank" rel="noopener noreferrer">
-                <img
-                  className="photo-image"
-                  src={photo.url}
-                  alt="Community photo of the halal place"
-                  loading="lazy"
-                />
-              </a>
-              <figcaption className="photo-caption">
-                <span>
-                  <time dateTime={photo.createdAt}>{formatTimestamp(photo.createdAt)}</time>
-                  <small>Community photo · {formatBytes(photo.byteSize)}</small>
-                </span>
+            <li key={photo.id}>
+              <figure>
+                <a href={photo.url} target="_blank" rel="noopener noreferrer">
+                  <img src={photo.url} alt="Community photo of this place" loading="lazy" />
+                </a>
+                <figcaption>
+                  <time dateTime={photo.createdAt}>{formatTimestamp(photo.createdAt)}</time> ·{" "}
+                  {formatBytes(photo.byteSize)}
+                </figcaption>
                 {photo.isOwn && (
-                  <button
-                    type="button"
-                    className="action photo-delete"
-                    onClick={() => void deletePhoto(photo)}
-                    disabled={busy !== null}
-                  >
+                  <button type="button" onClick={() => void deletePhoto(photo)} disabled={busy !== null}>
                     {busy === photo.id ? "Deleting…" : "Delete"}
                   </button>
                 )}
-              </figcaption>
-            </figure>
+              </figure>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
-      {authState === "checking" && !loading && !loadError && (
-        <p className="form-help">Checking sign-in…</p>
-      )}
       {authState === "signed-out" && !loadError && (
-        <div className="photos-auth-card">
-          <strong>Have a place photo to share?</strong>
-          <p>Sign in with a one-time email code. Your upload date is shown with the photo.</p>
-          <a className="action primary" href={loginUrl(placeId)}>
-            Sign in to add a photo
+        <div className="inline-card" style={{ marginTop: 16 }}>
+          <strong>Got a photo from your visit?</strong>
+          <p>Log in with a one-time email code to add it.</p>
+          <a className="btn btn-outline btn-sm" href={loginUrl(placeId)}>
+            Log in to add a photo
           </a>
         </div>
       )}
       {authState === "signed-in" && !loadError && (
-        <form className="photo-form" onSubmit={(event) => void submit(event)}>
-          <h3>Add visual evidence from your visit</h3>
+        <form className="stack-form" style={{ marginTop: 16 }} onSubmit={(event) => void submit(event)}>
+          <h3>Add a photo</h3>
           <label className="field">
             <span>Photo</span>
             <input
@@ -320,11 +299,11 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
                 setFormError("");
               }}
             />
-            <small className="field-note">JPEG, PNG, or WebP · 8 MiB maximum · Never upload personal information</small>
+            <small className="field-note">JPEG, PNG or WebP, up to 8 MB. Please keep people’s faces out of it.</small>
           </label>
           {success && <p className="form-success" role="status">{success}</p>}
           {formError && <p className="form-error" role="alert">{formError}</p>}
-          <button className="action primary photo-submit" type="submit" disabled={busy !== null}>
+          <button className="btn btn-dark" type="submit" disabled={busy !== null}>
             {busy === "upload" ? "Uploading…" : "Add photo"}
           </button>
         </form>

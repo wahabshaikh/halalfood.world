@@ -120,6 +120,20 @@ export const REVIEW_RATE_LIMITS = {
 /** Descriptive alias for callers that group limits by feature. */
 export const PLACE_REVIEW_RATE_LIMITS = REVIEW_RATE_LIMITS;
 
+/** Durable budgets for linking creator videos to places (each one fetches oEmbed). */
+export const MEDIA_LINK_RATE_LIMITS = {
+  submissionUser: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 30,
+    cooldownMs: 1000,
+  },
+  submissionIp: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 90,
+    cooldownMs: 250,
+  },
+} as const;
+
 /** Durable budgets for place photo uploads and ownership mutations. */
 export const PLACE_PHOTO_RATE_LIMITS = {
   uploadUser: {
@@ -558,6 +572,26 @@ export async function consumeHalalVerificationUploadLimits(
     [
       { key: userKey, rule: HALAL_VERIFICATION_RATE_LIMITS.uploadUser },
       { key: ipKey, rule: HALAL_VERIFICATION_RATE_LIMITS.uploadIp },
+    ],
+    store,
+    now,
+  );
+}
+
+export async function consumeMediaLinkLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("media-link:submit:user", userId),
+    identifierKey("media-link:submit:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: MEDIA_LINK_RATE_LIMITS.submissionUser },
+      { key: ipKey, rule: MEDIA_LINK_RATE_LIMITS.submissionIp },
     ],
     store,
     now,

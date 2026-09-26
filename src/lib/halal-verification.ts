@@ -36,6 +36,25 @@ export type HalalVerificationUploadEvidence = {
   fileName: string;
 };
 
+/** Fixed choices from the step-by-step check. `null` means not asked or skipped. */
+export const HALAL_CHECK_ANSWER_VALUES = {
+  certificate: ["seen", "not-seen", "unsure"],
+  alcohol: ["none", "served", "unsure"],
+  meat: ["hand", "machine", "unsure"],
+} as const;
+
+export type HalalCheckQuestion = keyof typeof HALAL_CHECK_ANSWER_VALUES;
+
+export type HalalCheckAnswers = {
+  [Question in HalalCheckQuestion]: (typeof HALAL_CHECK_ANSWER_VALUES)[Question][number] | null;
+};
+
+export const EMPTY_HALAL_CHECK_ANSWERS: HalalCheckAnswers = {
+  certificate: null,
+  alcohol: null,
+  meat: null,
+};
+
 /**
  * Source attribution and scope travel with every submission. Nothing here is
  * optional in the product sense: a missing capture date or scope is filled with
@@ -59,6 +78,7 @@ export type HalalVerificationAttributes = {
 export type ValidatedHalalVerification = {
   note: string | null;
   evidence: (HalalVerificationLinkEvidence | HalalVerificationUploadEvidence)[];
+  answers: HalalCheckAnswers;
   attributes: HalalVerificationAttributes;
 };
 
@@ -135,6 +155,33 @@ function uploadFileName(value: unknown): string | null {
   return fileName;
 }
 
+/** True when at least one answer says something other than "not sure". */
+export function hasInformativeAnswer(answers: HalalCheckAnswers): boolean {
+  return Object.values(answers).some((value) => value !== null && value !== "unsure");
+}
+
+function parseAnswers(
+  value: unknown,
+): { ok: true; answers: HalalCheckAnswers } | { ok: false; error: string } {
+  if (value === undefined || value === null) return { ok: true, answers: { ...EMPTY_HALAL_CHECK_ANSWERS } };
+  const input = objectValue(value);
+  if (!input) return { ok: false, error: "Check answers must be an object." };
+  const answers: HalalCheckAnswers = { ...EMPTY_HALAL_CHECK_ANSWERS };
+  for (const key of Object.keys(input)) {
+    if (!(key in HALAL_CHECK_ANSWER_VALUES))
+      return { ok: false, error: "That check question is not recognised." };
+  }
+  for (const question of Object.keys(HALAL_CHECK_ANSWER_VALUES) as HalalCheckQuestion[]) {
+    const answer = input[question];
+    if (answer === undefined || answer === null) continue;
+    const allowed = HALAL_CHECK_ANSWER_VALUES[question] as readonly string[];
+    if (typeof answer !== "string" || !allowed.includes(answer))
+      return { ok: false, error: "Choose one of the listed answers." };
+    (answers as Record<HalalCheckQuestion, string | null>)[question] = answer;
+  }
+  return { ok: true, answers };
+}
+
 /** Validate the JSON contract used by POST /api/places/:id/verifications. */
 export function validateHalalVerificationSubmission(
   body: unknown,
@@ -153,14 +200,25 @@ export function validateHalalVerificationSubmission(
     note = value;
   }
 
-  if (!Array.isArray(input.evidence) || input.evidence.length < 1)
-    return { ok: false, error: "Add at least one halal evidence link or upload." };
-  if (input.evidence.length > MAX_EVIDENCE_ITEMS)
+  const parsedAnswers = parseAnswers(input.answers);
+  if (!parsedAnswers.ok) return parsedAnswers;
+  const answers = parsedAnswers.answers;
+
+  const rawEvidence = input.evidence === undefined ? [] : input.evidence;
+  if (!Array.isArray(rawEvidence))
+    return { ok: false, error: "Evidence must be a list." };
+  // A check needs either something you saw (an answer) or a source to review.
+  if (rawEvidence.length < 1 && !hasInformativeAnswer(answers))
+    return {
+      ok: false,
+      error: "Answer at least one question or add a halal evidence link or upload.",
+    };
+  if (rawEvidence.length > MAX_EVIDENCE_ITEMS)
     return { ok: false, error: `Add no more than ${MAX_EVIDENCE_ITEMS} evidence items.` };
 
   const seen = new Set<string>();
   const evidence: ValidatedHalalVerification["evidence"] = [];
-  for (const value of input.evidence) {
+  for (const value of rawEvidence) {
     const item = objectValue(value);
     if (!item || (item.kind !== "link" && item.kind !== "upload"))
       return { ok: false, error: "Each evidence item must be a link or upload." };
@@ -202,7 +260,10 @@ export function validateHalalVerificationSubmission(
   const attributes = validateVerificationAttributes(input);
   if (!attributes.ok) return attributes;
 
-  return { ok: true, data: { note, evidence, attributes: attributes.data } };
+  return {
+    ok: true,
+    data: { note, evidence, answers, attributes: attributes.data },
+  };
 }
 
 const DAY_MS = 86_400_000;

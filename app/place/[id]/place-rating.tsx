@@ -190,25 +190,22 @@ export default function PlaceRating({ placeId }: { placeId: string }) {
   }
 
   return (
-    <section className="place-rating" aria-labelledby="place-rating-title">
-      <div className="place-rating-heading">
+    <section aria-labelledby="place-rating-title">
+      <div className="section-head">
         <div>
-          <p className="eyebrow">VISIT SIGNALS</p>
-          <h2 id="place-rating-title">Share one signal from your visit</h2>
+          <h2 id="place-rating-title" style={{ fontSize: 22 }}>
+            How was it?
+          </h2>
+          <p>A quick signal from your visit. It’s your impression, not a halal certificate.</p>
         </div>
         {payload && (
-          <span className="rating-total">
-            {payload.counts.total} {payload.counts.total === 1 ? "community signal" : "community signals"}
+          <span className="status-pill">
+            {payload.counts.total} {payload.counts.total === 1 ? "signal" : "signals"}
           </span>
         )}
       </div>
-      <p className="rating-intro">
-        Give the next diner a small, attributable signal. These signals are personal
-        visit impressions—not halal certification or a replacement for the evidence below.
-        Choose one and change it anytime.
-      </p>
 
-      {loading && <p className="form-help">Loading halal reactions…</p>}
+      {loading && <p className="form-help">Loading…</p>}
       {!loading && error && (
         <p className="form-error" role="alert">
           {error}
@@ -216,48 +213,33 @@ export default function PlaceRating({ placeId }: { placeId: string }) {
       )}
       {!loading && !error && payload && (
         <>
-          <div className="rating-counts" aria-label="Community visit signal counts">
-            {RATING_VALUES.map((rating) => (
-              <div className="rating-count" key={rating}>
-                <span>{label(rating)}</span>
-                <strong>{payload.counts[rating]}</strong>
-                <small>{description(rating)}</small>
-              </div>
-            ))}
+          <div className="rating-options" role="group" aria-label="Choose a visit signal">
+            {RATING_VALUES.map((rating) => {
+              const selected = payload.rating === rating;
+              return (
+                <button
+                  type="button"
+                  className={`rating-option${selected ? " is-selected" : ""}`}
+                  key={rating}
+                  aria-pressed={selected}
+                  aria-busy={busy === rating}
+                  disabled={busy !== null || authState === "checking"}
+                  onClick={() => void choose(rating)}
+                >
+                  <small>{payload.counts[rating]}</small>
+                  <strong>{busy === rating ? "Saving…" : label(rating)}</strong>
+                  <span>{selected ? "Your signal" : description(rating)}</span>
+                </button>
+              );
+            })}
           </div>
-
-          {authState === "checking" && (
-            <p className="form-help">Checking sign-in…</p>
-          )}
           {authState === "signed-out" && (
-            <div className="rating-auth-card">
-              <strong>Want to share a visit signal?</strong>
-              <p>Sign in with a one-time email code to add your own signal.</p>
-              <a className="action primary" href={loginUrl(placeId)}>
-                Sign in to rate
-              </a>
-            </div>
-          )}
-          {authState === "signed-in" && (
-            <div className="rating-choice-list" aria-label="Choose a visit signal">
-              {RATING_VALUES.map((rating) => {
-                const selected = payload.rating === rating;
-                return (
-                  <button
-                    type="button"
-                    className={`rating-choice${selected ? " is-selected" : ""}`}
-                    key={rating}
-                    aria-pressed={selected}
-                    aria-busy={busy === rating}
-                    disabled={busy !== null}
-                    onClick={() => void choose(rating)}
-                  >
-                    <span>{busy === rating ? "Saving…" : label(rating)}</span>
-                    <small>{selected ? "Your signal" : description(rating)}</small>
-                  </button>
-                );
-              })}
-            </div>
+            <p className="field-note" style={{ marginTop: 10 }}>
+              <a className="link-underline" href={loginUrl(placeId)}>
+                Log in
+              </a>{" "}
+              to add yours. You can change it any time.
+            </p>
           )}
         </>
       )}

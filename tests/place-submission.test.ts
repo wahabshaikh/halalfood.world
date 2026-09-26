@@ -18,49 +18,46 @@ test("city slugs use the existing lowercase kebab-case convention", () => {
 });
 
 test("place validation requires explicit halal confirmation", () => {
-  const body = {
-    mode: "manual",
-    name: "Example Kitchen",
-    address: "1 Example Street",
-    city: "London",
+  const result = validatePlaceSubmission({
+    mode: "google",
+    googlePlaceId: "ChIJexample",
     halalConfirmed: false,
-  };
-  const result = validatePlaceSubmission(body);
+  });
   assert.deepEqual(result, {
     ok: false,
     error: "You must confirm that this place is halal before submitting.",
   });
 });
 
-test("manual validation normalizes fields and allows an optional place id", () => {
+test("manual entry is rejected so every place comes from Google", () => {
   const result = validatePlaceSubmission({
     mode: "manual",
-    name: "  Example   Kitchen ",
-    address: " 1 Example Street ",
-    city: " São Paulo ",
-    googlePlaceId: " ChIJmanual ",
+    name: "Example Kitchen",
+    address: "1 Example Street",
+    city: "London",
+    halalConfirmed: true,
+  });
+  assert.equal(result.ok, false);
+});
+
+test("Google validation keeps only the place id and ignores typed fields", () => {
+  const result = validatePlaceSubmission({
+    mode: "google",
+    name: "Typed name",
+    address: "Typed address",
+    city: "Typed city",
+    googlePlaceId: " ChIJexample ",
     halalConfirmed: true,
   });
   assert.deepEqual(result, {
     ok: true,
-    data: {
-      mode: "manual",
-      name: "Example Kitchen",
-      address: "1 Example Street",
-      city: "São Paulo",
-      citySlug: "sao-paulo",
-      googlePlaceId: "ChIJmanual",
-      halalConfirmed: true,
-    },
+    data: { mode: "google", googlePlaceId: "ChIJexample", halalConfirmed: true },
   });
 });
 
 test("Google validation requires a selected place and bounds search input", () => {
   const missing = validatePlaceSubmission({
     mode: "google",
-    name: "Example Kitchen",
-    address: "1 Example Street",
-    city: "London",
     halalConfirmed: true,
   });
   assert.deepEqual(missing, {

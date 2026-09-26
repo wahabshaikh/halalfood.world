@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SiteFooter, SiteHeader } from "../src/components/site-chrome";
+import { Illustration } from "../src/components/art";
 
 export const metadata: Metadata = {
   title: "Page not found",
@@ -11,22 +12,19 @@ export default function NotFound() {
     <div className="page">
       <SiteHeader />
       <main className="page-main">
-        <header className="page-intro">
-          <p className="eyebrow">404</p>
-          <h1>We could not find that page</h1>
-          <p className="lead">
-            The place or city you asked for is not in our listings. It may have
-            been removed, or the link may be mistyped.
-          </p>
-          <div className="detail-actions">
-            <a className="action primary" href="/">
-              Open the map
+        <div className="empty-panel">
+          <Illustration name="map" size={80} />
+          <h1>We couldn’t find that page</h1>
+          <p>The place or city may have moved, or the link might have a typo.</p>
+          <div className="button-row">
+            <a className="btn btn-dark" href="/">
+              Start exploring
             </a>
-            <a className="action" href="/cities">
+            <a className="btn btn-line" href="/cities">
               Browse cities
             </a>
           </div>
-        </header>
+        </div>
       </main>
       <SiteFooter />
     </div>

@@ -13,11 +13,11 @@ test("formats evidence-backed copy with count, reviewed date, and certification 
     latestReviewedAt: "2026-09-17T12:34:56.000Z",
   });
 
-  assert.equal(view.label, "Evidence-backed");
-  assert.match(view.detail, /2 approved community evidence submissions/);
-  assert.match(view.detail, /Latest reviewed September 17, 2026/);
-  assert.match(view.explanation, /community-submitted evidence reviewed by moderators/i);
-  assert.match(view.explanation, /not formal certification/i);
+  assert.equal(view.label, "Checked by the community");
+  assert.match(view.detail, /2 approved checks/);
+  assert.match(view.detail, /Latest approved September 17, 2026/);
+  assert.match(view.explanation, /a moderator reviewed it/i);
+  assert.match(view.explanation, /don’t certify/i);
 });
 
 test("uses singular evidence grammar for one approved submission", () => {
@@ -27,8 +27,8 @@ test("uses singular evidence grammar for one approved submission", () => {
     latestReviewedAt: "2026-09-17T12:34:56.000Z",
   });
 
-  assert.match(view.detail, /1 approved community evidence submission\./);
-  assert.doesNotMatch(view.detail, /submissions\./);
+  assert.match(view.detail, /1 approved check\./);
+  assert.doesNotMatch(view.detail, /checks\./);
 });
 
 test("formats unverified copy without treating it as a non-halal determination", () => {
@@ -39,15 +39,15 @@ test("formats unverified copy without treating it as a non-halal determination",
   };
   const view = formatHalalStatus(status);
 
-  assert.equal(view.label, "Unverified");
-  assert.match(view.detail, /No halal evidence has been reviewed yet/i);
-  assert.match(view.explanation, /does not mean non-halal/i);
+  assert.equal(view.label, "Not checked yet");
+  assert.match(view.detail, /Nobody has shared a halal check/i);
+  assert.match(view.explanation, /doesn’t mean not halal/i);
 });
 
 test("formats unavailable copy explicitly instead of downgrading to unverified", () => {
   const view = formatHalalStatus({ status: "unavailable" });
 
-  assert.equal(view.label, "Evidence status unavailable");
+  assert.equal(view.label, "Checks unavailable right now");
   assert.doesNotMatch(view.detail, /unverified/i);
   assert.doesNotMatch(view.explanation, /unverified/i);
 });

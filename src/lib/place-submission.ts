@@ -1,13 +1,14 @@
-export const PLACE_SUBMISSION_MODES = ["google", "manual"] as const;
+/**
+ * Places can only be added by picking a Google Maps result. The name,
+ * address, city and coordinates all come from Google on the server, so
+ * nothing about the listing is typed in by hand.
+ */
+export const PLACE_SUBMISSION_MODES = ["google"] as const;
 export type PlaceSubmissionMode = (typeof PLACE_SUBMISSION_MODES)[number];
 
 export type ValidatedPlaceSubmission = {
   mode: PlaceSubmissionMode;
-  name: string;
-  address: string;
-  city: string;
-  citySlug: string;
-  googlePlaceId: string | null;
+  googlePlaceId: string;
   halalConfirmed: true;
 };
 
@@ -73,46 +74,25 @@ export function validatePlaceSubmission(body: unknown): ValidationResult {
   const input = objectValue(body);
   if (!input) return { ok: false, error: "Send a JSON object." };
 
-  const mode = input.mode;
-  if (mode !== "google" && mode !== "manual")
-    return { ok: false, error: "Choose Google search or manual entry." };
-  if (input.halalConfirmed !== true) {
+  if (input.mode !== "google")
+    return {
+      ok: false,
+      error: "Pick the place from Google Maps. Places can’t be typed in by hand.",
+    };
+  if (input.halalConfirmed !== true)
     return {
       ok: false,
       error: "You must confirm that this place is halal before submitting.",
     };
-  }
-
-  const name = textValue(input.name, "place name", 200);
-  if ("error" in name) return { ok: false, error: name.error };
-  const address = textValue(input.address, "street address", 300);
-  if ("error" in address) return { ok: false, error: address.error };
-  const city = textValue(input.city, "city or locality", 120);
-  if ("error" in city) return { ok: false, error: city.error };
-
-  const citySlug = slugifyCity(city.value);
-  if (!citySlug)
-    return {
-      ok: false,
-      error: "Enter a city using letters or numbers so it can be listed.",
-    };
 
   const googlePlaceId = optionalGooglePlaceId(input.googlePlaceId);
   if ("error" in googlePlaceId) return { ok: false, error: googlePlaceId.error };
-  if (mode === "google" && !googlePlaceId.value)
+  if (!googlePlaceId.value)
     return { ok: false, error: "Choose a place from Google search first." };
 
   return {
     ok: true,
-    data: {
-      mode,
-      name: name.value,
-      address: address.value,
-      city: city.value,
-      citySlug,
-      googlePlaceId: googlePlaceId.value,
-      halalConfirmed: true,
-    },
+    data: { mode: "google", googlePlaceId: googlePlaceId.value, halalConfirmed: true },
   };
 }
 

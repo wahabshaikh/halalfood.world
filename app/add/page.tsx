@@ -4,7 +4,7 @@ import AddPlaceForm from "./add-place-form";
 
 export const metadata: Metadata = {
   title: "Add a place",
-  description: "Submit a halal place missing from the Halalfood directory.",
+  description: "Add a halal place that's missing, picked from Google Maps.",
   alternates: { canonical: "/add" },
   robots: { index: false, follow: true },
 };
@@ -13,10 +13,10 @@ export default function AddPage() {
   return (
     <div className="page">
       <SiteHeader />
-      <main className="page-main auth-main">
+      <main className="page-main">
         <AddPlaceForm />
       </main>
-      <SiteFooter />
+      <SiteFooter active="add" />
     </div>
   );
 }

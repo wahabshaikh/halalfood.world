@@ -154,7 +154,7 @@ export default function LoginForm({
     setBusy(true);
     try {
       await verifyLoginOtp(email, otp);
-      setStatus("You are signed in. Opening your page…");
+      setStatus("You’re in. Taking you back…");
       window.location.assign(returnTo);
     } catch (caught) {
       const authError = caught instanceof AuthClientError ? caught : undefined;
@@ -171,11 +171,8 @@ export default function LoginForm({
 
   return (
     <section className="auth-card" aria-labelledby="login-title">
-      <p className="eyebrow">WELCOME BACK</p>
-      <h1 id="login-title">Sign in to Halalfood</h1>
-      <p className="lead">
-        Use your email to get a one-time code. No password to remember.
-      </p>
+      <h1 id="login-title">Log in or sign up</h1>
+      <p>We’ll email you a one-time code. No password to remember.</p>
 
       {step === "email" ? (
         <form className="auth-form" onSubmit={requestCode}>
@@ -199,10 +196,10 @@ export default function LoginForm({
           {turnstileError && <p className="auth-help">{turnstileError}</p>}
           <button
             type="submit"
-            className="action primary auth-submit"
+            className="btn btn-primary auth-submit"
             disabled={busy || !email.trim() || !turnstileToken}
           >
-            {busy ? "Sending…" : "Send sign-in code"}
+            {busy ? "Sending…" : "Continue"}
           </button>
         </form>
       ) : (
@@ -225,10 +222,10 @@ export default function LoginForm({
           />
           <button
             type="submit"
-            className="action primary auth-submit"
+            className="btn btn-primary auth-submit"
             disabled={busy || otp.length !== 6}
           >
-            {busy ? "Checking…" : "Sign in"}
+            {busy ? "Checking…" : "Log in"}
           </button>
           <button
             type="button"
