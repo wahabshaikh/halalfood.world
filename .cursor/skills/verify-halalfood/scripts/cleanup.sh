@@ -43,5 +43,6 @@ if kill -0 "$pid" 2>/dev/null; then
 fi
 
 rm -rf "$RUN"
-echo "cleanup: removed $RUN"
+echo "cleanup: removed $RUN (including the verification database under .run/persist)"
 echo "cleanup: left evidence in $EVIDENCE"
+echo "cleanup: left apps/web/.wrangler/state alone"

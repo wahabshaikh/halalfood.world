@@ -26,7 +26,9 @@ await page.getByRole("heading", { name: "Top helpers" }).waitFor();
 await page.getByRole("heading", { name: "How points work" }).waitFor();
 ```
 
-The same ranking is `GET /api/leaderboard` (`Cache-Control` allows a short public cache). On an empty database the JSON list is empty and the page shows both `Be the first on the board.` and `Nobody’s on the board yet.` When the API returns people, the first visible name matches the first JSON display name, and the page does not contain a raw user id or email address.
+The same ranking is `GET /api/leaderboard` (`Cache-Control` allows a short public cache). On the seeded server the first contributor is Amina Rahman with score 34 (two places, one halal check, one review, one visit signal) and the second is Yusuf Ali with score 15 (one place, one review). The page shows `Amina Rahman` and `34 pts`, and it does not show the fixture email, a raw user id, or `Nobody’s on the board yet.`
+
+Amina Rahman is `11111111-1111-4111-8111-111111111111` and Yusuf Ali is `22222222-2222-4222-8222-222222222222` in `seed/verify.sql`. Those rows are not a login. The public board does not need a session.
 
 ## Gotchas
 

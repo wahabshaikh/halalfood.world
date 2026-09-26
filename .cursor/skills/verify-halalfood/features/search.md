@@ -33,11 +33,12 @@ Prove the result against the places search API, not a client setter. The handler
 GET /api/places/search?q=london&limit=48
 ```
 
-When `total` is 0, the page text contains `No places found yet` and there is no `/place/` link. When `total` is greater than 0, at least one `a[href^="/place/"]` is visible. This path must not POST, and it must not call `places.googleapis.com` (place text search is local D1; Google is only the add flow).
+On the verification database `total` is 4, `limit` is 40, the first place is Dishoom King's Cross, and the page says `4 places` with at least four `/place/` links. The matching-cities navigation includes London. This path must not POST, and it must not request `places.googleapis.com` or `maps.googleapis.com`. Search reads local D1. Place pages in this environment read the seeded snapshot and do not call Google.
 
 ## Gotchas
 
-- The count line does not say `0 places`. Zero is the sentence `No places found yet`.
-- A fresh `npm run db:migrate:local` database is empty, so `london` correctly lands on that empty state. That still proves the form, the route, and the API agree.
+- The count line does not say `0 places`. Zero is the sentence `No places found yet`. The seeded server must not show that sentence for `london`.
+- Each place tile has two anchors (the photo and the name), so four London places produce eight `a[href^="/place/"]` nodes. Judge the API `total` and the `4 places` line, not the raw anchor count.
+- `scripts/drive-features.mjs` is the seeded proof and writes `evidence/e2e/`. `scripts/drive-search.mjs` writes `evidence/search-*` and will replace an older recording there.
 - SQL wildcards are literal. `q=%25%25` returns `total: 0`.
 - Queries of one character are rejected by the API with 400 and by the page, which shows `What are you craving?` instead of results.

@@ -151,6 +151,69 @@ else:
             failures.append(f"GET /api/places ignored limit=1 (limit={payload.get('limit')})")
         if not isinstance(payload.get("places"), list):
             failures.append("GET /api/places `places` is not a list")
+        if payload.get("total") != 9:
+            failures.append(
+                f"seed missing: viewport total is {payload.get('total')}, expected 9 fixture places"
+            )
+
+def fetch_json(path):
+    code, body = fetch(path)
+    if code != 200:
+        failures.append(f"GET {path} failed ({code})")
+        return None
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError:
+        failures.append(f"GET {path} did not return JSON")
+        return None
+
+search = fetch_json("/api/places/search?q=london&limit=48")
+if isinstance(search, dict):
+    if search.get("total") != 4:
+        failures.append(f"seed missing: london search total is {search.get('total')}, expected 4")
+    places = search.get("places") if isinstance(search.get("places"), list) else []
+    first = places[0].get("name") if places and isinstance(places[0], dict) else None
+    if first != "Dishoom King's Cross":
+        failures.append(f"seed missing: first london place is {first!r}, expected Dishoom King's Cross")
+
+city = fetch_json("/api/cities/london")
+if isinstance(city, dict) and city.get("place_count") != 4:
+    failures.append(f"seed missing: /api/cities/london place_count is {city.get('place_count')}, expected 4")
+
+board = fetch_json("/api/leaderboard")
+if isinstance(board, dict):
+    contributors = board.get("contributors") if isinstance(board.get("contributors"), list) else []
+    expected = [("Amina Rahman", 34), ("Yusuf Ali", 15)]
+    for index, (name, score) in enumerate(expected):
+        row = contributors[index] if index < len(contributors) and isinstance(contributors[index], dict) else {}
+        if row.get("displayName") != name or row.get("score") != score:
+            failures.append(
+                f"seed missing: leaderboard[{index}] is {row.get('displayName')!r} score {row.get('score')}, expected {name} {score}"
+            )
+
+if isinstance(lock, dict) and alive(vinext_pid):
+    try:
+        raw_env = open(f"/proc/{vinext_pid}/environ", "rb").read().split(b"\0")
+    except OSError:
+        raw_env = []
+        failures.append(f"could not read environ of vinext pid {vinext_pid}")
+    env = {}
+    for item in raw_env:
+        if b"=" in item:
+            key, value = item.split(b"=", 1)
+            env[key.decode()] = value.decode("utf-8", "replace")
+    persist = env.get("HALALFOOD_PERSIST_PATH", "")
+    expected_persist = os.path.join(root, ".cursor", "skills", "verify-halalfood", ".run", "persist")
+    if persist != expected_persist:
+        failures.append(
+            "dev server is not on the isolated verification database "
+            f"(HALALFOOD_PERSIST_PATH is {persist or 'unset'})"
+        )
+    for secret_name in ("GOOGLE_PLACES_API_KEY", "GOOGLE_MAPS_API_KEY"):
+        if env.get(secret_name, "").strip():
+            failures.append(
+                f"dev server has {secret_name} set; refusing to drive place pages that could call Google"
+            )
 
 # Public pages are anonymous. Authenticated features are a separate gate.
 dev_vars = os.path.join(root, "apps", "web", ".dev.vars")
@@ -164,8 +227,26 @@ if os.path.exists(dev_vars):
         name, value = line.split("=", 1)
         if value.strip():
             present.add(name.strip())
+google_in_dev_vars = []
+if os.path.exists(dev_vars):
+    for line in open(dev_vars):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        name, value = stripped.split("=", 1)
+        if name.strip() in ("GOOGLE_PLACES_API_KEY", "GOOGLE_MAPS_API_KEY") and value.strip():
+            google_in_dev_vars.append(name.strip())
+if google_in_dev_vars:
+    failures.append(
+        "apps/web/.dev.vars defines "
+        + ", ".join(google_in_dev_vars)
+        + "; this skill will not edit that file and will not drive while a Google key is configured"
+    )
+
 missing_auth = [name for name in auth_names if name not in present]
 print("doctor: anonymous public routes do not need a session")
+print("doctor: this environment does not call production D1, places.googleapis.com, or maps.googleapis.com")
+print("doctor: fixture users are rows in the verification database; login OTP is not driven")
 if missing_auth:
     print(
         "doctor: authenticated routes (login OTP, save, add) are not worth driving; "

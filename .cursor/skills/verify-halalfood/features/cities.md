@@ -23,9 +23,9 @@ await page.waitForURL(/\/cities$/);
 await page.getByRole("heading", { level: 1, name: "Halal food by city" }).waitFor();
 ```
 
-The end state is that heading plus the count sentence. On an empty local database the sentence is `0 cities and counting` and there are no `/city/` links. That count is rendered from D1. If the database is down, the page says `Listings are taking a moment` instead, which is a failed load.
+The end state on the seeded server is that heading plus `3 cities and counting`, and cards for London, Mumbai, and Manchester. Open the London card (`a[href="/city/london"]`). The city heading is `4 halal restaurants in London` and there are four `/place/` links. `GET /api/cities/london` returns `city_slug` `london` and `place_count` 4.
 
-When a city card exists, open it and expect a heading with the city name and at least one `a[href^="/place/"]`. `GET /api/cities/<slug>` returns the same `city_slug` and a `place_count` greater than 0.
+If the database is down, the page says `Listings are taking a moment` instead, which is a failed load. `0 cities and counting` means the seed is missing.
 
 ## Gotchas
 

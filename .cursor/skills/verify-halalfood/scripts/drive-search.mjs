@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Drive the header search on a running dev server and write proof under evidence/.
+// Drive only header search and write proof under evidence/ (not evidence/e2e/).
+// On the seeded server, london returns 4 places. The full feature drive is drive-features.mjs.
 import { chromium } from "@playwright/test";
 import { execSync } from "node:child_process";
 import { mkdir, rename, writeFile } from "node:fs/promises";

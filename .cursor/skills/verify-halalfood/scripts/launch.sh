@@ -90,13 +90,39 @@ if [[ "$status" -ne 0 && "$status" -ne 10 ]]; then
 fi
 
 if [[ "$status" -eq 10 ]]; then
-  echo "launch: applying local D1 migrations"
-  npm run db:migrate:local
+  PERSIST="$RUN/persist"
+  WRANGLER="$ROOT/node_modules/.bin/wrangler"
+  if [[ ! -x "$WRANGLER" ]]; then
+    echo "launch: wrangler is missing. From $ROOT run: npm ci" >&2
+    exit 1
+  fi
 
-  echo "launch: starting npm run dev"
+  # A fresh launch gets its own database. A server this skill already started
+  # is reused above and is not reseeded. This directory is not apps/web/.wrangler/state.
+  echo "launch: resetting isolated local D1 at $PERSIST"
+  rm -rf "$PERSIST"
+  mkdir -p "$PERSIST"
+
+  echo "launch: applying local D1 migrations (no --remote)"
+  (
+    cd "$ROOT/apps/web"
+    CI=1 "$WRANGLER" d1 migrations apply halalfood-world --local --persist-to "$PERSIST"
+  )
+
+  echo "launch: seeding deterministic fixture data"
+  (
+    cd "$ROOT/apps/web"
+    CI=1 "$WRANGLER" d1 execute halalfood-world --local --persist-to "$PERSIST" \
+      --file "$SKILL/seed/verify.sql"
+  )
+
+  echo "launch: starting npm run dev against the verification database"
   : >"$RUN/dev.log"
   # setsid makes npm the leader of a new process group. Cleanup kills that group only.
-  setsid npm run dev >>"$RUN/dev.log" 2>&1 < /dev/null &
+  # Google keys are stripped so place pages cannot call the Places API.
+  env -u GOOGLE_PLACES_API_KEY -u GOOGLE_MAPS_API_KEY \
+    HALALFOOD_PERSIST_PATH="$PERSIST" \
+    setsid npm run dev >>"$RUN/dev.log" 2>&1 < /dev/null &
   echo $! >"$RUN/pid"
   echo "launch: recorded process-group pid $(cat "$RUN/pid")"
 fi

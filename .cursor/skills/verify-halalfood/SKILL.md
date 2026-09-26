@@ -1,13 +1,15 @@
 ---
 name: verify-halalfood
-description: Verify the halalfood.world web app (the @halalfood/web Cloudflare Worker UI at apps/web) in a browser. Use when checking Explore, search, cities, the map, or the community leaderboard against a locally running dev server.
+description: Verify the halalfood.world web app (the @halalfood/web Cloudflare Worker UI at apps/web) in a browser against an isolated seeded local database. Use when checking Explore, search, cities, the map, or the community leaderboard.
 ---
 
 # Verify halalfood.world
 
 The primary surface is the web UI served by the `@halalfood/web` Worker. The same process also exposes JSON under `/api/*`. There is no user-facing CLI. Ops backfill scripts in `apps/web/scripts/` talk to remote D1 and are out of scope here.
 
-Two dev servers cannot run side by side. `vinext dev` writes `apps/web/.vinext/dev/lock.json` and refuses a second start in `apps/web`, including `PORT=3001 npm run dev --workspace=@halalfood/web`. Both would also share the local D1 file under `apps/web/.wrangler/state`. Do not start another instance, and do not kill a server this skill did not start.
+Launch creates a private local D1 under `.cursor/skills/verify-halalfood/.run/persist` and seeds it from `seed/verify.sql`. That directory is not `apps/web/.wrangler/state`. `npm run dev` without `HALALFOOD_PERSIST_PATH` still uses the developer database. This skill never passes `--remote` and never reads or writes production D1 or worker secrets.
+
+A second dev server cannot run at the same time. `vinext dev` writes `apps/web/.vinext/dev/lock.json` and refuses another start in `apps/web`, including a different `PORT` or a different `HALALFOOD_PERSIST_PATH`. Do not start another instance, and do not kill a server this skill did not start. Sequential runs do not share a database: a fresh launch deletes `.run/persist` and builds a new one. While the server this skill started is still up, launch reuses it and does not reseed.
 
 `tests/browser-smoke.mjs` still uses `.explore-hero`, `.place-row`, `.rating-marker`, and `.map-selected`. Those classes are not in the current UI. Drive with the roles in `features/`.
 
@@ -20,13 +22,20 @@ npm ci
 .cursor/skills/verify-halalfood/scripts/launch.sh
 ```
 
-`npm ci` is once per checkout. The launch script applies local D1 migrations (`npm run db:migrate:local`), starts `npm run dev` (Turborepo runs `vinext dev` in `apps/web`), and records that process-group pid in `.cursor/skills/verify-halalfood/.run/pid`.
+`npm ci` is once per checkout. On a fresh start the launch script:
 
-Ready means `GET http://localhost:3000/` returns 200, the body contains `Search halal places or cities`, and it is not the Vite overlay (`<title>Error</title>`). The log line `Local: http://localhost:3000/` is earlier than ready: the first compile can 500 while Vite reloads. The script waits up to 180 seconds. Vite listens on IPv6 `::1` only, so `http://127.0.0.1:3000/` is connection refused. Use `http://localhost:3000`.
+1. Deletes `.run/persist` so this run cannot see a previous verification database.
+2. Applies `apps/web` migrations with `wrangler d1 migrations apply halalfood-world --local --persist-to` that directory. It does not pass `--remote`.
+3. Loads `seed/verify.sql` with `wrangler d1 execute --local --persist-to` the same directory.
+4. Starts `npm run dev` with `HALALFOOD_PERSIST_PATH` set to that directory, and with `GOOGLE_PLACES_API_KEY` and `GOOGLE_MAPS_API_KEY` removed from the process environment. Turborepo forwards `HALALFOOD_PERSIST_PATH` into `vinext dev`. Vite then points the Cloudflare plugin's local persistence at that directory.
 
-No `.dev.vars` is required for this public launch. Google Places, Resend, and Turnstile are optional and fail closed. A fresh local database has zero places; that is the real directory until data is imported, not a failed boot.
+The seed is nine places (London 4, Mumbai 3, Manchester 2), two fixture users, one approved halal check, two reviews, and one visit signal. Rows are fixed. `google_details_cached_at` is the clock at seed time so each Google snapshot is inside the app's 7-day cache. Place pages therefore render the stored snapshot. This environment does not call `places.googleapis.com`, `maps.googleapis.com`, production D1, Resend, Turnstile, or an OAuth provider. Fixture emails are `@verify.halalfood.local` and are not inboxes.
 
-Teardown is `scripts/cleanup.sh`. It signals the recorded process group and deletes `.run/`. It leaves `evidence/` and the local D1 database in place.
+Ready means `GET http://localhost:3000/` returns 200, the body contains `Search halal places or cities`, and it is not the Vite overlay (`<title>Error</title>`). The script waits up to 180 seconds. Vite listens on IPv6 `::1` only, so `http://127.0.0.1:3000/` is connection refused. Use `http://localhost:3000`.
+
+No `.dev.vars` is required. If `apps/web/.dev.vars` defines `GOOGLE_PLACES_API_KEY` or `GOOGLE_MAPS_API_KEY`, doctor refuses. Do not edit or delete that file from this skill.
+
+Teardown is `scripts/cleanup.sh`. It signals the recorded process group and deletes `.run/`, including the verification database. It leaves `evidence/` and `apps/web/.wrangler/` in place.
 
 ## Doctor
 
@@ -41,41 +50,45 @@ Exit 0 means the instance is worth driving. The script is read-only. It checks:
 - `apps/web/.vinext/dev/lock.json` names a live pid whose cwd is `apps/web`, on port 3000, at `http://localhost:3000`.
 - That pid is the process we launched, or a descendant of `.run/pid`.
 - Port 3000's listening socket belongs to that process tree.
+- The vinext process was started with `HALALFOOD_PERSIST_PATH` pointing at `.run/persist`, and without a Google API key in its environment.
 - `GET /` is the explore shell (search label present, not the Vite error title, title text identifies halalfood.world).
-- `GET /api/places?bbox=-180,-90,180,90&limit=1` returns JSON with `places`, `total`, and `limit: 1`, which means this Worker's D1 binding answered.
+- The seed is loaded: viewport `total` is 9, `GET /api/places/search?q=london&limit=48` returns `total` 4 with Dishoom King's Cross first, `GET /api/cities/london` has `place_count` 4, and `GET /api/leaderboard` ranks Amina Rahman at 34 then Yusuf Ali at 15.
 
-Anonymous public pages are a valid session. If `apps/web/.dev.vars` does not define `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `TURNSTILE_SITE_KEY`, and `TURNSTILE_SECRET_KEY`, doctor still passes and prints that login, save, and add are not worth driving. Do not print those values.
+Anonymous public pages are a valid session. The five mapped features do not need a signed-in user. Fixture users are database rows so the leaderboard has names. Login, save, and add stay undriven: they need Turnstile and email OTP, which this environment does not configure. Do not print secret values.
 
 ## Drive
 
 Harness is Playwright, already a dependency of `@halalfood/web`. Chromium is whatever `PLAYWRIGHT_CHROMIUM_PATH` points at, otherwise `/opt/google/chrome/chrome` or `/usr/bin/google-chrome`. The recording needs Playwright's ffmpeg once: `npx playwright install ffmpeg`.
 
-Feature files in `features/` are the selector map. To prove search end to end:
+Feature files in `features/` are the selector map. Drive every mapped feature:
 
 ```sh
-node .cursor/skills/verify-halalfood/scripts/drive-search.mjs
+node .cursor/skills/verify-halalfood/scripts/drive-features.mjs
 ```
 
-That opens `/`, fills the searchbox named `Search halal places or cities` with `london`, clicks the button named `Search`, and waits for `/search?q=london` and the heading `Halal places matching “london”`. It then reads `GET /api/places/search?q=london&limit=48` and checks the page against `total`.
+That script opens the real pages, clicks the real controls, and checks each result against the API or the place URL. `scripts/drive-search.mjs` still drives only search and writes the older `evidence/search-*` files. Prefer `drive-features.mjs` so the seeded proof stays in `evidence/e2e/`.
 
 ## Evidence
 
-The drive script writes only under `.cursor/skills/verify-halalfood/evidence/`:
+`drive-features.mjs` writes only under `.cursor/skills/verify-halalfood/evidence/e2e/`:
 
-- `search-filled.png` — the query in the box, before submit
-- `search-results.png` — the results page after navigation
-- `search-drive.webm` — the same path as a short recording
-- `search-api.json` — status and body of the search API
-- `search-transcript.txt` — the action, the result URL, the heading, and whether the API total matches the page
+- `explore.png`, `explore-place.png`, `explore-api.json` — home row, then the Dishoom page and its fixture address
+- `search-filled.png`, `search-results.png`, `search-api.json` — the london query and `GET /api/places/search`
+- `cities.png`, `city-london.png`, `cities-api.json` — the directory and `GET /api/cities/london`
+- `map.png`, `map-selected.png`, `map-api.json` — the opening viewport and the selected-place URL
+- `community.png`, `leaderboard-api.json` — Amina Rahman on the board and `GET /api/leaderboard`
+- `features-transcript.txt` — the action, the result URL, and the side effect for each feature
+- `features-drive.webm` — the same path as one recording
 
 Proof standard for this app:
 
-- Use the header form and the routes in `features/`. Do not call a test-only endpoint or set React state directly.
+- Use the header, footer, and routes in `features/`. Do not call a test-only endpoint or set React state directly.
 - Keep the before screenshot and the after screenshot. The transcript has to name the action, not only the final screen.
-- Search is a GET. Confirm the document request was `GET /search?q=london`, that the API `total` agrees with the copy (`No places found yet` when `total` is 0, otherwise at least one `/place/` link), and that the drive issued no POST to this origin and no `places.googleapis.com` call. Google is a production boundary used by add-a-place, not by search.
-- Do not mock D1, the Worker, or the search handler.
+- Each feature records a side effect: an API body, the place or map URL, or both.
+- The drive must not POST to this origin and must not request `places.googleapis.com` or `maps.googleapis.com`. Fonts and map tiles are not that boundary.
+- Do not mock D1, the Worker, or the handlers. The database is the seeded local file.
 
-This directory is gitignored. Cleanup must not delete it.
+`evidence/` is gitignored. Cleanup must not delete it. The earlier empty-directory search proof, if present, lives in `evidence/` next to `e2e/` and is not replaced by this drive.
 
 ## Cleanup
 
@@ -83,19 +96,19 @@ This directory is gitignored. Cleanup must not delete it.
 .cursor/skills/verify-halalfood/scripts/cleanup.sh
 ```
 
-The script reads `.run/pid` and signals that process group (`SIGTERM`, then `SIGKILL` if it is still alive after ten seconds). It does not scan the process table by name. It removes `.run/` (pid file and `dev.log`) and leaves `evidence/` and `apps/web/.wrangler/` alone. After it returns, list `evidence/` and confirm the proof files are still there.
+The script reads `.run/pid` and signals that process group (`SIGTERM`, then `SIGKILL` if it is still alive after ten seconds). It does not scan the process table by name. It removes `.run/` (pid file, `dev.log`, and `.run/persist`) and leaves `evidence/` and `apps/web/.wrangler/` alone. After it returns, list `evidence/e2e/` and confirm the proof files are still there.
 
 If launch exited 2, a server is running that this skill did not start. Leave it up.
 
 ## Helpers
 
-All four are executable from the repo root:
-
 | Script | Invoke |
 | --- | --- |
 | `scripts/launch.sh` | `.cursor/skills/verify-halalfood/scripts/launch.sh` |
 | `scripts/doctor.sh` | `.cursor/skills/verify-halalfood/scripts/doctor.sh` |
+| `scripts/drive-features.mjs` | `node .cursor/skills/verify-halalfood/scripts/drive-features.mjs` |
 | `scripts/drive-search.mjs` | `node .cursor/skills/verify-halalfood/scripts/drive-search.mjs` |
 | `scripts/cleanup.sh` | `.cursor/skills/verify-halalfood/scripts/cleanup.sh` |
+| `seed/verify.sql` | applied by launch; do not run it with `--remote` |
 
-`drive-search.mjs` is the only one that writes evidence. `doctor.sh` and `cleanup.sh` never start a server.
+`drive-features.mjs` and `drive-search.mjs` write evidence. `doctor.sh` and `cleanup.sh` never start a server.
