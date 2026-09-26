@@ -2,7 +2,23 @@
 
 import { useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Cancel01Icon, FilterHorizontalIcon } from "@hugeicons/core-free-icons";
+import { FilterHorizontalIcon } from "@hugeicons/core-free-icons";
+import { Badge } from "@halalfood/ui/components/badge";
+import { Button } from "@halalfood/ui/components/button";
+import { Field, FieldLabel, FieldLegend, FieldSet } from "@halalfood/ui/components/field";
+import { Input } from "@halalfood/ui/components/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@halalfood/ui/components/sheet";
+import { cn } from "@halalfood/ui/lib/utils";
+import { ChipRow } from "../src/components/blocks";
+import { ChoiceChips, ToggleChip } from "../src/components/form-fields";
+import { TONE_TEXT } from "../src/components/status-tone";
 import {
   FACT_FILTER_COPY,
   FACT_FILTER_KEYS,
@@ -48,24 +64,30 @@ function ChipGroup<T extends string | number>({
   onToggle: (value: T) => void;
 }) {
   return (
-    <fieldset className="filter-group">
-      <legend>{legend}</legend>
-      <div className="chip-row">
+    <FieldSet>
+      <FieldLegend variant="label">{legend}</FieldLegend>
+      <ChipRow className="gap-2">
         {options.map((option) => (
-          <button
+          <ToggleChip
             key={String(option)}
-            type="button"
-            className={`filter-chip${selected.includes(option) ? " is-active" : ""}`}
-            aria-pressed={selected.includes(option)}
-            onClick={() => onToggle(option)}
+            pressed={selected.includes(option)}
+            onPressedChange={() => onToggle(option)}
           >
             {label(option)}
-          </button>
+          </ToggleChip>
         ))}
-      </div>
-    </fieldset>
+      </ChipRow>
+    </FieldSet>
   );
 }
+
+/** "take-away" → "Take away". */
+function sentence(value: string) {
+  const words = value.replace(/-/g, " ");
+  return words[0].toUpperCase() + words.slice(1);
+}
+
+const NOTE = "text-[13px] text-muted-foreground";
 
 export default function MapFilters({
   filters,
@@ -82,195 +104,165 @@ export default function MapFilters({
   const set = (patch: Partial<DiscoveryFilters>) => onChange({ ...filters, ...patch });
 
   return (
-    <>
+    <Sheet open={open} onOpenChange={setOpen}>
       <div
-        className={mobile ? "sheet-filter-row" : "filter-row"}
+        className={cn(
+          "flex gap-2",
+          mobile ? "overflow-x-auto px-4.5 pb-3 [scrollbar-width:none]" : "flex-wrap py-1",
+        )}
         aria-label="Filter halal places"
       >
-        <button
-          type="button"
-          className={`filter-chip is-filters${count ? " is-active" : ""}`}
-          onClick={() => setOpen(true)}
-          aria-haspopup="dialog"
-        >
-          <HugeiconsIcon icon={FilterHorizontalIcon} size={14} aria-hidden="true" />
-          Filters
-          {count > 0 && <span className="filter-chip-count">{count}</span>}
-        </button>
-        <button
-          type="button"
-          className={`filter-chip${filters.applyMyStandards ? " is-active" : ""}`}
-          aria-pressed={filters.applyMyStandards}
-          onClick={() => set({ applyMyStandards: !filters.applyMyStandards })}
+        <SheetTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "h-9 shrink-0 rounded-full px-3.5 font-semibold",
+              count > 0 && "border-foreground bg-secondary",
+            )}
+          >
+            <HugeiconsIcon icon={FilterHorizontalIcon} size={14} aria-hidden="true" />
+            Filters
+            {count > 0 && (
+              <Badge className="h-5 min-w-5 rounded-full bg-foreground px-1.5 text-background">
+                {count}
+              </Badge>
+            )}
+          </Button>
+        </SheetTrigger>
+        <ToggleChip
+          pressed={filters.applyMyStandards}
+          onPressedChange={() => set({ applyMyStandards: !filters.applyMyStandards })}
         >
           My standards
-        </button>
+        </ToggleChip>
         {STATUS_FILTER_ORDER.map((status) => (
-          <button
+          <ToggleChip
             key={status}
-            type="button"
-            className={`filter-chip status-chip tone-${STATUS_COPY[status].tone}${filters.statuses.includes(status) ? " is-active" : ""}`}
-            aria-pressed={filters.statuses.includes(status)}
-            onClick={() => set({ statuses: toggle(filters.statuses, status) })}
+            className={TONE_TEXT[STATUS_COPY[status].tone]}
+            pressed={filters.statuses.includes(status)}
+            onPressedChange={() => set({ statuses: toggle(filters.statuses, status) })}
           >
             {STATUS_COPY[status].label}
-          </button>
+          </ToggleChip>
         ))}
       </div>
 
-      {open && (
-        <div className="filter-sheet-backdrop" role="presentation" onClick={() => setOpen(false)}>
-          <div
-            className="filter-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Filters"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="filter-sheet-head">
-              <h2>Filters</h2>
-              <button
-                type="button"
-                className="selected-preview-close"
-                aria-label="Close filters"
-                onClick={() => setOpen(false)}
-              >
-                <HugeiconsIcon icon={Cancel01Icon} size={18} />
-              </button>
-            </div>
+      <SheetContent side={mobile ? "bottom" : "right"} className="max-h-[90vh] gap-0 sm:max-w-md">
+        <SheetHeader className="border-b">
+          <SheetTitle className="text-lg font-extrabold">Filters</SheetTitle>
+        </SheetHeader>
 
-            <div className="filter-sheet-body">
-              <fieldset className="filter-group">
-                <legend>Sort by</legend>
-                <div className="chip-row">
-                  {SORT_OPTIONS.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      className={`filter-chip${filters.sort === option ? " is-active" : ""}`}
-                      aria-pressed={filters.sort === option}
-                      onClick={() => set({ sort: option as SortOption })}
-                    >
-                      {SORT_COPY[option]}
-                    </button>
-                  ))}
-                </div>
-                <p className="filter-note">
-                  No restaurant can pay to move up this list. Sorting only ever
-                  reflects evidence, dining signal and distance.
-                </p>
-              </fieldset>
+        <div className="grid flex-1 content-start gap-6 overflow-y-auto p-4">
+          <FieldSet>
+            <FieldLegend variant="label">Sort by</FieldLegend>
+            <ChoiceChips
+              label="Sort by"
+              value={filters.sort}
+              onValueChange={(option) => option && set({ sort: option as SortOption })}
+              options={SORT_OPTIONS.map((option) => ({ value: option, label: SORT_COPY[option] }))}
+            />
+            <p className={NOTE}>
+              No restaurant can pay to move up this list. Sorting only ever
+              reflects evidence, dining signal and distance.
+            </p>
+          </FieldSet>
 
-              <ChipGroup
-                legend="Halal status"
-                options={STATUS_FILTER_ORDER}
-                selected={filters.statuses}
-                label={(status: HalalTaxonomyStatus) => STATUS_COPY[status].label}
-                onToggle={(status) => set({ statuses: toggle(filters.statuses, status) })}
-              />
+          <ChipGroup
+            legend="Halal status"
+            options={STATUS_FILTER_ORDER}
+            selected={filters.statuses}
+            label={(status: HalalTaxonomyStatus) => STATUS_COPY[status].label}
+            onToggle={(status) => set({ statuses: toggle(filters.statuses, status) })}
+          />
 
-              <ChipGroup
-                legend="Facts"
-                options={FACT_FILTER_KEYS}
-                selected={filters.facts}
-                label={(key: FactFilterKey) => FACT_FILTER_COPY[key]}
-                onToggle={(key) => set({ facts: toggle(filters.facts, key) })}
-              />
-              <p className="filter-note">
-                A fact filter only matches places where the fact is recorded. A
-                place with an unknown answer is left out rather than assumed.
-              </p>
-
-              <fieldset className="filter-group">
-                <legend>Dish</legend>
-                <input
-                  className="ui-input"
-                  value={filters.dish ?? ""}
-                  placeholder="biryani, kunafa, shawarma…"
-                  onChange={(event) => set({ dish: event.target.value.trim() || null })}
-                />
-              </fieldset>
-
-              <ChipGroup
-                legend="Price"
-                options={PRICE_BANDS}
-                selected={filters.priceBands}
-                label={(band: number) => "$".repeat(band)}
-                onToggle={(band) => set({ priceBands: toggle(filters.priceBands, band) })}
-              />
-
-              <ChipGroup
-                legend="Service"
-                options={SERVICE_TYPES}
-                selected={filters.serviceTypes}
-                label={(value: string) => value.replace(/-/g, " ")}
-                onToggle={(value) =>
-                  set({ serviceTypes: toggle(filters.serviceTypes, value) })
-                }
-              />
-
-              <ChipGroup
-                legend="Meal"
-                options={MEALS}
-                selected={filters.meals}
-                label={(value: string) => value.replace(/-/g, " ")}
-                onToggle={(value) => set({ meals: toggle(filters.meals, value) })}
-              />
-
-              <fieldset className="filter-group">
-                <legend>Distance</legend>
-                <div className="chip-row">
-                  {[1, 2, 5, 10].map((km) => (
-                    <button
-                      key={km}
-                      type="button"
-                      className={`filter-chip${filters.maxDistanceKm === km ? " is-active" : ""}`}
-                      aria-pressed={filters.maxDistanceKm === km}
-                      onClick={() =>
-                        set({ maxDistanceKm: filters.maxDistanceKm === km ? null : km })
-                      }
-                    >
-                      Within {km} km
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-            </div>
-
-            <div className="filter-sheet-foot">
-              <button
-                type="button"
-                className="ui-button ui-button-ghost"
-                onClick={() =>
-                  onChange({
-                    ...filters,
-                    statuses: [],
-                    facts: [],
-                    cuisines: [],
-                    dish: null,
-                    priceBands: [],
-                    serviceTypes: [],
-                    meals: [],
-                    openNow: false,
-                    maxDistanceKm: null,
-                    sort: "recommended",
-                    applyMyStandards: false,
-                  })
-                }
-              >
-                Clear all
-              </button>
-              <button
-                type="button"
-                className="ui-button ui-button-default"
-                onClick={() => setOpen(false)}
-              >
-                Show results{count ? ` (${count})` : ""}
-              </button>
-            </div>
+          <div className="grid gap-2">
+            <ChipGroup
+              legend="Facts"
+              options={FACT_FILTER_KEYS}
+              selected={filters.facts}
+              label={(key: FactFilterKey) => FACT_FILTER_COPY[key]}
+              onToggle={(key) => set({ facts: toggle(filters.facts, key) })}
+            />
+            <p className={NOTE}>
+              A fact filter only matches places where the fact is recorded. A
+              place with an unknown answer is left out rather than assumed.
+            </p>
           </div>
+
+          <Field>
+            <FieldLabel htmlFor="filter-dish">Dish</FieldLabel>
+            <Input
+              id="filter-dish"
+              value={filters.dish ?? ""}
+              placeholder="biryani, kunafa, shawarma…"
+              onChange={(event) => set({ dish: event.target.value.trim() || null })}
+            />
+          </Field>
+
+          <ChipGroup
+            legend="Price"
+            options={PRICE_BANDS}
+            selected={filters.priceBands}
+            label={(band: number) => "$".repeat(band)}
+            onToggle={(band) => set({ priceBands: toggle(filters.priceBands, band) })}
+          />
+
+          <ChipGroup
+            legend="Service"
+            options={SERVICE_TYPES}
+            selected={filters.serviceTypes}
+            label={sentence}
+            onToggle={(value) => set({ serviceTypes: toggle(filters.serviceTypes, value) })}
+          />
+
+          <ChipGroup
+            legend="Meal"
+            options={MEALS}
+            selected={filters.meals}
+            label={sentence}
+            onToggle={(value) => set({ meals: toggle(filters.meals, value) })}
+          />
+
+          <FieldSet>
+            <FieldLegend variant="label">Distance</FieldLegend>
+            <ChoiceChips
+              label="Distance"
+              allowNone
+              value={filters.maxDistanceKm === null ? null : String(filters.maxDistanceKm)}
+              onValueChange={(km) => set({ maxDistanceKm: km === null ? null : Number(km) })}
+              options={["1", "2", "5", "10"].map((km) => ({ value: km, label: `Within ${km} km` }))}
+            />
+          </FieldSet>
         </div>
-      )}
-    </>
+
+        <SheetFooter className="flex-row justify-between border-t">
+          <Button
+            variant="ghost"
+            className="font-bold underline"
+            onClick={() =>
+              onChange({
+                ...filters,
+                statuses: [],
+                facts: [],
+                cuisines: [],
+                dish: null,
+                priceBands: [],
+                serviceTypes: [],
+                meals: [],
+                openNow: false,
+                maxDistanceKm: null,
+                sort: "recommended",
+                applyMyStandards: false,
+              })
+            }
+          >
+            Clear all
+          </Button>
+          <Button size="xl" onClick={() => setOpen(false)}>
+            Show results{count ? ` (${count})` : ""}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
 import { cache } from "react";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Call02Icon, CheckmarkBadge01Icon, DrinkIcon, File01Icon, LinkSquare02Icon, MapsIcon, Navigation03Icon, SteakIcon } from "@hugeicons/core-free-icons";
@@ -86,6 +86,19 @@ import PlaceReviews from "./place-reviews";
 import PlacePhotos from "./place-photos";
 import PlaceVideos from "./place-videos";
 import { PlaceRow } from "../../../src/components/place-tile";
+import { Button } from "@halalfood/ui/components/button";
+import { Card } from "@halalfood/ui/components/card";
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "@halalfood/ui/components/item";
+import { Separator } from "@halalfood/ui/components/separator";
+import { cn } from "@halalfood/ui/lib/utils";
+import { TextLink } from "../../../src/components/blocks";
+import { MetaItem, Note, SectionIntro } from "../../../src/components/section";
 import { findPlacesNear } from "../../../src/lib/local-context-repository";
 
 const loadPlace = cache(async (raw: string) => {
@@ -303,7 +316,7 @@ export default async function PlacePage({
   return (
     <Page>
       <SiteHeader />
-      <main className="page-main place-page">
+      <PageMain className="pb-36 md:pb-16">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -314,9 +327,9 @@ export default async function PlacePage({
           }}
         />
         <Breadcrumbs trail={trail} />
-        <div className="place-title-row">
-          <h1>{place.name}</h1>
-          <div className="place-title-actions">
+        <div className="mb-4.5 flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
+          <h1 className="text-[clamp(24px,3vw,30px)]">{place.name}</h1>
+          <div className="flex items-center gap-1">
             <ShareButton
               url={"/place/" + place.id}
               title={place.name}
@@ -326,7 +339,7 @@ export default async function PlacePage({
           </div>
         </div>
 
-        <div className="gallery">
+        <div className="relative -mx-4.5 grid h-65 grid-cols-1 gap-2 overflow-hidden md:mx-0 md:h-100 md:grid-cols-[2fr_1fr_1fr] md:grid-rows-2 md:rounded-2xl [&>*:first-child]:md:row-span-2 [&>*:not(:first-child)]:hidden [&>*:not(:first-child)]:md:block">
           {galleryPhotos.length ? (
             galleryPhotos.map((photo, index) => (
               // Community photos are served through the R2 proxy route.
@@ -336,27 +349,34 @@ export default async function PlacePage({
                 src={"/api/uploads/r2?key=" + encodeURIComponent(photo.r2Key)}
                 alt={index === 0 ? "Community photo of " + place.name : ""}
                 loading={index === 0 ? "eager" : "lazy"}
+                className="size-full object-cover"
               />
             ))
           ) : (
-            <PlacePhotoArt seed={place.id} name={place.name} />
+            <PlacePhotoArt seed={place.id} name={place.name} className="aspect-auto! h-full rounded-none" />
           )}
           {galleryPhotos.length < 5 &&
             Array.from({ length: galleryPhotos.length ? 5 - galleryPhotos.length : 4 }, (_, index) => (
-              <PlacePhotoArt key={"art-" + index} seed={place.id + index} name={place.name} />
+              <PlacePhotoArt key={"art-" + index} seed={place.id + index} name={place.name} className="aspect-auto! h-full rounded-none" />
             ))}
-          <a className="gallery-more" href="#photos">
-            {photos.length ? `Show all ${photos.length} ${plural(photos.length, "photo")}` : "Add a photo"}
-          </a>
+          <Button
+            asChild
+            variant="outline"
+            className="absolute! right-4 bottom-4 block! border-foreground font-extrabold"
+          >
+            <a href="#photos">
+              {photos.length ? `Show all ${photos.length} ${plural(photos.length, "photo")}` : "Add a photo"}
+            </a>
+          </Button>
         </div>
 
-        <div className="place-layout">
-          <div className="place-main">
-            <div className="place-subtitle">
-              <h2>
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-20">
+          <div>
+            <div>
+              <h2 className="text-[22px]">
                 {cuisine ? cuisine + " in " + city : "Halal food in " + city}
               </h2>
-              <p>
+              <p className="mt-1">
                 {google.ratingValue
                   ? `★ ${google.ratingValue}${
                       google.reviewCount
@@ -369,7 +389,7 @@ export default async function PlacePage({
             </div>
 
             {decisionBundle ? (
-              <div className="place-decision">
+              <div>
                 <DecisionHeadline
                   assessment={decisionBundle.decision.assessment}
                   headline={decisionBundle.decision.headline}
@@ -381,51 +401,63 @@ export default async function PlacePage({
                 <CoverageBadge level={decisionBundle.coverage} />
               </div>
             ) : (
-              <div className="fav-strip">
-                <div className="fav-strip-badge">
+              <Item variant="outline" className="mt-6 rounded-2xl px-6 py-4.5">
+                <ItemMedia>
                   <HugeiconsIcon icon={CheckmarkBadge01Icon} size={26} aria-hidden="true" />
-                  <span>{approvedChecks ? "Checked by the community" : "Not checked yet"}</span>
-                </div>
-                <p className="fav-strip-text">
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle className="text-base font-extrabold">
+                    {approvedChecks ? "Checked by the community" : "Not checked yet"}
+                  </ItemTitle>
+                </ItemContent>
+                <ItemDescription className="hidden sm:block">
                   {approvedChecks
                     ? `Latest check ${latestCheck ?? "recently"}.`
                     : "Be the first to share what you saw here."}
-                </p>
-              </div>
+                </ItemDescription>
+              </Item>
             )}
 
-            <hr className="rule" />
-            <section className="place-section" aria-labelledby="glance-title">
-              <h2 id="glance-title">Halal at a glance</h2>
-              <p className="section-intro">
+            <Separator className="my-8" />
+            <section className="scroll-mt-24" aria-labelledby="glance-title">
+              <h2 id="glance-title" className="mb-1.5 text-[22px]">
+                Halal at a glance
+              </h2>
+              <SectionIntro>
                 From approved checks by people who visited. We don’t certify places.
-              </p>
-              <ul className="glance-grid">
+              </SectionIntro>
+              <ul className="mt-4.5 grid grid-cols-1 gap-x-6 gap-y-4.5 sm:grid-cols-2">
                 {lines.map((line) => (
-                  <li key={line.question} className={line.known ? undefined : "is-unknown"}>
+                  <li
+                    key={line.question}
+                    className={cn(
+                      "flex items-center gap-3.5 text-base",
+                      !line.known && "text-muted-foreground [&_svg]:opacity-50",
+                    )}
+                  >
                     {GLANCE_ICONS[line.question]}
                     <span>
                       {line.label}
                       <br />
-                      <small className="muted">{line.detail}</small>
+                      <small className="text-muted-foreground">{line.detail}</small>
                     </span>
                   </li>
                 ))}
               </ul>
-              <div className="button-row" style={{ marginTop: 22 }}>
-                <a className="btn btn-dark" href={checkHref}>
-                  I’ve been here, let me check
-                </a>
-                <a className="btn btn-soft" href="#checks">
-                  How we know
-                </a>
+              <div className="mt-5.5 flex flex-wrap gap-2.5">
+                <Button asChild size="xl">
+                  <a href={checkHref}>I’ve been here, let me check</a>
+                </Button>
+                <Button asChild size="xl" variant="secondary">
+                  <a href="#checks">How we know</a>
+                </Button>
               </div>
             </section>
 
             {decisionBundle && (
               <>
-                <hr className="rule" />
-                <div className="place-section stack">
+                <Separator className="my-8" />
+                <div className="grid gap-4">
                   <EvidencePanel
                     assessment={decisionBundle.decision.assessment}
                     verifications={decisionBundle.verifications}
@@ -438,14 +470,23 @@ export default async function PlacePage({
                   <ProvenancePanel facts={decisionBundle.facts} now={decisionBundle.now} />
                   <DishHighlightPanel dishes={decisionBundle.decision.dishes} />
                   {decisionBundle.dishes.length > 0 && (
-                    <section className="menu-panel" aria-labelledby="menu-panel-title">
-                      <h2 id="menu-panel-title">Dishes on file</h2>
-                      <p className="section-intro">Added by the community.</p>
-                      <ul className="menu-list">
+                    <section aria-labelledby="menu-panel-title">
+                      <h2 id="menu-panel-title" className="mb-1.5 text-[22px]">
+                        Dishes on file
+                      </h2>
+                      <SectionIntro>Added by the community.</SectionIntro>
+                      <ul className="divide-y">
                         {decisionBundle.dishes.map((dish) => (
-                          <li key={dish.id} className={`menu-item is-${dish.halalScope}`}>
-                            <span className="menu-item-name">{dish.name}</span>
-                            <span className="menu-item-meta">
+                          <li key={dish.id} className="flex justify-between gap-3 py-2">
+                            <span
+                              className={cn(
+                                "font-semibold",
+                                dish.halalScope === "not-halal" && "text-destructive",
+                              )}
+                            >
+                              {dish.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
                               {dish.halalScope === "unknown"
                                 ? "Halal scope unknown"
                                 : dish.halalScope === "halal"
@@ -459,57 +500,61 @@ export default async function PlacePage({
                     </section>
                   )}
                 </div>
-                <hr className="rule" />
-                <div id="visit" className="place-section stack">
+                <Separator className="my-8" />
+                <div id="visit" className="grid scroll-mt-24 gap-4">
                   <PlaceCheckIn placeId={place.id} placeName={place.name} />
                   <PlaceContribute placeId={place.id} />
                 </div>
               </>
             )}
 
-            <hr className="rule" />
+            <Separator className="my-8" />
             <PlaceVideos placeId={place.id} />
 
-            <hr className="rule" />
-            <section className="place-section" aria-labelledby="where-title">
-              <h2 id="where-title">Where you’ll be</h2>
-              <p className="section-intro">{google.address}</p>
-              <div className="button-row">
+            <Separator className="my-8" />
+            <section className="scroll-mt-24" aria-labelledby="where-title">
+              <h2 id="where-title" className="mb-1.5 text-[22px]">
+                Where you’ll be
+              </h2>
+              <SectionIntro>{google.address}</SectionIntro>
+              <div className="flex flex-wrap gap-2.5">
                 {hasCoords && (
-                  <a className="btn btn-outline" href={"/map?place=" + encodeURIComponent(place.id)}>
-                    <HugeiconsIcon icon={MapsIcon} size={18} aria-hidden="true" />
-                    Show on map
-                  </a>
+                  <Button asChild size="xl" variant="outline">
+                    <a href={"/map?place=" + encodeURIComponent(place.id)}>
+                      <HugeiconsIcon icon={MapsIcon} size={18} aria-hidden="true" />
+                      Show on map
+                    </a>
+                  </Button>
                 )}
                 {maps && (
-                  <a className="btn btn-outline" href={maps} target="_blank" rel="noopener noreferrer nofollow">
-                    <HugeiconsIcon icon={Navigation03Icon} size={18} aria-hidden="true" />
-                    Directions
-                  </a>
+                  <Button asChild size="xl" variant="outline">
+                    <a href={maps} target="_blank" rel="noopener noreferrer nofollow">
+                      <HugeiconsIcon icon={Navigation03Icon} size={18} aria-hidden="true" />
+                      Directions
+                    </a>
+                  </Button>
                 )}
               </div>
-              <div style={{ marginTop: 14 }}>
-                <ApproximateNote compact />
-              </div>
+              <ApproximateNote compact />
             </section>
 
-            <hr className="rule" />
-            <div id="checks" className="place-section">
+            <Separator className="my-8" />
+            <div id="checks" className="scroll-mt-24">
               <PlaceHalalVerification placeId={place.id} />
             </div>
 
-            <hr className="rule" />
-            <div id="photos" className="place-section">
+            <Separator className="my-8" />
+            <div id="photos" className="scroll-mt-24">
               <PlacePhotos placeId={place.id} />
             </div>
 
-            <hr className="rule" />
-            <div id="reviews" className="place-section stack">
+            <Separator className="my-8" />
+            <div id="reviews" className="grid scroll-mt-24 gap-8">
               <PlaceRating placeId={place.id} />
               <PlaceReviews placeId={place.id} />
             </div>
 
-            <hr className="rule" />
+            <Separator className="my-8" />
             {nearby.length ? (
               <PlaceRow
                 title={"More halal food nearby"}
@@ -517,84 +562,82 @@ export default async function PlacePage({
                 places={nearby}
               />
             ) : (
-              <p className="muted">
-                <a className="link-underline" href={"/city/" + place.city_slug}>
-                  See every halal place in {city}
-                </a>
+              <p className="text-muted-foreground">
+                <TextLink href={"/city/" + place.city_slug}>See every halal place in {city}</TextLink>
               </p>
             )}
           </div>
 
           <aside>
-            <div className="booking-card">
-              <h2>
-                Planning a visit? <span>{city}</span>
+            <Card className="gap-3.5 px-6 py-6 shadow-lg ring-border lg:sticky lg:top-28">
+              <h2 className="text-[22px]">
+                Planning a visit?{" "}
+                <span className="text-base font-semibold text-muted-foreground">{city}</span>
               </h2>
-              <dl className="booking-card-rows">
-                <div>
-                  <dt>Address</dt>
-                  <dd>{google.address}</dd>
-                </div>
-                {google.telephone && (
-                  <div>
-                    <dt>Phone</dt>
-                    <dd>{google.telephone}</dd>
-                  </div>
-                )}
-                <div>
-                  <dt>Halal checks</dt>
-                  <dd>
-                    {approvedChecks
-                      ? `${formatCount(approvedChecks)} approved · latest ${latestCheck ?? "recently"}`
-                      : "None yet"}
-                  </dd>
-                </div>
+              <dl className="grid gap-2.5 text-sm">
+                <MetaItem label="Address">{google.address}</MetaItem>
+                {google.telephone && <MetaItem label="Phone">{google.telephone}</MetaItem>}
+                <MetaItem label="Halal checks">
+                  {approvedChecks
+                    ? `${formatCount(approvedChecks)} approved · latest ${latestCheck ?? "recently"}`
+                    : "None yet"}
+                </MetaItem>
               </dl>
               {maps ? (
-                <a className="btn btn-primary btn-block" href={maps} target="_blank" rel="noopener noreferrer nofollow">
-                  Get directions
-                </a>
+                <Button asChild size="xl" className="w-full">
+                  <a href={maps} target="_blank" rel="noopener noreferrer nofollow">
+                    Get directions
+                  </a>
+                </Button>
               ) : hasCoords ? (
-                <a className="btn btn-primary btn-block" href={"/map?place=" + encodeURIComponent(place.id)}>
-                  Show on map
-                </a>
+                <Button asChild size="xl" className="w-full">
+                  <a href={"/map?place=" + encodeURIComponent(place.id)}>Show on map</a>
+                </Button>
               ) : null}
-              <div className="booking-card-links">
-                {phoneHref && (
-                  <a className="btn btn-line btn-sm" href={phoneHref}>
-                    <HugeiconsIcon icon={Call02Icon} size={16} aria-hidden="true" />
-                    Call
-                  </a>
-                )}
-                {website && (
-                  <a className="btn btn-line btn-sm" href={website} target="_blank" rel="noopener noreferrer nofollow">
-                    <HugeiconsIcon icon={LinkSquare02Icon} size={16} aria-hidden="true" />
-                    Website
-                  </a>
-                )}
-              </div>
-              <a className="btn btn-dark btn-block" href={checkHref}>
-                I’ve been here, let me check
-              </a>
-              <p className="booking-card-note">Checks are reviewed before they count.</p>
-            </div>
+              {(phoneHref || website) && (
+                <div className="flex flex-wrap gap-2">
+                  {phoneHref && (
+                    <Button asChild variant="outline" size="lg">
+                      <a href={phoneHref}>
+                        <HugeiconsIcon icon={Call02Icon} size={16} aria-hidden="true" />
+                        Call
+                      </a>
+                    </Button>
+                  )}
+                  {website && (
+                    <Button asChild variant="outline" size="lg">
+                      <a href={website} target="_blank" rel="noopener noreferrer nofollow">
+                        <HugeiconsIcon icon={LinkSquare02Icon} size={16} aria-hidden="true" />
+                        Website
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              )}
+              <Button asChild size="xl" variant="secondary" className="w-full">
+                <a href={checkHref}>I’ve been here, let me check</a>
+              </Button>
+              <Note>Checks are reviewed before they count.</Note>
+            </Card>
           </aside>
         </div>
-      </main>
-      <div className="sticky-bar">
-        <div>
-          <strong>{place.name}</strong>
-          <span>{approvedChecks ? `${formatCount(approvedChecks)} halal ${plural(approvedChecks, "check")}` : "Not checked yet"}</span>
+      </PageMain>
+      <div className="fixed inset-x-0 bottom-[calc(66px+env(safe-area-inset-bottom))] z-50 flex items-center justify-between gap-3 border-t bg-background px-4.5 py-3 md:hidden">
+        <div className="min-w-0">
+          <strong className="block truncate underline">{place.name}</strong>
+          <span className="text-[13px] text-muted-foreground">
+            {approvedChecks ? `${formatCount(approvedChecks)} halal ${plural(approvedChecks, "check")}` : "Not checked yet"}
+          </span>
         </div>
-        {maps ? (
-          <a className="btn btn-primary" href={maps} target="_blank" rel="noopener noreferrer nofollow">
-            Directions
-          </a>
-        ) : (
-          <a className="btn btn-primary" href={checkHref}>
-            Check it
-          </a>
-        )}
+        <Button asChild size="xl">
+          {maps ? (
+            <a href={maps} target="_blank" rel="noopener noreferrer nofollow">
+              Directions
+            </a>
+          ) : (
+            <a href={checkHref}>Check it</a>
+          )}
+        </Button>
       </div>
       <SiteFooter />
     </Page>

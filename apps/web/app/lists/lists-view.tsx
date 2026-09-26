@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button } from "@halalfood/ui/components/button";
+import { Input } from "@halalfood/ui/components/input";
+import { ChipRow, FormCard, ListIndex, Loading } from "../../src/components/blocks";
+import { ChoiceChips, ToggleChip } from "../../src/components/form-fields";
+import { FormMessage, InsufficientData, Note } from "../../src/components/section";
+
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon } from "@hugeicons/core-free-icons";
 import type { PlaceList } from "@halalfood/core/place-lists";
@@ -59,77 +65,60 @@ export default function ListsView() {
     }
   }
 
-  if (state === "loading") return <p className="map-place-status">Loading your lists…</p>;
+  if (state === "loading") return <Loading>Loading your lists…</Loading>;
   if (state === "error")
-    return <p className="map-place-status">Your lists could not load. Please try again.</p>;
+    return <FormMessage tone="error">Your lists could not load. Please try again.</FormMessage>;
 
   return (
-    <div className="lists-view">
-      <section className="list-create">
-        <h2>New list</h2>
-        <div className="dish-input">
-          <input
-            className="ui-input"
+    <div className="grid gap-6">
+      <FormCard title="New list" onSubmit={(event) => {
+        event.preventDefault();
+        if (title.trim()) void create();
+      }}>
+        <div className="flex gap-2">
+          <Input
+            aria-label="List title"
             value={title}
             maxLength={120}
             placeholder="Top biryani in Mumbai"
             onChange={(event) => setTitle(event.target.value)}
           />
-          <button
-            type="button"
-            className="ui-button ui-button-default"
-            disabled={!title.trim()}
-            onClick={() => void create()}
-          >
+          <Button type="submit" disabled={!title.trim()}>
             <HugeiconsIcon icon={Add01Icon} size={16} aria-hidden="true" />
             Create
-          </button>
+          </Button>
         </div>
-        <div className="chip-row">
-          <button
-            type="button"
-            className={`filter-chip${ranked ? " is-active" : ""}`}
-            aria-pressed={ranked}
-            onClick={() => setRanked(!ranked)}
-          >
+        <ChipRow className="gap-2">
+          <ToggleChip pressed={ranked} onPressedChange={setRanked}>
             Ranked
-          </button>
-          {(["public", "unlisted", "private"] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              className={`filter-chip${visibility === option ? " is-active" : ""}`}
-              aria-pressed={visibility === option}
-              onClick={() => setVisibility(option)}
-            >
-              {option[0].toUpperCase() + option.slice(1)}
-            </button>
-          ))}
-        </div>
-        <p className="filter-note">
+          </ToggleChip>
+          <ChoiceChips
+            label="Visibility"
+            value={visibility}
+            onValueChange={(option) => option && setVisibility(option)}
+            options={(["public", "unlisted", "private"] as const).map((option) => ({
+              value: option,
+              label: option[0].toUpperCase() + option.slice(1),
+            }))}
+          />
+        </ChipRow>
+        <Note>
           A ranked list you publish may only contain places you have recorded a
           visit to. That is what makes it your ranking rather than a repackaged
           aggregate — keep it private while you are still building it.
-        </p>
-        {error && <p className="check-in-error" role="alert">{error}</p>}
-      </section>
+        </Note>
+        {error && <FormMessage tone="error">{error}</FormMessage>}
+      </FormCard>
 
       {lists.length === 0 ? (
-        <p className="insufficient-data">You have not made a list yet.</p>
+        <InsufficientData>You have not made a list yet.</InsufficientData>
       ) : (
-        <ul className="list-index">
-          {lists.map((list) => (
-            <li key={list.id}>
-              <a href={`/list/${list.id}`}>
-                <strong>{list.title}</strong>
-                <span>
-                  {list.itemCount} {list.itemCount === 1 ? "place" : "places"} ·{" "}
-                  {list.ranked ? "ranked" : "unranked"} · {list.visibility}
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
+        <ListIndex
+          lists={lists.map((list) => ({
+            ...list,
+            meta: `${list.ranked ? "Ranked" : "Unranked"} · ${list.visibility}`,
+          }))}
+        />
       )}
     </div>
   );

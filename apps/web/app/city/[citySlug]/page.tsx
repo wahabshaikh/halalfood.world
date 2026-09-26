@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
 import { cache } from "react";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { findPlacesByCity, getCity } from "../../../src/lib/places";
 import { citySlugParam, pageParam } from "@halalfood/core/params";

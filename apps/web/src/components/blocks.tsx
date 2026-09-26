@@ -6,6 +6,7 @@ import {
   Item,
   ItemContent,
   ItemDescription,
+  ItemGroup,
   ItemMedia,
   ItemTitle,
 } from "@halalfood/ui/components/item";
@@ -273,5 +274,85 @@ export function EntryHead({
         <span className="text-[13px] text-muted-foreground">{meta}</span>
       </div>
     </div>
+  );
+}
+
+export function StatGrid({ className, ...props }: React.ComponentProps<"section">) {
+  return (
+    <section
+      className={cn("my-5 grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-3", className)}
+      {...props}
+    />
+  );
+}
+
+/** A big number with a small label under it. */
+export function StatTile({ value, label }: { value: React.ReactNode; label: React.ReactNode }) {
+  return (
+    <Card size="sm" className="items-center gap-0 px-4 text-center">
+      <strong className="block text-[26px] tracking-tight">{value}</strong>
+      <span className="text-xs text-muted-foreground">{label}</span>
+    </Card>
+  );
+}
+
+/** A list whose rows put a label on the left and a detail on the right. */
+export function RowList({ className, ...props }: React.ComponentProps<"ul">) {
+  return (
+    <ul
+      className={cn(
+        "[&>li]:flex [&>li]:justify-between [&>li]:gap-2.5 [&>li]:border-b [&>li]:py-2.5 [&>li]:text-sm",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+/** A titled block within a dashboard-style page. */
+export function Block({
+  title,
+  action,
+  className,
+  children,
+}: {
+  title: React.ReactNode;
+  action?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={cn("my-7", className)}>
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg">{title}</h2>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** Links to a person's lists, each with its place count. */
+export function ListIndex({
+  lists,
+}: {
+  lists: readonly { id: string; title: string; itemCount: number; meta?: React.ReactNode }[];
+}) {
+  return (
+    <ItemGroup className="gap-2">
+      {lists.map((list) => (
+        <Item key={list.id} asChild variant="outline" className="rounded-xl">
+          <a href={`/list/${list.id}`}>
+            <ItemContent>
+              <ItemTitle className="font-bold">{list.title}</ItemTitle>
+              {list.meta && <ItemDescription>{list.meta}</ItemDescription>}
+            </ItemContent>
+            <span className="text-sm text-muted-foreground">
+              {list.itemCount} {list.itemCount === 1 ? "place" : "places"}
+            </span>
+          </a>
+        </Item>
+      ))}
+    </ItemGroup>
   );
 }

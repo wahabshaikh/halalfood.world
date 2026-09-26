@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 import { cn } from "@halalfood/ui/lib/utils"
 import { Slot } from "radix-ui"

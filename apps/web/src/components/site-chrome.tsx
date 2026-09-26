@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Add01Icon,
@@ -41,7 +42,6 @@ import {
 } from "@halalfood/ui/components/input-group";
 import { Separator } from "@halalfood/ui/components/separator";
 import { cn } from "@halalfood/ui/lib/utils";
-import { Fragment } from "react";
 import { APPROXIMATE_NOTE } from "../lib/seo";
 import { Logo } from "./brand";
 import { Eyebrow, Lead } from "./section";

@@ -1,12 +1,11 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@halalfood/ui/components/button";
 import { Field, FieldDescription, FieldLabel } from "@halalfood/ui/components/field";
 import { Input } from "@halalfood/ui/components/input";
 import { EmptyState, FormCard, InlineCard, Loading } from "../../../src/components/blocks";
 import { FormMessage, SectionIntro } from "../../../src/components/section";
-
-import { useEffect, useRef, useState } from "react";
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);

@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
 import { cache } from "react";
+import type { Metadata } from "next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { MapsIcon } from "@hugeicons/core-free-icons";
 import { countCities, listCities } from "../../src/lib/places";

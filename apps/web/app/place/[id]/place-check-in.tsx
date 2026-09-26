@@ -1,8 +1,30 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@halalfood/ui/components/button";
+import { Card } from "@halalfood/ui/components/card";
+import { FieldLegend, FieldSet } from "@halalfood/ui/components/field";
+import { Input } from "@halalfood/ui/components/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@halalfood/ui/components/select";
+import { Textarea } from "@halalfood/ui/components/textarea";
+import { cn } from "@halalfood/ui/lib/utils";
+import { CheckboxField, ChoiceChips, SelectField } from "../../../src/components/form-fields";
+import {
+  Disclosure,
+  FormMessage,
+  Note,
+  SectionHeading,
+  SectionIntro,
+} from "../../../src/components/section";
+
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Add01Icon, Camera01Icon, Cancel01Icon, Location01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { Add01Icon, Camera01Icon, Cancel01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import {
   DISH_VERDICTS,
   DISH_VERDICT_COPY,
@@ -177,315 +199,306 @@ export default function PlaceCheckIn({
 
   if (phase === "done")
     return (
-      <section className="check-in is-done" aria-live="polite">
-        <div className="check-in-done-mark" aria-hidden="true">
+      <Card className="my-6 items-start gap-2 px-5 py-5" aria-live="polite">
+        <span
+          className="flex size-10 items-center justify-center rounded-full bg-success text-success-foreground"
+          aria-hidden="true"
+        >
           <HugeiconsIcon icon={Tick02Icon} size={22} />
-        </div>
-        <h2>Visit recorded</h2>
-        <p>
+        </span>
+        <h2 className="text-[22px]">Visit recorded</h2>
+        <p className="text-muted-foreground">
           {result?.verified
             ? "Verified by your location at the venue. Verified visits weigh more in every aggregate."
             : "Recorded as an unverified visit and labelled as such."}
         </p>
-        {result?.note && <p className="check-in-hint">{result.note}</p>}
-        <p className="check-in-hint">
+        {result?.note && <Hint>{result.note}</Hint>}
+        <Hint>
           It is now on your <a href="/passport">food passport</a>.
-        </p>
-      </section>
+        </Hint>
+      </Card>
     );
 
   if (phase === "idle")
     return (
-      <section className="check-in is-collapsed">
-        <div className="place-section-heading">
-          <div>
-            <p className="eyebrow">RECORD A VISIT</p>
-            <h2>Been to {placeName}?</h2>
-          </div>
-        </div>
-        <p className="section-intro">
+      <section className="my-6">
+        <SectionHeading eyebrow="RECORD A VISIT" title={`Been to ${placeName}?`} />
+        <SectionIntro>
           Three taps: would you return, what you ordered, was it worth it. No
           stars, no essay.
-        </p>
-        <button type="button" className="ui-button ui-button-default ui-button-lg" onClick={() => setPhase("open")}>
+        </SectionIntro>
+        <Button size="xl" onClick={() => setPhase("open")}>
           Check in
-        </button>
+        </Button>
       </section>
     );
 
   return (
-    <section className="check-in is-open" aria-labelledby="check-in-title">
-      <div className="place-section-heading">
-        <div>
-          <p className="eyebrow">TEN SECOND CHECK-IN</p>
-          <h2 id="check-in-title">How was {placeName}?</h2>
-        </div>
-        <button
-          type="button"
-          className="check-in-close"
-          onClick={() => setPhase("idle")}
-          aria-label="Close the check-in"
-        >
-          <HugeiconsIcon icon={Cancel01Icon} size={18} />
-        </button>
-      </div>
-
-      <fieldset className="check-in-field">
-        <legend>Would you return?</legend>
-        <div className="return-options">
-          {WOULD_RETURN.map((option) => (
-            <button
-              key={option}
-              type="button"
-              className={`return-option is-${option}${wouldReturn === option ? " is-selected" : ""}`}
-              aria-pressed={wouldReturn === option}
-              onClick={() => setWouldReturn(option)}
+    <section className="my-6" aria-labelledby="check-in-title">
+      <Card className="gap-5 px-5 py-5">
+        <SectionHeading
+          id="check-in-title"
+          eyebrow="TEN SECOND CHECK-IN"
+          title={`How was ${placeName}?`}
+          className="mb-0"
+          action={
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setPhase("idle")}
+              aria-label="Close the check-in"
             >
-              <span className="return-option-dot" aria-hidden="true" />
-              <span className="return-option-label">{WOULD_RETURN_COPY[option]}</span>
-              <span className="return-option-hint">{WOULD_RETURN_HINT[option]}</span>
-            </button>
-          ))}
-        </div>
-      </fieldset>
+              <HugeiconsIcon icon={Cancel01Icon} size={18} />
+            </Button>
+          }
+        />
 
-      <fieldset className="check-in-field">
-        <legend>What did you order?</legend>
-        <div className="dish-input">
-          <input
-            className="ui-input"
-            value={dishDraft}
-            placeholder="Add a dish"
-            onChange={(event) => setDishDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                addDish();
-              }
-            }}
-          />
-          <button type="button" className="ui-button ui-button-secondary" onClick={addDish}>
-            <HugeiconsIcon icon={Add01Icon} size={16} aria-hidden="true" />
-            Add
-          </button>
-        </div>
-        <ul className="dish-verdicts">
-          {dishes.map((dish, index) => (
-            <li key={dish.name}>
-              <span className="dish-verdict-name">{dish.name}</span>
-              <span className="dish-verdict-options">
-                {DISH_VERDICTS.map((verdict) => (
-                  <button
-                    key={verdict}
-                    type="button"
-                    className={`dish-verdict-option is-${verdict}${dish.verdict === verdict ? " is-selected" : ""}`}
-                    aria-pressed={dish.verdict === verdict}
-                    onClick={() =>
+        <FieldSet>
+          <FieldLegend>Would you return?</FieldLegend>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+            {WOULD_RETURN.map((option) => (
+              <Button
+                key={option}
+                variant="outline"
+                className={cn(
+                  "h-auto flex-col items-start gap-1 rounded-xl p-3.5 text-left whitespace-normal hover:border-foreground",
+                  wouldReturn === option && "border-2 border-foreground bg-secondary",
+                )}
+                aria-pressed={wouldReturn === option}
+                onClick={() => setWouldReturn(option)}
+              >
+                <span className="flex items-center gap-2 text-base font-bold">
+                  <span
+                    className={cn("size-2.5 rounded-full", RETURN_DOT[option])}
+                    aria-hidden="true"
+                  />
+                  {WOULD_RETURN_COPY[option]}
+                </span>
+                <span className="text-[13px] font-normal text-muted-foreground">
+                  {WOULD_RETURN_HINT[option]}
+                </span>
+              </Button>
+            ))}
+          </div>
+        </FieldSet>
+
+        <FieldSet>
+          <FieldLegend>What did you order?</FieldLegend>
+          <div className="flex gap-2">
+            <Input
+              aria-label="Add a dish"
+              value={dishDraft}
+              placeholder="Add a dish"
+              onChange={(event) => setDishDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addDish();
+                }
+              }}
+            />
+            <Button variant="secondary" onClick={addDish}>
+              <HugeiconsIcon icon={Add01Icon} size={16} aria-hidden="true" />
+              Add
+            </Button>
+          </div>
+          {dishes.length > 0 && (
+            <ul className="divide-y">
+              {dishes.map((dish, index) => (
+                <li key={dish.name} className="flex flex-wrap items-center gap-2 py-2.5">
+                  <span className="flex-1 font-semibold">{dish.name}</span>
+                  <ChoiceChips
+                    label={`Verdict on ${dish.name}`}
+                    value={dish.verdict}
+                    onValueChange={(verdict) =>
+                      verdict &&
                       setDishes(
                         dishes.map((entry, position) =>
                           position === index ? { ...entry, verdict } : entry,
                         ),
                       )
                     }
+                    options={DISH_VERDICTS.map((verdict) => ({
+                      value: verdict,
+                      label: DISH_VERDICT_COPY[verdict],
+                    }))}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Remove ${dish.name}`}
+                    onClick={() => setDishes(dishes.filter((_, position) => position !== index))}
                   >
-                    {DISH_VERDICT_COPY[verdict]}
-                  </button>
-                ))}
-              </span>
-              <button
-                type="button"
-                className="dish-verdict-remove"
-                aria-label={`Remove ${dish.name}`}
-                onClick={() => setDishes(dishes.filter((_, position) => position !== index))}
-              >
-                <HugeiconsIcon icon={Cancel01Icon} size={14} />
-              </button>
-            </li>
-          ))}
-        </ul>
-      </fieldset>
+                    <HugeiconsIcon icon={Cancel01Icon} size={14} />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </FieldSet>
 
-      <fieldset className="check-in-field">
-        <legend>Was it worth it, and how was the service?</legend>
-        <div className="chip-row">
-          {VALUE_VERDICTS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              className={`filter-chip${valueVerdict === option ? " is-active" : ""}`}
-              aria-pressed={valueVerdict === option}
-              onClick={() => setValueVerdict(option)}
-            >
-              {VALUE_COPY[option]}
-            </button>
-          ))}
-        </div>
-        <p className="check-in-hint">
-          Service is asked separately, because good food with slow service is a
-          different answer from both being good.
-        </p>
-        <div className="chip-row">
-          {SERVICE_VERDICTS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              className={`filter-chip${serviceVerdict === option ? " is-active" : ""}`}
-              aria-pressed={serviceVerdict === option}
-              onClick={() =>
-                setServiceVerdict(serviceVerdict === option ? null : option)
-              }
-            >
-              {SERVICE_COPY[option]}
-            </button>
-          ))}
-        </div>
-        <div className="spend-input">
-          <input
-            className="ui-input"
-            inputMode="decimal"
-            value={spend}
-            placeholder="Spend per person (optional)"
-            onChange={(event) => setSpend(event.target.value)}
+        <FieldSet>
+          <FieldLegend>Was it worth it, and how was the service?</FieldLegend>
+          <ChoiceChips
+            label="Value"
+            value={valueVerdict}
+            onValueChange={(next) => next && setValueVerdict(next)}
+            options={VALUE_VERDICTS.map((option) => ({ value: option, label: VALUE_COPY[option] }))}
           />
-          <select
-            className="ui-input"
-            value={currency}
-            aria-label="Currency"
-            onChange={(event) => setCurrency(event.target.value)}
-          >
-            {["INR", "GBP", "USD", "EUR", "AED", "MYR", "SGD"].map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </div>
-      </fieldset>
+          <Hint>
+            Service is asked separately, because good food with slow service is a
+            different answer from both being good.
+          </Hint>
+          <ChoiceChips
+            label="Service"
+            allowNone
+            value={serviceVerdict}
+            onValueChange={setServiceVerdict}
+            options={SERVICE_VERDICTS.map((option) => ({
+              value: option,
+              label: SERVICE_COPY[option],
+            }))}
+          />
+          <div className="flex gap-2">
+            <Input
+              aria-label="Spend per person"
+              inputMode="decimal"
+              value={spend}
+              placeholder="Spend per person (optional)"
+              onChange={(event) => setSpend(event.target.value)}
+            />
+            <Select value={currency} onValueChange={setCurrency}>
+              <SelectTrigger aria-label="Currency" className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCIES.map((code) => (
+                  <SelectItem key={code} value={code}>
+                    {code}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </FieldSet>
 
-      <details className="check-in-more">
-        <summary>Add context, a note, and disclosures</summary>
-
-        {VISIT_CONTEXT_KEYS.map((key) => (
-          <fieldset key={key} className="check-in-field">
-            <legend>{key[0].toUpperCase() + key.slice(1)}</legend>
-            <div className="chip-row">
-              {VISIT_CONTEXT_VALUES[key].map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`filter-chip${context[key] === value ? " is-active" : ""}`}
-                  aria-pressed={context[key] === value}
-                  onClick={() =>
+        <Disclosure label="Add context, a note, and disclosures">
+          <div className="mt-3 grid gap-5">
+            {VISIT_CONTEXT_KEYS.map((key) => (
+              <FieldSet key={key}>
+                <FieldLegend variant="label">{key[0].toUpperCase() + key.slice(1)}</FieldLegend>
+                <ChoiceChips
+                  label={key}
+                  allowNone
+                  value={context[key] ?? null}
+                  onValueChange={(value) =>
                     setContext((current) => {
                       const next = { ...current };
-                      if (next[key] === value) delete next[key];
-                      else next[key] = value;
+                      if (value) next[key] = value;
+                      else delete next[key];
                       return next;
                     })
                   }
-                >
-                  {value.replace(/-/g, " ")}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-        ))}
+                  options={VISIT_CONTEXT_VALUES[key].map((value) => ({
+                    value,
+                    label: value[0].toUpperCase() + value.slice(1).replace(/-/g, " "),
+                  }))}
+                />
+              </FieldSet>
+            ))}
 
-        <fieldset className="check-in-field">
-          <legend>Anything worth writing down?</legend>
-          <textarea
-            className="ui-input check-in-note"
-            rows={3}
-            maxLength={2000}
-            value={note}
-            placeholder="Optional. The structured answers above already carry the signal."
-            onChange={(event) => setNote(event.target.value)}
-          />
-          <p className="check-in-hint">
-            <HugeiconsIcon icon={Camera01Icon} size={14} aria-hidden="true" /> Photos can be added from the
-            gallery on this page after you check in.
-          </p>
-        </fieldset>
+            <FieldSet>
+              <FieldLegend variant="label">Anything worth writing down?</FieldLegend>
+              <Textarea
+                aria-label="Note"
+                rows={3}
+                maxLength={2000}
+                value={note}
+                placeholder="Optional. The structured answers above already carry the signal."
+                onChange={(event) => setNote(event.target.value)}
+              />
+              <Hint className="flex items-center gap-1">
+                <HugeiconsIcon icon={Camera01Icon} size={14} aria-hidden="true" /> Photos can be
+                added from the gallery on this page after you check in.
+              </Hint>
+            </FieldSet>
 
-        <fieldset className="check-in-field">
-          <legend>Disclosures</legend>
-          <label className="check-in-check">
-            <input
-              type="checkbox"
-              checked={incentivized}
-              onChange={(event) => setIncentivized(event.target.checked)}
-            />
-            <span>
-              This visit or my feedback was rewarded in some way (a discount, a
-              free item, payment).
-            </span>
-          </label>
-          <label className="check-in-select">
-            <span>My relationship with this restaurant</span>
-            <select
-              className="ui-input"
-              value={relationship}
-              onChange={(event) => setRelationship(event.target.value)}
-            >
-              {RELATIONSHIPS.map((option) => (
-                <option key={option} value={option}>
-                  {RELATIONSHIP_COPY[option]}
-                </option>
-              ))}
-            </select>
-          </label>
-          {(incentivized || relationship !== "none") && (
-            <p className="check-in-hint">
-              Thank you for saying so. This check-in will be shown with a label
-              and left out of the return-intent figures.
-            </p>
-          )}
-        </fieldset>
+            <FieldSet>
+              <FieldLegend variant="label">Disclosures</FieldLegend>
+              <CheckboxField
+                id="check-in-incentivized"
+                checked={incentivized}
+                onCheckedChange={setIncentivized}
+              >
+                This visit or my feedback was rewarded in some way (a discount, a
+                free item, payment).
+              </CheckboxField>
+              <SelectField
+                id="check-in-relationship"
+                label="My relationship with this restaurant"
+                value={relationship}
+                onValueChange={setRelationship}
+                options={RELATIONSHIPS.map((option) => ({
+                  value: option,
+                  label: RELATIONSHIP_COPY[option],
+                }))}
+              />
+              {(incentivized || relationship !== "none") && (
+                <Hint>
+                  Thank you for saying so. This check-in will be shown with a label
+                  and left out of the return-intent figures.
+                </Hint>
+              )}
+            </FieldSet>
 
-        <fieldset className="check-in-field">
-          <legend>Privacy</legend>
-          <label className="check-in-check">
-            <input
-              type="checkbox"
-              checked={shareLocation}
-              onChange={(event) => setShareLocation(event.target.checked)}
-            />
-            <span>
-              <HugeiconsIcon icon={Location01Icon} size={14} aria-hidden="true" /> Use my location to verify
-              this visit. Only the result is stored — never the coordinates.
-            </span>
-          </label>
-          <label className="check-in-check">
-            <input
-              type="checkbox"
-              checked={visibility === "private"}
-              onChange={(event) =>
-                setVisibility(event.target.checked ? "private" : "public")
-              }
-            />
-            <span>Keep this visit private on my profile.</span>
-          </label>
-        </fieldset>
-      </details>
+            <FieldSet>
+              <FieldLegend variant="label">Privacy</FieldLegend>
+              <CheckboxField
+                id="check-in-location"
+                checked={shareLocation}
+                onCheckedChange={setShareLocation}
+              >
+                Use my location to verify this visit. Only the result is stored — never the
+                coordinates.
+              </CheckboxField>
+              <CheckboxField
+                id="check-in-private"
+                checked={visibility === "private"}
+                onCheckedChange={(checked) => setVisibility(checked ? "private" : "public")}
+              >
+                Keep this visit private on my profile.
+              </CheckboxField>
+            </FieldSet>
+          </div>
+        </Disclosure>
 
-      {error && (
-        <p className="check-in-error" role="alert">
-          {error}
-        </p>
-      )}
+        {error && <FormMessage tone="error">{error}</FormMessage>}
 
-      <button
-        type="button"
-        className="ui-button ui-button-default ui-button-lg check-in-submit"
-        disabled={!ready || phase === "saving"}
-        onClick={submit}
-      >
-        {phase === "saving" ? "Recording…" : "Record this visit"}
-      </button>
-      <p className="check-in-hint">
-        Nothing here asks for a star rating, and no restaurant can send you to
-        this form — it only exists on the restaurant&rsquo;s own page.
-      </p>
+        <Button
+          size="xl"
+          className="w-full sm:w-auto sm:justify-self-start"
+          disabled={!ready || phase === "saving"}
+          onClick={submit}
+        >
+          {phase === "saving" ? "Recording…" : "Record this visit"}
+        </Button>
+        <Hint>
+          Nothing here asks for a star rating, and no restaurant can send you to
+          this form — it only exists on the restaurant&rsquo;s own page.
+        </Hint>
+      </Card>
     </section>
   );
+}
+
+const CURRENCIES = ["INR", "GBP", "USD", "EUR", "AED", "MYR", "SGD"];
+
+const RETURN_DOT: Record<WouldReturn, string> = {
+  definitely: "bg-success",
+  maybe: "bg-warning",
+  no: "bg-destructive",
+};
+
+function Hint({ className, ...props }: React.ComponentProps<"p">) {
+  return <Note className={cn("[&_a]:underline", className)} {...props} />;
 }

@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
 import { cache } from "react";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@halalfood/ui/components/button";

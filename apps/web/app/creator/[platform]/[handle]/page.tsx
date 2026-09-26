@@ -1,7 +1,18 @@
-import type { Metadata } from "next";
 import { cache } from "react";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Button } from "@halalfood/ui/components/button";
+import { Card } from "@halalfood/ui/components/card";
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "@halalfood/ui/components/item";
+import { Separator } from "@halalfood/ui/components/separator";
+import { InitialsAvatar } from "../../../../src/components/blocks";
 import { InformationCircleIcon, LinkSquare02Icon, Location01Icon, PlayIcon } from "@hugeicons/core-free-icons";
 import {
   creatorPath,
@@ -101,72 +112,72 @@ export default async function CreatorPage({ params }: { params: Params }) {
             { name, path: creatorPath(creator.platform, creator.handle) },
           ]}
         />
-        <div className="creator-layout">
-          <div className="stack">
-            <div className="host-card">
-              <div className="host-card-id">
-                <span className="avatar is-lg" aria-hidden="true">
-                  {initials}
-                </span>
-                <strong>{name}</strong>
-                <span>
+        <div className="grid grid-cols-1 gap-7 pt-5 min-[900px]:grid-cols-[360px_minmax(0,1fr)] min-[900px]:gap-16">
+          <div className="grid content-start gap-4">
+            <Card className="grid grid-cols-[minmax(0,1fr)_110px] items-center gap-4 rounded-3xl px-6 py-7 shadow-lg ring-border">
+              <div className="grid justify-items-center gap-1.5 text-center">
+                <InitialsAvatar initials={initials} size={96} />
+                <strong className="text-[22px]">{name}</strong>
+                <span className="text-[13px] text-muted-foreground">
                   @{creator.handle} on {platformLabel}
                 </span>
               </div>
-              <div className="host-card-stats">
-                <div>
-                  <strong>{formatCount(creator.places.length)}</strong>
-                  <span>{plural(creator.places.length, "Place")}</span>
+              <div className="divide-y">
+                <div className="py-2.5">
+                  <strong className="block text-xl">{formatCount(creator.places.length)}</strong>
+                  <span className="text-[11px] font-bold">{plural(creator.places.length, "Place")}</span>
                 </div>
-                <div>
-                  <strong>{formatCount(cities.size)}</strong>
-                  <span>{plural(cities.size, "City", "Cities")}</span>
+                <div className="py-2.5">
+                  <strong className="block text-xl">{formatCount(cities.size)}</strong>
+                  <span className="text-[11px] font-bold">{plural(cities.size, "City", "Cities")}</span>
                 </div>
               </div>
-            </div>
-            <a
-              className="btn btn-outline"
-              href={profileUrl(creator.platform, creator.handle)}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-            >
-              <HugeiconsIcon icon={LinkSquare02Icon} size={16} aria-hidden="true" />
-              See them on {platformLabel}
-            </a>
+            </Card>
+            <Button asChild size="xl" variant="outline">
+              <a
+                href={profileUrl(creator.platform, creator.handle)}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+              >
+                <HugeiconsIcon icon={LinkSquare02Icon} size={16} aria-hidden="true" />
+                See them on {platformLabel}
+              </a>
+            </Button>
           </div>
-          <div className="stack">
-            <h1 style={{ fontSize: 30 }}>Where {name} has eaten</h1>
-            <div className="feature-list">
-              <div className="feature">
-                <HugeiconsIcon icon={PlayIcon} size={24} strokeWidth={1.6} aria-hidden="true" />
-                <div>
-                  <h3>
-                    {formatCount(creator.places.length)} halal {plural(creator.places.length, "place")} filmed
-                  </h3>
-                  <p>Each one links to the {platformLabel} video people shared.</p>
-                </div>
-              </div>
+          <div className="grid content-start gap-4">
+            <h1 className="text-3xl">Where {name} has eaten</h1>
+            <div className="grid gap-5.5">
+              <Item className="items-start gap-4.5 p-0">
+                <ItemMedia>
+                  <HugeiconsIcon icon={PlayIcon} size={24} strokeWidth={1.6} aria-hidden="true" />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle className="text-base font-extrabold">{formatCount(creator.places.length)} halal {plural(creator.places.length, "place")} filmed</ItemTitle>
+                  <ItemDescription>Each one links to the {platformLabel} video people shared.</ItemDescription>
+                </ItemContent>
+              </Item>
               {topCities.length > 0 && (
-                <div className="feature">
+              <Item className="items-start gap-4.5 p-0">
+                <ItemMedia>
                   <HugeiconsIcon icon={Location01Icon} size={24} strokeWidth={1.6} aria-hidden="true" />
-                  <div>
-                    <h3>Mostly in {topCities.join(", ")}</h3>
-                    <p>Tap a place to see its halal checks.</p>
-                  </div>
-                </div>
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle className="text-base font-extrabold">Mostly in {topCities.join(", ")}</ItemTitle>
+                  <ItemDescription>Tap a place to see its halal checks.</ItemDescription>
+                </ItemContent>
+              </Item>
               )}
-              <div className="feature">
-                <HugeiconsIcon icon={InformationCircleIcon} size={24} strokeWidth={1.6} aria-hidden="true" />
-                <div>
-                  <h3>Built from shared links</h3>
-                  <p>
-                    This page is made from public {platformLabel} videos people linked to
-                    places. The name comes from {platformLabel}.
-                  </p>
-                </div>
-              </div>
+              <Item className="items-start gap-4.5 p-0">
+                <ItemMedia>
+                  <HugeiconsIcon icon={InformationCircleIcon} size={24} strokeWidth={1.6} aria-hidden="true" />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle className="text-base font-extrabold">Built from shared links</ItemTitle>
+                  <ItemDescription>This page is made from public {platformLabel} videos people linked to places. The name comes from {platformLabel}.</ItemDescription>
+                </ItemContent>
+              </Item>
             </div>
-            <hr className="rule" />
+            <Separator className="my-4" />
             <PlaceGrid places={tiles} />
           </div>
         </div>

@@ -1,6 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { Button } from "@halalfood/ui/components/button";
+import {
+  FieldDescription,
+  FieldGroup,
+  FieldLegend,
+  FieldSet,
+} from "@halalfood/ui/components/field";
+import { Input } from "@halalfood/ui/components/input";
+import { ChipRow, Loading } from "../../src/components/blocks";
+import { CheckboxField, ChoiceChips } from "../../src/components/form-fields";
+import { FormMessage } from "../../src/components/section";
+
 import {
   DEFAULT_PREFERENCES,
   MINIMUM_STATUS_OPTIONS,
@@ -101,140 +115,130 @@ export default function PreferencesForm() {
     }
   }
 
-  if (state === "loading") return <p className="map-place-status">Loading your standards…</p>;
+  if (state === "loading") return <Loading>Loading your standards…</Loading>;
 
   const set = (patch: Partial<UserPreferences>) =>
     setPreferences((current) => ({ ...current, ...patch }));
 
   return (
-    <div className="preferences-form">
-      <fieldset className="filter-group">
-        <legend>The weakest status you will consider</legend>
-        <div className="chip-row">
-          {MINIMUM_STATUS_OPTIONS.map((status) => (
-            <button
-              key={status}
-              type="button"
-              className={`filter-chip${preferences.minimumStatus === status ? " is-active" : ""}`}
-              aria-pressed={preferences.minimumStatus === status}
-              onClick={() => set({ minimumStatus: status })}
-            >
-              {STATUS_COPY[status].label}
-            </button>
-          ))}
-        </div>
-        <p className="filter-note">
-          {STATUS_COPY[preferences.minimumStatus].minimumEvidence}
-        </p>
-      </fieldset>
+    <FieldGroup className="max-w-2xl gap-8">
+      <FieldSet>
+        <FieldLegend>The weakest status you will consider</FieldLegend>
+        <ChoiceChips
+          label="The weakest status you will consider"
+          value={preferences.minimumStatus}
+          onValueChange={(status) => status && set({ minimumStatus: status })}
+          options={MINIMUM_STATUS_OPTIONS.map((status) => ({
+            value: status,
+            label: STATUS_COPY[status].label,
+          }))}
+        />
+        <FieldDescription>{STATUS_COPY[preferences.minimumStatus].minimumEvidence}</FieldDescription>
+      </FieldSet>
 
-      <fieldset className="filter-group">
-        <legend>Your factual requirements</legend>
+      <FieldSet>
+        <FieldLegend>Your factual requirements</FieldLegend>
         {TOGGLES.map((toggle) => (
-          <label key={String(toggle.key)} className="check-in-check">
-            <input
-              type="checkbox"
-              checked={Boolean(preferences[toggle.key])}
-              onChange={(event) => set({ [toggle.key]: event.target.checked } as Partial<UserPreferences>)}
-            />
-            <span>
+          <CheckboxField
+            key={String(toggle.key)}
+            id={`preference-${String(toggle.key)}`}
+            checked={Boolean(preferences[toggle.key])}
+            onCheckedChange={(checked) =>
+              set({ [toggle.key]: checked } as Partial<UserPreferences>)
+            }
+          >
+            <span className="grid gap-0.5">
               <strong>{toggle.label}</strong>
-              <small>{toggle.hint}</small>
+              <small className="text-[13px] text-muted-foreground">{toggle.hint}</small>
             </span>
-          </label>
+          </CheckboxField>
         ))}
-      </fieldset>
+      </FieldSet>
 
-      <fieldset className="filter-group">
-        <legend>Evidence freshness</legend>
-        <div className="chip-row">
-          {[null, 90, 180, 365].map((days) => (
-            <button
-              key={String(days)}
-              type="button"
-              className={`filter-chip${preferences.maxEvidenceAgeDays === days ? " is-active" : ""}`}
-              aria-pressed={preferences.maxEvidenceAgeDays === days}
-              onClick={() => set({ maxEvidenceAgeDays: days })}
-            >
-              {days === null ? "Any age" : `Within ${days} days`}
-            </button>
-          ))}
-        </div>
-      </fieldset>
+      <FieldSet>
+        <FieldLegend>Evidence freshness</FieldLegend>
+        <ChoiceChips
+          label="Evidence freshness"
+          value={String(preferences.maxEvidenceAgeDays ?? "any")}
+          onValueChange={(days) =>
+            days && set({ maxEvidenceAgeDays: days === "any" ? null : Number(days) })
+          }
+          options={["any", "90", "180", "365"].map((days) => ({
+            value: days,
+            label: days === "any" ? "Any age" : `Within ${days} days`,
+          }))}
+        />
+      </FieldSet>
 
-      <fieldset className="filter-group">
-        <legend>Allergies and other constraints</legend>
-        <div className="dish-input">
-          <input
-            className="ui-input"
-            value={allergyDraft}
-            placeholder="peanuts, shellfish…"
-            onChange={(event) => setAllergyDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") return;
-              event.preventDefault();
-              const value = allergyDraft.trim().toLowerCase();
-              if (!value || preferences.allergies.includes(value)) return;
-              set({ allergies: [...preferences.allergies, value] });
-              setAllergyDraft("");
-            }}
-          />
-        </div>
-        <div className="chip-row">
-          {preferences.allergies.map((allergy) => (
-            <button
-              key={allergy}
-              type="button"
-              className="filter-chip is-active"
-              onClick={() =>
-                set({ allergies: preferences.allergies.filter((item) => item !== allergy) })
-              }
-            >
-              {allergy} ✕
-            </button>
-          ))}
-        </div>
-        <p className="filter-note">
+      <FieldSet>
+        <FieldLegend>Allergies and other constraints</FieldLegend>
+        <Input
+          aria-label="Add an allergy or constraint"
+          value={allergyDraft}
+          placeholder="peanuts, shellfish…"
+          onChange={(event) => setAllergyDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            const value = allergyDraft.trim().toLowerCase();
+            if (!value || preferences.allergies.includes(value)) return;
+            set({ allergies: [...preferences.allergies, value] });
+            setAllergyDraft("");
+          }}
+        />
+        {preferences.allergies.length > 0 && (
+          <ChipRow className="gap-2">
+            {preferences.allergies.map((allergy) => (
+              <Button
+                key={allergy}
+                variant="secondary"
+                className="rounded-full border border-foreground font-semibold"
+                aria-label={`Remove ${allergy}`}
+                onClick={() =>
+                  set({ allergies: preferences.allergies.filter((item) => item !== allergy) })
+                }
+              >
+                {allergy}
+                <HugeiconsIcon icon={Cancel01Icon} size={14} aria-hidden="true" />
+              </Button>
+            ))}
+          </ChipRow>
+        )}
+        <FieldDescription>
           Allergies always produce a reminder to confirm with the restaurant.
           The platform never claims a kitchen is safe for you.
-        </p>
-      </fieldset>
+        </FieldDescription>
+      </FieldSet>
 
-      <fieldset className="filter-group">
-        <legend>Privacy</legend>
-        <label className="check-in-check">
-          <input
-            type="checkbox"
-            checked={preferences.visibilityVisits === "private"}
-            onChange={(event) =>
-              set({ visibilityVisits: event.target.checked ? "private" : "public" })
-            }
-          />
-          <span>Keep my visits off my public profile.</span>
-        </label>
-        <label className="check-in-check">
-          <input
-            type="checkbox"
-            checked={preferences.visibilityLists === "private"}
-            onChange={(event) =>
-              set({ visibilityLists: event.target.checked ? "private" : "public" })
-            }
-          />
-          <span>Keep my lists private by default.</span>
-        </label>
-      </fieldset>
+      <FieldSet>
+        <FieldLegend>Privacy</FieldLegend>
+        <CheckboxField
+          id="preference-private-visits"
+          checked={preferences.visibilityVisits === "private"}
+          onCheckedChange={(checked) => set({ visibilityVisits: checked ? "private" : "public" })}
+        >
+          Keep my visits off my public profile.
+        </CheckboxField>
+        <CheckboxField
+          id="preference-private-lists"
+          checked={preferences.visibilityLists === "private"}
+          onCheckedChange={(checked) => set({ visibilityLists: checked ? "private" : "public" })}
+        >
+          Keep my lists private by default.
+        </CheckboxField>
+      </FieldSet>
 
-      {error && <p className="check-in-error" role="alert">{error}</p>}
-      {message && <p className="contribute-message" role="status">{message}</p>}
+      {error && <FormMessage tone="error">{error}</FormMessage>}
+      {message && <FormMessage tone="success">{message}</FormMessage>}
 
-      <button
-        type="button"
-        className="ui-button ui-button-default ui-button-lg"
+      <Button
+        size="xl"
+        className="justify-self-start"
         disabled={state === "saving"}
         onClick={() => void save(preferences)}
       >
         {state === "saving" ? "Saving…" : "Save my standards"}
-      </button>
-    </div>
+      </Button>
+    </FieldGroup>
   );
 }

@@ -6,7 +6,29 @@ The home page is a server-rendered Explore view with rows of places per city; th
 
 Places can only be added by picking a Google Maps result: the name, address, city and pin come from Google Places on the server. Halal checks are structured (certificate seen, alcohol served, slaughter method) and go to moderators before they count. Creator videos are linked by pasting an Instagram, TikTok or YouTube URL; the creator's handle, name and thumbnail come from the platform's public oEmbed response.
 
-Brand PNGs in `public/` are rendered from `public/icon.svg` with `node scripts/generate-assets.mjs` (set `PLAYWRIGHT_CHROMIUM_PATH` if Chromium isn't in Playwright's default location).
+Brand PNGs in `apps/web/public/` are rendered from `apps/web/public/icon.svg` with `node apps/web/scripts/generate-assets.mjs` (set `PLAYWRIGHT_CHROMIUM_PATH` if Chromium isn't in Playwright's default location).
+
+## Repository layout
+
+This is an npm workspaces monorepo driven by [Turborepo](https://turborepo.com), laid out so a mobile app can sit beside the web app and share its code:
+
+| Path | Package | What it holds |
+| --- | --- | --- |
+| `apps/web` | `@halalfood/web` | The vinext/Cloudflare Worker web app: routes, API handlers, D1 schema and migrations, server-only libraries, scripts and web tests. |
+| `packages/core` | `@halalfood/core` | Platform-agnostic domain logic with no DOM, database or Worker dependencies: halal taxonomy and status copy, check-ins, discovery filters, place facts, preferences, reputation, moderation, visit verification and friends. Import as `@halalfood/core/<module>`. |
+| `packages/ui` | `@halalfood/ui` | [shadcn/ui](https://ui.shadcn.com) components (radix-nova style, [Hugeicons](https://hugeicons.com) icons) and the Tailwind theme tokens. Import as `@halalfood/ui/components/<name>`; the stylesheet is `@halalfood/ui/globals.css`. |
+
+A future `apps/mobile` (for example Expo/React Native) can depend on `@halalfood/core` directly and call the web app's `/api` routes. `@halalfood/ui` is web-only, since it renders DOM elements.
+
+**Styling.** Pages are composed from shadcn/ui components; there is no hand-written stylesheet. Colours, radii and fonts are theme tokens in `packages/ui/src/styles/globals.css` (primary is the tandoor orange, plus `success`, `warning` and `info` tokens used for halal status tones), and layout uses Tailwind utilities on those components. App-level building blocks shared by several pages live in `apps/web/src/components` (`site-chrome`, `section`, `blocks`, `form-fields`). To add a shadcn component, run it from the UI package so it lands in `packages/ui/src/components`:
+
+```sh
+cd packages/ui && npx shadcn@latest add <component>
+```
+
+**Icons** come from Hugeicons: `import { HugeiconsIcon } from "@hugeicons/react"` with an icon from `@hugeicons/core-free-icons`.
+
+Root scripts (`npm run dev`, `build`, `typecheck`, `test`, `start`, `deploy`) run through Turborepo. App-specific scripts such as the database migrations, backfills and smoke tests live in `apps/web/package.json`; the root forwards the common ones (`db:migrate:local`, `db:migrate:remote`, `backfill:*`, `test:api`, `test:browser`), and anything else runs from `apps/web` or with `npm run <script> -w @halalfood/web`. Paths below that name app files (`wrangler.jsonc`, `migrations/`, `scripts/`, `src/`, `.dev.vars`) are relative to `apps/web`.
 
 ## Local setup
 
@@ -18,7 +40,7 @@ node --version
 npm ci
 ```
 
-The database is Cloudflare D1 (SQLite), bound as `DB` in [`wrangler.jsonc`](wrangler.jsonc). Create a local database and apply the migrations once:
+The database is Cloudflare D1 (SQLite), bound as `DB` in [`wrangler.jsonc`](apps/web/wrangler.jsonc). Create a local database and apply the migrations once:
 
 ```sh
 npx wrangler d1 create halalfood-world
@@ -28,7 +50,7 @@ npm run db:migrate:local
 
 `npm run dev` (via the Cloudflare Vite plugin) and `npm start` (via `wrangler dev`) both emulate the `DB` binding locally against the SQLite file under `.wrangler/state`, so no connection string is needed for local development.
 
-Create a **gitignored** `.dev.vars` in the repo root containing the local-only email and auth settings below. Do not put secrets in client variables or commit this file. The Cloudflare Vite plugin loads it; the Worker reads bindings through `process.env.*` with Node compatibility enabled.
+Create a **gitignored** `.dev.vars` in `apps/web` containing the local-only email and auth settings below. Do not put secrets in client variables or commit this file. The Cloudflare Vite plugin loads it; the Worker reads bindings through `process.env.*` with Node compatibility enabled.
 
 ```dotenv
 RESEND_API_KEY=<your Resend API key>
@@ -498,7 +520,7 @@ return the three counts and total.
 
 Authenticate with `npx wrangler login`, or provide `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` through your shell/CI secret store. Use credentials authorized to deploy Workers and manage D1.
 
-Create the production D1 database once, fill its printed `database_id` into [`wrangler.jsonc`](wrangler.jsonc)'s `d1_databases` entry, and apply the migrations:
+Create the production D1 database once, fill its printed `database_id` into [`wrangler.jsonc`](apps/web/wrangler.jsonc)'s `d1_databases` entry, and apply the migrations:
 
 ```sh
 npx wrangler d1 create halalfood-world
@@ -547,7 +569,7 @@ The optional email smoke check is disabled unless `EMAIL_HEALTHCHECK_ENABLED=tru
 
 ### Community verification R2 uploads
 
-The root [`wrangler.jsonc`](wrangler.jsonc) declares the `HALAL_EVIDENCE_R2`
+The web app's [`wrangler.jsonc`](apps/web/wrangler.jsonc) declares the `HALAL_EVIDENCE_R2`
 R2 binding and the bucket name `halalfood-world-evidence`. Create that bucket
 once in the target Cloudflare account, or change the bucket name in
 `wrangler.jsonc` before deployment:

@@ -1,10 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { FavouriteIcon } from "@hugeicons/core-free-icons";
 import { Button } from "@halalfood/ui/components/button";
 import { cn } from "@halalfood/ui/lib/utils";
-import { useEffect, useState } from "react";
 
 type SavedPlacesPayload = {
   places?: Array<{ id?: unknown }>;

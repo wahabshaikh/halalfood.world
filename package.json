@@ -14,7 +14,13 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "start": "npm run start --workspace=@halalfood/web",
-    "deploy": "npm run deploy --workspace=@halalfood/web"
+    "deploy": "npm run deploy --workspace=@halalfood/web",
+    "test:api": "npm run test:api -w @halalfood/web --",
+    "test:browser": "npm run test:browser -w @halalfood/web --",
+    "db:migrate:local": "npm run db:migrate:local -w @halalfood/web --",
+    "db:migrate:remote": "npm run db:migrate:remote -w @halalfood/web --",
+    "backfill:places": "npm run backfill:places -w @halalfood/web --",
+    "backfill:mumbai-place-details": "npm run backfill:mumbai-place-details -w @halalfood/web --"
   },
   "devDependencies": {
     "turbo": "^2.5.8"

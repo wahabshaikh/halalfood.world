@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
 import { cache } from "react";
+import type { Metadata } from "next";
 import {
   CONTRIBUTOR_LEADERBOARD_LIMIT,
   CONTRIBUTOR_SCORE_WEIGHTS,

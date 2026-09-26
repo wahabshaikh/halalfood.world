@@ -14,6 +14,8 @@ import {
   type DiscoveryFilters,
 } from "@halalfood/core/discovery-filters";
 import MapFilters from "../map-filters";
+import { Button } from "@halalfood/ui/components/button";
+import { TextLink } from "../../src/components/blocks";
 import { PlaceTile } from "../../src/components/place-tile";
 import { PlacePhoto } from "../../src/components/place-photo";
 import SavePlaceButton from "../../src/components/save-place-button";
@@ -22,7 +24,7 @@ import {
   deepLinkKind,
   shouldLoadViewport,
 } from "@halalfood/core/map-viewport";
-import { cn } from "../../src/lib/utils";
+import { cn } from "@halalfood/ui/lib/utils";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
@@ -77,26 +79,41 @@ function markerLabel(place: Place) {
 
 function SelectedCard({ place, onClose }: { place: Place; onClose: () => void }) {
   return (
-    <section className="map-selected" aria-label="Selected place" aria-live="polite">
+    <section
+      className="absolute bottom-5 left-1/2 z-4 grid w-[min(420px,calc(100%-32px))] -translate-x-1/2 grid-cols-[130px_minmax(0,1fr)] overflow-hidden rounded-2xl bg-background shadow-2xl min-[900px]:bottom-7"
+      aria-label="Selected place"
+      aria-live="polite"
+    >
       <a href={"/place/" + encodeURIComponent(place.id)} tabIndex={-1} aria-hidden="true">
-        <PlacePhoto seed={place.id} name={place.name} />
+        <PlacePhoto seed={place.id} name={place.name} className="aspect-auto! h-full rounded-none" />
       </a>
-      <div className="map-selected-body">
-        <button type="button" className="icon-circle map-selected-close" aria-label="Close" onClick={onClose}>
+      <div className="relative grid gap-0.5 py-3.5 pr-10 pl-3.5 text-[13px] text-muted-foreground">
+        <Button
+          variant="outline"
+          size="icon"
+          className="absolute top-2.5 right-2.5 rounded-full shadow-sm"
+          aria-label="Close"
+          onClick={onClose}
+        >
           <HugeiconsIcon icon={Cancel01Icon} size={16} aria-hidden="true" />
-        </button>
-        <strong>
-          <a href={"/place/" + encodeURIComponent(place.id)}>{place.name}</a>
+        </Button>
+        <strong className="text-base text-foreground">
+          <a href={"/place/" + encodeURIComponent(place.id)} className="hover:underline">
+            {place.name}
+          </a>
         </strong>
         <span>{locality(place)}</span>
         <span>{place.street_address}</span>
         {place.rating_value && (
-          <span>
-            <HugeiconsIcon icon={StarIcon} size={12} fill="currentColor" aria-hidden="true" /> {place.rating_value} on Google
+          <span className="flex items-center gap-1">
+            <HugeiconsIcon icon={StarIcon} size={12} fill="currentColor" aria-hidden="true" />{" "}
+            {place.rating_value} on Google
           </span>
         )}
-        <div className="map-selected-actions">
-          <a href={"/place/" + encodeURIComponent(place.id)}>See the place</a>
+        <div className="mt-1.5 flex items-center gap-3">
+          <TextLink href={"/place/" + encodeURIComponent(place.id)} className="text-sm">
+            See the place
+          </TextLink>
           <SavePlaceButton placeId={place.id} compact />
         </div>
       </div>
@@ -354,10 +371,10 @@ export default function MapView({
       element.type = "button";
       const label = index < LABELLED_MARKERS ? markerLabel(place) : "";
       element.className = cn(
-        "rating-marker",
-        !label && "is-dot",
-        selected?.id === place.id && "is-selected",
+        "inline-flex items-center gap-1 rounded-full border border-black/10 bg-background px-2.5 py-1.5 font-sans text-[13px] font-extrabold whitespace-nowrap text-foreground shadow-md transition-transform hover:z-3 hover:scale-110 data-[selected=true]:scale-110 data-[selected=true]:bg-foreground data-[selected=true]:text-background",
+        !label && "size-7.5 justify-center p-0",
       );
+      if (selected?.id === place.id) element.dataset.selected = "true";
       element.textContent = label || "•";
       element.setAttribute("aria-label", place.name);
       element.title = place.name;
@@ -404,47 +421,55 @@ export default function MapView({
   const filterCount = activeFilterCount(filters);
 
   return (
-    <div className={cn("map-page", showList && "show-list")}>
-      <section className="map-list" aria-label="Places in this area">
-        <div className="map-list-head">
-          <h1>{heading}</h1>
-          {results.total > results.limit && !loading && <p>Zoom in to see them all</p>}
+    <div className="relative grid grid-cols-1 min-[900px]:h-[calc(100vh-79px)] min-[900px]:grid-cols-[minmax(380px,44%)_minmax(0,1fr)]">
+      <section
+        className={cn(
+          "overflow-y-auto px-4.5 pt-5 pb-24 md:px-6 min-[900px]:block min-[900px]:pb-10",
+          !showList && "hidden",
+        )}
+        aria-label="Places in this area"
+      >
+        <div className="mb-4 flex items-baseline justify-between gap-3">
+          <h1 className="text-lg">{heading}</h1>
+          {results.total > results.limit && !loading && (
+            <p className="text-sm text-muted-foreground">Zoom in to see them all</p>
+          )}
         </div>
-        <div className="map-filters">
+        <div className="mb-4.5">
           <MapFilters filters={filters} onChange={setFilters} />
         </div>
         {error && (
-          <p className="map-status">
+          <MapStatus>
             {error}
-            <button type="button" onClick={() => setRetry((value) => value + 1)}>
+            <Button variant="link" onClick={() => setRetry((value) => value + 1)}>
               Try again
-            </button>
-          </p>
+            </Button>
+          </MapStatus>
         )}
         {!loading && !error && !visible.length && (
-          <p className="map-status">
+          <MapStatus>
             {filterCount
               ? "No places here match these filters. Widen them or move the map and search again."
               : "No places here yet. Try moving the map or zooming out."}
             {filterCount > 0 && (
-              <button type="button" onClick={() => setFilters(EMPTY_FILTERS)}>
+              <Button variant="link" onClick={() => setFilters(EMPTY_FILTERS)}>
                 Clear filters
-              </button>
+              </Button>
             )}
-          </p>
+          </MapStatus>
         )}
         {!error && (
-          <ul className="place-grid">
+          <ul className="grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
             {visible.slice(0, 60).map((place) => (
               <li
                 key={place.id}
                 onMouseEnter={() => {
                   const marker = markers.current[visible.indexOf(place)];
-                  marker?.getElement().classList.add("is-selected");
+                  marker?.getElement().setAttribute("data-selected", "true");
                 }}
                 onMouseLeave={() => {
                   const marker = markers.current[visible.indexOf(place)];
-                  if (selected?.id !== place.id) marker?.getElement().classList.remove("is-selected");
+                  if (selected?.id !== place.id) marker?.getElement().removeAttribute("data-selected");
                 }}
               >
                 <PlaceTile place={place} status={place.halal_status} />
@@ -454,47 +479,55 @@ export default function MapView({
         )}
       </section>
 
-      <div className="map-canvas-wrap">
-        <div ref={container} className="map-canvas" aria-label="Map of halal places" />
-        <div className="map-controls" aria-label="Map controls">
-          <div className="map-controls-group">
-            <button type="button" aria-label="Zoom in" onClick={() => map.current?.zoomIn()}>
+      <div
+        className={cn(
+          "relative h-[calc(100vh-150px)] min-[900px]:block min-[900px]:h-auto",
+          showList && "hidden",
+        )}
+      >
+        <div ref={container} className="absolute inset-0 bg-map" aria-label="Map of halal places" />
+        <div className="absolute top-4 right-4 z-3 grid gap-2.5" aria-label="Map controls">
+          <ButtonGroupVertical>
+            <Button variant="ghost" size="icon-lg" className="rounded-none" aria-label="Zoom in" onClick={() => map.current?.zoomIn()}>
               <HugeiconsIcon icon={Add01Icon} size={18} aria-hidden="true" />
-            </button>
-            <button type="button" aria-label="Zoom out" onClick={() => map.current?.zoomOut()}>
+            </Button>
+            <Button variant="ghost" size="icon-lg" className="rounded-none border-t" aria-label="Zoom out" onClick={() => map.current?.zoomOut()}>
               <HugeiconsIcon icon={MinusSignIcon} size={18} aria-hidden="true" />
-            </button>
-          </div>
-          <div className="map-controls-group">
-            <button type="button" aria-label="Find my location" onClick={locate}>
+            </Button>
+          </ButtonGroupVertical>
+          <ButtonGroupVertical>
+            <Button variant="ghost" size="icon-lg" className="rounded-none" aria-label="Find my location" onClick={locate}>
               <HugeiconsIcon icon={Gps01Icon} size={18} aria-hidden="true" />
-            </button>
-          </div>
+            </Button>
+          </ButtonGroupVertical>
         </div>
         {notice && (
-          <div className="map-toast" role="status">
+          <div
+            className="absolute top-4 left-1/2 z-5 flex -translate-x-1/2 items-center gap-2.5 rounded-full bg-background px-4 py-2.5 text-sm font-bold shadow-lg"
+            role="status"
+          >
             <span>{notice}</span>
-            <button type="button" aria-label="Dismiss" onClick={() => setNotice("")}>
+            <Button variant="ghost" size="icon-xs" aria-label="Dismiss" onClick={() => setNotice("")}>
               <HugeiconsIcon icon={Cancel01Icon} size={15} aria-hidden="true" />
-            </button>
+            </Button>
           </div>
         )}
         {areaMoved && !loading && (
-          <button
-            type="button"
-            className="floating-pill map-search-area"
+          <Button
+            variant="outline"
+            className="absolute top-4 left-1/2 z-3 h-10 -translate-x-1/2 rounded-full border-0 px-4 font-extrabold shadow-lg"
             onClick={() => setSearchArea((value) => value + 1)}
           >
             <HugeiconsIcon icon={Search01Icon} size={15} strokeWidth={2.6} aria-hidden="true" />
             Search this area
-          </button>
+          </Button>
         )}
         {selected && <SelectedCard place={selected} onClose={closeSelected} />}
       </div>
 
       <button
         type="button"
-        className="floating-pill map-view-toggle"
+        className="fixed bottom-24 left-1/2 z-30 inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-foreground px-5 py-3.5 text-sm font-extrabold text-background shadow-lg min-[900px]:hidden"
         onClick={() => setShowList((value) => !value)}
       >
         {showList ? (
@@ -508,5 +541,19 @@ export default function MapView({
         )}
       </button>
     </div>
+  );
+}
+
+function MapStatus({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="rounded-xl bg-secondary p-4 text-sm text-muted-foreground [&_button]:h-auto [&_button]:px-1.5 [&_button]:py-0 [&_button]:font-extrabold [&_button]:text-foreground [&_button]:underline">
+      {children}
+    </p>
+  );
+}
+
+function ButtonGroupVertical({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid overflow-hidden rounded-xl bg-background shadow-md">{children}</div>
   );
 }

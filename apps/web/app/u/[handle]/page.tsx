@@ -3,11 +3,15 @@ import { notFound } from "next/navigation";
 import {
   Breadcrumbs,
   Page,
+  Lead,
+  PageIntro,
   PageMain,
   SiteFooter,
   SiteHeader,
   Unavailable,
 } from "../../../src/components/site-chrome";
+import { Block, ListIndex, RowList, StatGrid, StatTile } from "../../../src/components/blocks";
+import { InsufficientData, Note } from "../../../src/components/section";
 import ShareButton from "../../../src/components/share-button";
 import { getProfileByHandle } from "../../../src/lib/preferences-repository";
 import { getPreferences } from "../../../src/lib/preferences-repository";
@@ -105,15 +109,13 @@ export default async function DinerProfilePage({
             { name: name, path: `/u/${profile.handle}` },
           ]}
         />
-        <div className="page-intro">
-          <p className="eyebrow">DINER PROFILE</p>
-          <h1>{name}</h1>
-          <p className="diner-handle">@{profile.handle}</p>
-          {profile.bio && <p className="lead">{profile.bio}</p>}
+        <PageIntro eyebrow="DINER PROFILE" title={name}>
+          <p className="font-semibold text-muted-foreground">@{profile.handle}</p>
+          {profile.bio && <Lead>{profile.bio}</Lead>}
           {profile.homeCitySlug && (
-            <p className="diner-home">Home city: {cityName(profile.homeCitySlug)}</p>
+            <p className="text-sm">Home city: {cityName(profile.homeCitySlug)}</p>
           )}
-          <div className="detail-actions">
+          <div className="flex flex-wrap gap-2.5">
             <ShareButton
               url={`/u/${profile.handle}`}
               title={`${name} on Halalfood`}
@@ -121,79 +123,51 @@ export default async function DinerProfilePage({
               variant="outline"
             />
           </div>
-        </div>
+        </PageIntro>
 
         {visitsPrivate ? (
-          <p className="insufficient-data">
-            This diner keeps their visits private.
-          </p>
+          <InsufficientData>This diner keeps their visits private.</InsufficientData>
         ) : (
           <>
-            <section className="passport-stats">
-              <div className="passport-stat">
-                <strong>{passport.verifiedVisits}</strong>
-                <span>Verified visits</span>
-              </div>
-              <div className="passport-stat">
-                <strong>{passport.unverifiedVisits}</strong>
-                <span>Self-reported</span>
-              </div>
-              <div className="passport-stat">
-                <strong>{passport.distinctPlaces}</strong>
-                <span>Places</span>
-              </div>
-              <div className="passport-stat">
-                <strong>{passport.cities.length}</strong>
-                <span>Cities</span>
-              </div>
-              <div className="passport-stat">
-                <strong>{passport.cuisines.length}</strong>
-                <span>Cuisines</span>
-              </div>
-            </section>
-            <p className="approximate-note compact">
+            <StatGrid>
+              <StatTile value={passport.verifiedVisits} label="Verified visits" />
+              <StatTile value={passport.unverifiedVisits} label="Self-reported" />
+              <StatTile value={passport.distinctPlaces} label="Places" />
+              <StatTile value={passport.cities.length} label="Cities" />
+              <StatTile value={passport.cuisines.length} label="Cuisines" />
+            </StatGrid>
+            <Note>
               There is no single reviewer score here on purpose. Credibility on
               Halalfood is contextual — it depends on the cuisine, the city and
               the quality of the evidence, not on one farmable number.
-            </p>
+            </Note>
           </>
         )}
 
         {!visitsPrivate && places.length > 0 && (
-          <section className="coverage-block">
-            <h2>Visited places</h2>
-            <ul className="visited-list">
+          <Block title="Visited places">
+            <RowList>
               {places.map((place) => (
                 <li key={place.placeId}>
-                  <a href={`/place/${place.placeId}`}>{place.name}</a>
-                  <span className="visited-meta">{cityName(place.citySlug)}</span>
+                  <a href={`/place/${place.placeId}`} className="font-semibold hover:underline">
+                    {place.name}
+                  </a>
+                  <span className="text-xs text-muted-foreground">{cityName(place.citySlug)}</span>
                 </li>
               ))}
-            </ul>
-          </section>
+            </RowList>
+          </Block>
         )}
 
-        <section className="coverage-block">
-          <h2>Lists</h2>
+        <Block title="Lists">
           {listsPrivate ? (
-            <p className="insufficient-data">This diner keeps their lists private.</p>
+            <InsufficientData>This diner keeps their lists private.</InsufficientData>
           ) : lists.length === 0 ? (
-            <p className="insufficient-data">No public lists yet.</p>
+            <InsufficientData>No public lists yet.</InsufficientData>
           ) : (
-            <ul className="list-index">
-              {lists.map((list) => (
-                <li key={list.id}>
-                  <a href={`/list/${list.id}`}>
-                    <strong>{list.title}</strong>
-                    <span>
-                      {list.itemCount} {list.itemCount === 1 ? "place" : "places"}
-                    </span>
-                  </a>
-                </li>
-              ))}
-            </ul>
+            <ListIndex lists={lists} />
           )}
-        </section>
+        </Block>
       </PageMain>
       <SiteFooter />
     </Page>

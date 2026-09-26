@@ -1,6 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@halalfood/ui/components/button";
+import { Input } from "@halalfood/ui/components/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@halalfood/ui/components/tabs";
+import { Textarea } from "@halalfood/ui/components/textarea";
+import { SelectField } from "../../../src/components/form-fields";
+import { FormMessage, SectionHeading } from "../../../src/components/section";
+
 import {
   EDITABLE_FIELDS,
   EDITABLE_FIELD_COPY,
@@ -86,99 +93,79 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
     }
   }
 
+  const hint = "text-[13px] text-muted-foreground [&_a]:underline";
   return (
-    <section className="contribute-panel" aria-labelledby="contribute-title">
-      <div className="place-section-heading">
-        <div>
-          <p className="eyebrow">IMPROVE THIS ENTRY</p>
-          <h2 id="contribute-title">Correct, add or report</h2>
-        </div>
-      </div>
+    <section className="my-6" aria-labelledby="contribute-title">
+      <SectionHeading
+        id="contribute-title"
+        eyebrow="IMPROVE THIS ENTRY"
+        title="Correct, add or report"
+      />
 
-      <div className="chip-row contribute-tabs" role="tablist">
-        {(
-          [
-            ["edit", "Correct a fact"],
-            ["dish", "Add a dish"],
-            ["duplicate", "Report a duplicate"],
-            ["report", "Report a problem"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            className={`filter-chip${tab === key ? " is-active" : ""}`}
-            onClick={() => {
-              setTab(key);
-              setMessage(null);
-              setError(null);
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={tab}
+        onValueChange={(next) => {
+          setTab(next as Tab);
+          setMessage(null);
+          setError(null);
+        }}
+      >
+        <TabsList className="h-auto flex-wrap">
+          <TabsTrigger value="edit">Correct a fact</TabsTrigger>
+          <TabsTrigger value="dish">Add a dish</TabsTrigger>
+          <TabsTrigger value="duplicate">Report a duplicate</TabsTrigger>
+          <TabsTrigger value="report">Report a problem</TabsTrigger>
+        </TabsList>
 
-      {tab === "edit" && (
-        <div className="contribute-form">
-          <label className="check-in-select">
-            <span>What is wrong?</span>
-            <select
-              className="ui-input"
-              value={field}
-              onChange={(event) => setField(event.target.value as EditableField)}
-            >
-              {EDITABLE_FIELDS.map((option) => (
-                <option key={option} value={option}>
-                  {EDITABLE_FIELD_COPY[option]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <input
-            className="ui-input"
+        <TabsContent value="edit" className="mt-3 grid max-w-xl gap-3">
+          <SelectField
+            id="contribute-field"
+            label="What is wrong?"
+            value={field}
+            onValueChange={setField}
+            options={EDITABLE_FIELDS.map((option) => ({
+              value: option,
+              label: EDITABLE_FIELD_COPY[option],
+            }))}
+          />
+          <Input
+            aria-label="The correct value"
             value={proposedValue}
             placeholder="The correct value"
             onChange={(event) => setProposedValue(event.target.value)}
           />
-          <input
-            className="ui-input"
+          <Input
+            aria-label="Source link"
             value={sourceUrl}
             placeholder="Source link (https://…)"
             onChange={(event) => setSourceUrl(event.target.value)}
           />
-          <textarea
-            className="ui-input"
+          <Textarea
+            aria-label="How do you know?"
             rows={2}
             value={note}
             placeholder="How do you know?"
             onChange={(event) => setNote(event.target.value)}
           />
-          <label className="check-in-select">
-            <span>Your relationship with this restaurant</span>
-            <select
-              className="ui-input"
-              value={relationship}
-              onChange={(event) => setRelationship(event.target.value)}
-            >
-              {RELATIONSHIPS.map((option) => (
-                <option key={option} value={option}>
-                  {RELATIONSHIP_COPY[option]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SelectField
+            id="contribute-relationship"
+            label="Your relationship with this restaurant"
+            value={relationship}
+            onValueChange={setRelationship}
+            options={RELATIONSHIPS.map((option) => ({
+              value: option,
+              label: RELATIONSHIP_COPY[option],
+            }))}
+          />
           {SENSITIVE_FIELDS.has(field) && (
-            <p className="check-in-hint">
+            <p className={hint}>
               This fact changes a halal conclusion, so it always goes to a
               moderator and needs a source or an explanation.
             </p>
           )}
-          <button
-            type="button"
-            className="ui-button ui-button-default"
+          <Button
+            size="lg"
+            className="justify-self-start"
             disabled={busy || !proposedValue.trim()}
             onClick={() =>
               send(
@@ -196,50 +183,47 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
             }
           >
             Submit correction
-          </button>
-        </div>
-      )}
+          </Button>
+        </TabsContent>
 
-      {tab === "dish" && (
-        <div className="contribute-form">
-          <input
-            className="ui-input"
+        <TabsContent value="dish" className="mt-3 grid max-w-xl gap-3">
+          <Input
+            aria-label="Dish name"
             value={dishName}
             placeholder="Dish name"
             onChange={(event) => setDishName(event.target.value)}
           />
-          <input
-            className="ui-input"
+          <Input
+            aria-label="Price"
             inputMode="decimal"
             value={dishPrice}
             placeholder="Price (optional)"
             onChange={(event) => setDishPrice(event.target.value)}
           />
-          <label className="check-in-select">
-            <span>Halal scope of this dish</span>
-            <select
-              className="ui-input"
-              value={dishScope}
-              onChange={(event) => setDishScope(event.target.value)}
-            >
-              <option value="unknown">Not sure</option>
-              <option value="halal">Halal</option>
-              <option value="not-halal">Not halal</option>
-            </select>
-          </label>
-          <input
-            className="ui-input"
+          <SelectField
+            id="contribute-dish-scope"
+            label="Halal scope of this dish"
+            value={dishScope}
+            onValueChange={setDishScope}
+            options={[
+              { value: "unknown", label: "Not sure" },
+              { value: "halal", label: "Halal" },
+              { value: "not-halal", label: "Not halal" },
+            ]}
+          />
+          <Input
+            aria-label="Menu link or source"
             value={sourceUrl}
             placeholder="Menu link or source (https://…)"
             onChange={(event) => setSourceUrl(event.target.value)}
           />
-          <p className="check-in-hint">
+          <p className={hint}>
             A dish with a cited source publishes immediately. Without one it
             waits for review, so the menu cannot be rewritten without provenance.
           </p>
-          <button
-            type="button"
-            className="ui-button ui-button-default"
+          <Button
+            size="lg"
+            className="justify-self-start"
             disabled={busy || !dishName.trim()}
             onClick={() =>
               send(
@@ -261,32 +245,30 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
             }
           >
             Add dish
-          </button>
-        </div>
-      )}
+          </Button>
+        </TabsContent>
 
-      {tab === "duplicate" && (
-        <div className="contribute-form">
-          <input
-            className="ui-input"
+        <TabsContent value="duplicate" className="mt-3 grid max-w-xl gap-3">
+          <Input
+            aria-label="The other place's id"
             value={duplicateId}
             placeholder="The other place's id (from its URL)"
             onChange={(event) => setDuplicateId(event.target.value.trim())}
           />
-          <textarea
-            className="ui-input"
+          <Textarea
+            aria-label="How do you know they are the same venue?"
             rows={2}
             value={note}
             placeholder="How do you know they are the same venue?"
             onChange={(event) => setNote(event.target.value)}
           />
-          <p className="check-in-hint">
+          <p className={hint}>
             A merge moves every visit, evidence item, photo, save and list entry
             onto the place that is kept. Nothing is discarded.
           </p>
-          <button
-            type="button"
-            className="ui-button ui-button-default"
+          <Button
+            size="lg"
+            className="justify-self-start"
             disabled={busy || !duplicateId}
             onClick={() =>
               send(
@@ -297,42 +279,34 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
             }
           >
             Report duplicate
-          </button>
-        </div>
-      )}
+          </Button>
+        </TabsContent>
 
-      {tab === "report" && (
-        <div className="contribute-form">
-          <label className="check-in-select">
-            <span>What is the problem?</span>
-            <select
-              className="ui-input"
-              value={reportReason}
-              onChange={(event) =>
-                setReportReason(event.target.value as (typeof REPORT_REASONS)[number])
-              }
-            >
-              {REPORT_REASONS.map((reason) => (
-                <option key={reason} value={reason}>
-                  {REPORT_REASON_COPY[reason]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <textarea
-            className="ui-input"
+        <TabsContent value="report" className="mt-3 grid max-w-xl gap-3">
+          <SelectField
+            id="contribute-report-reason"
+            label="What is the problem?"
+            value={reportReason}
+            onValueChange={setReportReason}
+            options={REPORT_REASONS.map((reason) => ({
+              value: reason,
+              label: REPORT_REASON_COPY[reason],
+            }))}
+          />
+          <Textarea
+            aria-label="What happened?"
             rows={3}
             value={reportDetail}
             placeholder="What happened?"
             onChange={(event) => setReportDetail(event.target.value)}
           />
-          <p className="check-in-hint">
+          <p className={hint}>
             Every decision on a report can be appealed. You can follow yours on{" "}
             <a href="/contributions">your contributions page</a>.
           </p>
-          <button
-            type="button"
-            className="ui-button ui-button-default"
+          <Button
+            size="lg"
+            className="justify-self-start"
             disabled={busy}
             onClick={() =>
               send(
@@ -348,19 +322,19 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
             }
           >
             Send report
-          </button>
-        </div>
-      )}
+          </Button>
+        </TabsContent>
+      </Tabs>
 
       {message && (
-        <p className="contribute-message" role="status">
+        <FormMessage tone="success" className="mt-3">
           {message}
-        </p>
+        </FormMessage>
       )}
       {error && (
-        <p className="check-in-error" role="alert">
+        <FormMessage tone="error" className="mt-3">
           {error}
-        </p>
+        </FormMessage>
       )}
     </section>
   );

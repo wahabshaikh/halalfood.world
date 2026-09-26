@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  EVIDENCE_KIND_COPY,
-  RELATIONSHIP_COPY,
-  STATUS_COPY,
-} from "@halalfood/core/halal-taxonomy";
+import { Alert, AlertDescription } from "@halalfood/ui/components/alert";
+import { Badge } from "@halalfood/ui/components/badge";
+import { Button } from "@halalfood/ui/components/button";
+import { Card } from "@halalfood/ui/components/card";
+import { Input } from "@halalfood/ui/components/input";
+import { Block, Loading } from "../../src/components/blocks";
+import { FormMessage, InsufficientData, SectionIntro } from "../../src/components/section";
+
+import { EVIDENCE_KIND_COPY, RELATIONSHIP_COPY, STATUS_COPY } from "@halalfood/core/halal-taxonomy";
 import { REPORT_REASON_COPY } from "@halalfood/core/moderation";
 import type { QueueEntry } from "../../src/lib/moderation-repository";
 import type { ReportRow } from "../../src/lib/moderation-repository";
@@ -95,257 +99,243 @@ export default function AdminConsole() {
 
   function ReasonBox({ id, placeholder }: { id: string; placeholder: string }) {
     return (
-      <input
-        className="ui-input"
+      <Input
+        aria-label={placeholder}
         value={reasons[id] ?? ""}
         placeholder={placeholder}
-        onChange={(event) =>
-          setReasons((current) => ({ ...current, [id]: event.target.value }))
-        }
+        onChange={(event) => setReasons((current) => ({ ...current, [id]: event.target.value }))}
       />
     );
   }
 
-  if (state === "loading") return <p className="map-place-status">Loading the queue…</p>;
+  if (state === "loading") return <Loading>Loading the queue…</Loading>;
   if (state === "denied")
     return (
-      <p className="insufficient-data">
-        This console is for moderators. If you should have access, ask an admin
-        to add your account to the moderators table.
-      </p>
+      <InsufficientData>
+        This console is for moderators. If you should have access, ask an admin to add your account
+        to the moderators table.
+      </InsufficientData>
     );
   if (state === "error" || !data)
-    return <p className="map-place-status">The console could not load.</p>;
+    return <FormMessage tone="error">The console could not load.</FormMessage>;
 
   return (
-    <div className="admin-console">
-      {message && <p className="contribute-message" role="status">{message}</p>}
+    <div>
+      {message && (
+        <Alert role="status">
+          <AlertDescription className="font-bold text-foreground">{message}</AlertDescription>
+        </Alert>
+      )}
 
-      <section className="coverage-block">
-        <h2>Evidence queue ({data.evidence.length})</h2>
-        <p className="section-intro">
-          Ordered by conflict, open reports, declared interest, expiry, claim
-          impact and how long a submission has waited.
-        </p>
+      <Block title={<>Evidence queue ({data.evidence.length})</>}>
+        <SectionIntro>
+          Ordered by conflict, open reports, declared interest, expiry, claim impact and how long a
+          submission has waited.
+        </SectionIntro>
         {data.evidence.length === 0 ? (
-          <p className="insufficient-data">Nothing waiting.</p>
+          <InsufficientData>Nothing waiting.</InsufficientData>
         ) : (
-          <ul className="queue-list">
+          <ul className="grid gap-3">
             {data.evidence.map((entry) => (
-              <li key={entry.id} className="queue-item">
-                <div className="queue-head">
-                  <a href={`/place/${entry.placeId}`}>{entry.placeName}</a>
-                  <span className="queue-priority">priority {entry.priority}</span>
-                </div>
-                <p className="queue-claim">
-                  {EVIDENCE_KIND_COPY[entry.kind]} claiming{" "}
-                  {STATUS_COPY[entry.claimedStatus].label} ·{" "}
-                  {RELATIONSHIP_COPY[entry.relationship]}
-                  {entry.incentivized ? " · rewarded" : ""}
-                </p>
-                {entry.note && <p className="queue-note">{entry.note}</p>}
-                <ul className="queue-rationale">
-                  {entry.rationale.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-                <ReasonBox
-                  id={entry.id}
-                  placeholder="Reason (required to reject; the contributor sees it)"
-                />
-                <div className="queue-actions">
-                  <button
-                    type="button"
-                    className="ui-button ui-button-default"
-                    onClick={() => void decide("evidence", entry.id, "approved")}
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    className="ui-button ui-button-outline"
-                    onClick={() => void decide("evidence", entry.id, "rejected")}
-                  >
-                    Reject
-                  </button>
-                </div>
+              <li key={entry.id}>
+                <Card size="sm" className="gap-2 px-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 font-semibold [&_a]:hover:underline">
+                    <a href={`/place/${entry.placeId}`}>{entry.placeName}</a>
+                    <Badge variant="secondary">priority {entry.priority}</Badge>
+                  </div>
+                  <p className="text-sm [&_a]:font-semibold [&_a]:hover:underline">
+                    {EVIDENCE_KIND_COPY[entry.kind]} claiming{" "}
+                    {STATUS_COPY[entry.claimedStatus].label} ·{" "}
+                    {RELATIONSHIP_COPY[entry.relationship]}
+                    {entry.incentivized ? " · rewarded" : ""}
+                  </p>
+                  {entry.note && (
+                    <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
+                      {entry.note}
+                    </p>
+                  )}
+                  <ul className="list-disc pl-4.5 text-xs text-muted-foreground">
+                    {entry.rationale.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                  <ReasonBox
+                    id={entry.id}
+                    placeholder="Reason (required to reject; the contributor sees it)"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => void decide("evidence", entry.id, "approved")}>
+                      Approve
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => void decide("evidence", entry.id, "rejected")}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </Card>
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Block>
 
-      <section className="coverage-block">
-        <h2>Factual edits ({data.edits.length})</h2>
+      <Block title={<>Factual edits ({data.edits.length})</>}>
         {data.edits.length === 0 ? (
-          <p className="insufficient-data">Nothing waiting.</p>
+          <InsufficientData>Nothing waiting.</InsufficientData>
         ) : (
-          <ul className="queue-list">
+          <ul className="grid gap-3">
             {data.edits.map((edit) => {
               const id = String(edit.id);
               return (
-                <li key={id} className="queue-item">
-                  <div className="queue-head">
-                    <a href={`/place/${String(edit.place_id)}`}>
-                      {String(edit.place_name)}
-                    </a>
-                    <span className="queue-priority">{String(edit.field)}</span>
-                  </div>
-                  <p className="queue-claim">
-                    {String(edit.current_value ?? "(empty)")} →{" "}
-                    <strong>{String(edit.proposed_value)}</strong>
-                  </p>
-                  {edit.source_url ? (
-                    <p className="queue-note">
-                      Source:{" "}
-                      <a
-                        href={String(edit.source_url)}
-                        target="_blank"
-                        rel="noopener noreferrer nofollow"
-                      >
-                        {String(edit.source_url)}
-                      </a>
+                <li key={id}>
+                  <Card size="sm" className="gap-2 px-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 font-semibold [&_a]:hover:underline">
+                      <a href={`/place/${String(edit.place_id)}`}>{String(edit.place_name)}</a>
+                      <Badge variant="secondary">{String(edit.field)}</Badge>
+                    </div>
+                    <p className="text-sm [&_a]:font-semibold [&_a]:hover:underline">
+                      {String(edit.current_value ?? "(empty)")} →{" "}
+                      <strong>{String(edit.proposed_value)}</strong>
                     </p>
-                  ) : (
-                    <p className="queue-note">No source provided.</p>
-                  )}
-                  {edit.note ? (
-                    <p className="queue-note">{String(edit.note)}</p>
-                  ) : null}
-                  <ReasonBox id={id} placeholder="Reason for the contributor" />
-                  <div className="queue-actions">
-                    <button
-                      type="button"
-                      className="ui-button ui-button-default"
-                      onClick={() => void decide("edit", id, "accepted")}
-                    >
-                      Accept
-                    </button>
-                    <button
-                      type="button"
-                      className="ui-button ui-button-secondary"
-                      onClick={() => void decide("edit", id, "needs-evidence")}
-                    >
-                      Needs evidence
-                    </button>
-                    <button
-                      type="button"
-                      className="ui-button ui-button-outline"
-                      onClick={() => void decide("edit", id, "rejected")}
-                    >
-                      Reject
-                    </button>
-                  </div>
+                    {edit.source_url ? (
+                      <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
+                        Source:{" "}
+                        <a
+                          href={String(edit.source_url)}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                        >
+                          {String(edit.source_url)}
+                        </a>
+                      </p>
+                    ) : (
+                      <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
+                        No source provided.
+                      </p>
+                    )}
+                    {edit.note ? (
+                      <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
+                        {String(edit.note)}
+                      </p>
+                    ) : null}
+                    <ReasonBox id={id} placeholder="Reason for the contributor" />
+                    <div className="flex flex-wrap gap-2">
+                      <Button onClick={() => void decide("edit", id, "accepted")}>Accept</Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => void decide("edit", id, "needs-evidence")}
+                      >
+                        Needs evidence
+                      </Button>
+                      <Button variant="outline" onClick={() => void decide("edit", id, "rejected")}>
+                        Reject
+                      </Button>
+                    </div>
+                  </Card>
                 </li>
               );
             })}
           </ul>
         )}
-      </section>
+      </Block>
 
-      <section className="coverage-block">
-        <h2>Duplicates ({data.duplicates.length})</h2>
+      <Block title={<>Duplicates ({data.duplicates.length})</>}>
         {data.duplicates.length === 0 ? (
-          <p className="insufficient-data">Nothing waiting.</p>
+          <InsufficientData>Nothing waiting.</InsufficientData>
         ) : (
-          <ul className="queue-list">
+          <ul className="grid gap-3">
             {data.duplicates.map((report) => {
               const id = String(report.id);
               return (
-                <li key={id} className="queue-item">
-                  <p className="queue-claim">
-                    <a href={`/place/${String(report.place_id)}`}>
-                      {String(report.place_name)}
-                    </a>{" "}
-                    duplicates{" "}
-                    <a href={`/place/${String(report.duplicate_of_place_id)}`}>
-                      {String(report.duplicate_of_name)}
-                    </a>
-                  </p>
-                  {report.note ? (
-                    <p className="queue-note">{String(report.note)}</p>
-                  ) : null}
-                  <p className="queue-note">
-                    Merging moves every visit, evidence item, photo, save and
-                    list entry onto the place that is kept.
-                  </p>
-                  <div className="queue-actions">
-                    <button
-                      type="button"
-                      className="ui-button ui-button-default"
-                      onClick={() => void decide("duplicate", id, "merge")}
-                    >
-                      Merge
-                    </button>
-                  </div>
+                <li key={id}>
+                  <Card size="sm" className="gap-2 px-4">
+                    <p className="text-sm [&_a]:font-semibold [&_a]:hover:underline">
+                      <a href={`/place/${String(report.place_id)}`}>{String(report.place_name)}</a>{" "}
+                      duplicates{" "}
+                      <a href={`/place/${String(report.duplicate_of_place_id)}`}>
+                        {String(report.duplicate_of_name)}
+                      </a>
+                    </p>
+                    {report.note ? (
+                      <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
+                        {String(report.note)}
+                      </p>
+                    ) : null}
+                    <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
+                      Merging moves every visit, evidence item, photo, save and list entry onto the
+                      place that is kept.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button onClick={() => void decide("duplicate", id, "merge")}>Merge</Button>
+                    </div>
+                  </Card>
                 </li>
               );
             })}
           </ul>
         )}
-      </section>
+      </Block>
 
-      <section className="coverage-block">
-        <h2>Open reports ({data.reports.length})</h2>
+      <Block title={<>Open reports ({data.reports.length})</>}>
         {data.reports.length === 0 ? (
-          <p className="insufficient-data">Nothing waiting.</p>
+          <InsufficientData>Nothing waiting.</InsufficientData>
         ) : (
-          <ul className="queue-list">
+          <ul className="grid gap-3">
             {data.reports.map((report) => (
-              <li key={report.id} className="queue-item">
-                <div className="queue-head">
-                  <span>{report.targetType}</span>
-                  <span className="queue-priority">
-                    {REPORT_REASON_COPY[
-                      report.reason as keyof typeof REPORT_REASON_COPY
-                    ] ?? report.reason}
-                  </span>
-                </div>
-                {report.detail && <p className="queue-note">{report.detail}</p>}
-                <ReasonBox id={report.id} placeholder="Resolution note" />
-                <div className="queue-actions">
-                  <button
-                    type="button"
-                    className="ui-button ui-button-default"
-                    onClick={() => void decide("report", report.id, "upheld")}
-                  >
-                    Uphold
-                  </button>
-                  <button
-                    type="button"
-                    className="ui-button ui-button-outline"
-                    onClick={() => void decide("report", report.id, "dismissed")}
-                  >
-                    Dismiss
-                  </button>
-                </div>
+              <li key={report.id}>
+                <Card size="sm" className="gap-2 px-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 font-semibold [&_a]:hover:underline">
+                    <span>{report.targetType}</span>
+                    <Badge variant="secondary">
+                      {REPORT_REASON_COPY[report.reason as keyof typeof REPORT_REASON_COPY] ??
+                        report.reason}
+                    </Badge>
+                  </div>
+                  {report.detail && (
+                    <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
+                      {report.detail}
+                    </p>
+                  )}
+                  <ReasonBox id={report.id} placeholder="Resolution note" />
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => void decide("report", report.id, "upheld")}>
+                      Uphold
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => void decide("report", report.id, "dismissed")}
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
+                </Card>
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Block>
 
-      <section className="coverage-block">
-        <h2>Audit log</h2>
-        <p className="section-intro">
-          Who changed halal- or ranking-sensitive data, when, why and from what
-          source.
-        </p>
-        <ul className="audit-list">
+      <Block title={<>Audit log</>}>
+        <SectionIntro>
+          Who changed halal- or ranking-sensitive data, when, why and from what source.
+        </SectionIntro>
+        <ul className="divide-y text-[13px]">
           {audit.map((entry) => (
-            <li key={entry.id}>
-              <span className="audit-time">
+            <li key={entry.id} className="flex flex-wrap gap-x-3 gap-y-1 py-2">
+              <span className="font-semibold text-muted-foreground tabular-nums">
                 {new Date(entry.createdAt).toISOString().slice(0, 16).replace("T", " ")}
               </span>
-              <span className="audit-action">{entry.action}</span>
-              <span className="audit-target">
+              <span className="font-bold">{entry.action}</span>
+              <span className="text-muted-foreground">
                 {entry.targetType}/{entry.targetId.slice(0, 8)}
               </span>
-              {entry.reason && <span className="audit-reason">{entry.reason}</span>}
+              {entry.reason && <span className="basis-full">{entry.reason}</span>}
             </li>
           ))}
         </ul>
-      </section>
+      </Block>
     </div>
   );
 }

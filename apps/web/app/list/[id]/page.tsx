@@ -3,11 +3,21 @@ import { notFound } from "next/navigation";
 import {
   Breadcrumbs,
   Page,
+  PageIntro,
   PageMain,
   SiteFooter,
   SiteHeader,
   Unavailable,
 } from "../../../src/components/site-chrome";
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "@halalfood/ui/components/item";
+import { TextLink } from "../../../src/components/blocks";
+import { InsufficientData, Note } from "../../../src/components/section";
 import ShareButton from "../../../src/components/share-button";
 import { getList, listItems } from "../../../src/lib/lists-repository";
 import { placeIdParam } from "@halalfood/core/params";
@@ -83,18 +93,17 @@ export default async function ListPage({
             { name: list.title, path: `/list/${list.id}` },
           ]}
         />
-        <div className="page-intro">
-          <p className="eyebrow">
-            {list.ranked ? "A PERSONAL RANKING" : "A COLLECTION"}
-          </p>
-          <h1>{list.title}</h1>
-          {list.description && <p className="lead">{list.description}</p>}
-          <p className="approximate-note compact">
+        <PageIntro
+          eyebrow={list.ranked ? "A PERSONAL RANKING" : "A COLLECTION"}
+          title={list.title}
+          lead={list.description || undefined}
+        >
+          <Note>
             {list.ranked
               ? "This is one diner's ranking of places they have visited, not a platform ranking."
               : "A collection assembled by one diner."}
-          </p>
-          <div className="detail-actions">
+          </Note>
+          <div className="flex flex-wrap gap-2.5">
             <ShareButton
               url={`/list/${list.id}`}
               title={list.title}
@@ -102,29 +111,39 @@ export default async function ListPage({
               variant="outline"
             />
           </div>
-        </div>
+        </PageIntro>
 
         {items.length === 0 ? (
-          <p className="insufficient-data">This list is empty so far.</p>
+          <InsufficientData>This list is empty so far.</InsufficientData>
         ) : (
-          <ol className={`curated-list${list.ranked ? " is-ranked" : ""}`}>
+          <ol className="mt-4.5 grid gap-3">
             {items.map((item, index) => (
               <li key={item.placeId}>
-                {list.ranked && <span className="curated-rank">{index + 1}</span>}
-                <div className="curated-body">
-                  <a href={`/place/${item.placeId}`}>{item.name}</a>
-                  <span className="curated-meta">
-                    {item.streetAddress} · {cityName(item.citySlug)}
-                  </span>
-                  {item.note && <p className="curated-note">{item.note}</p>}
-                </div>
+                <Item variant="outline" className="items-start gap-3.5 rounded-xl px-4 py-3.5">
+                  {list.ranked && (
+                    <ItemMedia className="min-w-7 text-xl font-bold text-muted-foreground">
+                      {index + 1}
+                    </ItemMedia>
+                  )}
+                  <ItemContent>
+                    <ItemTitle>
+                      <a href={`/place/${item.placeId}`} className="font-semibold hover:underline">
+                        {item.name}
+                      </a>
+                    </ItemTitle>
+                    <ItemDescription className="text-xs">
+                      {item.streetAddress} · {cityName(item.citySlug)}
+                    </ItemDescription>
+                    {item.note && <p className="mt-1.5 text-[13px]">{item.note}</p>}
+                  </ItemContent>
+                </Item>
               </li>
             ))}
           </ol>
         )}
 
-        <p className="detail-more">
-          Want your own? <a href={canonical("/lists")}>Start a list</a>.
+        <p className="mt-6 text-sm text-muted-foreground">
+          Want your own? <TextLink href={canonical("/lists")}>Start a list</TextLink>.
         </p>
       </PageMain>
       <SiteFooter />
