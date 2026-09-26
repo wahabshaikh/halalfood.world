@@ -24,6 +24,18 @@ export default async function LoginPage({
       ? rawReturnTo
       : "/";
 
+  const reason = typeof params.reason === "string" ? params.reason : "";
+  const heading =
+    reason === "save"
+      ? "Save it for later"
+      : returnTo.startsWith("/add")
+        ? "Add a place"
+        : returnTo.includes("/check")
+          ? "Share what you saw"
+          : reason === "join"
+            ? "Join halalfood.world"
+            : "Log in or sign up";
+
   return (
     <div className="page">
       <SiteHeader />
@@ -31,6 +43,7 @@ export default async function LoginPage({
         <LoginForm
           siteKey={process.env.TURNSTILE_SITE_KEY?.trim() || ""}
           returnTo={returnTo}
+          heading={heading}
         />
       </main>
       <SiteFooter />

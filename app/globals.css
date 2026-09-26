@@ -952,6 +952,19 @@ svg {
   color: var(--honey-ink);
 }
 
+.nudge-card {
+  margin: 12px 0 40px;
+  padding: 24px 28px;
+}
+
+.nudge-card > div {
+  flex: 1;
+}
+
+.nudge-card p {
+  margin-bottom: 0;
+}
+
 .city-chips {
   display: flex;
   flex-wrap: wrap;
@@ -1032,6 +1045,10 @@ svg {
     gap: 12px;
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .nudge-card .btn {
+    width: 100%;
   }
 
   .floating-pill {

@@ -351,6 +351,7 @@ export async function getGooglePlaceDetails(
  */
 export async function searchGooglePlaces(
   query: string,
+  options: { near?: { lat: number; lng: number } | null } = {},
 ): Promise<GooglePlaceSearchResult> {
   const normalizedQuery = query.trim();
   if (normalizedQuery.length < 2 || normalizedQuery.length > 120) {
@@ -380,7 +381,21 @@ export async function searchGooglePlaces(
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask": GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK,
       },
-      body: JSON.stringify({ textQuery: normalizedQuery }),
+      body: JSON.stringify({
+        textQuery: normalizedQuery,
+        // A bias, not a restriction: "Karim's" still finds Delhi from London,
+        // but a bare name prefers the one down the road.
+        ...(options.near
+          ? {
+              locationBias: {
+                circle: {
+                  center: { latitude: options.near.lat, longitude: options.near.lng },
+                  radius: 50000,
+                },
+              },
+            }
+          : {}),
+      }),
     });
   } catch {
     return {

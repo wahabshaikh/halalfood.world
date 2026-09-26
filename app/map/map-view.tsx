@@ -112,7 +112,12 @@ function SelectedCard({ place, onClose }: { place: Place; onClose: () => void })
   );
 }
 
-export default function MapView() {
+export default function MapView({
+  initialView = null,
+}: {
+  /** Where the visitor probably is, chosen on the server. URL params still win. */
+  initialView?: { center: [number, number]; zoom: number } | null;
+} = {}) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapInstance | null>(null);
   const library = useRef<typeof import("maplibre-gl") | null>(null);
@@ -182,7 +187,10 @@ export default function MapView() {
 
   useEffect(() => {
     let cancelled = false;
-    const view = viewFromParams(new URLSearchParams(window.location.search)) || DEFAULT_MAP_VIEW;
+    const view =
+      viewFromParams(new URLSearchParams(window.location.search)) ||
+      initialView ||
+      DEFAULT_MAP_VIEW;
     import("maplibre-gl")
       .then((lib) => {
         if (cancelled || !container.current) return;

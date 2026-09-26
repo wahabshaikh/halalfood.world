@@ -4,14 +4,11 @@ import { notFound } from "next/navigation";
 import {
   BadgeCheck,
   Beef,
-  ClipboardCheck,
   ExternalLink,
   FileText,
   Map as MapIcon,
-  MapPin,
   Navigation,
   Phone,
-  Star,
   Wine,
 } from "lucide-react";
 import { getPlaceById } from "../../../src/lib/places";
@@ -94,6 +91,8 @@ import PlaceRating from "./place-rating";
 import PlaceReviews from "./place-reviews";
 import PlacePhotos from "./place-photos";
 import PlaceVideos from "./place-videos";
+import { PlaceRow } from "../../../src/components/place-tile";
+import { findPlacesNear } from "../../../src/lib/local-context-repository";
 
 const loadPlace = cache(async (raw: string) => {
   const id = placeIdParam(raw);
@@ -279,9 +278,15 @@ export default async function PlacePage({
   // Loaded without a session so the page stays publicly cacheable and fully
   // crawlable. The signed-in suitability check is layered on by
   // <PersonalSuitability>, which reads the same data from /decision.
-  const [decisionBundle, { status, glance, photos }] = await Promise.all([
+  const [decisionBundle, { status, glance, photos }, nearby] = await Promise.all([
     loadDecision(place.id, null),
     loadCommunity(place.id),
+    place.lat !== null && place.lng !== null
+      ? findPlacesNear(
+          { lat: place.lat, lng: place.lng },
+          { limit: 8, radiusKm: 10, excludeId: place.id },
+        ).catch(() => [])
+      : Promise.resolve([]),
   ]);
   const city = cityName(place.city_slug);
   const website = safeWebsite(google.website);
@@ -357,7 +362,16 @@ export default async function PlacePage({
               <h2>
                 {cuisine ? cuisine + " in " + city : "Halal food in " + city}
               </h2>
-              <p>{google.address}</p>
+              <p>
+                {google.ratingValue
+                  ? `★ ${google.ratingValue}${
+                      google.reviewCount
+                        ? ` · ${formatCount(google.reviewCount)} Google ${plural(google.reviewCount, "review")}`
+                        : " on Google"
+                    } · `
+                  : ""}
+                {google.address}
+              </p>
             </div>
 
             {decisionBundle ? (
@@ -385,45 +399,6 @@ export default async function PlacePage({
                 </p>
               </div>
             )}
-
-            <hr className="rule" />
-            <div className="feature-list">
-              <div className="feature">
-                <ClipboardCheck size={26} strokeWidth={1.6} aria-hidden="true" />
-                <div>
-                  <h3>
-                    {approvedChecks
-                      ? `${formatCount(approvedChecks)} approved ${plural(approvedChecks, "check")}`
-                      : "No halal checks yet"}
-                  </h3>
-                  <p>
-                    {approvedChecks
-                      ? `Reviewed by our moderators. Latest ${latestCheck ?? "recently"}.`
-                      : "Unchecked doesn’t mean not halal. It means nobody has shared what they saw yet."}
-                  </p>
-                </div>
-              </div>
-              <div className="feature">
-                <MapPin size={26} strokeWidth={1.6} aria-hidden="true" />
-                <div>
-                  <h3>{google.linked ? "Details from Google" : "Listed details"}</h3>
-                  <p>{google.note}</p>
-                </div>
-              </div>
-              {google.ratingValue && (
-                <div className="feature">
-                  <Star size={26} strokeWidth={1.6} aria-hidden="true" />
-                  <div>
-                    <h3>Rated {google.ratingValue} on Google</h3>
-                    <p>
-                      {google.reviewCount
-                        ? `From ${formatCount(google.reviewCount)} Google ${plural(google.reviewCount, "review")}.`
-                        : "Google’s public rating for this place."}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
 
             <hr className="rule" />
             <section className="place-section" aria-labelledby="glance-title">
@@ -541,12 +516,19 @@ export default async function PlacePage({
             </div>
 
             <hr className="rule" />
-            <p className="muted">
-              Looking for more?{" "}
-              <a className="link-underline" href={"/city/" + place.city_slug}>
-                See every halal place we list in {city}
-              </a>
-            </p>
+            {nearby.length ? (
+              <PlaceRow
+                title={"More halal food nearby"}
+                href={"/city/" + place.city_slug}
+                places={nearby}
+              />
+            ) : (
+              <p className="muted">
+                <a className="link-underline" href={"/city/" + place.city_slug}>
+                  See every halal place in {city}
+                </a>
+              </p>
+            )}
           </div>
 
           <aside>

@@ -12,8 +12,33 @@ let savedPlacesLoad: Promise<Set<string>> | null = null;
 let savedPlacesAuth: "unknown" | "authenticated" | "unauthenticated" =
   "unknown";
 
-function loginUrl(placeId: string) {
-  return `/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`;
+const PENDING_SAVE_KEY = "halalfood:pending-save";
+
+/**
+ * Send a signed-out visitor to log in, remembering what they tapped so the
+ * save happens the moment they're back on the same page.
+ */
+function goToLogin(placeId: string) {
+  try {
+    localStorage.setItem(PENDING_SAVE_KEY, placeId);
+  } catch {
+    // Without storage they just tap the heart again after logging in.
+  }
+  const here = window.location.pathname + window.location.search;
+  window.location.assign(
+    `/login?reason=save&returnTo=${encodeURIComponent(here || `/place/${placeId}`)}`,
+  );
+}
+
+/** Claim a pending save for this place, once, across every button on the page. */
+function takePendingSave(placeId: string) {
+  try {
+    if (localStorage.getItem(PENDING_SAVE_KEY) !== placeId) return false;
+    localStorage.removeItem(PENDING_SAVE_KEY);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function loadSavedPlaceIds() {
@@ -94,7 +119,14 @@ export default function SavePlaceButton({
     let mounted = true;
     void loadSavedPlaceIds()
       .then((ids) => {
-        if (mounted) setSaved(ids.has(placeId));
+        if (!mounted) return;
+        setSaved(ids.has(placeId));
+        if (
+          savedPlacesAuth === "authenticated" &&
+          !ids.has(placeId) &&
+          takePendingSave(placeId)
+        )
+          void toggleSaved(true);
       })
       .catch(() => {
         // A failed status read should not prevent a later save attempt.
@@ -104,22 +136,22 @@ export default function SavePlaceButton({
     };
   }, [initialSaved, placeId]);
 
-  async function toggleSaved() {
+  async function toggleSaved(force?: boolean) {
     setError("");
     if (savedPlacesAuth === "unauthenticated") {
-      window.location.assign(loginUrl(placeId));
+      goToLogin(placeId);
       return;
     }
 
     setBusy(true);
-    const nextSaved = !saved;
+    const nextSaved = force ?? !saved;
     try {
       const response = await fetch(
         `/api/places/${encodeURIComponent(placeId)}/saved`,
         { method: nextSaved ? "POST" : "DELETE", headers: { Accept: "application/json" } },
       );
       if (response.status === 401) {
-        window.location.assign(loginUrl(placeId));
+        goToLogin(placeId);
         return;
       }
       if (!response.ok) {

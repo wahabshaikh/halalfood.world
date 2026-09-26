@@ -63,22 +63,20 @@ export function SiteHeader({
               </span>
             </summary>
             <nav className="header-menu-panel" aria-label="Menu">
-              <a href="/login">
+              <a href="/login?reason=join">
                 <strong>Log in or sign up</strong>
               </a>
               <hr />
-              <a href="/">Explore</a>
               <a href="/map">Map</a>
               <a href="/cities">Cities</a>
               <a href="/guides">City guides</a>
-              <a href="/leaderboard">Community</a>
+              <a href="/add">Add a place</a>
+              <hr />
               <a href="/saved">Saved</a>
               <a href="/lists">Lists</a>
               <a href="/passport">Food passport</a>
-              <hr />
-              <a href="/add">Add a place</a>
-              <a href="/contributions">Your contributions</a>
               <a href="/preferences">Dietary standards</a>
+              <a href="/leaderboard">Community</a>
             </nav>
           </details>
         </div>
@@ -141,14 +139,8 @@ export function SiteFooter({ active }: { active?: TabKey } = {}) {
             </div>
             <div>
               <h2>How it works</h2>
-              <p>
-                Place details come from Google. Halal checks come from people who ate
-                there, with a name and a date on each one.
-              </p>
-              <p>
-                Unverified never means not halal. No restaurant can pay to change a
-                status, a ranking or a search result.
-              </p>
+              <p>Halal checks come from people who ate there, each with a name and a date.</p>
+              <p>No restaurant can pay to change a status or a ranking.</p>
             </div>
           </div>
           <div className="site-footer-bottom">
