@@ -25,6 +25,11 @@ import MapFilters from "../map-filters";
 import { PlaceTile } from "../../src/components/place-tile";
 import { PlacePhoto } from "../../src/components/place-photo";
 import SavePlaceButton from "../../src/components/save-place-button";
+import {
+  DEFAULT_MAP_VIEW,
+  deepLinkKind,
+  shouldLoadViewport,
+} from "../../src/lib/map-viewport";
 import { cn } from "../../src/lib/utils";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
@@ -34,7 +39,6 @@ type Results = { places: DiscoveredPlace[]; total: number; limit: number };
 const VIEWPORT_LIMIT = 600;
 /** Markers beyond this many become plain dots so the map stays readable. */
 const LABELLED_MARKERS = 120;
-const DEFAULT_VIEW = { center: [72.8777, 19.055] as [number, number], zoom: 14 };
 
 /** Query keys owned by the discovery filters, cleared before each rewrite. */
 const FILTER_PARAMS = [
@@ -114,19 +118,20 @@ export default function MapView() {
   const library = useRef<typeof import("maplibre-gl") | null>(null);
   const markers = useRef<Marker[]>([]);
   const styleReady = useRef(false);
+  const ignoreMove = useRef(false);
   const [ready, setReady] = useState(false);
   const [results, setResults] = useState<Results>({ places: [], total: 0, limit: VIEWPORT_LIMIT });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<Place | null>(null);
-  // Filters are seeded from and written back to the URL, so a filtered view is
-  // shareable and survives a reload.
-  const [filters, setFilters] = useState<DiscoveryFilters>(() =>
-    typeof window === "undefined"
-      ? EMPTY_FILTERS
-      : parseDiscoveryFilters(new URLSearchParams(window.location.search)),
-  );
+  // Filters start empty so the server HTML matches the first client render.
+  // Reading the URL here would press a different button on the client and
+  // fail hydration (React error 418) on every shared filter link.
+  const [filters, setFilters] = useState<DiscoveryFilters>(EMPTY_FILTERS);
+  const [filtersHydrated, setFiltersHydrated] = useState(false);
+  // Set once a city or place link has finished moving the camera.
+  const [deepLinkSettled, setDeepLinkSettled] = useState(false);
   // Panning only offers a refresh, so results never swap out mid-browse.
   const [areaMoved, setAreaMoved] = useState(false);
   const [searchArea, setSearchArea] = useState(0);
@@ -157,12 +162,18 @@ export default function MapView() {
   );
 
   useEffect(() => {
+    setFilters(parseDiscoveryFilters(new URLSearchParams(window.location.search)));
+    setFiltersHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersHydrated) return;
     const url = new URL(window.location.href);
     for (const key of FILTER_PARAMS) url.searchParams.delete(key);
     for (const [key, value] of new URLSearchParams(serializeDiscoveryFilters(filters)))
       url.searchParams.set(key, value);
     window.history.replaceState(null, "", url.pathname + url.search);
-  }, [filters]);
+  }, [filters, filtersHydrated]);
 
   const closeSelected = useCallback(() => {
     setSelected(null);
@@ -171,7 +182,7 @@ export default function MapView() {
 
   useEffect(() => {
     let cancelled = false;
-    const view = viewFromParams(new URLSearchParams(window.location.search)) || DEFAULT_VIEW;
+    const view = viewFromParams(new URLSearchParams(window.location.search)) || DEFAULT_MAP_VIEW;
     import("maplibre-gl")
       .then((lib) => {
         if (cancelled || !container.current) return;
@@ -213,43 +224,74 @@ export default function MapView() {
     };
   }, []);
 
+  const moveMap = useCallback((center: [number, number], zoom: number) => {
+    const instance = map.current;
+    if (!instance) return;
+    // jumpTo emits moveend. Ignore that one so a deep link does not ask the
+    // person to search an area the link already chose.
+    ignoreMove.current = true;
+    instance.jumpTo({ center, zoom });
+    instance.once("moveend", () => {
+      queueMicrotask(() => {
+        ignoreMove.current = false;
+      });
+    });
+  }, []);
+
   useEffect(() => {
     if (!ready) return;
     const params = new URLSearchParams(window.location.search);
-    const placeId = params.get("place");
-    const citySlug = params.get("city");
-    if (!placeId && !citySlug) return;
+    const kind = deepLinkKind(params);
+    if (!kind) return;
     const controller = new AbortController();
     (async () => {
       try {
-        if (placeId) {
-          const response = await fetch("/api/places/" + encodeURIComponent(placeId), {
-            signal: controller.signal,
-          });
-          if (!response.ok) throw new Error();
-          const place = (await response.json()) as Place;
-          if (typeof place.lat !== "number" || typeof place.lng !== "number") throw new Error();
-          map.current?.jumpTo({ center: [place.lng, place.lat], zoom: 15 });
-          selectPlace(place, { fly: false });
-          return;
+        switch (kind) {
+          case "place": {
+            const placeId = params.get("place") || "";
+            const response = await fetch("/api/places/" + encodeURIComponent(placeId), {
+              signal: controller.signal,
+            });
+            if (!response.ok) throw new Error();
+            const place = (await response.json()) as Place;
+            if (typeof place.lat !== "number" || typeof place.lng !== "number") throw new Error();
+            moveMap([place.lng, place.lat], 15);
+            selectPlace(place, { fly: false });
+            break;
+          }
+          case "city": {
+            const citySlug = params.get("city") || "";
+            const response = await fetch("/api/cities/" + encodeURIComponent(citySlug), {
+              signal: controller.signal,
+            });
+            if (!response.ok) throw new Error();
+            const city = (await response.json()) as {
+              center_lat: number | null;
+              center_lng: number | null;
+            };
+            if (city.center_lat === null || city.center_lng === null) throw new Error();
+            moveMap([city.center_lng, city.center_lat], 12);
+            break;
+          }
+          default: {
+            const unreachable: never = kind;
+            throw new Error(`Unexpected map link: ${unreachable}`);
+          }
         }
-        const response = await fetch("/api/cities/" + encodeURIComponent(citySlug || ""), {
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error();
-        const city = (await response.json()) as { center_lat: number | null; center_lng: number | null };
-        if (city.center_lat === null || city.center_lng === null) throw new Error();
-        map.current?.jumpTo({ center: [city.center_lng, city.center_lat], zoom: 12 });
+        setDeepLinkSettled(true);
       } catch (caught) {
-        if ((caught as Error).name !== "AbortError")
-          setNotice("That link couldn’t be opened, so here’s the map instead.");
+        if ((caught as Error).name === "AbortError") return;
+        setNotice("That link couldn’t be opened, so here’s the map instead.");
+        setDeepLinkSettled(true);
       }
     })();
     return () => controller.abort();
-  }, [ready, selectPlace]);
+  }, [ready, selectPlace, moveMap]);
 
   useEffect(() => {
     if (!ready || !map.current) return;
+    const kind = deepLinkKind(new URLSearchParams(window.location.search));
+    if (!shouldLoadViewport(kind, deepLinkSettled)) return;
     const instance = map.current;
     let controller: AbortController | undefined;
     async function loadPlaces() {
@@ -288,14 +330,17 @@ export default function MapView() {
         }
       }
     }
-    const markMoved = () => setAreaMoved(true);
+    const markMoved = () => {
+      if (ignoreMove.current) return;
+      setAreaMoved(true);
+    };
     instance.on("moveend", markMoved);
     void loadPlaces();
     return () => {
       controller?.abort();
       instance.off("moveend", markMoved);
     };
-  }, [ready, retry, filters, searchArea]);
+  }, [ready, deepLinkSettled, retry, filters, searchArea]);
 
   const visible = results.places;
 
