@@ -6,6 +6,7 @@ import { Field, FieldDescription, FieldLabel } from "@halalfood/ui/components/fi
 import { Input } from "@halalfood/ui/components/input";
 import { EmptyState, FormCard, InlineCard, Loading } from "../../../src/components/blocks";
 import { FormMessage, SectionIntro } from "../../../src/components/section";
+import { getClientSession } from "../../../src/lib/client-session";
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -107,24 +108,18 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
       setLoading(true);
       setLoadError("");
       try {
-        const [photosResponse, sessionResponse] = await Promise.all([
+        const [photosResponse, sessionUser] = await Promise.all([
           fetch(`/api/places/${encodeURIComponent(placeId)}/photos`, {
             credentials: "include",
             cache: "no-store",
             headers: { Accept: "application/json" },
           }),
-          fetch("/api/auth/get-session", {
-            credentials: "include",
-            cache: "no-store",
-            headers: { Accept: "application/json" },
-          }),
+          getClientSession(),
         ]);
         const photosBody = await responseBody(photosResponse);
-        const sessionBody = await responseBody(sessionResponse);
-        const sessionUser = record(record(sessionBody)?.user);
         if (!mounted) return;
         setAuthState(
-          typeof sessionUser?.id === "string" ? "signed-in" : "signed-out",
+          sessionUser ? "signed-in" : "signed-out",
         );
         if (!photosResponse.ok) {
           setLoadError(errorFrom(photosBody, "Halal place photos could not be loaded."));

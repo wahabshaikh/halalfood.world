@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Suitability } from "@halalfood/core/user-preferences";
 import { SuitabilityNotice } from "../../../src/components/decision-summary";
+import { getClientSession } from "../../../src/lib/client-session";
 
 /**
  * The signed-in visitor's own dietary standards, applied to this place.
@@ -18,7 +19,10 @@ export default function PersonalSuitability({ placeId }: { placeId: string }) {
     const controller = new AbortController();
     (async () => {
       try {
-        const response = await fetch(`/api/places/${placeId}/decision`, {
+        // Suitability needs saved standards, so there is nothing to fetch
+        // for a signed-out visitor; the public summary is already rendered.
+        if (!(await getClientSession())) return;
+        const response = await fetch(`/api/places/${encodeURIComponent(placeId)}/decision`, {
           signal: controller.signal,
         });
         if (!response.ok) return;

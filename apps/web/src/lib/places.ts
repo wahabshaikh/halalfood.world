@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { database } from "../db";
+import { cachedRead } from "./read-cache";
 
 import { bboxParam } from "@halalfood/core/params";
 
@@ -59,6 +60,17 @@ export type City = {
   center_lng: number | null;
 };
 
+/**
+ * How long visitor-independent aggregates are reused. Each of these reads the
+ * whole `places` table (or a whole city), so they are cached rather than run
+ * per request; a new listing shows up in them within this window.
+ */
+const DIRECTORY_TTL_SECONDS = 60 * 60;
+const CITY_LISTING_TTL_SECONDS = 10 * 60;
+const SITEMAP_TTL_SECONDS = 6 * 60 * 60;
+const SEARCH_TTL_SECONDS = 5 * 60;
+const MAX_CITIES = 2000;
+
 /** Never let a caller ask for an unbounded slice of the table. */
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(Math.trunc(value) || min, min), max);
@@ -84,6 +96,23 @@ function toBoolean(value: unknown): boolean {
 }
 
 export async function findPlaces(options: {
+  bbox?: ReturnType<typeof bboxParam>;
+  q?: string;
+  limit: number;
+}) {
+  // A text search is a `LIKE '%term%'` scan of every listed place, and the
+  // same few city and dish names are searched over and over.
+  if (options.q && !options.bbox) {
+    // Keep the casing: SQLite LIKE only folds ASCII case.
+    const q = options.q.trim().replace(/\s+/g, " ");
+    return cachedRead(`places:search:v1:${options.limit}:${q}`, SEARCH_TTL_SECONDS, () =>
+      queryPlaces({ q, limit: options.limit }),
+    );
+  }
+  return queryPlaces(options);
+}
+
+async function queryPlaces(options: {
   bbox?: ReturnType<typeof bboxParam>;
   q?: string;
   limit: number;
@@ -228,12 +257,7 @@ export async function updatePlaceCoordinatesIfMissing(
   return rows.length > 0;
 }
 
-/** Distinct cities, largest first, for the city index and city sitemap. */
-export async function listCities(
-  options: { limit?: number; offset?: number } = {},
-) {
-  const limit = clamp(options.limit ?? 500, 1, 2000);
-  const offset = clamp(options.offset ?? 0, 0, 100000);
+async function queryCities(limit: number, offset: number) {
   const db = await database();
   return db.all<City>(sql`
     SELECT city_slug,
@@ -248,13 +272,32 @@ export async function listCities(
   `);
 }
 
+/**
+ * Distinct cities, largest first, for the city index and city sitemap.
+ * Grouping every listed place is a full scan, so the ranked directory is
+ * cached once and sliced per caller.
+ */
+export async function listCities(
+  options: { limit?: number; offset?: number } = {},
+) {
+  const limit = clamp(options.limit ?? 500, 1, MAX_CITIES);
+  const offset = clamp(options.offset ?? 0, 0, 100000);
+  if (offset + limit > MAX_CITIES) return queryCities(limit, offset);
+  const all = await cachedRead("places:cities:v1", DIRECTORY_TTL_SECONDS, () =>
+    queryCities(MAX_CITIES, 0),
+  );
+  return all.slice(offset, offset + limit);
+}
+
 export async function countCities() {
-  const db = await database();
-  const rows = await db.all<{ total: number }>(sql`
-    SELECT count(DISTINCT city_slug) AS total
-    FROM places WHERE ${COORDS_PRESENT}
-  `);
-  return rows[0]?.total ?? 0;
+  return cachedRead("places:city-count:v1", DIRECTORY_TTL_SECONDS, async () => {
+    const db = await database();
+    const rows = await db.all<{ total: number }>(sql`
+      SELECT count(DISTINCT city_slug) AS total
+      FROM places WHERE ${COORDS_PRESENT}
+    `);
+    return rows[0]?.total ?? 0;
+  });
 }
 
 /** Aggregate for one city, or `null` when the slug matches nothing. */
@@ -279,29 +322,39 @@ export async function findPlacesByCity(
 ) {
   const limit = clamp(options.limit ?? 60, 1, 200);
   const offset = clamp(options.offset ?? 0, 0, 100000);
-  const db = await database();
-  const rows = await db.all<Place & { total: number }>(sql`
-    SELECT id, name, city_slug, street_address, address_locality, address_country,
-      telephone, website, rating_value, review_count, lat, lng,
-      count(*) OVER() AS total
-    FROM places WHERE ${COORDS_PRESENT} AND city_slug = ${citySlug}
-    ORDER BY ${RATING_DESC} NULLS LAST, review_count DESC NULLS LAST, id
-    LIMIT ${limit} OFFSET ${offset}
-  `);
-  return {
-    places: rows.map(({ total: _total, ...place }) => place),
-    total: rows[0]?.total ?? 0,
-    limit,
-    offset,
-  };
+  // Sorting by rating reads every place in the city; the home page, guides
+  // and city pages all ask for the same few slices.
+  return cachedRead(
+    `places:city:v1:${citySlug}:${limit}:${offset}`,
+    CITY_LISTING_TTL_SECONDS,
+    async () => {
+      const db = await database();
+      const rows = await db.all<Place & { total: number }>(sql`
+        SELECT id, name, city_slug, street_address, address_locality, address_country,
+          telephone, website, rating_value, review_count, lat, lng,
+          count(*) OVER() AS total
+        FROM places WHERE ${COORDS_PRESENT} AND city_slug = ${citySlug}
+        ORDER BY ${RATING_DESC} NULLS LAST, review_count DESC NULLS LAST, id
+        LIMIT ${limit} OFFSET ${offset}
+      `);
+      return {
+        places: rows.map(({ total: _total, ...place }) => place),
+        total: rows[0]?.total ?? 0,
+        limit,
+        offset,
+      };
+    },
+  );
 }
 
 export async function countPlaces() {
-  const db = await database();
-  const rows = await db.all<{ total: number }>(sql`
-    SELECT count(*) AS total FROM places WHERE ${COORDS_PRESENT}
-  `);
-  return rows[0]?.total ?? 0;
+  return cachedRead("places:count:v1", DIRECTORY_TTL_SECONDS, async () => {
+    const db = await database();
+    const rows = await db.all<{ total: number }>(sql`
+      SELECT count(*) AS total FROM places WHERE ${COORDS_PRESENT}
+    `);
+    return rows[0]?.total ?? 0;
+  });
 }
 
 /**
@@ -311,9 +364,12 @@ export async function countPlaces() {
 export async function listPlaceRefs(options: { limit: number; offset: number }) {
   const limit = clamp(options.limit, 1, 25000);
   const offset = clamp(options.offset, 0, 1000000);
-  const db = await database();
-  return db.all<{ id: string; scraped_at: number | null }>(sql`
-    SELECT id, scraped_at FROM places WHERE ${COORDS_PRESENT}
-    ORDER BY id LIMIT ${limit} OFFSET ${offset}
-  `);
+  // OFFSET still reads every skipped row, so each chunk is cached.
+  return cachedRead(`places:sitemap:v1:${limit}:${offset}`, SITEMAP_TTL_SECONDS, async () => {
+    const db = await database();
+    return db.all<{ id: string; scraped_at: number | null }>(sql`
+      SELECT id, scraped_at FROM places WHERE ${COORDS_PRESENT}
+      ORDER BY id LIMIT ${limit} OFFSET ${offset}
+    `);
+  });
 }

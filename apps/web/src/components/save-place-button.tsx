@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { FavouriteIcon } from "@hugeicons/core-free-icons";
 import { Button } from "@halalfood/ui/components/button";
 import { cn } from "@halalfood/ui/lib/utils";
+import { getClientSession } from "../lib/client-session";
 
 type SavedPlacesPayload = {
   places?: Array<{ id?: unknown }>;
@@ -48,11 +49,19 @@ async function loadSavedPlaceIds() {
   if (savedPlaceIds) return savedPlaceIds;
   if (savedPlacesLoad) return savedPlacesLoad;
 
-  savedPlacesLoad = fetch("/api/places/saved", {
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  })
-    .then(async (response) => {
+  savedPlacesLoad = getClientSession()
+    .then(async (user) => {
+      // Signed-out visitors have nothing saved; skip the Worker round trip.
+      // Auth stays "unknown" so a tap still asks the server, whose 401 sends
+      // the visitor to log in, in case the session lookup itself failed.
+      if (!user) {
+        savedPlaceIds = new Set();
+        return savedPlaceIds;
+      }
+      const response = await fetch("/api/places/saved", {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
       if (response.status === 401) {
         savedPlacesAuth = "unauthenticated";
         savedPlaceIds = new Set();

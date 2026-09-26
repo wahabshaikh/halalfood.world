@@ -13,6 +13,7 @@ import {
   Loading,
 } from "../../../src/components/blocks";
 import { FormMessage, SectionIntro } from "../../../src/components/section";
+import { getClientSession } from "../../../src/lib/client-session";
 
 const TITLE_MAX_LENGTH = 120;
 const BODY_MAX_LENGTH = 5000;
@@ -108,24 +109,18 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
       setLoading(true);
       setLoadError("");
       try {
-        const [reviewsResponse, sessionResponse] = await Promise.all([
+        const [reviewsResponse, sessionUser] = await Promise.all([
           fetch(`/api/places/${encodeURIComponent(placeId)}/reviews`, {
             credentials: "include",
             cache: "no-store",
             headers: { Accept: "application/json" },
           }),
-          fetch("/api/auth/get-session", {
-            credentials: "include",
-            cache: "no-store",
-            headers: { Accept: "application/json" },
-          }),
+          getClientSession(),
         ]);
         const reviewsBody = await responseBody(reviewsResponse);
-        const sessionBody = await responseBody(sessionResponse);
-        const sessionUser = record(record(sessionBody)?.user);
         if (!mounted) return;
         setAuthState(
-          typeof sessionUser?.id === "string" ? "signed-in" : "signed-out",
+          sessionUser ? "signed-in" : "signed-out",
         );
         if (!reviewsResponse.ok) {
           setLoadError(errorFrom(reviewsBody, "Halal reviews could not be loaded."));

@@ -22,6 +22,7 @@ import { ToggleGroup, ToggleGroupItem } from "@halalfood/ui/components/toggle-gr
 import { cn } from "@halalfood/ui/lib/utils";
 import { Illustration } from "../../../../src/components/art";
 import { EmptyPanel, Eyebrow } from "../../../../src/components/site-chrome";
+import { getClientSession } from "../../../../src/lib/client-session";
 
 type Question = "certificate" | "alcohol" | "meat";
 type Answers = Record<Question, string | null>;
@@ -98,14 +99,9 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
 
   useEffect(() => {
     let active = true;
-    fetch("/api/auth/get-session", {
-      credentials: "include",
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    })
-      .then(body)
-      .then((payload) => {
-        if (active) setAuth(typeof record(payload?.user)?.id === "string" ? "signed-in" : "signed-out");
+    getClientSession()
+      .then((user) => {
+        if (active) setAuth(user ? "signed-in" : "signed-out");
       })
       .catch(() => {
         if (active) setAuth("signed-out");
