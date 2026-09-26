@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { database } from "../db";
+import { cachedRead } from "./read-cache";
 
 /** Keep the public board small enough for a fast anonymous read. */
 export const CONTRIBUTOR_LEADERBOARD_LIMIT = 50;
@@ -234,10 +235,16 @@ export async function getContributorLeaderboard(
   return rankContributors(await repository.list(safeLimit), safeLimit);
 }
 
+/**
+ * The public board aggregates every contribution table, so the D1-backed
+ * default is cached briefly. An injected repository is always read directly.
+ */
 export async function listContributors(
   limit = CONTRIBUTOR_LEADERBOARD_LIMIT,
-  repository: ContributorLeaderboardRepository =
-    d1ContributorLeaderboardRepository(),
+  repository?: ContributorLeaderboardRepository,
 ): Promise<RankedContributor[]> {
-  return getContributorLeaderboard(repository, limit);
+  if (repository) return getContributorLeaderboard(repository, limit);
+  return cachedRead(`leaderboard:contributors:v1:${limit}`, 10 * 60, () =>
+    getContributorLeaderboard(d1ContributorLeaderboardRepository(), limit),
+  );
 }

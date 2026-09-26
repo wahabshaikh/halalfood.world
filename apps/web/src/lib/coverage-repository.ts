@@ -137,9 +137,12 @@ export async function refreshCoverageLevel(
   client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): Promise<void> {
   const db = await client;
+  // Called on every place page render, so it must be a no-op unless the level
+  // actually changed: an unconditional UPDATE is a billed D1 write per view.
+  // `coverage_computed_at` therefore records when the level last changed.
   await db.run(sql`
     UPDATE places
     SET coverage_level = ${level}, coverage_computed_at = ${Date.now()}
-    WHERE id = ${placeId}
+    WHERE id = ${placeId} AND coverage_level IS NOT ${level}
   `);
 }

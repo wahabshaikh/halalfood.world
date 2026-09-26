@@ -20,6 +20,7 @@ import {
   type HalalStatus,
 } from "@halalfood/core/halal-status-view";
 import { answerLabel, type GlanceQuestion } from "@halalfood/core/halal-glance-view";
+import { getClientSession } from "../../../src/lib/client-session";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
 type Evidence =
@@ -150,22 +151,16 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
   const load = async () => {
     setLoadError("");
     try {
-      const [verificationResponse, sessionResponse] = await Promise.all([
+      const [verificationResponse, sessionUser] = await Promise.all([
         fetch(`/api/places/${encodeURIComponent(placeId)}/verifications`, {
           credentials: "include",
           cache: "no-store",
           headers: { Accept: "application/json" },
         }),
-        fetch("/api/auth/get-session", {
-          credentials: "include",
-          cache: "no-store",
-          headers: { Accept: "application/json" },
-        }),
+        getClientSession(),
       ]);
       const verificationBody = await responseBody(verificationResponse);
-      const sessionBody = await responseBody(sessionResponse);
-      const sessionUser = record(sessionBody?.user);
-      setAuthState(typeof sessionUser?.id === "string" ? "signed-in" : "signed-out");
+      setAuthState(sessionUser ? "signed-in" : "signed-out");
       if (!verificationResponse.ok) {
         setStatusSummary({ status: "unavailable" });
         setLoadError(errorFrom(verificationBody, "Verifications could not be loaded."));

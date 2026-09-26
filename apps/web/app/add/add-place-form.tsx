@@ -24,6 +24,7 @@ import {
   ItemTitle,
 } from "@halalfood/ui/components/item";
 import { Spinner } from "@halalfood/ui/components/spinner";
+import { getClientSession } from "../../src/lib/client-session";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
 type GooglePlace = { id: string; name: string; address: string };
@@ -75,14 +76,9 @@ export default function AddPlaceForm({
 
   useEffect(() => {
     let active = true;
-    fetch("/api/auth/get-session", {
-      credentials: "include",
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    })
-      .then(responseBody)
-      .then((body) => {
-        if (active) setAuthState(typeof record(body?.user)?.id === "string" ? "signed-in" : "signed-out");
+    getClientSession()
+      .then((user) => {
+        if (active) setAuthState(user ? "signed-in" : "signed-out");
       })
       .catch(() => {
         if (active) setAuthState("signed-out");

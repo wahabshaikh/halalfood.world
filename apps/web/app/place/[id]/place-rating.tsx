@@ -8,6 +8,7 @@ import { Spinner } from "@halalfood/ui/components/spinner";
 import { cn } from "@halalfood/ui/lib/utils";
 import { TextLink } from "../../../src/components/blocks";
 import { Note, SectionHeading, SectionIntro } from "../../../src/components/section";
+import { getClientSession } from "../../../src/lib/client-session";
 
 const RATING_VALUES = [
   "mashallah",
@@ -109,24 +110,18 @@ export default function PlaceRating({ placeId }: { placeId: string }) {
     async function load() {
       setError("");
       try {
-        const [ratingResponse, sessionResponse] = await Promise.all([
+        const [ratingResponse, sessionUser] = await Promise.all([
           fetch(`/api/places/${encodeURIComponent(placeId)}/rating`, {
             credentials: "include",
             cache: "no-store",
             headers: { Accept: "application/json" },
           }),
-          fetch("/api/auth/get-session", {
-            credentials: "include",
-            cache: "no-store",
-            headers: { Accept: "application/json" },
-          }),
+          getClientSession(),
         ]);
         const ratingBody = await responseBody(ratingResponse);
-        const sessionBody = await responseBody(sessionResponse);
-        const sessionUser = record(record(sessionBody)?.user);
         if (!mounted) return;
         setAuthState(
-          typeof sessionUser?.id === "string" ? "signed-in" : "signed-out",
+          sessionUser ? "signed-in" : "signed-out",
         );
         if (!ratingResponse.ok) {
           setError(errorFrom(ratingBody, "Halal reactions could not be loaded."));

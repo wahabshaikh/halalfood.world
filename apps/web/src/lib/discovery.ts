@@ -33,7 +33,9 @@ export type DiscoveredPlace = Place & {
 
 /**
  * Per-place evidence aggregate, restricted to approved and unexpired rows.
- * `strength` mirrors the kind ceilings in halal-taxonomy.ts.
+ * `strength` mirrors the kind ceilings in halal-taxonomy.ts. Both aggregates
+ * read only the `candidates` CTE's places, so a query costs rows in the
+ * requested area rather than every verification and check-in ever written.
  */
 const EVIDENCE_AGGREGATE = sql`
   SELECT
@@ -63,7 +65,8 @@ const EVIDENCE_AGGREGATE = sql`
         AND v.incentivized = 0 AND v.relationship = 'none'
       THEN v.submitted_by_user_id END) AS community_contributors
   FROM place_halal_verifications AS v
-  WHERE v.status = 'approved'
+  WHERE v.place_id IN (SELECT id FROM candidates)
+    AND v.status = 'approved'
     AND v.superseded_by_id IS NULL
     AND COALESCE(v.expires_at, v.created_at + 15552000000) > unixepoch('subsec') * 1000
   GROUP BY v.place_id
@@ -96,7 +99,8 @@ const CHECK_IN_AGGREGATE = sql`
     SUM(CASE WHEN c.would_return = 'definitely' THEN 1 ELSE 0 END) AS definitely_count
   FROM place_check_ins AS c
   INNER JOIN place_visits AS v ON v.id = c.visit_id
-  WHERE c.incentivized = 0 AND c.relationship = 'none'
+  WHERE c.place_id IN (SELECT id FROM candidates)
+    AND c.incentivized = 0 AND c.relationship = 'none'
   GROUP BY c.place_id
 `;
 
@@ -133,22 +137,33 @@ export type DiscoveryQuery = {
   offset?: number;
 };
 
-function buildConditions(query: DiscoveryQuery): SQL[] {
-  const { filters } = query;
+/**
+ * Conditions on `places` alone. They form the `candidates` CTE, so they must
+ * stay index-friendly: the lat/lng box uses `places_listed_lat_lng_idx` and a
+ * city uses the city-leading unique index.
+ */
+function buildPlaceConditions(query: DiscoveryQuery): SQL[] {
   const conditions: SQL[] = [
-    sql`p.halal_confirmed = 1 AND p.lat IS NOT NULL AND p.lng IS NOT NULL`,
+    sql`halal_confirmed = 1 AND lat IS NOT NULL AND lng IS NOT NULL`,
   ];
 
   if (query.bbox) {
     const { west, south, east, north } = query.bbox;
-    conditions.push(sql`p.lat BETWEEN ${south} AND ${north}`);
+    conditions.push(sql`lat BETWEEN ${south} AND ${north}`);
     conditions.push(
       west <= east
-        ? sql`p.lng BETWEEN ${west} AND ${east}`
-        : sql`(p.lng >= ${west} OR p.lng <= ${east})`,
+        ? sql`lng BETWEEN ${west} AND ${east}`
+        : sql`(lng >= ${west} OR lng <= ${east})`,
     );
   }
-  if (query.citySlug) conditions.push(sql`p.city_slug = ${query.citySlug}`);
+  if (query.citySlug) conditions.push(sql`city_slug = ${query.citySlug}`);
+  return conditions;
+}
+
+/** Everything else: filters that need facts, evidence or check-in joins. */
+function buildConditions(query: DiscoveryQuery): SQL[] {
+  const { filters } = query;
+  const conditions: SQL[] = [sql`1 = 1`];
 
   if (filters.q) {
     const term = "%" + filters.q.replace(/[\\%_]/g, "\\$&") + "%";
@@ -280,6 +295,13 @@ export async function discoverPlaces(
   const distance = query.origin ? distanceExpression(query.origin) : sql`NULL`;
 
   const rows = await db.all<Record<string, unknown>>(sql`
+    WITH candidates AS (
+      SELECT id, name, city_slug, street_address, address_locality,
+        address_country, telephone, website, rating_value, review_count,
+        lat, lng, serves_cuisine
+      FROM places
+      WHERE ${sql.join(buildPlaceConditions(query), sql` AND `)}
+    )
     SELECT
       p.id, p.name, p.city_slug, p.street_address, p.address_locality,
       p.address_country, p.telephone, p.website, p.rating_value, p.review_count,
@@ -294,7 +316,7 @@ export async function discoverPlaces(
       f.neighbourhood AS neighbourhood,
       ${distance} AS distance_km,
       count(*) OVER() AS total
-    FROM places AS p
+    FROM candidates AS p
     LEFT JOIN place_facts AS f ON f.place_id = p.id
     LEFT JOIN (${EVIDENCE_AGGREGATE}) AS e ON e.place_id = p.id
     LEFT JOIN (${CHECK_IN_AGGREGATE}) AS k ON k.place_id = p.id

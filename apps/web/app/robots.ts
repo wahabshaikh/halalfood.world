@@ -8,7 +8,9 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "*",
         allow: "/",
         // JSON endpoints carry no crawlable content; the pages already do.
-        disallow: ["/api/"],
+        // Search result pages are thin duplicates of city and place pages,
+        // and each distinct query is a full-table text scan.
+        disallow: ["/api/", "/search"],
       },
     ],
     sitemap: canonical("/sitemap.xml"),

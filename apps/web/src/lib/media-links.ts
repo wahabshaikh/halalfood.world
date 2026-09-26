@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { database } from "../db";
+import { cachedRead } from "./read-cache";
 
 /**
  * Creator videos linked to places. A person pastes an Instagram, TikTok or
@@ -364,9 +365,20 @@ export type CreatorSummary = {
 };
 
 /** Creators with the most linked places, for the community page. */
+/** Public and the same for every visitor, so the default read is cached. */
 export async function listTopCreators(
   limit = 12,
-  client: DatabaseClient | Promise<DatabaseClient> = database(),
+  client?: DatabaseClient | Promise<DatabaseClient>,
+): Promise<CreatorSummary[]> {
+  if (client) return queryTopCreators(limit, client);
+  return cachedRead(`leaderboard:creators:v1:${limit}`, 10 * 60, () =>
+    queryTopCreators(limit, database()),
+  );
+}
+
+async function queryTopCreators(
+  limit: number,
+  client: DatabaseClient | Promise<DatabaseClient>,
 ): Promise<CreatorSummary[]> {
   const db = await client;
   const rows = await db.all<Record<string, unknown>>(sql`

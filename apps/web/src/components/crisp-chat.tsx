@@ -1,31 +1,26 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Crisp } from "crisp-sdk-web";
-import { authClient } from "../lib/auth-client";
+import { getClientSession } from "../lib/client-session";
 
 const CRISP_WEBSITE_ID = "b8333f3b-1afa-40e7-9103-08bbd21ebf00";
 
 export function CrispChat() {
-  const identifiedRef = useRef(false);
-
   useEffect(() => {
     Crisp.configure(CRISP_WEBSITE_ID);
-    return authClient.useSession.subscribe((session) => {
-      const user = session.data?.user;
-      const email = user?.email?.trim();
-      if (!email) {
-        if (identifiedRef.current) {
-          identifiedRef.current = false;
-          Crisp.session.reset();
-        }
-        return;
-      }
-      identifiedRef.current = true;
+    // One shared lookup per page load. Better Auth's `useSession` store would
+    // also refetch the session on every tab focus.
+    let active = true;
+    void getClientSession().then((user) => {
+      const email = user?.email;
+      if (!active || !email) return;
       Crisp.user.setEmail(email);
-      const name = user?.name?.trim();
-      if (name) Crisp.user.setNickname(name);
+      if (user.name) Crisp.user.setNickname(user.name);
     });
+    return () => {
+      active = false;
+    };
   }, []);
 
   return null;

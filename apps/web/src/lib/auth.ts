@@ -77,11 +77,24 @@ export async function createAuth() {
         ipAddressHeaders: ["cf-connecting-ip"],
       },
     },
+    session: {
+      // UI session checks (`/api/auth/get-session`) are answered from a signed
+      // cookie instead of a D1 read. Routes that change data still resolve the
+      // session from the database via `getRequestAuth` (disableCookieCache),
+      // so a revoked session can never write.
+      cookieCache: { enabled: true, maxAge: 5 * 60 },
+    },
     rateLimit: {
       enabled: true,
       storage: "database",
       window: 60,
       max: 30,
+      customRules: {
+        // Read-only and called on every page that shows personal state. With
+        // database storage each call would cost a D1 read and write, and a
+        // few quick page views would 429 a signed-in visitor.
+        "/get-session": false,
+      },
     },
     plugins: [
       emailOTP({
