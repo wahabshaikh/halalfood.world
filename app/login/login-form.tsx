@@ -93,9 +93,11 @@ function TurnstileCheck({
 export default function LoginForm({
   siteKey,
   returnTo = "/",
+  heading = "Log in or sign up",
 }: {
   siteKey: string;
   returnTo?: string;
+  heading?: string;
 }) {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -128,7 +130,7 @@ export default function LoginForm({
     try {
       await requestLoginOtp(email, turnstileToken);
       setStep("code");
-      setStatus(`We sent a 6-digit code to ${email.trim().toLowerCase()}.`);
+      setStatus(`Code sent to ${email.trim().toLowerCase()}.`);
     } catch (caught) {
       const authError = caught instanceof AuthClientError ? caught : undefined;
       setError(
@@ -143,17 +145,18 @@ export default function LoginForm({
     }
   };
 
-  const verifyCode = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const verifyCode = async (event?: React.FormEvent<HTMLFormElement>, code = otp) => {
+    event?.preventDefault();
+    if (busy) return;
     setError("");
     setStatus("");
-    if (!/^\d{6}$/.test(otp)) {
+    if (!/^\d{6}$/.test(code)) {
       setError("Enter the 6-digit code from your email.");
       return;
     }
     setBusy(true);
     try {
-      await verifyLoginOtp(email, otp);
+      await verifyLoginOtp(email, code);
       setStatus("You’re in. Taking you back…");
       window.location.assign(returnTo);
     } catch (caught) {
@@ -171,8 +174,8 @@ export default function LoginForm({
 
   return (
     <section className="auth-card" aria-labelledby="login-title">
-      <h1 id="login-title">Log in or sign up</h1>
-      <p>We’ll email you a one-time code. No password to remember.</p>
+      <h1 id="login-title">{heading}</h1>
+      <p>Just your email. We’ll send a code, no password needed.</p>
 
       {step === "email" ? (
         <form className="auth-form" onSubmit={requestCode}>
@@ -182,6 +185,8 @@ export default function LoginForm({
             type="email"
             autoComplete="email"
             inputMode="email"
+            autoFocus
+            placeholder="you@example.com"
             required
             maxLength={320}
             value={email}
@@ -218,7 +223,12 @@ export default function LoginForm({
             pattern="[0-9]{6}"
             maxLength={6}
             value={otp}
-            onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
+            onChange={(event) => {
+              const code = event.target.value.replace(/\D/g, "").slice(0, 6);
+              setOtp(code);
+              // Pasting or typing the last digit is enough; no extra tap.
+              if (code.length === 6) void verifyCode(undefined, code);
+            }}
           />
           <button
             type="submit"
@@ -246,12 +256,6 @@ export default function LoginForm({
       {error && (
         <p className="auth-error" role="alert">
           {error}
-        </p>
-      )}
-      {step === "email" && (
-        <p className="auth-privacy">
-          We only use your email to send this code. If you did not request one,
-          ignore the message.
         </p>
       )}
     </section>

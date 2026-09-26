@@ -1,13 +1,35 @@
 import type { Metadata } from "next";
 import { Map as MapIcon } from "lucide-react";
-import { findPlaces, listCities } from "../../src/lib/places";
+import { findPlaces, findPlacesByCity } from "../../src/lib/places";
+import {
+  findPlacesNear,
+  loadLocalContext,
+} from "../../src/lib/local-context-repository";
+import type { LocalContext } from "../../src/lib/local-context";
 import { loadOrDegrade } from "../../src/lib/load";
 import { cityName, formatCount, plural } from "../../src/lib/seo";
 import { SiteFooter, SiteHeader } from "../../src/components/site-chrome";
-import { PlaceGrid } from "../../src/components/place-tile";
+import { PlaceGrid, PlaceRow } from "../../src/components/place-tile";
 import { Illustration } from "../../src/components/art";
 
 const RESULT_LIMIT = 48;
+const SUGGESTION_LIMIT = 12;
+
+/** Something worth tapping when there's no query or no match: what's near them. */
+async function suggestions(context: LocalContext) {
+  if (context.isLocal && context.location) {
+    const near = await findPlacesNear(context.location, { limit: SUGGESTION_LIMIT });
+    if (near.length) return { title: "Closest to you", href: "/map", places: near };
+  }
+  const city = context.cities[0];
+  if (!city) return null;
+  const { places } = await findPlacesByCity(city.city_slug, { limit: SUGGESTION_LIMIT });
+  return {
+    title: "Top rated in " + cityName(city.city_slug),
+    href: "/city/" + city.city_slug,
+    places,
+  };
+}
 
 export const metadata: Metadata = {
   title: "Search",
@@ -33,43 +55,38 @@ export default async function SearchPage({
 }) {
   const q = queryParam((await searchParams).q);
   const searchable = q.length >= 2;
-  const loaded = searchable
-    ? await loadOrDegrade(async () => {
-        const [results, cities] = await Promise.all([
-          findPlaces({ q, limit: RESULT_LIMIT }),
-          listCities({ limit: 2000 }),
-        ]);
-        const needle = normalize(q);
-        return {
-          results,
-          cities: cities
+  const loaded = await loadOrDegrade(async () => {
+    const context = await loadLocalContext();
+    const results = searchable
+      ? await findPlaces({ q, limit: RESULT_LIMIT })
+      : { places: [], total: 0, limit: RESULT_LIMIT };
+    const needle = normalize(q);
+    return {
+      results,
+      // Ranked nearest first, so "London" finds the London you mean.
+      cities: searchable
+        ? context.cities
             .filter((city) => normalize(cityName(city.city_slug)).includes(needle))
-            .slice(0, 8),
-        };
-      })
-    : null;
+            .slice(0, 8)
+        : [],
+      suggested:
+        !searchable || !results.total ? await suggestions(context).catch(() => null) : null,
+    };
+  });
+  const suggested = loaded.status === "ok" ? loaded.data.suggested : null;
 
   return (
     <div className="page">
       <SiteHeader searchValue={q} />
       <main className="page-main">
         {!searchable && (
-          <div className="empty-panel">
-            <Illustration name="eat" size={72} />
+          <header className="page-intro">
             <h1>What are you craving?</h1>
-            <p>Search for a restaurant, a dish in its name, or a city.</p>
-            <div className="button-row">
-              <a className="btn btn-dark" href="/cities">
-                Browse cities
-              </a>
-              <a className="btn btn-outline" href="/map">
-                Open the map
-              </a>
-            </div>
-          </div>
+            <p className="lead">Try a restaurant, a dish or a city.</p>
+          </header>
         )}
 
-        {loaded && loaded.status !== "ok" && (
+        {searchable && loaded.status !== "ok" && (
           <div className="empty-panel">
             <h1>Search is taking a moment</h1>
             <p>Please try again shortly.</p>
@@ -79,7 +96,7 @@ export default async function SearchPage({
           </div>
         )}
 
-        {loaded?.status === "ok" && (
+        {searchable && loaded.status === "ok" && (
           <>
             <div className="results-head">
               <div>
@@ -115,16 +132,17 @@ export default async function SearchPage({
             ) : (
               <div className="empty-panel">
                 <Illustration name="visits" size={72} />
-                <h2>Nothing here yet</h2>
-                <p>
-                  Know a halal place called “{q}”? Pick it from Google Maps and we’ll add it.
-                </p>
-                <a className="btn btn-primary" href="/add">
-                  Add a place
+                <h2>Know “{q}”?</h2>
+                <p>Add it in under a minute.</p>
+                <a className="btn btn-primary" href={"/add?q=" + encodeURIComponent(q)}>
+                  Add “{q}”
                 </a>
               </div>
             )}
           </>
+        )}
+        {suggested && (
+          <PlaceRow title={suggested.title} href={suggested.href} places={suggested.places} />
         )}
       </main>
       <a className="floating-pill" href="/map">

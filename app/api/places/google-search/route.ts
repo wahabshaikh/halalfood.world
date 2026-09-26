@@ -9,6 +9,7 @@ import {
   retryAfterSeconds,
 } from "../../../../src/lib/otp-rate-limit";
 import { validateGooglePlaceQuery } from "../../../../src/lib/place-submission";
+import { locationFromRequest } from "../../../../src/lib/visitor-location";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
@@ -71,7 +72,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await searchGooglePlaces(query.query);
+    const result = await searchGooglePlaces(query.query, {
+      near: locationFromRequest(request),
+    });
     if (!result.ok) {
       if (result.code === "NOT_CONFIGURED")
         return unavailable("Search is paused right now. Please try again later.");

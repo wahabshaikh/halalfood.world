@@ -1,6 +1,7 @@
 import { ChevronRight, Star } from "lucide-react";
 import type { Place } from "../lib/places";
 import { cityName, formatCount } from "../lib/seo";
+import { formatDistance } from "../lib/visitor-location";
 import { STATUS_COPY, type HalalTaxonomyStatus } from "../lib/halal-taxonomy";
 import { PlacePhoto } from "./place-photo";
 import SavePlaceButton from "./save-place-button";
@@ -8,7 +9,11 @@ import SavePlaceButton from "./save-place-button";
 type TilePlace = Pick<
   Place,
   "id" | "name" | "city_slug" | "street_address" | "address_locality" | "rating_value" | "review_count"
->;
+> & {
+  /** Present on discovery results; shown instead of the address when set. */
+  distance_km?: number | null;
+  halal_status?: HalalTaxonomyStatus;
+};
 
 function locality(place: TilePlace) {
   return place.address_locality || cityName(place.city_slug);
@@ -31,6 +36,11 @@ export function PlaceTile({
   onSavedChange?: (saved: boolean) => void;
 }) {
   const href = "/place/" + encodeURIComponent(place.id);
+  const halalStatus = status ?? place.halal_status;
+  // Unverified is the default for most listings; saying so on every tile is noise.
+  const showStatus = halalStatus && halalStatus !== "unverified";
+  const distance =
+    typeof place.distance_km === "number" ? formatDistance(place.distance_km) : "";
   return (
     <article className={size === "large" ? "place-tile is-large" : "place-tile"}>
       <div className="place-tile-media">
@@ -58,17 +68,21 @@ export function PlaceTile({
             </span>
           )}
         </div>
-        {status && (
-          <p className={`place-tile-status tone-${STATUS_COPY[status].tone}`}>
-            {STATUS_COPY[status].label}
+        {showStatus && (
+          <p className={`place-tile-status tone-${STATUS_COPY[halalStatus].tone}`}>
+            {STATUS_COPY[halalStatus].label}
           </p>
         )}
-        <p className="place-tile-meta">{locality(place)}</p>
         <p className="place-tile-meta">
-          {place.review_count
-            ? formatCount(place.review_count) + " Google reviews"
-            : place.street_address}
+          {distance ? `${distance} away · ${locality(place)}` : locality(place)}
         </p>
+        {!showStatus && (
+          <p className="place-tile-meta">
+            {place.review_count
+              ? formatCount(place.review_count) + " Google reviews"
+              : place.street_address}
+          </p>
+        )}
       </div>
     </article>
   );

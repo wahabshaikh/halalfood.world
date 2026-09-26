@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Map as MapIcon } from "lucide-react";
-import { findPlacesByCity, listCities } from "../src/lib/places";
+import { findPlacesByCity } from "../src/lib/places";
 import { loadOrDegrade } from "../src/lib/load";
 import {
   APPROXIMATE_NOTE,
@@ -19,24 +19,65 @@ import {
 } from "../src/components/site-chrome";
 import { PlaceRow } from "../src/components/place-tile";
 import { Illustration } from "../src/components/art";
+import {
+  findPlacesNear,
+  loadLocalContext,
+} from "../src/lib/local-context-repository";
+import type { LocalContext } from "../src/lib/local-context";
+import { formatDistance } from "../src/lib/visitor-location";
+import { looksSignedIn } from "../src/lib/auth-session";
 
-const ROW_CITIES = 4;
+const ROW_CITIES = 3;
 const ROW_SIZE = 12;
+const CHIP_CITIES = 8;
 
 /** Old map links used the home page (`/?place=…`); the map now lives at /map. */
 const MAP_PARAMS = ["place", "city", "lat", "lng", "z"];
 
 async function loadExplore() {
   return loadOrDegrade(async () => {
-    const cities = await listCities({ limit: 10 });
+    const context = await loadLocalContext();
+    const near =
+      context.isLocal && context.location
+        ? await findPlacesNear(context.location, { limit: ROW_SIZE }).catch(() => [])
+        : [];
+    const shown = new Set(near.map((place) => place.id));
     const rows = await Promise.all(
-      cities.slice(0, ROW_CITIES).map(async (city) => ({
+      context.cities.slice(0, ROW_CITIES).map(async (city) => ({
         city,
-        places: (await findPlacesByCity(city.city_slug, { limit: ROW_SIZE })).places,
+        places: (await findPlacesByCity(city.city_slug, { limit: ROW_SIZE + shown.size }))
+          .places.filter((place) => !shown.has(place.id))
+          .slice(0, ROW_SIZE),
       })),
     );
-    return { cities, rows };
+    return { context, near, rows };
   });
+}
+
+/** One short line of copy per situation, so the first screen reads in a glance. */
+function heroCopy(context: LocalContext | null) {
+  if (context?.isLocal && context.areaName)
+    return {
+      title: `Halal food near ${context.areaName}`,
+      lead: "Checked by people who ate there.",
+      addFirst: false,
+    };
+  if (context?.location && context.nearest && context.areaName) {
+    const away =
+      context.nearest.distance_km !== null ? formatDistance(context.nearest.distance_km) : "";
+    return {
+      title: "Halal food, wherever you go",
+      addFirst: true,
+      lead: `Nothing listed near ${context.areaName} yet. The closest city is ${cityName(
+        context.nearest.city_slug,
+      )}${away ? `, ${away} away` : ""}.`,
+    };
+  }
+  return {
+    addFirst: false,
+    title: "Halal food you’ll love",
+    lead: "Near you or wherever you travel. Checked by people who ate there.",
+  };
 }
 
 export default async function Home({
@@ -52,7 +93,11 @@ export default async function Home({
   }
   if ([...legacy.keys()].length) redirect("/map?" + legacy.toString());
 
-  const loaded = await loadExplore();
+  const [loaded, signedIn] = await Promise.all([loadExplore(), looksSignedIn()]);
+  const context = loaded.status === "ok" ? loaded.data.context : null;
+  const hero = heroCopy(context);
+  const area = context?.areaName ?? null;
+  const addHref = "/add";
 
   return (
     <div className="page">
@@ -99,22 +144,31 @@ export default async function Home({
       <main className="page-main">
         <ExploreTabs active="eat" />
         <header className="explore-hero">
-          <h1>Halal food you’ll love, checked by people like you.</h1>
+          <h1>{hero.title}</h1>
           <p className="lead">
-            Find somewhere good near you or wherever you’re travelling. Every halal check
-            has a name and a date, so you can see how we know.
+            {hero.lead}{" "}
+            {hero.addFirst && area && (
+              <a className="link-underline" href={addHref}>
+                Add the first place in {area}
+              </a>
+            )}
           </p>
         </header>
 
         {loaded.status === "ok" ? (
           <>
-            {loaded.data.cities.length > 0 && (
-              <nav className="city-chips" aria-label="Popular cities">
-                {loaded.data.cities.map((city) => (
+            {loaded.data.context.cities.length > 0 && (
+              <nav
+                className="city-chips"
+                aria-label={context?.location ? "Cities near you" : "Popular cities"}
+              >
+                {loaded.data.context.cities.slice(0, CHIP_CITIES).map((city) => (
                   <a className="chip" key={city.city_slug} href={"/city/" + city.city_slug}>
                     {cityName(city.city_slug)}
                     <small>
-                      {formatCount(city.place_count)} {plural(city.place_count, "place")}
+                      {city.distance_km !== null && context?.location
+                        ? formatDistance(city.distance_km)
+                        : formatCount(city.place_count) + " " + plural(city.place_count, "place")}
                     </small>
                   </a>
                 ))}
@@ -123,17 +177,18 @@ export default async function Home({
                 </a>
               </nav>
             )}
+            <PlaceRow title="Closest to you" href="/map" places={loaded.data.near} />
             {loaded.data.rows.map(({ city, places }) => (
               <PlaceRow
                 key={city.city_slug}
-                title={"Loved in " + cityName(city.city_slug)}
+                title={"Top rated in " + cityName(city.city_slug)}
                 href={"/city/" + city.city_slug}
                 places={places}
               />
             ))}
             {!loaded.data.rows.length && (
               <p className="empty-state">
-                No places are listed yet. <a href="/add">Add the first one</a>.
+                No places are listed yet. <a href={addHref}>Add the first one</a>.
               </p>
             )}
           </>
@@ -144,28 +199,29 @@ export default async function Home({
           </p>
         )}
 
-        <div className="promo-grid">
-          <section className="promo-card">
-            <Illustration name="visits" size={96} />
+        {signedIn ? (
+          <section className="promo-card nudge-card">
+            <Illustration name="visits" size={80} />
             <div>
-              <h2>Been somewhere good?</h2>
-              <p>Pick it from Google Maps and answer a few quick questions. It takes a minute.</p>
-              <a className="link-underline" href="/add">
-                Add a place
-              </a>
+              <h2>{area ? `Been somewhere good in ${area}?` : "Been somewhere good?"}</h2>
+              <p>Add it in under a minute and help the next person decide.</p>
             </div>
+            <a className="btn btn-primary" href={addHref}>
+              Add a place
+            </a>
           </section>
-          <section className="promo-card is-honey">
-            <Illustration name="cup" size={96} />
+        ) : (
+          <section className="promo-card nudge-card is-honey">
+            <Illustration name="cup" size={80} />
             <div>
-              <h2>Join the community</h2>
-              <p>Check places when you eat there and help the next person decide.</p>
-              <a className="link-underline" href="/leaderboard">
-                See who’s helping
-              </a>
+              <h2>Keep your favourites in one place</h2>
+              <p>Save spots, build lists and track where you’ve eaten. Just your email.</p>
             </div>
+            <a className="btn btn-primary" href="/login?returnTo=%2Fsaved&reason=join">
+              Join free
+            </a>
           </section>
-        </div>
+        )}
       </main>
       <a className="floating-pill" href="/map">
         Show map <MapIcon size={16} aria-hidden="true" />

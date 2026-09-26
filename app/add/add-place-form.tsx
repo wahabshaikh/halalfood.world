@@ -33,14 +33,22 @@ const draftKey = "halalfood:add-place-draft";
  * Places are added only by picking a Google Maps result. The name, address,
  * city and pin all come from Google on the server.
  */
-export default function AddPlaceForm() {
+export default function AddPlaceForm({
+  initialQuery = "",
+  area = null,
+}: {
+  initialQuery?: string;
+  /** The visitor's approximate area, for a more specific placeholder. */
+  area?: string | null;
+} = {}) {
   const [authState, setAuthState] = useState<AuthState>("checking");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
+  // Set when a signed-out search was interrupted by login, to finish it on return.
+  const [resumeSearch, setResumeSearch] = useState(false);
   const [results, setResults] = useState<GooglePlace[]>([]);
   const [selected, setSelected] = useState<GooglePlace | null>(null);
   const [searchBusy, setSearchBusy] = useState(false);
   const [searchMessage, setSearchMessage] = useState("");
-  const [halalConfirmed, setHalalConfirmed] = useState(false);
   const [submitBusy, setSubmitBusy] = useState(false);
   const [formError, setFormError] = useState("");
   const [success, setSuccess] = useState<{ id: string; name: string } | null>(null);
@@ -72,7 +80,8 @@ export default function AddPlaceForm() {
       if (typeof saved?.id === "string" && typeof saved.name === "string" && typeof saved.address === "string")
         setSelected({ id: saved.id, name: saved.name, address: saved.address });
       if (typeof draft.query === "string") setQuery(draft.query);
-      if (draft.halalConfirmed === true) setHalalConfirmed(true);
+      if (!saved && typeof draft.query === "string" && draft.query.trim().length >= 2)
+        setResumeSearch(true);
     } catch {
       // A malformed or unavailable draft is ignored.
     }
@@ -80,7 +89,7 @@ export default function AddPlaceForm() {
 
   function saveDraft() {
     try {
-      sessionStorage.setItem(draftKey, JSON.stringify({ query, selected, halalConfirmed }));
+      sessionStorage.setItem(draftKey, JSON.stringify({ query, selected }));
     } catch {
       // The form still works without storage.
     }
@@ -94,8 +103,8 @@ export default function AddPlaceForm() {
     }
   }
 
-  async function search(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function search(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     const term = query.trim();
     if (term.length < 2) {
       setSearchMessage("Type at least 2 letters.");
@@ -139,15 +148,19 @@ export default function AddPlaceForm() {
     }
   }
 
+  // Back from logging in: pick up exactly where they left off.
+  useEffect(() => {
+    if (!resumeSearch || authState !== "signed-in") return;
+    setResumeSearch(false);
+    void search();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeSearch, authState]);
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError("");
     if (!selected) {
       setFormError("Pick the place from the Google results first.");
-      return;
-    }
-    if (!halalConfirmed) {
-      setFormError("Please confirm this place serves halal food.");
       return;
     }
     if (authState === "signed-out") {
@@ -161,7 +174,8 @@ export default function AddPlaceForm() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ mode: "google", googlePlaceId: selected.id, halalConfirmed }),
+        // Pressing "Add" is the confirmation; the button says so.
+        body: JSON.stringify({ mode: "google", googlePlaceId: selected.id, halalConfirmed: true }),
       });
       const body = await responseBody(response);
       if (response.status === 401) {
@@ -188,10 +202,7 @@ export default function AddPlaceForm() {
       <section className="success-card" aria-labelledby="add-success-title">
         <Illustration name="visits" size={88} />
         <h1 id="add-success-title">{success.name} is on the map</h1>
-        <p>
-          Thank you! Want to go one step further? Tell us what you saw there. It takes about
-          a minute.
-        </p>
+        <p>Thank you! Seen a certificate or the menu? Share it in a minute.</p>
         <div className="button-row">
           <a className="btn btn-primary" href={`/place/${success.id}/check`}>
             Add a halal check
@@ -212,13 +223,7 @@ export default function AddPlaceForm() {
     <section className="stack" aria-labelledby="add-place-title" style={{ maxWidth: 640 }}>
       <header className="page-intro" style={{ paddingBottom: 8 }}>
         <h1 id="add-place-title">Add a place</h1>
-        <p className="lead">
-          Search Google Maps and pick it. The address, city and pin come from Google, so
-          they’re always right.
-        </p>
-        {authState === "signed-out" && (
-          <p className="muted">You’ll need to log in with a one-time email code before you search.</p>
-        )}
+        <p className="lead">Find it on Google Maps. We’ll fill in the rest.</p>
       </header>
 
       {selected ? (
@@ -250,7 +255,8 @@ export default function AddPlaceForm() {
               id="google-place-search"
               type="search"
               maxLength={120}
-              placeholder="Restaurant name and area"
+              placeholder={area ? `Restaurant, ${area}` : "Restaurant name and area"}
+              autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -290,31 +296,26 @@ export default function AddPlaceForm() {
         </p>
       )}
 
-      <form className="stack" onSubmit={(event) => void submit(event)}>
-        <label className="check-field">
-          <input
-            type="checkbox"
-            checked={halalConfirmed}
-            onChange={(event) => setHalalConfirmed(event.target.checked)}
-          />
-          <span>I believe this place serves halal food.</span>
-        </label>
-        {formError && (
-          <p className="form-error" role="alert">
-            {formError}
-          </p>
-        )}
-        <button className="btn btn-primary" type="submit" disabled={submitBusy || !selected}>
-          {submitBusy ? "Adding…" : selected ? `Add ${selected.name}` : "Add this place"}
-        </button>
-      </form>
-      <div className="inline-card">
-        <strong>Not on Google Maps yet?</strong>
-        <p>
-          We can only add places that are on Google Maps, so the details stay accurate. Once
-          the owner lists it there, you can add it here.
+      {selected && (
+        <form className="stack" onSubmit={(event) => void submit(event)}>
+          {formError && (
+            <p className="form-error" role="alert">
+              {formError}
+            </p>
+          )}
+          <button className="btn btn-primary" type="submit" disabled={submitBusy}>
+            {submitBusy ? "Adding…" : `Add ${selected.name}`}
+          </button>
+          <p className="form-help">By adding it, you’re telling us it serves halal food.</p>
+        </form>
+      )}
+      {!selected && (
+        <p className="form-help">
+          {authState === "signed-out"
+            ? "You’ll confirm your email with a quick code, then we’ll run your search."
+            : "Only places on Google Maps can be added, so the details stay accurate."}
         </p>
-      </div>
+      )}
     </section>
   );
 }
