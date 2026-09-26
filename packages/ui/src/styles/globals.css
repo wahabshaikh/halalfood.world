@@ -1,0 +1,140 @@
+@import url("https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800;6..12,900&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Scan the shared components and every app that consumes them. */
+@source "../**/*.{ts,tsx}";
+@source "../../../../apps/*/app/**/*.{ts,tsx}";
+@source "../../../../apps/*/src/**/*.{ts,tsx}";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  halalfood.world theme for shadcn/ui.
+  Tandoor orange (primary), honey (warning), cream (muted) and a calm green
+  (success). Components only ever read these tokens.
+*/
+:root {
+  --radius: 1rem;
+  --background: #ffffff;
+  --foreground: #222222;
+  --card: #ffffff;
+  --card-foreground: #222222;
+  --popover: #ffffff;
+  --popover-foreground: #222222;
+  --primary: #c9461d;
+  --primary-foreground: #ffffff;
+  --secondary: #f7f7f7;
+  --secondary-foreground: #222222;
+  --muted: #fbf7f2;
+  --muted-foreground: #6a6a6a;
+  --accent: #fdede7;
+  --accent-foreground: #a93812;
+  --destructive: #b3261e;
+  --destructive-foreground: #ffffff;
+  --success: #1f6b45;
+  --success-foreground: #ffffff;
+  --success-muted: #e3f2e9;
+  --warning: #f2b33d;
+  --warning-foreground: #6b4a0e;
+  --warning-muted: #fff4dc;
+  --info: #3f6480;
+  --info-muted: #e2e8ec;
+  --brand: #e4572e;
+  --border: #dddddd;
+  --input: #b0b0b0;
+  --ring: #222222;
+  --map: #edeae4;
+}
+
+.dark {
+  --background: #171413;
+  --foreground: #f6f1ec;
+  --card: #201c1a;
+  --card-foreground: #f6f1ec;
+  --popover: #201c1a;
+  --popover-foreground: #f6f1ec;
+  --primary: #f0703f;
+  --primary-foreground: #1a0d07;
+  --secondary: #2a2522;
+  --secondary-foreground: #f6f1ec;
+  --muted: #2a2522;
+  --muted-foreground: #b7ada5;
+  --accent: #3a2219;
+  --accent-foreground: #ffb899;
+  --destructive: #ef6b61;
+  --destructive-foreground: #1a0806;
+  --success: #5cc48d;
+  --success-foreground: #06170e;
+  --success-muted: #15301f;
+  --warning: #f2b33d;
+  --warning-foreground: #ffe3a6;
+  --warning-muted: #3a2c0f;
+  --info: #8fb6d4;
+  --info-muted: #1c2a35;
+  --brand: #f0703f;
+  --border: #3a3431;
+  --input: #4a423e;
+  --ring: #f6f1ec;
+  --map: #26221f;
+}
+
+@theme inline {
+  --font-sans: "Nunito Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-muted: var(--success-muted);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-muted: var(--warning-muted);
+  --color-info: var(--info);
+  --color-info-muted: var(--info-muted);
+  --color-brand: var(--brand);
+  --color-map: var(--map);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply min-w-80 scroll-smooth;
+  }
+  body {
+    @apply min-w-80 bg-background font-sans text-foreground antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-extrabold tracking-tight text-balance;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}

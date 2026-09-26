@@ -48,7 +48,9 @@ jobs:
           npm run build
 
       - name: Pack Cloudflare build
-        run: tar -czf preview-build.tgz dist migrations
+        # The worker lives in apps/web; pack it so dist/ and migrations/ sit at the
+        # archive root, which is where the deploy job expects them.
+        run: tar -czf preview-build.tgz -C apps/web dist migrations
 
       - name: Upload Cloudflare build artifact
         uses: actions/upload-artifact@v4
