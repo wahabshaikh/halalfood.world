@@ -13,3 +13,6 @@ dist
 .vinext
 next-env.d.ts
 .turbo
+# Copied to the repo root by scripts/stage-cloudflare-build.mjs
+/migrations
+/wrangler.jsonc

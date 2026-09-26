@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "dev": "turbo run dev --filter=@halalfood/web",
-    "build": "turbo run build",
+    "build": "turbo run build && node scripts/stage-cloudflare-build.mjs",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "start": "npm run start --workspace=@halalfood/web",
