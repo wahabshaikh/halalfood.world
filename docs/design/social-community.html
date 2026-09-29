@@ -1,0 +1,1126 @@
+<title>halalfood.world Social Flows</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800;6..12,900&display=swap">
+<style>
+/* Layout: a design board. Intro, feature map, then one horizontal strip of phone frames per user flow.
+   Tokens are copied from packages/ui/src/styles/globals.css so the screens use the shipped brand unchanged. */
+:root {
+  --background: #ffffff; --foreground: #222222; --card: #ffffff;
+  --primary: #c9461d; --primary-fg: #ffffff;
+  --secondary: #f7f7f7; --muted: #fbf7f2; --muted-fg: #6a6a6a;
+  --accent: #fdede7; --accent-fg: #a93812;
+  --success: #1f6b45; --success-muted: #e3f2e9;
+  --warning: #f2b33d; --warning-fg: #6b4a0e; --warning-muted: #fff4dc;
+  --info: #3f6480; --info-muted: #e2e8ec;
+  --destructive: #b3261e;
+  --brand: #e4572e; --border: #dddddd; --map: #edeae4; --map-road: #ffffff; --map-water: #cfe0e6;
+  --board: #f4f1ed; --frame: #1d1a18; --ph-ink: #8a5533; --ph-label: #5a3620;
+  --radius: 1rem;
+  --font: "Nunito Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --background: #171413; --foreground: #f6f1ec; --card: #201c1a;
+  --primary: #f0703f; --primary-fg: #1a0d07;
+  --secondary: #2a2522; --muted: #2a2522; --muted-fg: #b7ada5;
+  --accent: #3a2219; --accent-fg: #ffb899;
+  --success: #5cc48d; --success-muted: #15301f;
+  --warning: #f2b33d; --warning-fg: #ffe3a6; --warning-muted: #3a2c0f;
+  --info: #8fb6d4; --info-muted: #1c2a35; --destructive: #ef6b61;
+  --brand: #f0703f; --border: #3a3431; --map: #26221f; --map-road: #3a3431; --map-water: #1c2a35;
+  --board: #0f0d0c; --frame: #3a3431; color-scheme: dark;
+}}
+:root[data-theme="dark"] {
+  --background: #171413; --foreground: #f6f1ec; --card: #201c1a;
+  --primary: #f0703f; --primary-fg: #1a0d07;
+  --secondary: #2a2522; --muted: #2a2522; --muted-fg: #b7ada5;
+  --accent: #3a2219; --accent-fg: #ffb899;
+  --success: #5cc48d; --success-muted: #15301f;
+  --warning: #f2b33d; --warning-fg: #ffe3a6; --warning-muted: #3a2c0f;
+  --info: #8fb6d4; --info-muted: #1c2a35; --destructive: #ef6b61;
+  --brand: #f0703f; --border: #3a3431; --map: #26221f; --map-road: #3a3431; --map-water: #1c2a35;
+  --board: #0f0d0c; --frame: #3a3431; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--board); color: var(--foreground); font-family: var(--font); font-size: 15px; line-height: 1.5; margin: 0; padding-inline: 16px; padding-block: 0 64px; -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { font-weight: 800; letter-spacing: -0.02em; text-wrap: balance; margin: 0; }
+a { color: inherit; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.wrap { max-width: 1240px; margin: 0 auto; }
+
+/* ---------- Board chrome ---------- */
+.top { display: flex; align-items: center; gap: 8px; padding-block: 20px; }
+.logo { font-weight: 900; letter-spacing: -0.05em; color: var(--brand); font-size: 20px; }
+.logo span { color: var(--muted-fg); font-weight: 700; }
+.hero { display: grid; gap: 14px; padding-block: 24px 28px; max-width: 760px; }
+.eyebrow { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--primary); }
+.hero h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.05; font-weight: 900; }
+.lead { color: var(--muted-fg); font-size: 17px; max-width: 65ch; margin: 0; }
+.principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-block: 8px 36px; }
+.principle { background: var(--background); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: grid; gap: 4px; min-width: 0; }
+.principle b { font-weight: 800; }
+.principle p { margin: 0; color: var(--muted-fg); font-size: 14px; }
+.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--board); padding-block: 10px; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; border-bottom: 1px solid var(--border); }
+.toc a { flex: none; text-decoration: none; font-weight: 700; font-size: 13px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--border); background: var(--background); }
+.toc a:hover { border-color: var(--foreground); }
+section.block { padding-block: 44px 8px; scroll-margin-top: 56px; }
+.sec-head { display: grid; gap: 6px; margin-bottom: 18px; max-width: 760px; }
+.sec-head h2 { font-size: 28px; }
+.sec-head p { margin: 0; color: var(--muted-fg); }
+.refs { font-size: 13px; color: var(--muted-fg); display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.refs a { color: var(--primary); font-weight: 700; text-decoration: none; }
+.refs a:hover { text-decoration: underline; }
+
+/* Feature map */
+.table-scroll { overflow-x: auto; background: var(--background); border: 1px solid var(--border); border-radius: var(--radius); }
+table { border-collapse: collapse; width: 100%; min-width: 820px; font-size: 14px; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-fg); font-weight: 800; background: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 800; white-space: nowrap; }
+.pill { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.p-borrow { background: var(--success-muted); color: var(--success); }
+.p-adapt { background: var(--warning-muted); color: var(--warning-fg); }
+.p-skip { background: var(--secondary); color: var(--muted-fg); }
+.p-new { background: var(--accent); color: var(--accent-fg); }
+.p-extends { background: var(--info-muted); color: var(--info); }
+
+/* Flow strips */
+.strip { display: flex; gap: 40px; overflow-x: auto; padding: 8px 4px 20px; scroll-snap-type: x proximity; }
+.shot { flex: none; width: 272px; display: grid; gap: 12px; align-content: start; scroll-snap-align: start; position: relative; }
+.shot + .shot::before { content: ""; position: absolute; left: -31px; top: 272px; width: 22px; height: 2px; background: var(--muted-fg); opacity: .5; }
+.shot + .shot::after { content: ""; position: absolute; left: -15px; top: 268px; border: 5px solid transparent; border-left: 7px solid var(--muted-fg); opacity: .5; }
+.cap { display: grid; gap: 5px; min-width: 0; }
+.cap h3 { font-size: 15px; }
+.cap p { margin: 0; font-size: 13px; color: var(--muted-fg); line-height: 1.45; }
+.cap .tags { display: flex; gap: 5px; flex-wrap: wrap; }
+
+/* ---------- Phone ---------- */
+.phone { width: 272px; height: 560px; border-radius: 38px; border: 7px solid var(--frame); background: var(--background); overflow: hidden; position: relative; display: flex; flex-direction: column; font-size: 12px; line-height: 1.35; box-shadow: 0 18px 40px -22px rgb(0 0 0 / .35); }
+.sb { height: 30px; flex: none; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; font-size: 11px; font-weight: 800; }
+.sb i { width: 34px; height: 10px; border-radius: 3px; border: 1.5px solid currentColor; display: block; position: relative; }
+.sb i::after { content: ""; position: absolute; inset: 1px 6px 1px 1px; background: currentColor; border-radius: 1px; }
+.scr { flex: 1; overflow: hidden; padding: 4px 12px 10px; display: flex; flex-direction: column; gap: 10px; position: relative; min-height: 0; }
+.scr.flush { padding: 0; gap: 0; }
+.row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.between { justify-content: space-between; }
+.col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.grow { flex: 1; min-width: 0; }
+.t-xl { font-size: 21px; font-weight: 900; letter-spacing: -0.03em; line-height: 1.1; }
+.t-lg { font-size: 16px; font-weight: 900; letter-spacing: -0.02em; line-height: 1.15; }
+.t-md { font-size: 13px; font-weight: 800; }
+.t-sm { font-size: 11px; color: var(--muted-fg); }
+.t-xs { font-size: 10px; color: var(--muted-fg); }
+.b { font-weight: 800; }
+.mut { color: var(--muted-fg); }
+.center { text-align: center; }
+.sect { font-size: 13px; font-weight: 900; letter-spacing: -0.01em; display: flex; justify-content: space-between; align-items: baseline; }
+.sect small { font-size: 10px; font-weight: 700; color: var(--primary); }
+.icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.icon.s { width: 13px; height: 13px; }
+.icon.l { width: 20px; height: 20px; }
+.iconbtn { width: 30px; height: 30px; border-radius: 999px; border: 1px solid var(--border); background: var(--background); display: grid; place-items: center; flex: none; position: relative; }
+.iconbtn .dot { position: absolute; top: 3px; right: 4px; width: 7px; height: 7px; border-radius: 99px; background: var(--brand); border: 1.5px solid var(--background); }
+.btn { display: flex; align-items: center; justify-content: center; gap: 6px; height: 38px; border-radius: 999px; font-weight: 800; font-size: 12.5px; background: var(--primary); color: var(--primary-fg); border: 0; width: 100%; font-family: inherit; }
+.btn.sm { height: 28px; font-size: 11px; width: auto; padding: 0 12px; }
+.btn.ghost { background: var(--background); color: var(--foreground); border: 1px solid var(--border); }
+.btn.soft { background: var(--accent); color: var(--accent-fg); }
+.chip { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border); font-weight: 700; font-size: 11px; white-space: nowrap; background: var(--background); flex: none; }
+.chip.on { background: var(--foreground); color: var(--background); border-color: var(--foreground); }
+.chips { display: flex; gap: 6px; overflow: hidden; flex: none; }
+.seg { display: flex; background: var(--secondary); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg span { flex: 1; text-align: center; padding: 5px 0; border-radius: 999px; font-weight: 800; font-size: 11px; color: var(--muted-fg); }
+.seg span.on { background: var(--background); color: var(--foreground); box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
+.tabs2 { display: flex; gap: 14px; font-weight: 800; font-size: 13px; }
+.tabs2 span { color: var(--muted-fg); padding-bottom: 3px; white-space: nowrap; }
+.tabs2 span.on { color: var(--foreground); border-bottom: 2px solid var(--foreground); }
+.card { border: 1px solid var(--border); border-radius: 14px; background: var(--card); padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card.flat { border: 0; background: var(--muted); }
+.card.row { flex-direction: row; }
+.stack { position: relative; padding-bottom: 8px; }
+.stack::before, .stack::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: 4px; height: 10px; border: 1px solid var(--border); border-top: 0; border-radius: 0 0 14px 14px; background: var(--card); }
+.stack::after { left: 16px; right: 16px; bottom: 0; }
+.stack > .card { position: relative; z-index: 1; }
+.badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+.bv { background: var(--success-muted); color: var(--success); }
+.bc { background: var(--info-muted); color: var(--info); }
+.bo { background: var(--warning-muted); color: var(--warning-fg); }
+.bu { background: var(--secondary); color: var(--muted-fg); }
+.bb { background: var(--accent); color: var(--accent-fg); }
+.ph { border-radius: 12px; position: relative; overflow: hidden; display: grid; place-items: center; flex: none; }
+.ph svg { width: 34%; max-width: 44px; fill: none; stroke: var(--ph-ink); stroke-width: 1.6; }
+.ph em { position: absolute; left: 7px; bottom: 5px; font-style: normal; font-size: 9px; font-weight: 900; letter-spacing: .12em; color: var(--ph-label); }
+.av { border-radius: 999px; display: grid; place-items: center; font-weight: 900; font-size: 10px; color: #fff; flex: none; width: 26px; height: 26px; border: 2px solid var(--background); }
+.av.m { width: 36px; height: 36px; font-size: 12px; }
+.av.l { width: 64px; height: 64px; font-size: 20px; }
+.av.xl { width: 84px; height: 108px; border-radius: 42px; font-size: 26px; }
+.avs { display: flex; }
+.avs .av + .av { margin-left: -8px; }
+.place { display: flex; gap: 9px; align-items: center; min-width: 0; }
+.place .ph { width: 46px; height: 46px; border-radius: 10px; }
+.place .grow .t-md { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hscroll { display: flex; gap: 8px; overflow: hidden; flex: none; }
+.lcard { width: 108px; height: 132px; border-radius: 14px; position: relative; overflow: hidden; flex: none; display: flex; flex-direction: column; justify-content: flex-end; padding: 8px; color: #fff; }
+.lcard .ph { position: absolute; inset: 0; border-radius: 0; }
+.lcard::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 35%, rgb(0 0 0 / .62)); }
+.lcard > div { position: relative; z-index: 1; display: grid; gap: 1px; }
+.lcard b { font-size: 12.5px; font-weight: 900; line-height: 1.1; }
+.lcard small { font-size: 9.5px; opacity: .9; font-weight: 700; }
+.hr { height: 1px; background: var(--border); flex: none; }
+.input { height: 36px; border-radius: 999px; border: 1px solid var(--border); display: flex; align-items: center; gap: 7px; padding: 0 12px; color: var(--muted-fg); font-weight: 600; background: var(--background); flex: none; }
+.input.box { flex: 1 1 0; min-width: 0; border-radius: 12px; height: auto; min-height: 56px; align-items: flex-start; padding: 9px 11px; }
+.input.focus { border-color: var(--foreground); color: var(--foreground); }
+.opt { display: flex; align-items: center; gap: 9px; padding: 10px; border: 1px solid var(--border); border-radius: 12px; font-weight: 700; }
+.opt.on { border: 2px solid var(--foreground); padding: 9px; }
+.radio { width: 16px; height: 16px; border-radius: 99px; border: 1.5px solid var(--muted-fg); margin-left: auto; flex: none; }
+.opt.on .radio { border: 5px solid var(--foreground); }
+.check { width: 18px; height: 18px; border-radius: 99px; border: 1.5px solid var(--border); margin-left: auto; flex: none; display: grid; place-items: center; }
+.check.on { background: var(--primary); border-color: var(--primary); color: var(--primary-fg); }
+.toggle { width: 30px; height: 18px; border-radius: 99px; background: var(--border); position: relative; flex: none; margin-left: auto; }
+.toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 99px; background: #fff; }
+.toggle.on { background: var(--success); }
+.toggle.on::after { left: 14px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat { border: 1px solid var(--border); border-radius: 12px; padding: 7px 4px; text-align: center; display: grid; gap: 1px; }
+.stat b { font-size: 15px; font-weight: 900; }
+.stat span { font-size: 9.5px; color: var(--muted-fg); font-weight: 700; }
+.verdict { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.verdict span { border: 1px solid var(--border); border-radius: 12px; padding: 8px 2px; display: grid; justify-items: center; gap: 3px; font-size: 10.5px; font-weight: 700; color: var(--muted-fg); }
+.verdict span.on { border: 2px solid var(--primary); color: var(--primary); background: var(--accent); padding: 7px 1px; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--background); border-radius: 22px 22px 0 0; padding: 8px 12px 14px; display: flex; flex-direction: column; gap: 9px; box-shadow: 0 -8px 26px rgb(0 0 0 / .16); z-index: 3; }
+.grab { width: 34px; height: 4px; border-radius: 9px; background: var(--border); margin: 0 auto 2px; flex: none; }
+.scrim { position: absolute; inset: 0; background: rgb(0 0 0 / .32); z-index: 2; }
+.toast { position: absolute; left: 12px; right: 12px; top: 8px; z-index: 4; background: var(--foreground); color: var(--background); border-radius: 14px; padding: 9px 11px; display: flex; gap: 8px; align-items: center; font-weight: 700; }
+.toast .t-xs { color: inherit; opacity: .75; }
+
+/* Map */
+.map { position: absolute; inset: 0; background: var(--map); overflow: hidden; }
+.map .road { position: absolute; background: var(--map-road); }
+.map .water { position: absolute; background: var(--map-water); border-radius: 40%; }
+.map .park { position: absolute; background: var(--success-muted); border-radius: 30%; }
+.pin { position: absolute; display: flex; align-items: center; gap: 4px; z-index: 1; }
+.pin .dotp { width: 12px; height: 12px; border-radius: 99px; background: var(--brand); border: 2px solid #fff; box-shadow: 0 1px 3px rgb(0 0 0 / .3); }
+.pin .av { width: 26px; height: 26px; box-shadow: 0 1px 4px rgb(0 0 0 / .3); border-color: #fff; }
+.pin .lbl { background: var(--background); border-radius: 8px; padding: 2px 6px; font-size: 9.5px; font-weight: 800; box-shadow: 0 1px 4px rgb(0 0 0 / .18); white-space: nowrap; line-height: 1.2; }
+.pin .lbl i { display: block; font-style: italic; font-weight: 600; color: var(--muted-fg); font-size: 8.5px; }
+.overlay { position: relative; z-index: 1; }
+
+/* Tab bar: same five-slot bar the web app ships, with Add raised */
+.tabbar { flex: none; display: flex; justify-content: space-around; align-items: flex-end; border-top: 1px solid var(--border); padding: 6px 4px 12px; background: var(--background); position: relative; z-index: 3; }
+.tabbar a { display: grid; justify-items: center; gap: 1px; font-size: 9px; font-weight: 700; color: var(--muted-fg); text-decoration: none; min-width: 40px; }
+.tabbar a.on { color: var(--primary); font-weight: 900; }
+.tabbar a.add span.plus { width: 38px; height: 38px; border-radius: 999px; background: var(--primary); color: var(--primary-fg); display: grid; place-items: center; margin-top: -14px; box-shadow: 0 4px 10px -3px var(--primary); }
+.tabbar .icon { width: 20px; height: 20px; }
+
+/* Build plan */
+.plan { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.phase { background: var(--background); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.phase h3 { font-size: 17px; }
+.phase ul { margin: 0; padding-left: 18px; color: var(--muted-fg); font-size: 14px; display: grid; gap: 4px; }
+.phase code { font-size: 12.5px; background: var(--muted); padding: 1px 5px; border-radius: 6px; color: var(--foreground); }
+.foot { margin-top: 48px; font-size: 13px; color: var(--muted-fg); max-width: 760px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3 10 14"/><path d="M21 3 14 21l-4-7-7-4z"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-8-4.6-8-10.2A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 8 2.8C20 15.4 12 20 12 20z"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-comment" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 21c4 0 7-2.6 7-6.6 0-4.4-4-6.4-4.5-10.4C11 6 9.5 8.6 9.5 11 8 10.4 7.4 9 7.3 8 5.8 9.6 5 11.8 5 14.4 5 18.4 8 21 12 21z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.6 3.6-5.5 6.5-5.5s5.5 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.8"/><path d="M17 14.5c2.3 0 4 1.5 4.7 4"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4L12 5.6"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
+  <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 14v4M8 21h8"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M7 11v9H4v-9zM7 11l4-8c1.5 0 2.5 1 2.3 2.6L13 9h5.6a2 2 0 0 1 2 2.4l-1.4 7A2 2 0 0 1 17.2 20H7"/></symbol>
+  <symbol id="i-downv" viewBox="0 0 24 24"><path d="M7 13V4H4v9zM7 13l4 8c1.5 0 2.5-1 2.3-2.6L13 15h5.6a2 2 0 0 0 2-2.4l-1.4-7A2 2 0 0 0 17.2 4H7"/></symbol>
+  <symbol id="i-meh" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 15h8M9 9.5h.01M15 9.5h.01"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4.5 3 7.8 7 9 4-1.2 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
+  <symbol id="i-nav" viewBox="0 0 24 24"><path d="m3 11 18-8-8 18-2-8z"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+</svg>
+
+<div class="wrap">
+  <div class="top">
+    <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 30.5s-11-9.2-11-17.2A11 11 0 0 1 27 13.3c0 8-11 17.2-11 17.2z" fill="var(--brand)"/><path d="M9.2 13.2h13.6a6.8 6.8 0 0 1-13.6 0z" fill="#fff"/><path d="M13.3 10.4c0-1.2 1.2-1.2 1.2-2.6M17.5 10.4c0-1.2 1.2-1.2 1.2-2.6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+    <span class="logo">halalfood<span>.world</span></span>
+  </div>
+
+  <header class="hero">
+    <div class="eyebrow">Design proposal · social community</div>
+    <h1>Find halal food through the people you trust</h1>
+    <p class="lead">These are the screens and flows halalfood.world is missing to become a social community around halal food. They are modelled on Corner's friend feed, map, lists and visit logging. The brand, the evidence-first halal statuses and the moderation rules stay exactly as they ship today. The social layer sits on top of them.</p>
+  </header>
+
+  <div class="principles">
+    <div class="principle"><b>Taste is social, halal status is not</b><p>Friends' likes, lists and streaks decide what to try. Halal status still comes only from dated, moderated evidence. No follower count or like can move a badge.</p></div>
+    <div class="principle"><b>Every visit can carry a halal check</b><p>Corner's "been" log gains three optional questions (certificate seen, alcohol, slaughter). A friend's post feeds the existing moderation queue as well as the feed.</p></div>
+    <div class="principle"><b>Your standard filters everything</b><p>The dietary standard picked in onboarding (the existing preferences) filters the feed, the map, lists and recs. Nobody is shown a place that fails their own rules.</p></div>
+    <div class="principle"><b>Rank by verified visits, not by volume</b><p>Leaderboards and curator badges count verified check-ins, following the existing anti-manipulation rules. They never reward raw volume.</p></div>
+  </div>
+</div>
+
+<nav class="toc" aria-label="Flows">
+  <a href="#map">Feature map</a>
+  <a href="#nav">Navigation</a>
+  <a href="#onboarding">1 · Onboarding</a>
+  <a href="#home">2 · Home feed</a>
+  <a href="#social-map">3 · Social map</a>
+  <a href="#log">4 · Log a visit</a>
+  <a href="#reels">5 · Save from reels</a>
+  <a href="#lists">6 · Lists</a>
+  <a href="#profile">7 · Profiles</a>
+  <a href="#community">8 · Community</a>
+  <a href="#search">9 · Search</a>
+  <a href="#activity">10 · Activity &amp; recs</a>
+  <a href="#events">11 · Events</a>
+  <a href="#build">Build plan</a>
+</nav>
+
+<div class="wrap">
+
+<!-- ================= FEATURE MAP ================= -->
+<section class="block" id="map">
+  <div class="sec-head">
+    <h2>Feature map</h2>
+    <p>Every Corner feature, what we do with it, and whether halalfood.world has any of it today.</p>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Corner feature</th><th>Decision</th><th>halalfood.world version</th><th>Today</th></tr></thead>
+      <tbody>
+        <tr><td>Profile setup, photo and name</td><td><span class="pill p-borrow">Borrow</span></td><td>Photo, display name and @handle after email OTP login.</td><td><span class="pill p-extends">Extends /login</span></td></tr>
+        <tr><td>"Save spots from reels and TikToks"</td><td><span class="pill p-adapt">Adapt</span></td><td>Paste an Instagram, TikTok or YouTube link. We match the place and credit the creator. Reuses the oEmbed creator-video pipeline.</td><td><span class="pill p-extends">Extends creators</span></td></tr>
+        <tr><td>Pick 3 places you want to try</td><td><span class="pill p-adapt">Adapt</span></td><td>Seeds "Want to try". Only places that pass your halal standard are offered, and each shows its status badge.</td><td><span class="pill p-new">New</span></td></tr>
+        <tr><td>Find friends from contacts, invite</td><td><span class="pill p-borrow">Borrow</span></td><td>Hashed contact match with nothing stored, an invite link and search by handle.</td><td><span class="pill p-new">New</span></td></tr>
+        <tr><td>Halal standard step</td><td><span class="pill p-adapt">Ours</span></td><td>Corner has no equivalent. We reuse the dietary standards already on /preferences.</td><td><span class="pill p-extends">Extends /preferences</span></td></tr>
+        <tr><td>Friends / For you feed, "What you missed"</td><td><span class="pill p-borrow">Borrow</span></td><td>A card stack of friends' visits with verdict, photos, dishes and any halal check they made.</td><td><span class="pill p-new">New</span></td></tr>
+        <tr><td>Likes and comments on visits</td><td><span class="pill p-borrow">Borrow</span></td><td>Heart and comment. Comments use the existing report and moderation queue.</td><td><span class="pill p-new">New</span></td></tr>
+        <tr><td>Top picks: new, trending, popular</td><td><span class="pill p-adapt">Adapt</span></td><td>Rails for new, trending, newly verified and friends' favourites, filtered by your standard.</td><td><span class="pill p-extends">Extends Explore</span></td></tr>
+        <tr><td>Coming up (events)</td><td><span class="pill p-adapt">Adapt</span></td><td>Halal food events: iftar pop-ups, Eid markets, food festivals. Each vendor carries its own status.</td><td><span class="pill p-new">New</span></td></tr>
+        <tr><td>Weekly leaderboard, city / global</td><td><span class="pill p-adapt">Adapt</span></td><td>Ranked by verified visits this week, with "places in common with you".</td><td><span class="pill p-extends">Extends /leaderboard</span></td></tr>
+        <tr><td>Top curators with follow</td><td><span class="pill p-borrow">Borrow</span></td><td>Curator cards showing places, list saves and topic chips such as "nihari" or "late-night".</td><td><span class="pill p-new">New</span></td></tr>
+        <tr><td>Map: everyone / yours / friends only</td><td><span class="pill p-borrow">Borrow</span></td><td>The same three-way filter, plus friend-avatar pins and social labels such as "Zaid loved this".</td><td><span class="pill p-extends">Extends /map</span></td></tr>
+        <tr><td>Place quick sheet: featured on lists, curators</td><td><span class="pill p-borrow">Borrow</span></td><td>The sheet adds the halal badge, which friends have been and which lists feature the place.</td><td><span class="pill p-extends">Extends place page</span></td></tr>
+        <tr><td>Want to try / visited, 4-step verdict</td><td><span class="pill p-borrow">Borrow</span></td><td>Disliked, okay, liked, favourite. It maps onto the existing verified visits and check-ins.</td><td><span class="pill p-extends">Extends check-in</span></td></tr>
+        <tr><td>"Finding photos you took here"</td><td><span class="pill p-adapt">Adapt</span></td><td>The web can't read the camera roll, so this becomes an upload picker. The native app suggests photos by location and date.</td><td><span class="pill p-extends">Extends photos</span></td></tr>
+        <tr><td>Curations (lists), private or public</td><td><span class="pill p-borrow">Borrow</span></td><td>Lists already exist. New: cover image, caption, save count, views and "you've been 3/12".</td><td><span class="pill p-extends">Extends /lists</span></td></tr>
+        <tr><td>Collaborative lists</td><td><span class="pill p-borrow">Borrow</span></td><td>Invite friends to edit, for a family trip or an Eid dinner shortlist.</td><td><span class="pill p-new">New</span></td></tr>
+        <tr><td>Lists for you, best lists near you, similar lists</td><td><span class="pill p-borrow">Borrow</span></td><td>List discovery by city, alongside the existing city guides.</td><td><span class="pill p-extends">Extends /guides</span></td></tr>
+        <tr><td>Profile stats and city chips</td><td><span class="pill p-adapt">Adapt</span></td><td>Places, want to try, favourites and recommends. The food passport becomes a tab on the profile.</td><td><span class="pill p-extends">Extends /u, /passport</span></td></tr>
+        <tr><td>Weekly streak</td><td><span class="pill p-adapt">Adapt</span></td><td>Log one visit a week. It pauses automatically in Ramadan daytime, and iftar visits count.</td><td><span class="pill p-new">New</span></td></tr>
+        <tr><td>Follow people</td><td><span class="pill p-borrow">Borrow</span></td><td>One-way follow, like Corner. Private accounts approve requests.</td><td><span class="pill p-new">New</span></td></tr>
+        <tr><td>Send (paper plane)</td><td><span class="pill p-adapt">Adapt</span></td><td>"Send a rec": a place or list with an optional note, delivered to a recs inbox. There are no open DMs, which keeps moderation small.</td><td><span class="pill p-new">New</span></td></tr>
+        <tr><td>Notifications (bell)</td><td><span class="pill p-adapt">Adapt</span></td><td>Social events, plus "halal status changed at a place you saved", which only we can offer.</td><td><span class="pill p-new">New</span></td></tr>
+        <tr><td>Nightlife, bars, 21+ events</td><td><span class="pill p-skip">Skip</span></td><td>Off-mission. Alcohol is only ever a halal-check fact, never a category.</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================= NAV ================= -->
+<section class="block" id="nav">
+  <div class="sec-head">
+    <h2>Navigation</h2>
+    <p>Keep the shipped bottom bar, its orange active state and labels. Explore becomes Home, with the feed on top of the existing rails. Saved and Passport move into You. Corner's floating plus becomes our raised Add, which now opens a sheet.</p>
+    <div class="refs">Corner reference: <a href="https://mobbin.com/screens/f9818552-d8db-4870-a945-eea5a66a7058" target="_blank" rel="noopener">tab pill with plus</a></div>
+  </div>
+  <div class="strip">
+    <figure class="shot" style="margin:0">
+      <div class="phone" style="height:auto">
+        <div class="scr" style="padding:14px 12px;gap:6px"><div class="t-sm b">Today</div></div>
+        <div class="tabbar">
+          <a class="on"><svg class="icon"><use href="#i-globe"/></svg>Explore</a>
+          <a><svg class="icon"><use href="#i-map"/></svg>Map</a>
+          <a><svg class="icon"><use href="#i-plus"/></svg>Add</a>
+          <a><svg class="icon"><use href="#i-heart"/></svg>Saved</a>
+          <a><svg class="icon"><use href="#i-users"/></svg>Community</a>
+        </div>
+        <div class="scr" style="padding:14px 12px;gap:6px"><div class="t-sm b">Proposed</div></div>
+        <div class="tabbar">
+          <a class="on"><svg class="icon"><use href="#i-home"/></svg>Home</a>
+          <a><svg class="icon"><use href="#i-map"/></svg>Map</a>
+          <a class="add"><span class="plus"><svg class="icon"><use href="#i-plus"/></svg></span>Add</a>
+          <a><svg class="icon"><use href="#i-search"/></svg>Search</a>
+          <a><svg class="icon"><use href="#i-user"/></svg>You</a>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Bottom bar, before and after</h3><p>Community moves under Home (leaderboard, curators) and Search. The bell and Send live in the Home header, as in Corner.</p></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 1 ONBOARDING ================= -->
+<section class="block" id="onboarding">
+  <div class="sec-head">
+    <h2>1 · Onboarding</h2>
+    <p>Runs after the first email-code login. Six short steps, and each can be skipped except name and handle. It ends on the user's own map, as Corner's does.</p>
+    <div class="refs">Corner: <a href="https://mobbin.com/screens/fe5e9b5a-b768-4fa5-9c44-64b6f42d8fe8" target="_blank" rel="noopener">save from reels</a><a href="https://mobbin.com/screens/cb3d6b99-d5b0-49a0-ac67-86ee6d41c498" target="_blank" rel="noopener">create profile</a><a href="https://mobbin.com/screens/e337f2c0-31e9-4ce6-8389-ab0b8e250a86" target="_blank" rel="noopener">pick 3 places</a><a href="https://mobbin.com/screens/ebfd5e52-af71-4932-9db5-675d7278e639" target="_blank" rel="noopener">share contacts</a><a href="https://mobbin.com/screens/d05d9604-cb52-4800-8072-3fbf242bb30a" target="_blank" rel="noopener">map is ready</a></div>
+  </div>
+  <div class="strip">
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><span></span><span class="t-sm b">Skip</span></div>
+          <div class="t-xl center" style="padding:4px 10px">Save halal spots from reels and TikToks</div>
+          <div class="card" style="flex:1;background:var(--frame);border:0;color:#fff;padding:0;overflow:hidden;position:relative">
+            <div class="ph" data-n="Nalli Nihari House" style="position:absolute;inset:0;border-radius:0"></div>
+            <div style="position:relative;margin-top:auto;padding:10px;display:grid;gap:6px;background:linear-gradient(transparent,rgb(0,0,0,.6))">
+              <div class="row"><span class="av" data-n="umarbites"></span><b style="font-size:11px">@umarbites</b></div>
+              <div style="font-size:11px">Best nihari on Mohammed Ali Road?? 🔥</div>
+              <div class="row" style="background:var(--background);color:var(--foreground);border-radius:10px;padding:6px 8px"><svg class="icon s" style="color:var(--primary)"><use href="#i-pin"/></svg><b style="font-size:11px">Nalli Nihari House</b><span class="badge bc" style="margin-left:auto">Community verified</span></div>
+            </div>
+          </div>
+          <button class="btn">Continue</button>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Welcome</h3><p>Corner's first promise, carried over as is. The detected place card shows the halal badge, which is the first sign that this app is different.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr" style="align-items:center;gap:12px;padding-top:18px">
+          <div class="t-xl center">Create your profile</div>
+          <div class="av xl" data-n="Ayesha Khan" style="position:relative"><span style="position:absolute;right:-2px;bottom:6px;width:24px;height:24px;border-radius:99px;background:var(--background);color:var(--foreground);display:grid;place-items:center;border:1px solid var(--border)"><svg class="icon s"><use href="#i-camera"/></svg></span></div>
+          <div class="input focus" style="width:100%;justify-content:center;font-weight:800;font-size:14px">Ayesha Khan</div>
+          <div class="input" style="width:100%"><span>@</span><b style="color:var(--foreground)">ayesha.eats</b><svg class="icon s" style="margin-left:auto;color:var(--success)"><use href="#i-check"/></svg></div>
+          <div class="t-xs center">Your handle is your public link:<br>halalfood.world/u/ayesha.eats</div>
+          <div style="flex:1"></div>
+          <button class="btn">Next</button>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Create your profile</h3><p>Photo, name and a handle checked live. The handle feeds the existing public profile at <code>/u/[handle]</code>.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><svg class="icon"><use href="#i-back"/></svg><span class="t-sm b">Skip</span></div>
+          <div class="col"><div class="t-xl">What's halal for you?</div><div class="t-sm">We only show places that meet your standard. You can change it any time.</div></div>
+          <div class="opt on"><svg class="icon" style="color:var(--success)"><use href="#i-shield"/></svg><div class="col"><span>Certified only</span><span class="t-xs">Verified halal with a named body</span></div><span class="radio"></span></div>
+          <div class="opt"><svg class="icon" style="color:var(--info)"><use href="#i-users"/></svg><div class="col"><span>Community verified is fine</span><span class="t-xs">Two or more diners confirmed</span></div><span class="radio"></span></div>
+          <div class="opt"><svg class="icon" style="color:var(--warning-fg)"><use href="#i-list"/></svg><div class="col"><span>Halal options are fine</span><span class="t-xs">Some dishes, clearly marked</span></div><span class="radio"></span></div>
+          <div class="opt" style="padding:8px 10px"><span>No alcohol served</span><span class="toggle on"></span></div>
+          <div class="opt" style="padding:8px 10px"><span>Hand-slaughtered (zabiha)</span><span class="toggle"></span></div>
+          <div style="flex:1"></div>
+          <button class="btn">Next</button>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Your halal standard</h3><p>Corner doesn't have this step. It writes to the existing dietary preferences, and every later screen filters by it.</p><div class="tags"><span class="pill p-adapt">Ours</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="card center" style="gap:6px"><div class="t-lg">Pick 3 places you want to try</div>
+            <div class="row" style="justify-content:center;gap:4px"><span class="check on"><svg class="icon s"><use href="#i-check"/></svg></span><span style="width:20px;height:2px;background:var(--primary)"></span><span class="check"></span><span style="width:20px;height:2px;background:var(--border)"></span><span class="check"></span></div></div>
+          <div class="card"><div class="place"><div class="ph" data-n="Zaffran Grill"></div><div class="grow"><div class="t-md">Zaffran Grill</div><span class="badge bv">Verified halal</span><div class="t-xs" style="margin-top:3px;font-style:italic">Because you like smoky kebabs</div></div><span class="check on"><svg class="icon s"><use href="#i-check"/></svg></span></div></div>
+          <div class="card"><div class="place"><div class="ph" data-n="Bhendi Bazaar Bakery"></div><div class="grow"><div class="t-md">Bhendi Bazaar Bakery</div><span class="badge bc">Community verified</span><div class="row t-xs" style="margin-top:3px"><span class="avs"><span class="av" data-n="zaid" style="width:16px;height:16px;font-size:7px"></span><span class="av" data-n="hafsa" style="width:16px;height:16px;font-size:7px"></span></span>12 saves</div></div><span class="check"></span></div></div>
+          <div class="card"><div class="place"><div class="ph" data-n="Irani Chai Corner"></div><div class="grow"><div class="t-md">Irani Chai Corner</div><span class="badge bv">Verified halal</span><div class="t-xs" style="margin-top:3px;font-style:italic">#1 near you</div></div><span class="check"></span></div></div>
+          <div class="card"><div class="place"><div class="ph" data-n="Malpua Lane"></div><div class="grow"><div class="t-md">Malpua Lane</div><span class="badge bv">Verified halal</span></div><span class="check"></span></div></div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Pick 3 to try</h3><p>Corner's hand-written reasons ("because you like…") stay. Only places passing the standard from the last step appear.</p><div class="tags"><span class="pill p-adapt">Adapted</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><span></span><span class="t-sm b">Skip</span></div>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:6px 4px;filter:blur(.4px);opacity:.8">
+            <span class="av m" data-n="a1"></span><span class="av m" data-n="b2"></span><span class="av m" data-n="c3"></span><span class="av m" data-n="d4"></span><span class="av m" data-n="e5"></span><span class="av m" data-n="f6"></span>
+            <span class="av m" data-n="g7"></span><span class="av m" data-n="h8"></span><span class="av m" data-n="i9"></span><span class="av m" data-n="j0"></span><span class="av m" data-n="k1"></span><span class="av m" data-n="l2"></span>
+            <span class="av m" data-n="m3"></span><span class="av m" data-n="n4"></span><span class="av m" data-n="o5"></span><span class="av m" data-n="p6"></span><span class="av m" data-n="q7"></span><span class="av m" data-n="r8"></span>
+          </div>
+          <div class="col" style="gap:6px"><div class="row t-lg"><svg class="icon l"><use href="#i-lock"/></svg>See which friends are here</div><div class="t-sm">Contacts are matched on this phone as scrambled numbers. We never upload, store or message them.</div></div>
+          <div style="flex:1"></div>
+          <button class="btn">Share contacts</button>
+          <button class="btn ghost">Invite with a link instead</button>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Find friends</h3><p>Corner's privacy promise is kept word for word. On the web, where contacts aren't available, the link invite is the main button.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr flush">
+          <div class="map" data-map="1"></div>
+          <div class="pin" style="left:60px;top:120px"><span class="dotp"></span></div>
+          <div class="pin" style="left:150px;top:200px"><span class="av" data-n="zaid"></span></div>
+          <div class="pin" style="left:90px;top:260px"><span class="dotp"></span></div>
+          <div class="pin" style="left:170px;top:320px"><span class="av" data-n="hafsa"></span></div>
+          <div class="sheet" style="gap:10px;padding:16px">
+            <div class="t-lg center">Your map is ready, Ayesha</div>
+            <div class="t-sm center">3 places to try · 2 friends already here · Showing Certified only</div>
+            <button class="btn">Let me in</button>
+          </div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Your map is ready</h3><p>A payoff screen showing their three picks and their friends' pins, with the chosen standard named on screen.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 2 HOME ================= -->
+<section class="block" id="home">
+  <div class="sec-head">
+    <h2>2 · Home feed</h2>
+    <p>Corner's two-tab home. <b>Friends</b> shows a "What you missed" card stack of friends' visits. <b>For you</b> puts the existing Explore rails under the new community rows.</p>
+    <div class="refs">Corner: <a href="https://mobbin.com/screens/e4e7b1dd-31f7-43df-8bdf-1e04cecd56a4" target="_blank" rel="noopener">what you missed</a><a href="https://mobbin.com/screens/dd71d183-809f-4cbd-b747-bc00cda4cb8c" target="_blank" rel="noopener">visit with photos</a><a href="https://mobbin.com/screens/f589383a-2738-4ada-8c37-80e410701d71" target="_blank" rel="noopener">coming up + leaderboard</a><a href="https://mobbin.com/screens/e0b40589-4642-4e8a-a51e-01a9a19f9cce" target="_blank" rel="noopener">top curators</a><a href="https://mobbin.com/screens/c695bd44-5f8c-4352-bb87-706676fd91bd" target="_blank" rel="noopener">lists for you</a></div>
+  </div>
+  <div class="strip">
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><div class="row" style="gap:10px"><span class="t-md row" style="gap:2px">Mumbai<svg class="icon s"><use href="#i-down"/></svg></span><div class="tabs2"><span>For you</span><span class="on">Friends</span></div></div><div class="row" style="gap:5px"><span class="iconbtn"><svg class="icon s"><use href="#i-send"/></svg></span><span class="iconbtn"><svg class="icon s"><use href="#i-bell"/></svg><span class="dot"></span></span></div></div>
+          <div class="sect">What you missed <small>4 new</small></div>
+          <div class="stack"><div class="card">
+            <div class="row"><span class="av m" data-n="zaid"></span><div class="col grow"><div class="row" style="gap:4px"><b>zaid</b><span class="badge bb"><svg class="icon s"><use href="#i-star"/></svg>favourite</span></div><span class="t-xs">visited · 20h</span></div><svg class="icon s mut"><use href="#i-x"/></svg></div>
+            <div>Nihari so soft it falls apart. Went at 7am, zero queue. Get the bheja fry on the side.</div>
+            <div class="row card" style="padding:6px;gap:8px"><div class="ph" data-n="Nalli Nihari House" style="width:34px;height:34px;border-radius:8px"></div><div class="col grow"><b>Nalli Nihari House</b><span class="t-xs">Mohammed Ali Rd · ₹</span></div><svg class="icon mut"><use href="#i-bookmark"/></svg></div>
+            <div class="grid2"><div class="ph" data-n="Nihari bowl" style="height:92px"></div><div class="ph" data-n="Bheja fry" style="height:92px"></div></div>
+            <div class="row" style="gap:5px;flex-wrap:wrap"><span class="badge bv"><svg class="icon s"><use href="#i-shield"/></svg>Saw certificate · MUI-style body</span><span class="badge bu">No alcohol</span></div>
+            <div class="row between"><div class="row t-sm" style="gap:10px"><span class="row" style="gap:3px"><svg class="icon s"><use href="#i-comment"/></svg>3</span><span class="row" style="gap:3px"><svg class="icon s"><use href="#i-heart"/></svg>18</span></div><span class="btn sm soft">Want to try</span></div>
+          </div></div>
+        </div>
+        <div class="tabbar"><a class="on"><svg class="icon"><use href="#i-home"/></svg>Home</a><a><svg class="icon"><use href="#i-map"/></svg>Map</a><a class="add"><span class="plus"><svg class="icon"><use href="#i-plus"/></svg></span>Add</a><a><svg class="icon"><use href="#i-search"/></svg>Search</a><a><svg class="icon"><use href="#i-user"/></svg>You</a></div>
+      </div>
+      <figcaption class="cap"><h3>Friends: What you missed</h3><p>Swipe the stack or dismiss a card. Each visit shows the diner's verdict, dishes and photos. A halal check they submitted shows as its own row, labelled as their observation and not as the place's status.</p><div class="tags"><span class="pill p-borrow">Borrowed</span><span class="pill p-adapt">+ halal check row</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><div class="row" style="gap:10px"><span class="t-md row" style="gap:2px">Mumbai<svg class="icon s"><use href="#i-down"/></svg></span><div class="tabs2"><span class="on">For you</span><span>Friends</span></div></div><div class="row" style="gap:5px"><span class="iconbtn"><svg class="icon s"><use href="#i-send"/></svg></span><span class="iconbtn"><svg class="icon s"><use href="#i-bell"/></svg></span></div></div>
+          <div class="sect">Top picks</div>
+          <div class="hscroll">
+            <div class="col" style="width:84px"><div class="ph" data-n="Kebab Korner" style="height:70px"></div><span class="badge bb" style="width:max-content">● new</span></div>
+            <div class="col" style="width:84px"><div class="ph" data-n="Zaffran Grill" style="height:70px"></div><span class="badge bv" style="width:max-content">● verified</span></div>
+            <div class="col" style="width:84px"><div class="ph" data-n="Malpua Lane" style="height:70px"></div><span class="badge bo" style="width:max-content">● trending</span></div>
+          </div>
+          <div class="sect">Coming up <small>See all</small></div>
+          <div class="hscroll">
+            <div class="card" style="width:150px;padding:0;overflow:hidden;gap:0"><div class="ph" data-n="Iftar Night Market" style="height:56px;border-radius:0"></div><div style="padding:6px 8px" class="col"><b>Minara Masjid iftar walk</b><span class="t-xs">Fri 6:40pm · 24 vendors</span></div></div>
+            <div class="card" style="width:150px;padding:0;overflow:hidden;gap:0"><div class="ph" data-n="Eid Food Fest" style="height:56px;border-radius:0"></div><div style="padding:6px 8px" class="col"><b>Eid food fest</b><span class="t-xs">Sat · Bandra</span></div></div>
+          </div>
+          <div class="sect">Weekly leaderboard <small>View all</small></div>
+          <div class="hscroll" style="gap:10px">
+            <div class="col" style="align-items:center"><span class="av m" data-n="hafsa"></span><span class="t-xs b">@hafsa_k</span></div>
+            <div class="col" style="align-items:center"><span class="av m" data-n="umarbites"></span><span class="t-xs b">@umarbites</span></div>
+            <div class="col" style="align-items:center"><span class="av m" data-n="zaid"></span><span class="t-xs b">@zaid</span></div>
+            <div class="col" style="align-items:center"><span class="av m" data-n="mariam"></span><span class="t-xs b">@mariam</span></div>
+          </div>
+          <div class="sect">Lists for you</div>
+          <div class="hscroll"><div class="lcard"><div class="ph" data-n="Sehri spots"></div><div><b>Open for sehri</b><small>by @zaid · 0/14</small></div></div><div class="lcard"><div class="ph" data-n="Biryani"></div><div><b>Biryani, ranked</b><small>by @hafsa_k · 2/21</small></div></div></div>
+        </div>
+        <div class="tabbar"><a class="on"><svg class="icon"><use href="#i-home"/></svg>Home</a><a><svg class="icon"><use href="#i-map"/></svg>Map</a><a class="add"><span class="plus"><svg class="icon"><use href="#i-plus"/></svg></span>Add</a><a><svg class="icon"><use href="#i-search"/></svg>Search</a><a><svg class="icon"><use href="#i-user"/></svg>You</a></div>
+      </div>
+      <figcaption class="cap"><h3>For you</h3><p>Corner's rails in Corner's order. "Just verified" is a rail only we can have. Below these, the existing Explore rows per city keep working for signed-out visitors and search engines.</p><div class="tags"><span class="pill p-borrow">Borrowed</span><span class="pill p-adapt">Events adapted</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><svg class="icon"><use href="#i-back"/></svg><span class="t-md">Zaid's visit</span><svg class="icon"><use href="#i-dots"/></svg></div>
+          <div class="row"><span class="av m" data-n="zaid"></span><div class="col grow"><b>zaid</b><span class="t-xs">Favourite · Nalli Nihari House · 20h</span></div></div>
+          <div class="ph" data-n="Nihari bowl" style="height:120px"></div>
+          <div class="row" style="gap:5px;flex-wrap:wrap"><span class="chip">Nalli nihari</span><span class="chip">Bheja fry</span><span class="chip">Sheermal</span></div>
+          <div class="row between t-sm"><span class="row" style="gap:3px"><svg class="icon s" style="color:var(--brand)"><use href="#i-heart"/></svg>18 likes</span><span>3 comments</span></div>
+          <div class="hr"></div>
+          <div class="row" style="align-items:flex-start"><span class="av" data-n="hafsa"></span><div class="col grow"><div><b>hafsa_k</b> Going Sunday inshallah. Family seating upstairs?</div><span class="t-xs">2h · Reply</span></div></div>
+          <div class="row" style="align-items:flex-start"><span class="av" data-n="zaid"></span><div class="col grow"><div><b>zaid</b> Yes, and a separate women's section.</div><span class="t-xs">1h · Reply</span></div></div>
+          <div style="flex:1"></div>
+          <div class="input"><span class="grow">Add a comment…</span><svg class="icon s"><use href="#i-send"/></svg></div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Visit detail and comments</h3><p>Dishes come from the existing check-in data. Long-press a comment to report it into the moderation queue that already exists.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 3 SOCIAL MAP ================= -->
+<section class="block" id="social-map">
+  <div class="sec-head">
+    <h2>3 · Social map</h2>
+    <p>The MapLibre map at /map gains Corner's "whose places" filter and friend-face pins. The status and cuisine filters from map-filters stay as chips.</p>
+    <div class="refs">Corner: <a href="https://mobbin.com/screens/cd7d1cf7-fd10-4b8c-bd9a-055e491088f7" target="_blank" rel="noopener">showing places from</a><a href="https://mobbin.com/screens/f3fd6510-7bf9-425e-949e-61df09ad898a" target="_blank" rel="noopener">your places</a><a href="https://mobbin.com/screens/fddeef20-9d16-4b75-a986-27bdcf47b757" target="_blank" rel="noopener">place sheet</a></div>
+  </div>
+  <div class="strip">
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr flush">
+          <div class="map" data-map="2"></div>
+          <div class="overlay" style="padding:6px 10px;display:grid;gap:7px">
+            <div class="row between"><span class="iconbtn"><svg class="icon s"><use href="#i-users"/></svg></span><div class="row" style="gap:5px"><span class="iconbtn"><svg class="icon s"><use href="#i-send"/></svg></span><span class="iconbtn"><svg class="icon s"><use href="#i-bell"/></svg></span></div></div>
+            <div class="chips"><span class="chip on">Friends only<svg class="icon s"><use href="#i-down"/></svg></span><span class="chip">Verified</span><span class="chip">Biryani</span><span class="chip">Open now</span></div>
+          </div>
+          <div class="pin" style="left:34px;top:130px"><span class="av" data-n="zaid"></span><span class="lbl">Nalli Nihari<i>Zaid's favourite</i></span></div>
+          <div class="pin" style="left:120px;top:205px"><span class="dotp"></span><span class="lbl">Zaffran Grill<i>trending seekh</i></span></div>
+          <div class="pin" style="left:44px;top:280px"><span class="av" data-n="hafsa"></span><span class="lbl">Malpua Lane<i>Hafsa liked</i></span></div>
+          <div class="pin" style="left:150px;top:350px"><span class="dotp"></span><span class="lbl">Irani Chai Corner<i>on your want-to-try</i></span></div>
+          <div class="pin" style="left:190px;top:130px"><span class="dotp"></span></div>
+          <div class="pin" style="left:210px;top:260px"><span class="dotp"></span></div>
+          <div style="position:absolute;right:10px;bottom:14px;z-index:1" class="iconbtn"><svg class="icon s" style="color:var(--primary)"><use href="#i-nav"/></svg></div>
+        </div>
+        <div class="tabbar"><a><svg class="icon"><use href="#i-home"/></svg>Home</a><a class="on"><svg class="icon"><use href="#i-map"/></svg>Map</a><a class="add"><span class="plus"><svg class="icon"><use href="#i-plus"/></svg></span>Add</a><a><svg class="icon"><use href="#i-search"/></svg>Search</a><a><svg class="icon"><use href="#i-user"/></svg>You</a></div>
+      </div>
+      <figcaption class="cap"><h3>Map with friends' pins</h3><p>A pin a friend has logged shows their face. Pins carry a one-line social label, as in Corner. The pin tint still follows halal status.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr flush">
+          <div class="map" data-map="2"></div>
+          <div class="pin" style="left:34px;top:130px"><span class="av" data-n="zaid"></span></div>
+          <div class="pin" style="left:120px;top:205px"><span class="dotp"></span></div>
+          <div class="scrim"></div>
+          <div class="sheet">
+            <div class="grab"></div>
+            <div class="row between"><span class="t-lg">Showing places from</span><span class="t-md" style="color:var(--primary)">Apply</span></div>
+            <div class="opt"><svg class="icon"><use href="#i-globe"/></svg>Everyone, including you<span class="radio"></span></div>
+            <div class="opt"><span class="av" data-n="Ayesha Khan" style="width:20px;height:20px;font-size:8px"></span>Your places<span class="radio"></span></div>
+            <div class="opt on"><svg class="icon"><use href="#i-users"/></svg>Friends only<span class="radio"></span></div>
+            <div class="hr"></div>
+            <div class="row"><span class="b">Meets my standard</span><span class="t-xs">Certified only</span><span class="toggle on"></span></div>
+          </div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Whose places</h3><p>Corner's three options, plus one toggle for the user's own halal standard. It is on by default and can only be turned off here.</p><div class="tags"><span class="pill p-borrow">Borrowed</span><span class="pill p-adapt">+ standard toggle</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr flush">
+          <div class="map" data-map="2"></div>
+          <div class="sheet" style="top:110px;gap:8px">
+            <div class="grab"></div>
+            <div class="row" style="align-items:flex-start"><div class="ph" data-n="Zaffran Grill" style="width:56px;height:56px"></div><div class="col grow"><div class="t-lg">Zaffran Grill</div><span class="t-xs">Mughlai grill · Crawford Market · ₹₹</span><span class="badge bv" style="width:max-content"><svg class="icon s"><use href="#i-shield"/></svg>Verified halal · checked 12 Sep</span></div></div>
+            <div class="row t-sm"><span class="avs"><span class="av" data-n="zaid" style="width:20px;height:20px"></span><span class="av" data-n="hafsa" style="width:20px;height:20px"></span><span class="av" data-n="mariam" style="width:20px;height:20px"></span></span><span><b style="color:var(--foreground)">Zaid, Hafsa</b> and 1 friend have been</span></div>
+            <div class="sect">Featured on</div>
+            <div class="place"><div class="ph" data-n="Late night kebabs" style="width:34px;height:34px"></div><div class="col grow"><b>Late-night kebabs, Mumbai</b><span class="t-xs">@umarbites · 18 places</span></div></div>
+            <div class="place"><div class="ph" data-n="Family dinners" style="width:34px;height:34px"></div><div class="col grow"><b>Family seating that works</b><span class="t-xs">@hafsa_k · 9 places</span></div></div>
+            <div style="flex:1"></div>
+            <div class="row" style="gap:6px"><span class="btn ghost sm" style="flex:1"><svg class="icon s"><use href="#i-bookmark"/></svg>Want to try</span><span class="btn sm" style="flex:1"><svg class="icon s"><use href="#i-check"/></svg>Been</span></div>
+            <div class="row" style="gap:5px"><span class="chip"><svg class="icon s"><use href="#i-send"/></svg>Send</span><span class="chip"><svg class="icon s"><use href="#i-nav"/></svg>Directions</span><span class="chip"><svg class="icon s"><use href="#i-link"/></svg>Site</span><span class="chip">Full page</span></div>
+          </div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Place quick sheet</h3><p>Corner's featured-on lists, curator lists and to-try / been buttons. The status line and its date sit at the top. "Full page" opens the existing evidence-first place page.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 4 LOG ================= -->
+<section class="block" id="log">
+  <div class="sec-head">
+    <h2>4 · Log a visit</h2>
+    <p>This is the loop that powers the feed. Corner's one-screen "been" sheet is extended with the existing structured halal check, which stays optional and collapsed by default. A logged visit becomes a verified visit, a check-in with dishes, an optional moderated halal submission and a feed post.</p>
+    <div class="refs">Corner: <a href="https://mobbin.com/screens/fc81bcbd-68d0-4925-a85c-f4e430ef526a" target="_blank" rel="noopener">want to try / visited sheet</a><a href="https://mobbin.com/screens/c830db36-39ff-463a-9ebc-e82aba787dec" target="_blank" rel="noopener">streak</a></div>
+  </div>
+  <div class="strip">
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr flush">
+          <div style="padding:10px 12px;display:grid;gap:8px;opacity:.5"><div class="t-lg">Home</div><div class="ph" data-n="bg" style="height:200px"></div></div>
+          <div class="scrim"></div>
+          <div class="sheet" style="gap:6px">
+            <div class="grab"></div>
+            <div class="t-lg" style="padding:2px 0 4px">Add</div>
+            <div class="opt"><svg class="icon" style="color:var(--primary)"><use href="#i-check"/></svg><div class="col"><span>Log a visit</span><span class="t-xs">Somewhere you ate</span></div></div>
+            <div class="opt"><svg class="icon" style="color:var(--primary)"><use href="#i-link"/></svg><div class="col"><span>Paste a reel or TikTok</span><span class="t-xs">We'll find the place</span></div></div>
+            <div class="opt"><svg class="icon" style="color:var(--primary)"><use href="#i-list"/></svg><div class="col"><span>New list</span><span class="t-xs">Private or public, solo or together</span></div></div>
+            <div class="opt"><svg class="icon" style="color:var(--primary)"><use href="#i-pin"/></svg><div class="col"><span>Add a missing place</span><span class="t-xs">From Google Maps</span></div></div>
+          </div>
+        </div>
+        <div class="tabbar"><a><svg class="icon"><use href="#i-home"/></svg>Home</a><a><svg class="icon"><use href="#i-map"/></svg>Map</a><a class="add on"><span class="plus"><svg class="icon"><use href="#i-x"/></svg></span>Add</a><a><svg class="icon"><use href="#i-search"/></svg>Search</a><a><svg class="icon"><use href="#i-user"/></svg>You</a></div>
+      </div>
+      <figcaption class="cap"><h3>Add sheet</h3><p>The raised plus opens four choices. "Add a missing place" is the existing /add flow, unchanged.</p><div class="tags"><span class="pill p-adapt">Adapted</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><span></span><span class="t-md">Zaffran Grill</span><svg class="icon"><use href="#i-x"/></svg></div>
+          <div class="seg"><span><svg class="icon s" style="vertical-align:-2px"><use href="#i-bookmark"/></svg> Want to try</span><span class="on"><svg class="icon s" style="vertical-align:-2px"><use href="#i-check"/></svg> Been</span></div>
+          <div class="verdict"><span><svg class="icon"><use href="#i-downv"/></svg>Disliked</span><span><svg class="icon"><use href="#i-meh"/></svg>Okay</span><span><svg class="icon"><use href="#i-up"/></svg>Liked</span><span class="on"><svg class="icon"><use href="#i-star"/></svg>Favourite</span></div>
+          <div class="sect">What did you order?</div>
+          <div class="row" style="flex-wrap:wrap;gap:5px"><span class="chip on">Seekh kebab</span><span class="chip on">Chicken tikka</span><span class="chip">Mutton biryani</span><span class="chip">+ Add dish</span></div>
+          <div class="row" style="gap:6px"><div class="ph" data-n="Seekh" style="width:64px;height:64px"></div><div class="ph" data-n="Tikka" style="width:64px;height:64px"></div><div style="width:64px;height:64px;border-radius:12px;border:1.5px dashed var(--border);display:grid;place-items:center;color:var(--muted-fg)"><svg class="icon"><use href="#i-camera"/></svg></div></div>
+          <div class="row" style="align-items:flex-start"><span class="av m" data-n="Ayesha Khan"></span><div class="input box grow" style="color:var(--foreground)">Seekh straight off the coals. Ask for the green chutney.</div></div>
+          <div style="flex:1"></div>
+          <button class="btn">Next: halal check</button>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Verdict, dishes, photos</h3><p>Corner's four-step verdict and note. Dishes and photos feed the existing <code>placeCheckInDishes</code> and <code>placePhotos</code> tables.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><svg class="icon"><use href="#i-back"/></svg><span class="t-md">Halal check</span><span class="t-sm b">Skip</span></div>
+          <div class="col"><div class="t-lg">Did you notice…</div><div class="t-sm">Optional. It helps other diners and goes to a moderator before it counts.</div></div>
+          <div class="card" style="gap:6px"><b>A halal certificate on display?</b><div class="row" style="gap:5px"><span class="chip on">Yes</span><span class="chip">No</span><span class="chip">Didn't look</span></div>
+            <div class="row card flat" style="padding:7px"><svg class="icon s"><use href="#i-camera"/></svg><span class="t-sm">Photo of certificate</span><span class="badge bv" style="margin-left:auto">Added</span></div></div>
+          <div class="card" style="gap:6px"><b>Alcohol served?</b><div class="row" style="gap:5px"><span class="chip">Yes</span><span class="chip on">No</span><span class="chip">Not sure</span></div></div>
+          <div class="card" style="gap:6px"><b>Did staff say how the meat is slaughtered?</b><div class="row" style="gap:5px;flex-wrap:wrap"><span class="chip on">Hand, zabiha</span><span class="chip">Machine</span><span class="chip">Didn't ask</span></div></div>
+          <div class="t-xs"><svg class="icon s" style="vertical-align:-2px"><use href="#i-shield"/></svg> Owners, staff and paid creators can't raise a status. Tell us if that's you.</div>
+          <div style="flex:1"></div>
+          <button class="btn">Next</button>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Quick halal check</h3><p>The existing structured check flow (<code>/place/[id]/check</code>), compressed to three taps. The interested-party rule is shown right where it applies.</p><div class="tags"><span class="pill p-adapt">Ours</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><svg class="icon"><use href="#i-back"/></svg><span class="t-md">Zaffran Grill</span><span></span></div>
+          <div class="sect">Add to a list <span class="iconbtn" style="width:24px;height:24px"><svg class="icon s"><use href="#i-plus"/></svg></span></div>
+          <div class="card"><div class="place"><div class="ph" data-n="Late night kebabs"></div><div class="grow col"><b>Late-night kebabs</b><span class="t-xs"><svg class="icon s" style="vertical-align:-2px"><use href="#i-globe"/></svg> public · 17 places</span></div><span class="check on"><svg class="icon s"><use href="#i-check"/></svg></span></div></div>
+          <div class="card"><div class="place"><div class="ph" data-n="Eid dinner shortlist"></div><div class="grow col"><b>Eid dinner shortlist</b><span class="t-xs"><svg class="icon s" style="vertical-align:-2px"><use href="#i-users"/></svg> with Hafsa, Mariam</span></div><span class="check"></span></div></div>
+          <div class="card"><div class="place"><div class="ph" data-n="Only mine"></div><div class="grow col"><b>Just for me</b><span class="t-xs"><svg class="icon s" style="vertical-align:-2px"><use href="#i-lock"/></svg> private</span></div><span class="check"></span></div></div>
+          <div class="hr"></div>
+          <div class="row"><span class="b">Share to friends' feeds</span><span class="toggle on"></span></div>
+          <div class="row"><span class="b">Recommend this place</span><span class="toggle on"></span></div>
+          <div style="flex:1"></div>
+          <button class="btn"><svg class="icon s"><use href="#i-check"/></svg>Save visit</button>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Lists and sharing</h3><p>Corner's "add to a curation". The feed toggle respects the existing visibility settings in preferences.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr" style="align-items:center;justify-content:center;gap:12px">
+          <div style="width:84px;height:84px;border-radius:99px;background:var(--accent);display:grid;place-items:center;color:var(--primary)"><svg class="icon" style="width:40px;height:40px"><use href="#i-flame"/></svg></div>
+          <div class="t-xl center">3-week streak</div>
+          <div class="t-sm center" style="max-width:200px">You've logged a place every week since 8 Sep. Log one more by Sunday to keep it going.</div>
+          <div class="row" style="gap:6px"><span class="check on"><svg class="icon s"><use href="#i-check"/></svg></span><span class="check on"><svg class="icon s"><use href="#i-check"/></svg></span><span class="check on"><svg class="icon s"><use href="#i-check"/></svg></span><span class="check"></span></div>
+          <div class="card flat" style="width:100%"><div class="row"><svg class="icon s" style="color:var(--info)"><use href="#i-shield"/></svg><span class="t-sm">Your halal check went to a moderator. We'll tell you when it counts.</span></div></div>
+          <div class="card flat" style="width:100%"><div class="row"><svg class="icon s" style="color:var(--primary)"><use href="#i-moon"/></svg><span class="t-sm">In Ramadan the streak pauses by day, and iftar and sehri visits count.</span></div></div>
+          <button class="btn">Done</button>
+          <span class="t-sm b">Send to a friend</span>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Saved, with streak</h3><p>Corner's weekly streak, made Ramadan-aware. It also says plainly what happens to the halal check next.</p><div class="tags"><span class="pill p-adapt">Adapted</span></div></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 5 REELS ================= -->
+<section class="block" id="reels">
+  <div class="sec-head">
+    <h2>5 · Save from reels</h2>
+    <p>Corner's headline feature. We already turn Instagram, TikTok and YouTube links into creator videos through oEmbed. This flow adds place matching and saves to "Want to try". On mobile, the app's share-sheet extension makes it one tap from inside Instagram.</p>
+    <div class="refs">Corner: <a href="https://mobbin.com/screens/fe5e9b5a-b768-4fa5-9c44-64b6f42d8fe8" target="_blank" rel="noopener">save spots from reels</a></div>
+  </div>
+  <div class="strip">
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><svg class="icon"><use href="#i-x"/></svg><span class="t-md">Paste a link</span><span></span></div>
+          <div class="input focus"><svg class="icon s"><use href="#i-link"/></svg><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">instagram.com/reel/C9x…</span></div>
+          <div class="card" style="padding:0;overflow:hidden;gap:0"><div class="ph" data-n="Reel" style="height:150px;border-radius:0"><span style="position:absolute;width:38px;height:38px;border-radius:99px;background:rgb(0 0 0/.5);display:grid;place-items:center;color:#fff"><svg class="icon"><use href="#i-play"/></svg></span></div><div style="padding:8px 10px" class="col"><div class="row"><span class="av" data-n="umarbites" style="width:20px;height:20px"></span><b>@umarbites</b></div><span class="t-sm">"Crawford Market's smokiest seekh, 3 generations…"</span></div></div>
+          <div class="sect">We think it's</div>
+          <div class="card" style="border:2px solid var(--foreground)"><div class="place"><div class="ph" data-n="Zaffran Grill"></div><div class="grow col"><b>Zaffran Grill</b><span class="t-xs">Crawford Market, Mumbai</span><span class="badge bv" style="width:max-content">Verified halal</span></div><span class="check on"><svg class="icon s"><use href="#i-check"/></svg></span></div></div>
+          <span class="t-sm b center">Not this place? Search instead</span>
+          <div style="flex:1"></div>
+          <button class="btn"><svg class="icon s"><use href="#i-bookmark"/></svg>Save to want to try</button>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Paste and match</h3><p>We match the place from the caption and location tag, then confirm with the user. If it isn't listed yet, they go straight to the existing Google Places add flow.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr flush">
+          <div class="map" data-map="3"></div>
+          <div class="toast"><svg class="icon" style="color:var(--success)"><use href="#i-check"/></svg><div class="col"><span>Saved to Want to try</span><span class="t-xs">Video linked on the place page · credited to @umarbites</span></div></div>
+          <div class="pin" style="left:110px;top:210px"><span class="dotp" style="width:18px;height:18px;background:var(--primary)"></span><span class="lbl">Zaffran Grill<i>saved just now</i></span></div>
+          <div class="sheet"><div class="grab"></div>
+            <div class="row between"><span class="t-md">Want to try · 4</span><span class="t-sm b" style="color:var(--primary)">See all</span></div>
+            <div class="row" style="gap:6px"><span class="badge bo">Zaffran Grill is 1.2 km away</span></div>
+            <div class="row t-sm"><span class="avs"><span class="av" data-n="zaid" style="width:20px;height:20px"></span></span><b style="color:var(--foreground)">Zaid</b> also wants to try it. Plan it together?</div>
+            <button class="btn ghost sm" style="width:100%"><svg class="icon s"><use href="#i-send"/></svg>Send to Zaid</button>
+          </div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Saved, with a nudge</h3><p>The pin drops on the map. If a friend also wants to try the place, we suggest going together, which turns a save into a meal.</p><div class="tags"><span class="pill p-adapt">Adapted</span></div></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 6 LISTS ================= -->
+<section class="block" id="lists">
+  <div class="sec-head">
+    <h2>6 · Lists</h2>
+    <p>Lists already exist (<code>placeLists</code>, /lists, /list/[id]). Corner adds covers, discovery, collaboration, saves and a "you've been" counter.</p>
+    <div class="refs">Corner: <a href="https://mobbin.com/screens/e2c73890-ce0a-4ae1-ae63-bd4bfe119f0f" target="_blank" rel="noopener">lists for you</a><a href="https://mobbin.com/screens/e49ac0a3-330a-4d36-8bbe-e5b186493784" target="_blank" rel="noopener">list detail + collaborate</a><a href="https://mobbin.com/screens/f0a7cbb0-cfa5-4fb0-a9c0-6ce401980d8a" target="_blank" rel="noopener">save list on map</a></div>
+  </div>
+  <div class="strip">
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><svg class="icon"><use href="#i-back"/></svg><span class="chip">Showing lists in: Mumbai<svg class="icon s"><use href="#i-down"/></svg></span></div>
+          <div class="sect">Lists for you</div>
+          <div class="hscroll"><div class="lcard"><div class="ph" data-n="Biryani ranked"></div><div><b>Biryani, ranked</b><small>by @hafsa_k · 2/21</small></div></div><div class="lcard"><div class="ph" data-n="Sehri"></div><div><b>Open for sehri</b><small>by @zaid · 0/14</small></div></div></div>
+          <div class="sect">Best lists near you</div>
+          <div class="hscroll"><div class="lcard"><div class="ph" data-n="Chai"></div><div><b>Irani cafés still standing</b><small>by @mariam · 1/9</small></div></div><div class="lcard"><div class="ph" data-n="Kids"></div><div><b>Kid-friendly and certified</b><small>by @umarbites · 0/12</small></div></div></div>
+          <div class="sect">City guides <small>Editorial</small></div>
+          <div class="card flat"><div class="place"><div class="ph" data-n="Mumbai guide" style="width:40px;height:40px"></div><div class="col grow"><b>The Mumbai halal guide</b><span class="t-xs">halalfood.world · 40 places</span></div></div></div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Discover lists</h3><p>Corner's rails. The existing editorial city guides sit under the community lists and are labelled as editorial.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr flush">
+          <div class="map" data-map="1" style="height:150px;bottom:auto"></div>
+          <div class="overlay" style="padding:6px 10px"><div class="row between"><span class="iconbtn"><svg class="icon s"><use href="#i-back"/></svg></span><span class="btn sm ghost"><svg class="icon s"><use href="#i-bookmark"/></svg>Save list</span></div></div>
+          <div style="position:absolute;top:118px;left:0;right:0;bottom:0;background:var(--background);border-radius:20px 20px 0 0;padding:10px 12px;display:flex;flex-direction:column;gap:9px;z-index:1">
+            <div class="grab"></div>
+            <div class="row" style="align-items:flex-start"><div class="ph" data-n="Eid dinner shortlist" style="width:62px;height:62px"></div><div class="col grow"><div class="t-lg">Eid dinner shortlist</div><div class="t-xs row" style="gap:8px"><span>7 places</span><span>12 saves</span><span>90 views</span></div><div class="row"><span class="avs"><span class="av" data-n="Ayesha Khan" style="width:20px;height:20px"></span><span class="av" data-n="hafsa" style="width:20px;height:20px"></span><span class="av" data-n="mariam" style="width:20px;height:20px"></span></span><span class="chip" style="height:22px"><svg class="icon s"><use href="#i-users"/></svg>Collaborate</span></div></div></div>
+            <div class="grid4" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b>3/7</b><span>you've been</span></div><div class="stat"><svg class="icon s" style="margin:auto"><use href="#i-share"/></svg><span>Share</span></div><div class="stat"><svg class="icon s" style="margin:auto"><use href="#i-list"/></svg><span>Similar</span></div></div>
+            <div class="card"><div class="place"><div class="ph" data-n="Zaffran Grill"></div><div class="col grow"><b>Zaffran Grill</b><span class="badge bv" style="width:max-content">Verified halal</span></div><span class="check on"><svg class="icon s"><use href="#i-check"/></svg></span></div><div class="t-sm"><b style="color:var(--foreground)">hafsa_k:</b> Book the upstairs room for 12.</div></div>
+            <div class="card"><div class="place"><div class="ph" data-n="Persian Darbar"></div><div class="col grow"><b>Persian Darbar</b><span class="badge bo" style="width:max-content">Halal options</span></div><span class="check"></span></div></div>
+          </div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>List detail</h3><p>Corner's header with a map, "You've been 3/7", share, similar lists and a note per place. Each row keeps its halal badge.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr flush">
+          <div style="padding:10px 12px;opacity:.5" class="col"><div class="t-lg">Eid dinner shortlist</div></div>
+          <div class="scrim"></div>
+          <div class="sheet">
+            <div class="grab"></div>
+            <div class="t-lg">Invite to edit</div>
+            <div class="t-sm">Collaborators can add places, leave notes and tick off visits.</div>
+            <div class="input"><svg class="icon s"><use href="#i-search"/></svg>Search friends</div>
+            <div class="row"><span class="av m" data-n="hafsa"></span><div class="col grow"><b>Hafsa K</b><span class="t-xs">@hafsa_k</span></div><span class="badge bv">Added</span></div>
+            <div class="row"><span class="av m" data-n="mariam"></span><div class="col grow"><b>Mariam</b><span class="t-xs">@mariam</span></div><span class="badge bv">Added</span></div>
+            <div class="row"><span class="av m" data-n="zaid"></span><div class="col grow"><b>Zaid</b><span class="t-xs">@zaid</span></div><span class="btn sm ghost">Invite</span></div>
+            <div class="hr"></div>
+            <div class="row"><svg class="icon"><use href="#i-link"/></svg><div class="col grow"><b>Anyone with the link can edit</b><span class="t-xs">Good for family WhatsApp groups</span></div><span class="toggle"></span></div>
+          </div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Collaborate</h3><p>Corner's collaborate button, sized for group plans such as Eid dinners, trips and office iftars. Edit links stay off until the owner turns them on.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 7 PROFILE ================= -->
+<section class="block" id="profile">
+  <div class="sec-head">
+    <h2>7 · Profiles</h2>
+    <p>Your own profile merges Saved, Lists and the food passport. Someone else's profile adds follow and "in common". Public profiles stay reachable at /u/[handle] and keep the existing visibility rules.</p>
+    <div class="refs">Corner: <a href="https://mobbin.com/screens/c830db36-39ff-463a-9ebc-e82aba787dec" target="_blank" rel="noopener">profile with streak + stats</a><a href="https://mobbin.com/screens/b8d652f7-89bc-48c3-b632-9d4ccf813437" target="_blank" rel="noopener">saved lists + recent places</a></div>
+  </div>
+  <div class="strip">
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><span></span><div class="row" style="gap:5px"><span class="iconbtn"><svg class="icon s"><use href="#i-share"/></svg></span><span class="iconbtn"><svg class="icon s"><use href="#i-gear"/></svg></span></div></div>
+          <div class="row" style="gap:12px"><span class="av xl" data-n="Ayesha Khan" style="width:64px;height:82px;border-radius:32px"></span><div class="col grow"><div class="t-lg">Ayesha Khan</div><span class="t-sm">@ayesha.eats · Mumbai</span><div class="row t-xs" style="gap:10px"><span><b style="color:var(--foreground)">128</b> followers</span><span><b style="color:var(--foreground)">96</b> following</span></div><span class="badge bb" style="width:max-content"><svg class="icon s"><use href="#i-flame"/></svg>3-week streak</span></div></div>
+          <div class="chips"><span class="chip on"><svg class="icon s"><use href="#i-globe"/></svg>All</span><span class="chip">Mumbai</span><span class="chip">London</span><span class="chip">Istanbul</span></div>
+          <div class="grid4"><div class="stat"><b>42</b><span>places</span></div><div class="stat"><b>17</b><span>to try</span></div><div class="stat"><b>9</b><span>favourites</span></div><div class="stat"><b>21</b><span>recommend</span></div></div>
+          <div class="tabs2" style="font-size:12px"><span class="on">Lists</span><span>Visits</span><span>Passport</span><span>Checks</span></div>
+          <div class="grid2"><div class="lcard" style="width:auto;height:112px"><div class="ph" data-n="Late night kebabs"></div><div><b>Late-night kebabs</b><small>17 places</small></div></div><div class="lcard" style="width:auto;height:112px"><div class="ph" data-n="Just for me"></div><div><b><svg class="icon s" style="vertical-align:-2px"><use href="#i-lock"/></svg> Just for me</b><small>6 places</small></div></div></div>
+        </div>
+        <div class="tabbar"><a><svg class="icon"><use href="#i-home"/></svg>Home</a><a><svg class="icon"><use href="#i-map"/></svg>Map</a><a class="add"><span class="plus"><svg class="icon"><use href="#i-plus"/></svg></span>Add</a><a><svg class="icon"><use href="#i-search"/></svg>Search</a><a class="on"><svg class="icon"><use href="#i-user"/></svg>You</a></div>
+      </div>
+      <figcaption class="cap"><h3>Your profile</h3><p>Corner's stats and city chips. Passport (cities and cuisines) and Checks (your halal submissions and their moderation state) become tabs. The old Saved page becomes the "to try" stat.</p><div class="tags"><span class="pill p-borrow">Borrowed</span><span class="pill p-adapt">Passport merged</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><svg class="icon"><use href="#i-back"/></svg><svg class="icon"><use href="#i-dots"/></svg></div>
+          <div class="col" style="align-items:center;gap:6px"><span class="av xl" data-n="hafsa"></span><div class="t-lg">Hafsa K</div><span class="t-sm">@hafsa_k · Mumbai · Top curator</span>
+            <div class="row" style="gap:5px"><span class="chip">Biryani</span><span class="chip">Family seating</span><span class="chip">Desserts</span></div></div>
+          <div class="row" style="gap:6px"><span class="btn sm" style="flex:1">Follow</span><span class="btn sm ghost" style="flex:1"><svg class="icon s"><use href="#i-send"/></svg>Send a rec</span></div>
+          <div class="card flat"><div class="row"><span class="avs"><span class="av" data-n="p1" style="width:20px;height:20px"></span><span class="av" data-n="p2" style="width:20px;height:20px"></span></span><span class="t-sm"><b style="color:var(--foreground)">6 places in common</b> · you both love Malpua Lane</span></div></div>
+          <div class="grid4"><div class="stat"><b>214</b><span>places</span></div><div class="stat"><b>11</b><span>lists</span></div><div class="stat"><b>1.9k</b><span>list saves</span></div><div class="stat"><b>38</b><span>checks</span></div></div>
+          <div class="sect">Recent visits</div>
+          <div class="place"><div class="ph" data-n="Persian Darbar"></div><div class="col grow"><div class="t-md">Persian Darbar</div><span class="t-xs">Liked · 2 days ago</span></div><svg class="icon mut"><use href="#i-bookmark"/></svg></div>
+          <div class="place"><div class="ph" data-n="Malpua Lane"></div><div class="col grow"><div class="t-md">Malpua Lane</div><span class="t-xs">Favourite · last week</span></div><svg class="icon mut"><use href="#i-bookmark"/></svg></div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Someone else's profile</h3><p>Follow, send a rec and "places in common", taken from Corner's leaderboard. The "38 checks" figure counts contributions. It is context, never a trust score, in line with the comment on /u today.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><svg class="icon"><use href="#i-back"/></svg><span class="t-md">Settings</span><span></span></div>
+          <div class="sect">Privacy</div>
+          <div class="opt" style="padding:9px 10px"><div class="col"><span>Private account</span><span class="t-xs">Approve new followers</span></div><span class="toggle"></span></div>
+          <div class="opt" style="padding:9px 10px"><div class="col"><span>Visits</span><span class="t-xs">Followers</span></div><svg class="icon s" style="margin-left:auto"><use href="#i-right"/></svg></div>
+          <div class="opt" style="padding:9px 10px"><div class="col"><span>Lists</span><span class="t-xs">Public</span></div><svg class="icon s" style="margin-left:auto"><use href="#i-right"/></svg></div>
+          <div class="opt" style="padding:9px 10px"><div class="col"><span>Show me on leaderboards</span></div><span class="toggle on"></span></div>
+          <div class="sect">You</div>
+          <div class="opt" style="padding:9px 10px"><div class="col"><span>Halal standard</span><span class="t-xs">Certified only · No alcohol</span></div><svg class="icon s" style="margin-left:auto"><use href="#i-right"/></svg></div>
+          <div class="opt" style="padding:9px 10px"><div class="col"><span>Notifications</span></div><svg class="icon s" style="margin-left:auto"><use href="#i-right"/></svg></div>
+          <div class="opt" style="padding:9px 10px"><div class="col"><span>Blocked people</span></div><svg class="icon s" style="margin-left:auto"><use href="#i-right"/></svg></div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Settings and privacy</h3><p>Built on the existing <code>visibilityVisits</code> and <code>visibilityLists</code> preferences, with private accounts and blocking added.</p><div class="tags"><span class="pill p-extends">Extends</span></div></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 8 COMMUNITY ================= -->
+<section class="block" id="community">
+  <div class="sec-head">
+    <h2>8 · Community</h2>
+    <p>The existing /leaderboard, reworked in Corner's style: city or global, this week or all time, and friendlier cards. Friends are found from the same place.</p>
+    <div class="refs">Corner: <a href="https://mobbin.com/screens/e86500f6-d8ad-4205-8c41-3786c78ca0e6" target="_blank" rel="noopener">leaderboard</a><a href="https://mobbin.com/screens/e0b40589-4642-4e8a-a51e-01a9a19f9cce" target="_blank" rel="noopener">top curators</a><a href="https://mobbin.com/screens/bb217dc1-f9f0-400e-af5e-ed8fe0287e63" target="_blank" rel="noopener">find friends</a></div>
+  </div>
+  <div class="strip">
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row"><svg class="icon"><use href="#i-back"/></svg></div>
+          <div class="col center" style="gap:2px"><div class="t-xl">Leaderboard</div><span class="t-sm">Ranked by verified visits</span></div>
+          <div class="row"><div class="seg grow"><span class="on">Mumbai</span><span>Global</span></div><span class="chip">This week<svg class="icon s"><use href="#i-down"/></svg></span></div>
+          <div class="card"><div class="row"><span class="av m" data-n="hafsa"></span><div class="col grow"><b>@hafsa_k</b><span class="t-xs">31 verified this week</span></div><span class="t-lg" style="color:var(--warning)">1</span></div></div>
+          <div class="card"><div class="row"><span class="av m" data-n="umarbites"></span><div class="col grow"><b>@umarbites</b><span class="t-xs">24 verified this week</span></div><span class="t-lg mut">2</span></div></div>
+          <div class="card"><div class="row"><span class="av m" data-n="zaid"></span><div class="col grow"><b>@zaid</b><span class="t-xs">19 verified this week</span><span class="t-xs" style="font-style:italic">4 places in common with you</span></div><span class="t-lg mut">3</span></div></div>
+          <div class="card" style="border:2px solid var(--primary)"><div class="row"><span class="av m" data-n="Ayesha Khan"></span><div class="col grow"><b>You</b><span class="t-xs">6 this week · 2 more to pass @mariam</span></div><span class="t-lg" style="color:var(--primary)">#12</span></div></div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Leaderboard</h3><p>Corner ranks by places visited. We rank by verified visits, so pasting links can't farm a rank. Your own row is pinned to the bottom.</p><div class="tags"><span class="pill p-adapt">Adapted</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="input focus"><svg class="icon s"><use href="#i-search"/></svg>Search for friends<svg class="icon s" style="margin-left:auto"><use href="#i-x"/></svg></div>
+          <div class="card center" style="align-items:center;padding:14px;gap:8px"><svg class="icon" style="width:40px;height:40px;color:var(--primary)"><use href="#i-heart"/></svg><div class="t-lg">Friends with good taste?</div><button class="btn"><svg class="icon s"><use href="#i-send"/></svg>Invite them</button><span class="t-xs">You get a badge when 3 friends join</span></div>
+          <div class="card center" style="align-items:center;padding:14px;gap:8px"><div class="avs"><span class="av m" data-n="x1"></span><span class="av m" data-n="x2"></span><span class="av m" data-n="x3"></span></div><div class="t-lg">Find your friends</div><div class="t-sm">See who's already here from your contacts. We never upload or store them.</div><button class="btn ghost">Check contacts</button></div>
+          <div class="sect">Suggested</div>
+          <div class="row"><span class="av m" data-n="mariam"></span><div class="col grow"><b>Mariam</b><span class="t-xs">Followed by Zaid</span></div><span class="btn sm">Follow</span></div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Find friends</h3><p>Corner's two-card layout, with suggestions based on mutual follows below.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 9 SEARCH ================= -->
+<section class="block" id="search">
+  <div class="sec-head">
+    <h2>9 · Search</h2>
+    <p>/search today covers places and cities. It gains People and Lists tabs. Results pages stay server-rendered for SEO.</p>
+    <div class="refs">Corner: <a href="https://mobbin.com/screens/fddeef20-9d16-4b75-a986-27bdcf47b757" target="_blank" rel="noopener">place result with featured-on and curators</a> · The empty state follows common search patterns; Mobbin has no Corner screen for it.</div>
+  </div>
+  <div class="strip">
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="input focus"><svg class="icon s"><use href="#i-search"/></svg><span style="color:var(--foreground)">Places, people, lists</span></div>
+          <div class="tabs2" style="font-size:12px"><span class="on">Places</span><span>People</span><span>Lists</span></div>
+          <div class="sect">Recent</div>
+          <div class="row" style="flex-wrap:wrap;gap:5px"><span class="chip">nihari</span><span class="chip">haleem near me</span><span class="chip">@hafsa_k</span></div>
+          <div class="sect">Browse</div>
+          <div class="grid2">
+            <div class="card flat row" style="flex-direction:row"><svg class="icon" style="color:var(--success)"><use href="#i-shield"/></svg><b>Verified only</b></div>
+            <div class="card flat row" style="flex-direction:row"><svg class="icon" style="color:var(--primary)"><use href="#i-flame"/></svg><b>Trending</b></div>
+            <div class="card flat row" style="flex-direction:row"><svg class="icon" style="color:var(--primary)"><use href="#i-moon"/></svg><b>Open for sehri</b></div>
+            <div class="card flat row" style="flex-direction:row"><svg class="icon" style="color:var(--primary)"><use href="#i-users"/></svg><b>Friends loved</b></div>
+          </div>
+          <div class="sect">Cuisines</div>
+          <div class="row" style="flex-wrap:wrap;gap:5px"><span class="chip">Mughlai</span><span class="chip">Irani café</span><span class="chip">Arab</span><span class="chip">Burgers</span><span class="chip">Desserts</span><span class="chip">Turkish</span></div>
+        </div>
+        <div class="tabbar"><a><svg class="icon"><use href="#i-home"/></svg>Home</a><a><svg class="icon"><use href="#i-map"/></svg>Map</a><a class="add"><span class="plus"><svg class="icon"><use href="#i-plus"/></svg></span>Add</a><a class="on"><svg class="icon"><use href="#i-search"/></svg>Search</a><a><svg class="icon"><use href="#i-user"/></svg>You</a></div>
+      </div>
+      <figcaption class="cap"><h3>Search, empty</h3><p>Recent searches plus shortcuts built from existing discovery filters and one new social filter, "Friends loved".</p><div class="tags"><span class="pill p-extends">Extends /search</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="input focus"><svg class="icon s"><use href="#i-search"/></svg><span style="color:var(--foreground)">Zaffran Grill</span><svg class="icon s" style="margin-left:auto"><use href="#i-x"/></svg></div>
+          <div class="row" style="align-items:flex-start"><div class="ph" data-n="Zaffran Grill" style="width:56px;height:56px"></div><div class="col grow"><div class="t-lg">Zaffran Grill</div><span class="badge bv" style="width:max-content">Verified halal</span><span class="t-xs">3 friends have been · 212 saves</span></div></div>
+          <div class="sect">Featured on</div>
+          <div class="place"><div class="ph" data-n="Guide" style="width:38px;height:38px"></div><div class="col grow"><b>The Mumbai halal guide</b><span class="t-xs">EDITORIAL · MUMBAI</span></div></div>
+          <div class="place"><div class="ph" data-n="Late night kebabs" style="width:38px;height:38px"></div><div class="col grow"><b>Late-night kebabs</b><span class="t-xs">@umarbites · 18 places</span></div></div>
+          <div class="sect">From curators</div>
+          <div class="place"><div class="ph" data-n="Seekh" style="width:38px;height:38px"></div><div class="col grow"><b>Top 5 seekh in the city</b><span class="t-xs">@hafsa_k · 5 places</span></div></div>
+          <div style="flex:1"></div>
+          <div class="row" style="gap:5px"><span class="chip"><svg class="icon s"><use href="#i-share"/></svg>Share</span><span class="chip"><svg class="icon s"><use href="#i-nav"/></svg>Directions</span><span class="chip"><svg class="icon s"><use href="#i-bookmark"/></svg>To try</span><span class="chip"><svg class="icon s"><use href="#i-check"/></svg>Been</span></div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Place result</h3><p>Corner's place result: featured on, from curators and an action row. The halal badge sits beside the name.</p><div class="tags"><span class="pill p-borrow">Borrowed</span></div></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 10 ACTIVITY ================= -->
+<section class="block" id="activity">
+  <div class="sec-head">
+    <h2>10 · Activity and recs</h2>
+    <p>Corner's bell and paper plane. The bell carries social events and one alert only we can send: a halal status changed at a place you saved. The plane sends a place or list to a friend. We don't build open chat.</p>
+    <div class="refs">Corner shows the bell and plane on every home screen (<a href="https://mobbin.com/screens/f589383a-2738-4ada-8c37-80e410701d71" target="_blank" rel="noopener">reference</a>). Mobbin doesn't capture the screens behind them, so these follow common activity-feed patterns.</div>
+  </div>
+  <div class="strip">
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><svg class="icon"><use href="#i-back"/></svg><span class="t-md">Activity</span><span></span></div>
+          <div class="chips"><span class="chip on">All</span><span class="chip">Halal updates</span><span class="chip">Follows</span></div>
+          <div class="card" style="background:var(--warning-muted);border-color:transparent"><div class="row" style="align-items:flex-start"><svg class="icon" style="color:var(--warning-fg)"><use href="#i-shield"/></svg><div class="col grow"><b>Persian Darbar is now "Halal options"</b><span class="t-sm">It's on your want-to-try. A diner reported pork on the menu on 26 Sep. See evidence</span></div></div></div>
+          <div class="row" style="align-items:flex-start"><span class="av m" data-n="zaid"></span><div class="col grow"><div><b>zaid</b> visited Irani Chai Corner, which is on your want-to-try</div><span class="t-xs">2h</span></div><div class="ph" data-n="Irani Chai Corner" style="width:34px;height:34px;border-radius:8px"></div></div>
+          <div class="row" style="align-items:flex-start"><span class="av m" data-n="hafsa"></span><div class="col grow"><div><b>hafsa_k</b> added 2 places to <b>Eid dinner shortlist</b></div><span class="t-xs">5h</span></div></div>
+          <div class="row" style="align-items:flex-start"><span class="av m" data-n="mariam"></span><div class="col grow"><div><b>mariam</b> followed you</div><span class="t-xs">1d</span></div><span class="btn sm">Follow back</span></div>
+          <div class="row" style="align-items:flex-start"><span style="width:36px;height:36px;border-radius:99px;background:var(--success-muted);color:var(--success);display:grid;place-items:center;flex:none"><svg class="icon"><use href="#i-check"/></svg></span><div class="col grow"><div>Your halal check at <b>Zaffran Grill</b> was approved and now counts</div><span class="t-xs">1d</span></div></div>
+          <div class="row" style="align-items:flex-start"><span class="av m" data-n="umarbites"></span><div class="col grow"><div><b>umarbites</b> and 17 others liked your visit</div><span class="t-xs">2d</span></div></div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Activity</h3><p>Status changes on saved places come first, with a link to the evidence. Approved checks close the loop with the moderation queue.</p><div class="tags"><span class="pill p-adapt">Adapted</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr flush">
+          <div style="padding:10px 12px;opacity:.5" class="col"><div class="t-lg">Zaffran Grill</div><div class="ph" data-n="bg2" style="height:160px"></div></div>
+          <div class="scrim"></div>
+          <div class="sheet">
+            <div class="grab"></div>
+            <div class="t-lg">Send Zaffran Grill</div>
+            <div class="hscroll" style="gap:10px">
+              <div class="col" style="align-items:center"><span class="av m" data-n="zaid" style="outline:2px solid var(--primary);outline-offset:1px"></span><span class="t-xs b">Zaid</span></div>
+              <div class="col" style="align-items:center"><span class="av m" data-n="hafsa"></span><span class="t-xs b">Hafsa</span></div>
+              <div class="col" style="align-items:center"><span class="av m" data-n="mariam"></span><span class="t-xs b">Mariam</span></div>
+              <div class="col" style="align-items:center"><span class="av m" data-n="umarbites"></span><span class="t-xs b">Umar</span></div>
+            </div>
+            <div class="input box" style="color:var(--foreground)">Friday after Jumuah? The seekh is unreal</div>
+            <button class="btn"><svg class="icon s"><use href="#i-send"/></svg>Send to Zaid</button>
+            <div class="row" style="gap:5px"><span class="chip"><svg class="icon s"><use href="#i-link"/></svg>Copy link</span><span class="chip">WhatsApp</span><span class="chip">More…</span></div>
+          </div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Send a rec</h3><p>Pick friends and add a note. WhatsApp and a copyable link sit alongside, since that is where most food recommendations are shared today. The link opens the public place page.</p><div class="tags"><span class="pill p-adapt">Adapted</span></div></figcaption>
+    </figure>
+
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr">
+          <div class="row between"><svg class="icon"><use href="#i-back"/></svg><span class="t-md">Recs</span><span></span></div>
+          <div class="card"><div class="row"><span class="av m" data-n="zaid"></span><div class="col grow"><b>Zaid</b><span class="t-xs">"Friday after Jumuah? The seekh is unreal" · 1h</span></div></div>
+            <div class="row card flat" style="padding:6px"><div class="ph" data-n="Zaffran Grill" style="width:34px;height:34px;border-radius:8px"></div><div class="col grow"><b>Zaffran Grill</b><span class="badge bv" style="width:max-content">Verified halal</span></div></div>
+            <div class="row" style="gap:6px"><span class="btn sm soft" style="flex:1">I'm in</span><span class="btn sm ghost" style="flex:1"><svg class="icon s"><use href="#i-bookmark"/></svg>Want to try</span></div></div>
+          <div class="card"><div class="row"><span class="av m" data-n="hafsa"></span><div class="col grow"><b>Hafsa</b><span class="t-xs">sent a list · 2d</span></div></div>
+            <div class="row card flat" style="padding:6px"><div class="ph" data-n="Biryani ranked" style="width:34px;height:34px;border-radius:8px"></div><div class="col grow"><b>Biryani, ranked</b><span class="t-xs">21 places · you've been 2</span></div></div></div>
+          <div class="card"><div class="row"><span class="av m" data-n="mariam"></span><div class="col grow"><b>Mariam</b><span class="t-xs">"This one doesn't serve alcohol btw" · 4d</span></div></div></div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Recs inbox</h3><p>An inbox of recommendations with quick replies ("I'm in", "Want to try"). It holds place and list cards and short notes, and it can't be used as open chat.</p><div class="tags"><span class="pill p-adapt">Adapted</span></div></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 11 EVENTS ================= -->
+<section class="block" id="events">
+  <div class="sec-head">
+    <h2>11 · Events</h2>
+    <p>Corner's "Coming up" lists club nights. Ours lists halal food events: iftar walks, Eid markets and food festivals. Every vendor carries its own status, because a festival being "halal" is not one fact.</p>
+    <div class="refs">Corner: <a href="https://mobbin.com/screens/f9818552-d8db-4870-a945-eea5a66a7058" target="_blank" rel="noopener">coming up</a></div>
+  </div>
+  <div class="strip">
+    <figure class="shot" style="margin:0">
+      <div class="phone"><div class="sb">9:41<i></i></div>
+        <div class="scr flush">
+          <div class="ph" data-n="Minara Masjid iftar walk" style="height:170px;border-radius:0;flex:none"></div>
+          <div style="padding:10px 12px;display:flex;flex-direction:column;gap:9px">
+            <div class="col"><div class="t-lg">Minara Masjid iftar walk</div><span class="t-sm row" style="gap:4px"><svg class="icon s"><use href="#i-cal"/></svg>Fri 6:40pm, maghrib · Mohammed Ali Rd</span></div>
+            <div class="row t-sm"><span class="avs"><span class="av" data-n="zaid" style="width:20px;height:20px"></span><span class="av" data-n="hafsa" style="width:20px;height:20px"></span></span><b style="color:var(--foreground)">Zaid, Hafsa</b> and 64 others going</div>
+            <div class="row" style="gap:6px"><span class="btn sm" style="flex:1">I'm going</span><span class="btn sm ghost" style="flex:1"><svg class="icon s"><use href="#i-send"/></svg>Invite</span></div>
+            <div class="sect">24 vendors <small>View on map</small></div>
+            <div class="place"><div class="ph" data-n="Malpua Lane" style="width:36px;height:36px"></div><div class="col grow"><b>Malpua Lane</b><span class="t-xs">Malpua, phirni</span></div><span class="badge bv">Verified</span></div>
+            <div class="place"><div class="ph" data-n="Seekh stall" style="width:36px;height:36px"></div><div class="col grow"><b>Stall 14, seekh</b><span class="t-xs">No listing yet</span></div><span class="badge bu">Unverified</span></div>
+          </div>
+        </div>
+      </div>
+      <figcaption class="cap"><h3>Event detail</h3><p>Friends going, RSVP and invite, and a vendor list with statuses. Unlisted stalls show "Unverified". The copy never implies that means not halal.</p><div class="tags"><span class="pill p-adapt">Adapted</span></div></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= BUILD ================= -->
+<section class="block" id="build">
+  <div class="sec-head">
+    <h2>Build plan</h2>
+    <p>Ordered so each phase ships something usable on its own. New tables go in <code>apps/web/src/db/schema.ts</code>. Rules with no DOM dependency go in <code>packages/core</code> so the future Expo app shares them.</p>
+  </div>
+  <div class="plan">
+    <div class="phase"><span class="eyebrow">Phase 1</span><h3>Social graph and onboarding</h3><ul><li><code>follows</code> (follower, followee, status for private accounts), <code>blocks</code></li><li>Onboarding steps 1–6, with the standard written to <code>userPreferences</code></li><li>Profile avatar, name and handle on <code>userProfiles</code></li><li>Invite links. Contacts matching comes with the mobile app.</li></ul></div>
+    <div class="phase"><span class="eyebrow">Phase 2</span><h3>Log a visit and the feed</h3><ul><li>A visit gets <code>verdict</code> and <code>note</code> on <code>placeVisits</code> / <code>placeCheckIns</code></li><li>A <code>feed_events</code> fan-out on read, filtered by the viewer's standard and blocks</li><li><code>reactions</code>, <code>comments</code>, both reportable through <code>contentReports</code></li><li>Weekly streak rule in <code>core/streaks.ts</code>, Ramadan-aware</li></ul></div>
+    <div class="phase"><span class="eyebrow">Phase 3</span><h3>Lists, map, search</h3><ul><li><code>list_collaborators</code>, <code>list_saves</code>, list cover and caption</li><li>Map "whose places" filter and friend-avatar pins</li><li>Search tabs for people and lists</li><li>Reel paste with place matching, reusing <code>placeMediaLinks</code></li></ul></div>
+    <div class="phase"><span class="eyebrow">Phase 4</span><h3>Activity, recs, events</h3><ul><li><code>notifications</code>, including status-changed alerts from <code>placeHalalStatusHistory</code></li><li><code>recs</code> (sender, recipient, place or list, note), with no free chat</li><li><code>events</code> and <code>event_vendors</code> linked to places</li><li>Leaderboard windows: this week and all time</li></ul></div>
+  </div>
+  <p class="foot">References are the Corner iOS screens on Mobbin, linked in each section. Place names, handles and numbers in these mockups are examples. Brand tokens, type and the placeholder photo treatment come unchanged from <code>packages/ui</code> and <code>apps/web/src/components</code>.</p>
+</section>
+</div>
+
+<script>
+(function () {
+  var TINTS = ["#E7B48A", "#D7956A", "#EBCDAA", "#C98457", "#F0D5B6", "#D6A47C", "#E4A983", "#F2C79D"];
+  var AV = ["#c9461d", "#1f6b45", "#3f6480", "#9c6b45", "#a93812", "#6b4a0e", "#5a6b3f", "#7a4a6b"];
+  function hash(s) { var r = 0; for (var i = 0; i < s.length; i++) r = (r * 31 + s.charCodeAt(i)) | 0; return Math.abs(r); }
+  function initials(name) {
+    var w = name.replace(/[@._]/g, " ").trim().split(/\s+/).filter(function (x) { return /^[A-Za-z0-9]/.test(x); });
+    return (w.slice(0, 2).map(function (x) { return x[0].toUpperCase(); }).join("")) || "HF";
+  }
+  var plate = '<svg viewBox="0 0 48 48" aria-hidden="true"><ellipse cx="24" cy="30" rx="18" ry="6"/><path d="M8 29c1-9 7.5-15 16-15s15 6 16 15"/><path d="M24 10v4M18 20c1.5-1.5 3.5-2.5 6-2.5"/></svg>';
+  document.querySelectorAll(".ph[data-n]").forEach(function (el) {
+    var n = el.getAttribute("data-n");
+    el.style.background = TINTS[hash(n) % TINTS.length];
+    el.insertAdjacentHTML("afterbegin", plate + (el.offsetWidth > 50 ? "<em>" + initials(n) + "</em>" : ""));
+  });
+  document.querySelectorAll(".av[data-n]").forEach(function (el) {
+    var n = el.getAttribute("data-n");
+    el.style.background = AV[hash(n) % AV.length];
+    if (!el.textContent.trim()) el.insertAdjacentText("afterbegin", initials(n).slice(0, el.offsetWidth < 24 ? 1 : 2));
+  });
+  // Simple street-map backdrop in the map tokens.
+  var MAPS = {
+    1: [["road", 0, 90, 300, 10], ["road", 120, 0, 9, 600], ["road", 0, 250, 300, 7], ["road", 60, 0, 6, 600], ["road", 0, 380, 300, 12], ["water", -60, 430, 200, 160], ["park", 170, 140, 90, 80]],
+    2: [["road", 0, 170, 300, 12], ["road", 95, 0, 10, 600], ["road", 0, 320, 300, 8], ["road", 190, 0, 7, 600], ["road", 30, 0, 5, 600], ["water", 180, -40, 160, 120], ["park", 20, 380, 110, 70]],
+    3: [["road", 0, 140, 300, 9], ["road", 150, 0, 11, 600], ["road", 0, 300, 300, 10], ["road", 70, 0, 6, 600], ["water", -40, 360, 170, 220], ["park", 190, 190, 80, 90]]
+  };
+  document.querySelectorAll(".map[data-map]").forEach(function (el) {
+    (MAPS[el.getAttribute("data-map")] || []).forEach(function (s) {
+      var d = document.createElement("div");
+      d.className = s[0];
+      d.style.cssText = "left:" + s[1] + "px;top:" + s[2] + "px;width:" + s[3] + "px;height:" + s[4] + "px";
+      el.appendChild(d);
+    });
+  });
+})();
+</script>
