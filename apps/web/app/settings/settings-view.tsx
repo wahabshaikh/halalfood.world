@@ -17,6 +17,7 @@ type Profile = {
   displayName: string | null;
   bio: string | null;
   isPrivate: boolean;
+  showOnLeaderboards: boolean;
   avatarUrl: string | null;
   followers: number;
   following: number;
@@ -205,6 +206,22 @@ export default function SettingsView() {
         >
           Private account. New followers need my approval, and only followers see my visits and
           lists.
+        </CheckboxField>
+        <CheckboxField
+          id="settings-leaderboards"
+          checked={profile.showOnLeaderboards && !profile.isPrivate}
+          disabled={profile.isPrivate}
+          onCheckedChange={(checked) =>
+            void putProfile(
+              { showOnLeaderboards: checked },
+              checked
+                ? "You will appear on the leaderboard when you have verified visits."
+                : "You are hidden from the leaderboard.",
+            )
+          }
+        >
+          Show me on leaderboards. Ranked by verified visits, so it only ever lists diners who
+          have eaten out and confirmed it. Private accounts are never listed.
         </CheckboxField>
         <FieldDescription>
           Your name, handle and photo stay visible so friends can find you. Visit and list

@@ -22,6 +22,8 @@ import {
 import { listApprovedEvidenceRecords } from "./halal-verifications";
 import { recordStatusChange } from "./place-decision";
 import { writeAudit } from "./contributions-repository";
+import { dedupeKeys } from "@halalfood/core/notifications";
+import { tryNotify } from "./notifications-repository";
 
 type DatabaseClient = Awaited<ReturnType<typeof database>>;
 
@@ -106,17 +108,29 @@ export async function reviewEvidence(
   client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): Promise<{ ok: true; placeId: string } | { ok: false }> {
   const db = await client;
-  const rows = await db.all<{ id: string; place_id: string }>(sql`
+  const rows = await db.all<{ id: string; place_id: string; submitted_by_user_id: string | null }>(sql`
     UPDATE place_halal_verifications
     SET status = ${decision}, reviewed_by_user_id = ${moderatorUserId},
       review_reason = ${reason}, updated_at = ${Date.now()}
     WHERE id = ${verificationId} AND status = 'pending'
-    RETURNING id, place_id
+    RETURNING id, place_id, submitted_by_user_id
   `);
   const row = rows[0];
   if (!row) return { ok: false };
 
   const placeId = String(row.place_id);
+  // Close the loop with whoever filed the check. The moderator is not named.
+  if (row.submitted_by_user_id)
+    await tryNotify(
+      {
+        userId: String(row.submitted_by_user_id),
+        kind: "check-reviewed",
+        placeId,
+        verificationId,
+        dedupeKey: dedupeKeys.checkReviewed(verificationId),
+      },
+      client,
+    );
   await writeAudit(
     {
       actorUserId: moderatorUserId,

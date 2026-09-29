@@ -23,6 +23,7 @@ import {
   submitHalalVerification,
 } from "../../../../../src/lib/halal-verifications";
 import { getOrCreateProfile } from "../../../../../src/lib/preferences-repository";
+import { notifyFriendVisit } from "../../../../../src/lib/notifications-repository";
 import { getPlaceById } from "../../../../../src/lib/places";
 import {
   consumeCheckInLimits,
@@ -209,6 +210,14 @@ export async function POST(
   } catch {
     return unavailable();
   }
+
+  // Friends who saved this place hear about a shared visit. Best effort.
+  if (checkIn.shareToFeed)
+    await notifyFriendVisit({
+      visitId: result.visitId,
+      actorId: outcome.auth.userId,
+      placeId,
+    });
 
   // The visit is already saved, so nothing after this point may fail it. A halal
   // check that cannot be filed is reported back and the diner can resubmit it

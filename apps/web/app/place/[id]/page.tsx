@@ -47,6 +47,7 @@ import {
 } from "@halalfood/core/halal-glance-view";
 import { d1PlacePhotoRepository, type PlacePhoto } from "../../../src/lib/place-photos";
 import ShareButton from "../../../src/components/share-button";
+import { SendRecLink } from "../../../src/components/send-rec-link";
 import SavePlaceButton from "../../../src/components/save-place-button";
 import { PlacePhoto as PlacePhotoArt } from "../../../src/components/place-photo";
 import PlaceHalalVerification from "./place-halal-verification";
@@ -335,6 +336,7 @@ export default async function PlacePage({
               title={place.name}
               text={place.name + " — halal food in " + city}
             />
+            <SendRecLink place={place.id} />
             <SavePlaceButton placeId={place.id} />
           </div>
         </div>

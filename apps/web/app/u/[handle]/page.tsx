@@ -19,6 +19,7 @@ import { getViewerId } from "../../../src/lib/auth-session";
 import { followCounts, getFollowStatus, relationTo } from "../../../src/lib/social-repository";
 import FollowButton from "../../../src/components/follow-button";
 import BlockButton from "../../../src/components/block-button";
+import { SendRecLink } from "../../../src/components/send-rec-link";
 import { PersonAvatar } from "../../../src/components/person";
 import { avatarUrl, profileAccess } from "@halalfood/core/social";
 import { Badge } from "@halalfood/ui/components/badge";
@@ -171,6 +172,9 @@ export default async function DinerProfilePage({
             ) : (
               <>
                 <FollowButton handle={profile.handle} initialStatus={follow} />
+                {relation === "following" && (
+                  <SendRecLink to={profile.handle} label="Send a rec" variant="outline" className="h-11 rounded-full" />
+                )}
                 <BlockButton handle={profile.handle} />
               </>
             )}

@@ -10,7 +10,14 @@
 import { and, eq, or } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { database } from "../db";
-import { follows, listCollaborators, listSaves, userBlocks } from "../db/schema";
+import {
+  follows,
+  listCollaborators,
+  listSaves,
+  notifications,
+  recs,
+  userBlocks,
+} from "../db/schema";
 import {
   applyOnboardingStandard,
   decideFollow,
@@ -19,6 +26,8 @@ import {
   type OnboardingInput,
   type Relation,
 } from "@halalfood/core/social";
+import { dedupeKeys } from "@halalfood/core/notifications";
+import { tryNotify } from "./notifications-repository";
 import {
   getOrCreateProfile,
   getPreferences,
@@ -83,7 +92,8 @@ function ownedBy(owner: string, member: string) {
  * Block someone. Any follow or request between the two, in either direction,
  * is removed in the same batch so a block never leaves a half-connected pair.
  * The same goes for shared lists: neither keeps a collaborator seat or a save
- * on the other's lists.
+ * on the other's lists. Recs and notifications between them go too, so nothing
+ * from the blocked person lingers in an inbox.
  */
 export async function blockUser(
   blockerId: string,
@@ -108,6 +118,22 @@ export async function blockUser(
     db.delete(listCollaborators).where(ownedBy(blockedId, blockerId)),
     db.delete(listSaves).where(ownedBy(blockerId, blockedId)),
     db.delete(listSaves).where(ownedBy(blockedId, blockerId)),
+    db
+      .delete(notifications)
+      .where(
+        or(
+          and(eq(notifications.userId, blockerId), eq(notifications.actorId, blockedId)),
+          and(eq(notifications.userId, blockedId), eq(notifications.actorId, blockerId)),
+        ),
+      ),
+    db
+      .delete(recs)
+      .where(
+        or(
+          and(eq(recs.senderId, blockerId), eq(recs.recipientId, blockedId)),
+          and(eq(recs.senderId, blockedId), eq(recs.recipientId, blockerId)),
+        ),
+      ),
   ] as unknown as Parameters<typeof db.batch>[0]);
 }
 
@@ -196,6 +222,19 @@ export async function followUser(
     VALUES (${followerId}, ${followeeId}, ${decision.status}, ${now}, ${now})
     ON CONFLICT(follower_id, followee_id) DO NOTHING
   `);
+  // Following again after an unfollow does not ping them a second time.
+  await tryNotify(
+    {
+      userId: followeeId,
+      kind: decision.status === "accepted" ? "follow" : "follow-request",
+      actorId: followerId,
+      dedupeKey:
+        decision.status === "accepted"
+          ? dedupeKeys.follow(followerId)
+          : dedupeKeys.followRequest(followerId),
+    },
+    db,
+  );
   return { ok: true, status: decision.status };
 }
 
@@ -230,12 +269,21 @@ export async function respondToFollowRequest(
   const pending = await getFollowStatus(followerId, followeeId, db);
   if (pending !== "pending") return false;
 
-  if (accept)
+  if (accept) {
     await db.run(sql`
       UPDATE follows SET status = 'accepted', updated_at = ${Date.now()}
       WHERE follower_id = ${followerId} AND followee_id = ${followeeId} AND status = 'pending'
     `);
-  else
+    await tryNotify(
+      {
+        userId: followerId,
+        kind: "follow-accepted",
+        actorId: followeeId,
+        dedupeKey: dedupeKeys.followAccepted(followeeId),
+      },
+      db,
+    );
+  } else
     await db.run(sql`
       DELETE FROM follows
       WHERE follower_id = ${followerId} AND followee_id = ${followeeId} AND status = 'pending'

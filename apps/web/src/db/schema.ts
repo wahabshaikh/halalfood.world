@@ -429,6 +429,10 @@ export const userProfiles = sqliteTable("user_profiles", {
   homeCitySlug: text("home_city_slug"),
   avatarKey: text("avatar_key"),
   isPrivate: integer("is_private", { mode: "boolean" }).notNull().default(false),
+  /** Listed on the diner leaderboard (migration 0017). Private accounts never are. */
+  showOnLeaderboards: integer("show_on_leaderboards", { mode: "boolean" })
+    .notNull()
+    .default(true),
   onboardedAt: integer("onboarded_at", { mode: "timestamp_ms" }),
   invitedByUserId: text("invited_by_user_id").references(() => authUser.id, {
     onDelete: "set null",
@@ -1184,5 +1188,142 @@ export const listSaves = sqliteTable(
   (table) => [
     primaryKey({ name: "list_saves_pkey", columns: [table.listId, table.userId] }),
     index("list_saves_user_idx").on(table.userId, sql`${table.createdAt} DESC`),
+  ],
+);
+
+/* ---------------------------------------------------------------------------
+ * Activity, recs and events (migration 0017). Reads and writes go through raw
+ * SQL in src/lib/notifications-repository.ts, recs-repository.ts and
+ * events-repository.ts.
+ * ------------------------------------------------------------------------ */
+
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    kind: text("kind", {
+      enum: [
+        "status-changed",
+        "check-reviewed",
+        "follow",
+        "follow-request",
+        "follow-accepted",
+        "like",
+        "comment",
+        "friend-visit",
+        "list-invite",
+        "list-places-added",
+        "rec",
+        "rec-reply",
+      ],
+    }).notNull(),
+    actorId: text("actor_id").references(() => authUser.id, { onDelete: "cascade" }),
+    placeId: text("place_id").references(() => places.id, { onDelete: "cascade" }),
+    visitId: text("visit_id").references(() => placeVisits.id, { onDelete: "cascade" }),
+    listId: text("list_id").references(() => placeLists.id, { onDelete: "cascade" }),
+    recId: text("rec_id"),
+    statusChangeId: text("status_change_id").references(
+      () => placeHalalStatusHistory.id,
+      { onDelete: "cascade" },
+    ),
+    verificationId: text("verification_id").references(
+      () => placeHalalVerifications.id,
+      { onDelete: "cascade" },
+    ),
+    dedupeKey: text("dedupe_key").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    readAt: integer("read_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("notifications_dedupe_idx").on(table.userId, table.dedupeKey),
+    index("notifications_user_idx").on(table.userId, sql`${table.createdAt} DESC`),
+    index("notifications_unread_idx").on(table.userId, table.readAt),
+    index("notifications_actor_idx").on(table.actorId),
+  ],
+);
+
+export const recs = sqliteTable(
+  "recs",
+  {
+    id: text("id").primaryKey(),
+    senderId: text("sender_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    recipientId: text("recipient_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    placeId: text("place_id").references(() => places.id, { onDelete: "cascade" }),
+    listId: text("list_id").references(() => placeLists.id, { onDelete: "cascade" }),
+    note: text("note"),
+    reply: text("reply", { enum: ["in", "want-to-try"] }),
+    repliedAt: integer("replied_at", { mode: "timestamp_ms" }),
+    readAt: integer("read_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("recs_recipient_idx").on(table.recipientId, sql`${table.createdAt} DESC`),
+    index("recs_sender_idx").on(table.senderId, sql`${table.createdAt} DESC`),
+  ],
+);
+
+export const events = sqliteTable(
+  "events",
+  {
+    id: text("id").primaryKey(),
+    title: text("title").notNull(),
+    description: text("description"),
+    citySlug: text("city_slug").notNull(),
+    venue: text("venue").notNull(),
+    address: text("address"),
+    startsAt: integer("starts_at", { mode: "timestamp_ms" }).notNull(),
+    endsAt: integer("ends_at", { mode: "timestamp_ms" }),
+    status: text("status", { enum: ["published", "cancelled"] })
+      .notNull()
+      .default("published"),
+    createdBy: text("created_by").references(() => authUser.id, { onDelete: "set null" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("events_city_idx").on(table.citySlug, table.startsAt),
+    index("events_starts_idx").on(table.status, table.startsAt),
+  ],
+);
+
+export const eventVendors = sqliteTable(
+  "event_vendors",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    note: text("note"),
+    placeId: text("place_id").references(() => places.id, { onDelete: "set null" }),
+    position: integer("position").notNull().default(0),
+  },
+  (table) => [
+    index("event_vendors_event_idx").on(table.eventId, table.position),
+    index("event_vendors_place_idx").on(table.placeId),
+  ],
+);
+
+export const eventRsvps = sqliteTable(
+  "event_rsvps",
+  {
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "event_rsvps_pkey", columns: [table.eventId, table.userId] }),
+    index("event_rsvps_user_idx").on(table.userId, sql`${table.createdAt} DESC`),
   ],
 );

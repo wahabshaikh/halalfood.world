@@ -206,6 +206,10 @@ export default async function ListPage({
             saved={saved}
             saves={list.saveCount}
             itemCount={list.itemCount}
+            sendable={
+              Boolean(viewerId) &&
+              (list.visibility === "public" || (role === "owner" && list.visibility === "unlisted"))
+            }
             editable={{
               title: list.title,
               caption: list.caption,

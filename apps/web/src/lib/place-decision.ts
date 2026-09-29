@@ -17,6 +17,7 @@ import {
   type HalalAssessment,
 } from "@halalfood/core/halal-taxonomy";
 import { listApprovedEvidenceRecords } from "./halal-verifications";
+import { notifyStatusChange } from "./notifications-repository";
 import {
   emptyFacts,
   mapPlaceFacts,
@@ -233,16 +234,27 @@ export async function recordStatusChange(
   )
     return false;
 
+  const historyId = crypto.randomUUID();
   await db.run(sql`
     INSERT INTO place_halal_status_history (
       id, place_id, previous_status, next_status, previous_confidence,
       next_confidence, verification_id, reason, created_at
     ) VALUES (
-      ${crypto.randomUUID()}, ${placeId}, ${previous?.nextStatus ?? null},
+      ${historyId}, ${placeId}, ${previous?.nextStatus ?? null},
       ${next.status}, ${previous?.nextConfidence ?? null}, ${next.confidence},
       ${options.verificationId ?? null},
       ${options.reason ?? next.reasons[0] ?? null}, ${Date.now()}
     )
   `);
+  // The one alert only we can send: whoever saved this place hears that its
+  // status changed, with a link to the evidence. It reports the change and is
+  // written after it, so it can never be a route to changing one.
+  await notifyStatusChange(
+    placeId,
+    historyId,
+    previous?.nextStatus ?? null,
+    next.status,
+    client,
+  );
   return true;
 }

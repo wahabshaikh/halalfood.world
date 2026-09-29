@@ -216,6 +216,10 @@ export const AUDIT_ACTIONS = [
   "appeal.opened",
   "appeal.resolved",
   "facts.updated",
+  "event.created",
+  "event.updated",
+  "event.cancelled",
+  "event.restored",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
