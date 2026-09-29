@@ -622,6 +622,32 @@ export const CONTRIBUTION_RATE_LIMITS = {
   mutationIp: { windowMs: 24 * 60 * 60 * 1000, maxCount: 200, cooldownMs: 500 },
 } as const;
 
+/** Comments are conversation, so the cap is hourly, with a cooldown against floods. */
+export const COMMENT_RATE_LIMITS = {
+  mutationUser: { windowMs: 60 * 60 * 1000, maxCount: 60, cooldownMs: 3000 },
+  mutationIp: { windowMs: 60 * 60 * 1000, maxCount: 200, cooldownMs: 500 },
+} as const;
+
+export async function consumeCommentLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("comment:mutate:user", userId),
+    identifierKey("comment:mutate:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: COMMENT_RATE_LIMITS.mutationUser },
+      { key: ipKey, rule: COMMENT_RATE_LIMITS.mutationIp },
+    ],
+    store,
+    now,
+  );
+}
+
 export async function consumeCheckInLimits(
   userId: string,
   ip: string,

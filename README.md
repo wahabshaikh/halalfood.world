@@ -8,6 +8,8 @@ Places can only be added by picking a Google Maps result: the name, address, cit
 
 Signing in for the first time runs a short onboarding at `/onboarding` (name, handle and optional photo, a halal standard written to the same preferences as `/preferences`, three places to try, and friends by handle or invite link). Diners can follow each other (a private account turns a follow into a request), block people, and manage all of it at `/settings`; public profiles at `/u/[handle]` show follower counts and a follow button. The social graph only decides whose visits and lists someone sees: it never feeds into a place's halal status. The design is in `docs/design/social-community.html`; this is its phase 1.
 
+Signed-in diners can log a visit at `/log` (a four-step verdict, dishes, a note and an optional halal check that goes to moderators) and read a friends feed at `/feed`. The feed is assembled on read from the people you follow, hides anything blocked or private (private accounts show visits only to accepted followers), and leaves out places that fail the reader's own dietary standard. Visits at `/visit/[id]` take likes and comments, both reportable. None of it can change a place's halal status, which still comes only from approved evidence. Design: `docs/design/social-community.html`.
+
 Brand PNGs in `apps/web/public/` are rendered from `apps/web/public/icon.svg` with `node apps/web/scripts/generate-assets.mjs` (set `PLAYWRIGHT_CHROMIUM_PATH` if Chromium isn't in Playwright's default location).
 
 ## Repository layout

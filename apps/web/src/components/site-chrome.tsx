@@ -150,6 +150,8 @@ const MENU_GROUPS: { href: string; label: string }[][] = [
     { href: "/add", label: "Add a place" },
   ],
   [
+    { href: "/feed", label: "Friends" },
+    { href: "/log", label: "Log a visit" },
     { href: "/saved", label: "Saved" },
     { href: "/lists", label: "Lists" },
     { href: "/passport", label: "Food passport" },
@@ -269,6 +271,8 @@ const FOOTER_COLUMNS: { title: string; links: { href: string; label: string }[] 
   {
     title: "You",
     links: [
+      { href: "/feed", label: "Friends feed" },
+      { href: "/log", label: "Log a visit" },
       { href: "/saved", label: "Saved places" },
       { href: "/lists", label: "Lists" },
       { href: "/passport", label: "Food passport" },

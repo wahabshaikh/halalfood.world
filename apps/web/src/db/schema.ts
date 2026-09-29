@@ -616,6 +616,15 @@ export const placeCheckIns = sqliteTable(
       .notNull()
       .default(false),
     relationship: text("relationship").notNull().default("none"),
+    /** Four-step taste verdict from the log sheet (migration 0015). */
+    verdict: text("verdict", {
+      enum: ["disliked", "okay", "liked", "favourite"],
+    }),
+    /** The pending halal check made on the same visit, if any (migration 0015). */
+    halalVerificationId: text("halal_verification_id").references(
+      () => placeHalalVerifications.id,
+      { onDelete: "set null" },
+    ),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
@@ -1056,4 +1065,69 @@ export const placeMediaLinks = sqliteTable(
     index("place_media_links_place_created_idx").on(table.placeId, table.createdAt),
     index("place_media_links_author_idx").on(table.platform, table.authorHandle),
   ],
+);
+
+/* ---------------------------------------------------------------------------
+ * Social layer (migration 0015): the visit feed, reactions
+ * and comments. Reads and writes go through raw SQL in src/lib/social-*.ts and
+ * src/lib/feed-repository.ts, except the feed event written with a visit.
+ * ------------------------------------------------------------------------ */
+
+export const feedEvents = sqliteTable(
+  "feed_events",
+  {
+    id: text("id").primaryKey(),
+    actorId: text("actor_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["visit"] }).notNull(),
+    visitId: text("visit_id")
+      .notNull()
+      .unique()
+      .references(() => placeVisits.id, { onDelete: "cascade" }),
+    placeId: text("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("feed_events_actor_idx").on(table.actorId, sql`${table.createdAt} DESC`),
+  ],
+);
+
+export const reactions = sqliteTable(
+  "reactions",
+  {
+    visitId: text("visit_id")
+      .notNull()
+      .references(() => placeVisits.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["like"] }).notNull().default("like"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "reactions_pkey", columns: [table.visitId, table.userId] }),
+    index("reactions_user_idx").on(table.userId),
+  ],
+);
+
+export const comments = sqliteTable(
+  "comments",
+  {
+    id: text("id").primaryKey(),
+    visitId: text("visit_id")
+      .notNull()
+      .references(() => placeVisits.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    status: text("status", { enum: ["visible", "hidden"] })
+      .notNull()
+      .default("visible"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("comments_visit_idx").on(table.visitId, table.createdAt)],
 );

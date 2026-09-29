@@ -12,6 +12,7 @@ import {
   type ReportStatus,
   type ReportTarget,
 } from "@halalfood/core/moderation";
+import { parseCommentReportTarget } from "@halalfood/core/feed";
 import {
   isEvidenceKind,
   isHalalTaxonomyStatus,
@@ -241,14 +242,22 @@ export async function resolveReport(
   client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): Promise<boolean> {
   const db = await client;
-  const rows = await db.all<{ id: string }>(sql`
+  const rows = await db.all<{ id: string; target_type: string; target_id: string }>(sql`
     UPDATE content_reports
     SET status = ${status}, resolution = ${resolution},
       reviewed_by_user_id = ${moderatorUserId}, updated_at = ${Date.now()}
     WHERE id = ${reportId} AND status IN ('open', 'appealed')
-    RETURNING id
+    RETURNING id, target_type, target_id
   `);
   if (!rows.length) return false;
+  // An upheld report on a comment takes the comment down. Dismissing it, or
+  // an appeal that reverses the decision, leaves it visible.
+  const commentId =
+    status === "upheld" && rows[0].target_type === "check-in"
+      ? parseCommentReportTarget(rows[0].target_id)
+      : null;
+  if (commentId)
+    await db.run(sql`UPDATE comments SET status = 'hidden' WHERE id = ${commentId}`);
   await writeAudit(
     {
       actorUserId: moderatorUserId,

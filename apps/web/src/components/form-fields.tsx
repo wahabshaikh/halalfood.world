@@ -98,20 +98,23 @@ export function CheckboxField({
   id,
   checked,
   onCheckedChange,
+  disabled = false,
   children,
   className,
 }: {
   id: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
+  disabled?: boolean;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
-    <Field orientation="horizontal" className={className}>
+    <Field orientation="horizontal" className={className} data-disabled={disabled || undefined}>
       <Checkbox
         id={id}
         checked={checked}
+        disabled={disabled}
         onCheckedChange={(next) => onCheckedChange(next === true)}
       />
       <FieldLabel htmlFor={id} className="leading-snug font-normal">

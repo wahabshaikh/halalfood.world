@@ -47,6 +47,9 @@ export function placeIdParam(value: string | null | undefined) {
   return UUID.test(id) ? id : null;
 }
 
+/** Any record id minted by `crypto.randomUUID()`: visits, comments, and so on. */
+export const uuidParam = placeIdParam;
+
 /** Zero-based page index, clamped so deep pagination cannot walk the table. */
 export function pageParam(value: string | string[] | null | undefined, max = 200) {
   const raw = Array.isArray(value) ? value[0] : value;

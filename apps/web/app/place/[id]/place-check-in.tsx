@@ -32,33 +32,56 @@ import {
   SERVICE_VERDICTS,
   VALUE_COPY,
   VALUE_VERDICTS,
+  VERDICTS,
+  VERDICT_COPY,
   VISIT_CONTEXT_KEYS,
   VISIT_CONTEXT_VALUES,
-  WOULD_RETURN,
-  WOULD_RETURN_COPY,
   type DishVerdict,
   type ServiceVerdict,
   type ValueVerdict,
-  type WouldReturn,
+  type Verdict,
 } from "@halalfood/core/check-in";
 import { RELATIONSHIPS, RELATIONSHIP_COPY } from "@halalfood/core/halal-taxonomy";
 
 /**
- * The ten-second check-in.
+ * The ten-second check-in, and the "log a visit" sheet that feeds friends.
  *
- * The three primary answers are on one screen and reachable in three taps; the
- * note, photos, context and disclosures are all optional and sit below the
- * fold. Location proof is offered, never required — declining it records a
- * clearly labelled unverified visit rather than blocking the contribution.
+ * The primary answers are on one screen: a four-step verdict, what you ordered,
+ * whether it was worth it and a short note. A halal check, context and
+ * disclosures are optional and sit below. The halal check goes to a moderator
+ * before it counts, so it never changes a place's status by itself. Location
+ * proof is offered, never required — declining it records a clearly labelled
+ * unverified visit rather than blocking the contribution.
  */
 
 type DishEntry = { name: string; verdict: DishVerdict };
 type Phase = "idle" | "open" | "saving" | "done";
 
-const WOULD_RETURN_HINT: Record<WouldReturn, string> = {
-  definitely: "I would come back without thinking about it",
-  maybe: "I would come back in the right circumstances",
-  no: "I would not come back",
+const VERDICT_HINT: Record<Verdict, string> = {
+  disliked: "I would not go back",
+  okay: "Fine, nothing special",
+  liked: "Glad I went",
+  favourite: "One of my best meals",
+};
+
+const VERDICT_DOT: Record<Verdict, string> = {
+  disliked: "bg-destructive",
+  okay: "bg-warning",
+  liked: "bg-success",
+  favourite: "bg-primary",
+};
+
+type CheckAnswers = {
+  certificate: "seen" | "not-seen" | "unsure" | null;
+  alcohol: "none" | "served" | "unsure" | null;
+  meat: "hand" | "machine" | "unsure" | null;
+};
+
+type DoneResult = {
+  verified: boolean;
+  note: string | null;
+  sharedToFeed: boolean;
+  halalCheck: "submitted" | "not-sent" | "failed";
 };
 
 async function body(response: Response): Promise<Record<string, unknown>> {
@@ -86,12 +109,15 @@ function currentPosition(): Promise<GeolocationPosition | null> {
 export default function PlaceCheckIn({
   placeId,
   placeName,
+  defaultOpen = false,
 }: {
   placeId: string;
   placeName: string;
+  /** Start with the sheet open, as on the "log a visit" page. */
+  defaultOpen?: boolean;
 }) {
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [wouldReturn, setWouldReturn] = useState<WouldReturn | null>(null);
+  const [phase, setPhase] = useState<Phase>(defaultOpen ? "open" : "idle");
+  const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [valueVerdict, setValueVerdict] = useState<ValueVerdict | null>(null);
   const [serviceVerdict, setServiceVerdict] = useState<ServiceVerdict | null>(null);
   const [dishes, setDishes] = useState<DishEntry[]>([]);
@@ -104,12 +130,16 @@ export default function PlaceCheckIn({
   const [incentivized, setIncentivized] = useState(false);
   const [shareLocation, setShareLocation] = useState(true);
   const [visibility, setVisibility] = useState<"public" | "private">("public");
+  const [shareToFeed, setShareToFeed] = useState(true);
+  const [check, setCheck] = useState<CheckAnswers>({
+    certificate: null,
+    alcohol: null,
+    meat: null,
+  });
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ verified: boolean; note: string | null } | null>(
-    null,
-  );
+  const [result, setResult] = useState<DoneResult | null>(null);
 
-  const ready = wouldReturn !== null && valueVerdict !== null;
+  const ready = verdict !== null && valueVerdict !== null;
 
   function addDish() {
     const name = dishDraft.trim();
@@ -153,7 +183,7 @@ export default function PlaceCheckIn({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          wouldReturn,
+          verdict,
           valueVerdict,
           serviceVerdict,
           dishes,
@@ -164,6 +194,8 @@ export default function PlaceCheckIn({
           relationship,
           incentivized,
           visibility,
+          shareToFeed: visibility === "public" && shareToFeed,
+          halalCheck: Object.values(check).some(Boolean) ? check : undefined,
           locationProof,
           utcOffsetMinutes: -new Date().getTimezoneOffset(),
           visitedAt: Date.now(),
@@ -193,6 +225,11 @@ export default function PlaceCheckIn({
     setResult({
       verified: payload.verificationMethod !== "none",
       note: typeof payload.verificationNote === "string" ? payload.verificationNote : null,
+      sharedToFeed: payload.sharedToFeed === true,
+      halalCheck:
+        payload.halalCheck === "submitted" || payload.halalCheck === "failed"
+          ? payload.halalCheck
+          : "not-sent",
     });
     setPhase("done");
   }
@@ -213,8 +250,32 @@ export default function PlaceCheckIn({
             : "Recorded as an unverified visit and labelled as such."}
         </p>
         {result?.note && <Hint>{result.note}</Hint>}
+        {result?.halalCheck === "submitted" && (
+          <Hint>
+            Your halal check went to a moderator. It shows as your own
+            observation until it is approved, and only approved checks can change
+            this place&rsquo;s status.
+          </Hint>
+        )}
+        {result?.halalCheck === "failed" && (
+          <Hint>
+            Your visit is saved, but the halal check could not be filed. You can
+            add it again from the place page.
+          </Hint>
+        )}
         <Hint>
-          It is now on your <a href="/passport">food passport</a>.
+          {result?.sharedToFeed
+            ? "Your friends can see it in their "
+            : "It is on your "}
+          {result?.sharedToFeed ? <a href="/feed">feed</a> : <a href="/passport">food passport</a>}
+          {result?.sharedToFeed ? (
+            <>
+              {" "}
+              and it is on your <a href="/passport">food passport</a>.
+            </>
+          ) : (
+            "."
+          )}
         </Hint>
       </Card>
     );
@@ -224,8 +285,8 @@ export default function PlaceCheckIn({
       <section className="my-6">
         <SectionHeading eyebrow="RECORD A VISIT" title={`Been to ${placeName}?`} />
         <SectionIntro>
-          Three taps: would you return, what you ordered, was it worth it. No
-          stars, no essay.
+          Three taps: how it was, what you ordered, was it worth it. No stars,
+          no essay. Friends who follow you see it in their feed.
         </SectionIntro>
         <Button size="xl" onClick={() => setPhase("open")}>
           Check in
@@ -254,28 +315,28 @@ export default function PlaceCheckIn({
         />
 
         <FieldSet>
-          <FieldLegend>Would you return?</FieldLegend>
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-            {WOULD_RETURN.map((option) => (
+          <FieldLegend>How was it?</FieldLegend>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {VERDICTS.map((option) => (
               <Button
                 key={option}
                 variant="outline"
                 className={cn(
                   "h-auto flex-col items-start gap-1 rounded-xl p-3.5 text-left whitespace-normal hover:border-foreground",
-                  wouldReturn === option && "border-2 border-foreground bg-secondary",
+                  verdict === option && "border-2 border-foreground bg-secondary",
                 )}
-                aria-pressed={wouldReturn === option}
-                onClick={() => setWouldReturn(option)}
+                aria-pressed={verdict === option}
+                onClick={() => setVerdict(option)}
               >
                 <span className="flex items-center gap-2 text-base font-bold">
                   <span
-                    className={cn("size-2.5 rounded-full", RETURN_DOT[option])}
+                    className={cn("size-2.5 rounded-full", VERDICT_DOT[option])}
                     aria-hidden="true"
                   />
-                  {WOULD_RETURN_COPY[option]}
+                  {VERDICT_COPY[option]}
                 </span>
                 <span className="text-[13px] font-normal text-muted-foreground">
-                  {WOULD_RETURN_HINT[option]}
+                  {VERDICT_HINT[option]}
                 </span>
               </Button>
             ))}
@@ -382,7 +443,79 @@ export default function PlaceCheckIn({
           </div>
         </FieldSet>
 
-        <Disclosure label="Add context, a note, and disclosures">
+        <FieldSet>
+          <FieldLegend>Anything your friends should know?</FieldLegend>
+          <Textarea
+            aria-label="Note"
+            rows={3}
+            maxLength={2000}
+            value={note}
+            placeholder="Optional. What to order, when to go, what to skip."
+            onChange={(event) => setNote(event.target.value)}
+          />
+          <Hint className="flex items-center gap-1">
+            <HugeiconsIcon icon={Camera01Icon} size={14} aria-hidden="true" /> Photos can be
+            added from the gallery on this page after you check in.
+          </Hint>
+        </FieldSet>
+
+        <Disclosure label="Add a halal check (optional)">
+          <div className="mt-3 grid gap-5">
+            <Hint>
+              Only say what you actually noticed. A moderator reviews it before it
+              counts, and until then it shows as your own observation, not as the
+              place&rsquo;s status. Owners, staff and paid creators can&rsquo;t raise
+              a status &mdash; declare that under &ldquo;Disclosures&rdquo; below if it
+              is you.
+            </Hint>
+            <FieldSet>
+              <FieldLegend variant="label">A halal certificate on display?</FieldLegend>
+              <ChoiceChips
+                label="Halal certificate"
+                allowNone
+                value={check.certificate}
+                onValueChange={(certificate) => setCheck({ ...check, certificate })}
+                options={[
+                  { value: "seen", label: "Yes" },
+                  { value: "not-seen", label: "No" },
+                  { value: "unsure", label: "Didn\u2019t look" },
+                ]}
+              />
+            </FieldSet>
+            <FieldSet>
+              <FieldLegend variant="label">Alcohol served?</FieldLegend>
+              <ChoiceChips
+                label="Alcohol"
+                allowNone
+                value={check.alcohol}
+                onValueChange={(alcohol) => setCheck({ ...check, alcohol })}
+                options={[
+                  { value: "served", label: "Yes" },
+                  { value: "none", label: "No" },
+                  { value: "unsure", label: "Not sure" },
+                ]}
+              />
+            </FieldSet>
+            <FieldSet>
+              <FieldLegend variant="label">
+                Did staff say how the meat is slaughtered?
+              </FieldLegend>
+              <ChoiceChips
+                label="How the meat is slaughtered"
+                allowNone
+                value={check.meat}
+                onValueChange={(meat) => setCheck({ ...check, meat })}
+                options={[
+                  { value: "hand", label: "By hand (zabiha)" },
+                  { value: "machine", label: "Machine" },
+                  { value: "unsure", label: "Didn\u2019t ask" },
+                ]}
+              />
+            </FieldSet>
+          </div>
+        </Disclosure>
+
+        <Disclosure label="Add context and disclosures">
           <div className="mt-3 grid gap-5">
             {VISIT_CONTEXT_KEYS.map((key) => (
               <FieldSet key={key}>
@@ -406,22 +539,6 @@ export default function PlaceCheckIn({
                 />
               </FieldSet>
             ))}
-
-            <FieldSet>
-              <FieldLegend variant="label">Anything worth writing down?</FieldLegend>
-              <Textarea
-                aria-label="Note"
-                rows={3}
-                maxLength={2000}
-                value={note}
-                placeholder="Optional. The structured answers above already carry the signal."
-                onChange={(event) => setNote(event.target.value)}
-              />
-              <Hint className="flex items-center gap-1">
-                <HugeiconsIcon icon={Camera01Icon} size={14} aria-hidden="true" /> Photos can be
-                added from the gallery on this page after you check in.
-              </Hint>
-            </FieldSet>
 
             <FieldSet>
               <FieldLegend variant="label">Disclosures</FieldLegend>
@@ -462,6 +579,14 @@ export default function PlaceCheckIn({
                 coordinates.
               </CheckboxField>
               <CheckboxField
+                id="check-in-share"
+                checked={visibility === "public" && shareToFeed}
+                disabled={visibility === "private"}
+                onCheckedChange={setShareToFeed}
+              >
+                Share this visit to my followers&rsquo; feeds.
+              </CheckboxField>
+              <CheckboxField
                 id="check-in-private"
                 checked={visibility === "private"}
                 onCheckedChange={(checked) => setVisibility(checked ? "private" : "public")}
@@ -492,12 +617,6 @@ export default function PlaceCheckIn({
 }
 
 const CURRENCIES = ["INR", "GBP", "USD", "EUR", "AED", "MYR", "SGD"];
-
-const RETURN_DOT: Record<WouldReturn, string> = {
-  definitely: "bg-success",
-  maybe: "bg-warning",
-  no: "bg-destructive",
-};
 
 function Hint({ className, ...props }: React.ComponentProps<"p">) {
   return <Note className={cn("[&_a]:underline", className)} {...props} />;

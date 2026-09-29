@@ -33,7 +33,11 @@ export default async function LoginPage({
   const heading =
     reason === "save"
       ? "Save it for later"
-      : returnTo.startsWith("/add")
+      : returnTo.startsWith("/feed")
+        ? "See what your friends ate"
+        : returnTo.startsWith("/log")
+          ? "Log a visit"
+          : returnTo.startsWith("/add")
         ? "Add a place"
         : returnTo.includes("/check")
           ? "Share what you saw"
