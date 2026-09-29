@@ -258,6 +258,10 @@ export async function photoOwnerPrefix(userId: string): Promise<string> {
   return `photos/${await ownerHash(userId)}/`;
 }
 
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+export const SAFE_AVATAR_R2_KEY =
+  /^avatars\/[a-f0-9]{64}\/[0-9a-f-]{36}\.(?:jpg|png|webp)$/;
+
 export const SAFE_EVIDENCE_R2_KEY =
   /^community-verification\/[a-f0-9]{64}\/[0-9a-f-]{36}\.(?:jpg|png|webp|pdf)$/;
 export const SAFE_PHOTO_R2_KEY =
@@ -403,4 +407,52 @@ export async function storePlacePhotoFile(
     };
   }
   return storePlacePhotoBytes(bucket, userId, bytes, validation);
+}
+
+/* --------------------------------------------------------------- avatars -- */
+
+export function isSafeAvatarR2Key(value: unknown): value is string {
+  return typeof value === "string" && SAFE_AVATAR_R2_KEY.test(value);
+}
+
+export async function avatarOwnerPrefix(userId: string): Promise<string> {
+  return `avatars/${await ownerHash(userId)}/`;
+}
+
+/** Store a profile photo. Same signature checks as place photos, smaller cap. */
+export async function storeAvatarFile(
+  bucket: R2BucketLike,
+  userId: string,
+  file: {
+    type: string;
+    size: number;
+    name: string;
+    arrayBuffer(): Promise<ArrayBuffer>;
+  },
+) {
+  if (file.size > MAX_AVATAR_BYTES)
+    return {
+      ok: false as const,
+      status: 413 as const,
+      error: "Profile photos must be 2 MiB or smaller.",
+    };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const validation = validatePlacePhotoFile({
+    contentType: file.type,
+    sizeBytes: file.size,
+    fileName: file.name,
+    bytes,
+  });
+  if (!validation.ok) return validation;
+  if (bytes.byteLength !== validation.sizeBytes)
+    return {
+      ok: false as const,
+      status: 400 as const,
+      error: "The photo size could not be verified.",
+    };
+  const key = `${await avatarOwnerPrefix(userId)}${crypto.randomUUID()}.${validation.extension}`;
+  await bucket.put(key, bytes.buffer as ArrayBuffer, {
+    httpMetadata: { contentType: validation.contentType },
+  });
+  return { ok: true as const, key, contentType: validation.contentType };
 }

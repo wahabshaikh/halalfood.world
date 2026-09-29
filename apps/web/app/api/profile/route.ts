@@ -1,8 +1,10 @@
 import {
   getOrCreateProfile,
-  isValidHandle,
   updateProfile,
+  type DinerProfile,
 } from "../../../src/lib/preferences-repository";
+import { acceptAllPendingRequests, followCounts } from "../../../src/lib/social-repository";
+import { avatarUrl, validateHandle } from "@halalfood/core/social";
 import { consumePersonalWriteLimits } from "../../../src/lib/otp-rate-limit";
 import { citySlugParam } from "@halalfood/core/params";
 import {
@@ -17,11 +19,24 @@ import {
 
 const RETURN_TO = "/me";
 
+async function present(profile: DinerProfile) {
+  const counts = await followCounts(profile.userId);
+  return {
+    handle: profile.handle,
+    displayName: profile.displayName,
+    bio: profile.bio,
+    homeCitySlug: profile.homeCitySlug,
+    isPrivate: profile.isPrivate,
+    avatarUrl: avatarUrl(profile.handle, profile.avatarKey),
+    ...counts,
+  };
+}
+
 export async function GET(request: Request): Promise<Response> {
   const outcome = await requireUser(request, RETURN_TO);
   if (!outcome.ok) return outcome.response;
   try {
-    return json({ profile: await getOrCreateProfile(outcome.auth.userId) });
+    return json({ profile: await present(await getOrCreateProfile(outcome.auth.userId)) });
   } catch {
     return unavailable();
   }
@@ -37,9 +52,9 @@ export async function PUT(request: Request): Promise<Response> {
 
   const update: Parameters<typeof updateProfile>[1] = {};
   if (input.handle !== undefined) {
-    if (!isValidHandle(input.handle))
-      return badRequest("Handles are 3-32 characters: letters, numbers, - and _.");
-    update.handle = input.handle;
+    const handle = validateHandle(input.handle);
+    if (!handle.ok) return badRequest(handle.error);
+    update.handle = handle.handle;
   }
   if (input.displayName !== undefined) {
     if (input.displayName !== null && typeof input.displayName !== "string")
@@ -66,13 +81,25 @@ export async function PUT(request: Request): Promise<Response> {
     }
   }
 
+  if (input.isPrivate !== undefined) {
+    if (typeof input.isPrivate !== "boolean")
+      return badRequest("Private account must be true or false.");
+    update.isPrivate = input.isPrivate;
+  }
+
   const limited = await spendBudget(consumePersonalWriteLimits, outcome.auth);
   if (limited) return limited;
 
   try {
     await updateProfile(outcome.auth.userId, update);
-    return json({ profile: await getOrCreateProfile(outcome.auth.userId) });
+    // Going public settles every request that was waiting on approval.
+    if (update.isPrivate === false) await acceptAllPendingRequests(outcome.auth.userId);
   } catch {
     return badRequest("That handle is already taken.");
+  }
+  try {
+    return json({ profile: await present(await getOrCreateProfile(outcome.auth.userId)) });
+  } catch {
+    return unavailable();
   }
 }

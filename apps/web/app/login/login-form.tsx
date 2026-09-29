@@ -101,6 +101,25 @@ function TurnstileCheck({
   return <div ref={container} className="min-h-16" />;
 }
 
+/**
+ * First login sends people through onboarding; everyone else goes where they
+ * were headed. If the check fails for any reason, fall back to that destination
+ * rather than blocking sign-in.
+ */
+async function destinationAfterLogin(returnTo: string): Promise<string> {
+  if (returnTo.startsWith("/onboarding")) return returnTo;
+  try {
+    const response = await fetch("/api/onboarding", { cache: "no-store" });
+    if (!response.ok) return returnTo;
+    const body = (await response.json()) as { completed?: boolean };
+    return body.completed === false
+      ? `/onboarding?returnTo=${encodeURIComponent(returnTo)}`
+      : returnTo;
+  } catch {
+    return returnTo;
+  }
+}
+
 export default function LoginForm({
   siteKey,
   returnTo = "/",
@@ -169,7 +188,7 @@ export default function LoginForm({
     try {
       await verifyLoginOtp(email, code);
       setStatus("You’re in. Taking you back…");
-      window.location.assign(returnTo);
+      window.location.assign(await destinationAfterLogin(returnTo));
     } catch (caught) {
       const authError = caught instanceof AuthClientError ? caught : undefined;
       setError(
