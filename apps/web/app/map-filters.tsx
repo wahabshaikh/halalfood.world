@@ -25,6 +25,9 @@ import {
   SORT_COPY,
   SORT_OPTIONS,
   STATUS_FILTER_ORDER,
+  WHOSE_PLACES,
+  WHOSE_PLACES_COPY,
+  type WhosePlaces,
   activeFilterCount,
   type DiscoveryFilters,
   type FactFilterKey,
@@ -43,6 +46,13 @@ import { MEALS, SERVICE_TYPES } from "@halalfood/core/place-facts";
  */
 
 const PRICE_BANDS = [1, 2, 3, 4];
+
+/** Chip labels; the long copy is the accessible name and the sheet's wording. */
+const WHOSE_SHORT: Record<WhosePlaces, string> = {
+  everyone: "Everyone",
+  mine: "Yours",
+  friends: "Friends",
+};
 
 function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value)
@@ -112,6 +122,13 @@ export default function MapFilters({
         )}
         aria-label="Filter halal places"
       >
+        <ChoiceChips
+          label="Whose places"
+          value={filters.whose}
+          onValueChange={(whose) => whose && set({ whose })}
+          className="shrink-0 flex-nowrap"
+          options={WHOSE_PLACES.map((value) => ({ value, label: WHOSE_SHORT[value] }))}
+        />
         <SheetTrigger asChild>
           <Button
             variant="outline"
@@ -153,6 +170,27 @@ export default function MapFilters({
         </SheetHeader>
 
         <div className="grid flex-1 content-start gap-6 overflow-y-auto p-4">
+          <FieldSet>
+            <FieldLegend variant="label">Showing places from</FieldLegend>
+            <ChoiceChips
+              label="Showing places from"
+              value={filters.whose}
+              onValueChange={(whose) => whose && set({ whose })}
+              options={WHOSE_PLACES.map((value) => ({ value, label: WHOSE_PLACES_COPY[value] }))}
+            />
+            <p className={NOTE}>
+              Your places are where you have been or want to try. Friends are the
+              people you follow. What they liked never changes a place&rsquo;s
+              halal status.
+            </p>
+            <ToggleChip
+              pressed={filters.applyMyStandards}
+              onPressedChange={() => set({ applyMyStandards: !filters.applyMyStandards })}
+            >
+              Meets my standard
+            </ToggleChip>
+          </FieldSet>
+
           <FieldSet>
             <FieldLegend variant="label">Sort by</FieldLegend>
             <ChoiceChips

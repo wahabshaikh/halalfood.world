@@ -1,10 +1,14 @@
 import {
+  addListItem,
   getList,
+  getListForViewer,
   listItems,
   replaceListItems,
 } from "../../../../../src/lib/lists-repository";
 import {
+  canEditItems,
   unvisitedRankedEntries,
+  validateListItem,
   validateListItems,
 } from "@halalfood/core/place-lists";
 import { listVisitedPlaceIds } from "../../../../../src/lib/visits";
@@ -63,8 +67,54 @@ export async function PUT(
     const limited = await spendBudget(consumePersonalWriteLimits, outcome.auth);
     if (limited) return limited;
 
-    await replaceListItems(listId, validation.data);
+    await replaceListItems(listId, validation.data, undefined, outcome.auth.userId);
     return json({ items: await listItems(listId) });
+  } catch {
+    return unavailable();
+  }
+}
+
+/**
+ * Add one place to the end of a list. The owner and accepted collaborators may;
+ * on a ranked list only the owner can, and only places they have visited.
+ */
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  const listId = placeIdParam((await context.params).id);
+  if (!listId) return badRequest("Invalid list id.");
+
+  const outcome = await requireUser(request, `/list/${listId}`);
+  if (!outcome.ok) return outcome.response;
+
+  const body = await readJson(request);
+  if (body === INVALID_JSON) return badRequest("Send a valid JSON object.");
+  const validation = validateListItem(body);
+  if (!validation.ok) return badRequest(validation.error);
+
+  const limited = await spendBudget(consumePersonalWriteLimits, outcome.auth);
+  if (limited) return limited;
+
+  try {
+    const access = await getListForViewer(listId, outcome.auth.userId);
+    if (!access) return notFound("That list could not be found.");
+    if (!canEditItems(access.role))
+      return forbidden("Only the owner and collaborators can add places.");
+
+    if (access.list.ranked && access.list.visibility !== "private") {
+      const visited = await listVisitedPlaceIds(outcome.auth.userId);
+      if (!visited.has(validation.placeId))
+        return badRequest(
+          "A published ranked list may only contain places you have recorded a visit to.",
+        );
+    }
+
+    const result = await addListItem(listId, validation.placeId, validation.note, outcome.auth.userId);
+    if (result === "not-found") return notFound("That halal place could not be found.");
+    if (result === "exists") return badRequest("That place is already on the list.");
+    if (result === "full") return badRequest("This list is full.");
+    return json({ items: await listItems(listId) }, { status: 201 });
   } catch {
     return unavailable();
   }

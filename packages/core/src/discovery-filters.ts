@@ -66,6 +66,20 @@ export const FACT_FILTER_SQL: Record<
 
 export const STATUS_FILTER_ORDER: HalalTaxonomyStatus[] = [...HALAL_STATUSES];
 
+/**
+ * Whose places the map shows. "mine" is what the viewer has been to or wants to
+ * try; "friends" is what the people they follow have logged. Both need an
+ * account, and neither changes any place's halal status.
+ */
+export const WHOSE_PLACES = ["everyone", "mine", "friends"] as const;
+export type WhosePlaces = (typeof WHOSE_PLACES)[number];
+
+export const WHOSE_PLACES_COPY: Record<WhosePlaces, string> = {
+  everyone: "Everyone, including you",
+  mine: "Your places",
+  friends: "Friends only",
+};
+
 export type DiscoveryFilters = {
   q: string | null;
   /** Empty means "every status", including Not halal — absence is information. */
@@ -81,6 +95,7 @@ export type DiscoveryFilters = {
   sort: SortOption;
   /** Only apply the signed-in user's saved dietary standards when asked. */
   applyMyStandards: boolean;
+  whose: WhosePlaces;
 };
 
 export const EMPTY_FILTERS: DiscoveryFilters = {
@@ -96,6 +111,7 @@ export const EMPTY_FILTERS: DiscoveryFilters = {
   maxDistanceKm: null,
   sort: "recommended",
   applyMyStandards: false,
+  whose: "everyone",
 };
 
 /**
@@ -159,6 +175,9 @@ export function parseDiscoveryFilters(
     maxDistanceKm,
     sort,
     applyMyStandards: params.get("mine") === "1",
+    whose: (WHOSE_PLACES as readonly string[]).includes(params.get("whose") ?? "")
+      ? (params.get("whose") as WhosePlaces)
+      : "everyone",
   };
 }
 
@@ -177,6 +196,7 @@ export function serializeDiscoveryFilters(filters: DiscoveryFilters): string {
   if (filters.maxDistanceKm !== null) params.set("within", String(filters.maxDistanceKm));
   if (filters.sort !== "recommended") params.set("sort", filters.sort);
   if (filters.applyMyStandards) params.set("mine", "1");
+  if (filters.whose !== "everyone") params.set("whose", filters.whose);
   return params.toString();
 }
 
@@ -192,7 +212,8 @@ export function activeFilterCount(filters: DiscoveryFilters): number {
     (filters.dish ? 1 : 0) +
     (filters.openNow ? 1 : 0) +
     (filters.maxDistanceKm !== null ? 1 : 0) +
-    (filters.applyMyStandards ? 1 : 0)
+    (filters.applyMyStandards ? 1 : 0) +
+    (filters.whose !== "everyone" ? 1 : 0)
   );
 }
 

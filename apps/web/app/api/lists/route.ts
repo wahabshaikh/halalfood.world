@@ -1,7 +1,4 @@
-import {
-  createList,
-  listListsForUser,
-} from "../../../src/lib/lists-repository";
+import { createList, listHub } from "../../../src/lib/lists-repository";
 import { validateList } from "@halalfood/core/place-lists";
 import { consumePersonalWriteLimits } from "../../../src/lib/otp-rate-limit";
 import {
@@ -18,9 +15,9 @@ export async function GET(request: Request): Promise<Response> {
   const outcome = await requireUser(request, "/lists");
   if (!outcome.ok) return outcome.response;
   try {
-    return json({
-      lists: await listListsForUser(outcome.auth.userId, { includePrivate: true }),
-    });
+    const hub = await listHub(outcome.auth.userId);
+    // `lists` stays the diner's own, as before; the rest is what sharing added.
+    return json({ lists: hub.mine, ...hub });
   } catch {
     return unavailable();
   }

@@ -130,7 +130,7 @@ function halalCheckOf(row: Record<string, unknown>): HalalCheckRow | null {
 }
 
 /** The place's status and the diner's standard, derived for a page of places. */
-async function assessPlaces(
+export async function assessPlaces(
   placeIds: readonly string[],
   client: Client,
 ): Promise<
