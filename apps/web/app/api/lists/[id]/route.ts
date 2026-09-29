@@ -1,11 +1,20 @@
 import {
   deleteList,
-  getList,
+  getListForViewer,
+  hasCollaborators,
+  listCollaboratorsOf,
+  listHasPlace,
   listItems,
   updateList,
 } from "../../../../src/lib/lists-repository";
-import { validateList } from "@halalfood/core/place-lists";
+import {
+  canManageList,
+  collaborationConflict,
+  listProgress,
+  validateList,
+} from "@halalfood/core/place-lists";
 import { placeIdParam } from "@halalfood/core/params";
+import { listVisitedPlaceIds } from "../../../../src/lib/visits";
 import { consumePersonalWriteLimits } from "../../../../src/lib/otp-rate-limit";
 import {
   INVALID_JSON,
@@ -20,7 +29,11 @@ import {
   unavailable,
 } from "../../../../src/lib/api";
 
-/** A private list is only readable by its owner; unlisted needs the link. */
+/**
+ * A list as the viewer may see it. Private lists belong to their people, a
+ * block hides a list both ways and a private account's lists open only for its
+ * followers, so all of them read as missing to anyone else.
+ */
 export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -29,21 +42,26 @@ export async function GET(
   if (!listId) return badRequest("Invalid list id.");
 
   try {
-    const list = await getList(listId);
-    if (!list) return notFound("That list could not be found.");
-    if (list.visibility === "private") {
-      const userId = await optionalUser(request);
-      if (userId !== list.userId) return notFound("That list could not be found.");
-    }
-    return json(
-      { list, items: await listItems(listId) },
-      {
-        headers: {
-          "Cache-Control":
-            list.visibility === "public" ? "public, max-age=60" : "no-store",
-        },
-      },
-    );
+    const viewerId = await optionalUser(request);
+    const access = await getListForViewer(listId, viewerId);
+    if (!access) return notFound("That list could not be found.");
+    const [items, visited, collaborators] = await Promise.all([
+      listItems(listId),
+      viewerId ? listVisitedPlaceIds(viewerId) : Promise.resolve(new Set<string>()),
+      access.role === "owner" || access.role === "editor" || access.role === "invited"
+        ? listCollaboratorsOf(listId)
+        : Promise.resolve([]),
+    ]);
+    return json({
+      list: access.list,
+      owner: access.owner,
+      role: access.role,
+      saved: access.saved,
+      editLinkOn: access.editLinkOn,
+      collaborators: collaborators.map(({ userId: _userId, ...person }) => person),
+      progress: viewerId ? listProgress(items, visited) : null,
+      items,
+    });
   } catch {
     return unavailable();
   }
@@ -68,9 +86,26 @@ export async function PUT(
   if (limited) return limited;
 
   try {
+    const access = await getListForViewer(listId, outcome.auth.userId);
+    if (!access) return notFound("That list could not be found.");
+    if (!canManageList(access.role)) return forbidden("That list is not yours to edit.");
+
+    // A group plan and a personal ranking are different things.
+    if (validation.data.ranked && (access.editLinkOn || (await hasCollaborators(listId)))) {
+      const conflict = collaborationConflict({ ranked: true, visibility: validation.data.visibility });
+      return badRequest(
+        `${conflict} Remove the collaborators and turn off the edit link first.`,
+      );
+    }
+    if (
+      validation.data.coverPlaceId &&
+      !(await listHasPlace(listId, validation.data.coverPlaceId))
+    )
+      return badRequest("The cover must be one of the list's places.");
+
     const updated = await updateList(listId, outcome.auth.userId, validation.data);
     if (!updated) return forbidden("That list is not yours to edit.");
-    return json({ list: await getList(listId) });
+    return json({ list: (await getListForViewer(listId, outcome.auth.userId))?.list });
   } catch {
     return unavailable();
   }

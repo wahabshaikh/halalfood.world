@@ -133,9 +133,48 @@ export type DiscoveryQuery = {
   bbox?: { west: number; south: number; east: number; north: number };
   citySlug?: string;
   origin?: { lat: number; lng: number } | null;
+  /** Whose places to show needs a viewer; with none, "mine" and "friends" match nothing. */
+  viewerId?: string | null;
   limit: number;
   offset?: number;
 };
+
+/**
+ * "Your places" is anywhere the viewer has logged a visit or saved to try.
+ * "Friends only" is anywhere someone they follow shared a visit, on the same
+ * terms as the friends feed: the visit is public, the friend keeps their visits
+ * public, and neither side has blocked the other.
+ */
+function whoseConditions(query: DiscoveryQuery): SQL[] {
+  const { whose } = query.filters;
+  if (whose === "everyone") return [];
+  const viewer = query.viewerId;
+  if (!viewer) return [sql`0 = 1`];
+  if (whose === "mine")
+    return [
+      sql`(
+        EXISTS (SELECT 1 FROM place_visits AS mv WHERE mv.user_id = ${viewer} AND mv.place_id = p.id)
+        OR EXISTS (SELECT 1 FROM saved_places AS ms WHERE ms.user_id = ${viewer} AND ms.place_id = p.id)
+      )`,
+    ];
+  return [
+    sql`EXISTS (
+      SELECT 1
+      FROM follows AS ff
+      INNER JOIN feed_events AS fe ON fe.actor_id = ff.followee_id AND fe.place_id = p.id
+      INNER JOIN place_visits AS fv ON fv.id = fe.visit_id
+      LEFT JOIN user_preferences AS fup ON fup.user_id = ff.followee_id
+      WHERE ff.follower_id = ${viewer} AND ff.status = 'accepted'
+        AND fv.visibility = 'public'
+        AND COALESCE(fup.visibility_visits, 'public') = 'public'
+        AND NOT EXISTS (
+          SELECT 1 FROM user_blocks AS fb
+          WHERE (fb.blocker_id = ${viewer} AND fb.blocked_id = ff.followee_id)
+             OR (fb.blocker_id = ff.followee_id AND fb.blocked_id = ${viewer})
+        )
+    )`,
+  ];
+}
 
 /**
  * Conditions on `places` alone. They form the `candidates` CTE, so they must
@@ -163,7 +202,7 @@ function buildPlaceConditions(query: DiscoveryQuery): SQL[] {
 /** Everything else: filters that need facts, evidence or check-in joins. */
 function buildConditions(query: DiscoveryQuery): SQL[] {
   const { filters } = query;
-  const conditions: SQL[] = [sql`1 = 1`];
+  const conditions: SQL[] = [sql`1 = 1`, ...whoseConditions(query)];
 
   if (filters.q) {
     const term = "%" + filters.q.replace(/[\\%_]/g, "\\$&") + "%";

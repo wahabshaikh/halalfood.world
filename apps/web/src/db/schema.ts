@@ -672,6 +672,11 @@ export const placeLists = sqliteTable(
     title: text("title").notNull(),
     slug: text("slug").notNull(),
     description: text("description"),
+    caption: text("caption"),
+    coverPlaceId: text("cover_place_id").references(() => places.id, {
+      onDelete: "set null",
+    }),
+    editToken: text("edit_token"),
     ranked: integer("ranked", { mode: "boolean" }).notNull().default(true),
     visibility: text("visibility", {
       enum: ["public", "unlisted", "private"],
@@ -695,6 +700,9 @@ export const placeListItems = sqliteTable(
       .references(() => places.id, { onDelete: "cascade" }),
     position: integer("position").notNull(),
     note: text("note"),
+    addedByUserId: text("added_by_user_id").references(() => authUser.id, {
+      onDelete: "set null",
+    }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   },
   (table) => [
@@ -1092,6 +1100,7 @@ export const feedEvents = sqliteTable(
   },
   (table) => [
     index("feed_events_actor_idx").on(table.actorId, sql`${table.createdAt} DESC`),
+    index("feed_events_place_idx").on(table.placeId, table.actorId),
   ],
 );
 
@@ -1130,4 +1139,50 @@ export const comments = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   },
   (table) => [index("comments_visit_idx").on(table.visitId, table.createdAt)],
+);
+
+/* ---------------------------------------------------------------------------
+ * Social lists (migration 0016): collaborators and saves. Reads and writes go
+ * through raw SQL in src/lib/lists-repository.ts.
+ * ------------------------------------------------------------------------ */
+
+export const listCollaborators = sqliteTable(
+  "list_collaborators",
+  {
+    listId: text("list_id")
+      .notNull()
+      .references(() => placeLists.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    status: text("status", { enum: ["invited", "accepted"] })
+      .notNull()
+      .default("invited"),
+    invitedBy: text("invited_by").references(() => authUser.id, {
+      onDelete: "set null",
+    }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "list_collaborators_pkey", columns: [table.listId, table.userId] }),
+    index("list_collaborators_user_idx").on(table.userId, table.status),
+  ],
+);
+
+export const listSaves = sqliteTable(
+  "list_saves",
+  {
+    listId: text("list_id")
+      .notNull()
+      .references(() => placeLists.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "list_saves_pkey", columns: [table.listId, table.userId] }),
+    index("list_saves_user_idx").on(table.userId, sql`${table.createdAt} DESC`),
+  ],
 );

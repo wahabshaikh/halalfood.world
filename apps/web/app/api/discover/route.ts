@@ -3,9 +3,16 @@ import {
   filtersFromStandards,
 } from "@halalfood/core/discovery-filters";
 import { discoverPlaces } from "../../../src/lib/discovery";
+import { mapSocialFor } from "../../../src/lib/map-social-repository";
 import { getPreferences } from "../../../src/lib/preferences-repository";
 import { bboxParam, citySlugParam, limitParam } from "@halalfood/core/params";
-import { badRequest, json, optionalUser, unavailable } from "../../../src/lib/api";
+import {
+  badRequest,
+  json,
+  optionalUser,
+  unauthorized,
+  unavailable,
+} from "../../../src/lib/api";
 
 /**
  * Filtered discovery for the map, the list and every server-rendered listing.
@@ -45,6 +52,20 @@ export async function GET(request: Request): Promise<Response> {
 
   let filters = parseDiscoveryFilters(params);
 
+  // Whose places to show, and friend pins, depend on who is asking, so those
+  // requests are never shared through the cache. Everything else keeps the
+  // public cache and never even looks the viewer up.
+  const wantsSocial = filters.whose !== "everyone" || params.get("social") === "1";
+  let viewerId: string | null = null;
+  if (wantsSocial) {
+    viewerId = await optionalUser(request);
+    if (!viewerId && filters.whose !== "everyone")
+      return unauthorized(
+        "/map?" + params.toString(),
+        "Sign in to see your places and your friends’ places.",
+      );
+  }
+
   // "Apply my standards" is resolved server-side but returned to the client so
   // the UI can show exactly which filters it turned on.
   if (filters.applyMyStandards) {
@@ -65,12 +86,20 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    const result = await discoverPlaces({ filters, bbox, citySlug, origin, limit });
+    const result = await discoverPlaces({ filters, bbox, citySlug, origin, limit, viewerId });
+    const social =
+      wantsSocial && viewerId
+        ? await mapSocialFor(
+            viewerId,
+            result.places.map((place) => place.id),
+          )
+        : undefined;
     return json(
-      { ...result, filters },
+      { ...result, filters, ...(social ? { social } : {}) },
       {
         headers: {
-          "Cache-Control": filters.applyMyStandards ? "no-store" : "public, max-age=30",
+          "Cache-Control":
+            filters.applyMyStandards || wantsSocial ? "no-store" : "public, max-age=30",
         },
       },
     );

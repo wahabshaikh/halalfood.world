@@ -10,7 +10,7 @@
 import { and, eq, or } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { database } from "../db";
-import { follows, userBlocks } from "../db/schema";
+import { follows, listCollaborators, listSaves, userBlocks } from "../db/schema";
 import {
   applyOnboardingStandard,
   decideFollow,
@@ -74,9 +74,16 @@ export async function isBlockedEitherWay(
   return rows.length > 0;
 }
 
+/** Rows in a list table that tie `member` to a list owned by `owner`. */
+function ownedBy(owner: string, member: string) {
+  return sql`user_id = ${member} AND list_id IN (SELECT id FROM place_lists WHERE user_id = ${owner})`;
+}
+
 /**
  * Block someone. Any follow or request between the two, in either direction,
  * is removed in the same batch so a block never leaves a half-connected pair.
+ * The same goes for shared lists: neither keeps a collaborator seat or a save
+ * on the other's lists.
  */
 export async function blockUser(
   blockerId: string,
@@ -97,6 +104,10 @@ export async function blockUser(
           and(eq(follows.followerId, blockedId), eq(follows.followeeId, blockerId)),
         ),
       ),
+    db.delete(listCollaborators).where(ownedBy(blockerId, blockedId)),
+    db.delete(listCollaborators).where(ownedBy(blockedId, blockerId)),
+    db.delete(listSaves).where(ownedBy(blockerId, blockedId)),
+    db.delete(listSaves).where(ownedBy(blockedId, blockerId)),
   ] as unknown as Parameters<typeof db.batch>[0]);
 }
 

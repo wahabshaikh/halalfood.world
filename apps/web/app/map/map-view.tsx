@@ -6,6 +6,8 @@ import { Add01Icon, Cancel01Icon, Gps01Icon, GridViewIcon, MapsIcon, MinusSignIc
 import type { Map as MapInstance, Marker } from "maplibre-gl";
 import type { Place } from "../../src/lib/places";
 import type { DiscoveredPlace } from "../../src/lib/discovery";
+import type { PinSocial } from "../../src/lib/map-social-repository";
+import { getClientSession } from "../../src/lib/client-session";
 import {
   EMPTY_FILTERS,
   activeFilterCount,
@@ -28,7 +30,13 @@ import { cn } from "@halalfood/ui/lib/utils";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
-type Results = { places: DiscoveredPlace[]; total: number; limit: number };
+type Results = {
+  places: DiscoveredPlace[];
+  total: number;
+  limit: number;
+  /** Friend faces and labels for the places on screen. Present when signed in. */
+  social?: Record<string, PinSocial>;
+};
 
 const VIEWPORT_LIMIT = 600;
 /** Markers beyond this many become plain dots so the map stays readable. */
@@ -47,6 +55,7 @@ const FILTER_PARAMS = [
   "within",
   "sort",
   "mine",
+  "whose",
 ];
 
 function locality(place: Place) {
@@ -77,7 +86,37 @@ function markerLabel(place: Place) {
   return Number.isFinite(rating) && rating > 0 ? "★ " + rating.toFixed(1) : "";
 }
 
-function SelectedCard({ place, onClose }: { place: Place; onClose: () => void }) {
+/** Up to three overlapping friend faces. Decorative: the label beside it says who. */
+function Faces({ friends, size = 22 }: { friends: PinSocial["friends"]; size?: number }) {
+  return (
+    <span className="inline-flex -space-x-1.5" aria-hidden="true">
+      {friends.map((friend) => (
+        <span
+          key={friend.handle}
+          className="inline-flex items-center justify-center overflow-hidden rounded-full border-2 border-background bg-[#F6C9B0] font-extrabold text-foreground"
+          style={{ width: size, height: size, fontSize: Math.round(size / 2.3) }}
+        >
+          {friend.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={friend.avatarUrl} alt="" className="size-full object-cover" />
+          ) : (
+            (friend.displayName || friend.handle).slice(0, 1).toUpperCase()
+          )}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function SelectedCard({
+  place,
+  social,
+  onClose,
+}: {
+  place: Place;
+  social?: PinSocial;
+  onClose: () => void;
+}) {
   return (
     <section
       className="absolute bottom-5 left-1/2 z-4 grid w-[min(420px,calc(100%-32px))] -translate-x-1/2 grid-cols-[130px_minmax(0,1fr)] overflow-hidden rounded-2xl bg-background shadow-2xl min-[900px]:bottom-7"
@@ -104,6 +143,12 @@ function SelectedCard({ place, onClose }: { place: Place; onClose: () => void })
         </strong>
         <span>{locality(place)}</span>
         <span>{place.street_address}</span>
+        {social?.label && (
+          <span className="flex items-center gap-1.5 font-semibold text-foreground">
+            {social.friends.length > 0 && <Faces friends={social.friends} size={20} />}
+            {social.label}
+          </span>
+        )}
         {place.rating_value && (
           <span className="flex items-center gap-1">
             <HugeiconsIcon icon={StarIcon} size={12} fill="currentColor" aria-hidden="true" />{" "}
@@ -151,6 +196,7 @@ export default function MapView({
   const [searchArea, setSearchArea] = useState(0);
   const [showList, setShowList] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [signedIn, setSignedIn] = useState(false);
 
   const syncUrl = useCallback((placeId: string | null) => {
     const url = new URL(window.location.href);
@@ -178,7 +224,34 @@ export default function MapView({
   useEffect(() => {
     setFilters(parseDiscoveryFilters(new URLSearchParams(window.location.search)));
     setFiltersHydrated(true);
+    void getClientSession()
+      .then((user) => setSignedIn(Boolean(user)))
+      .catch(() => setSignedIn(false));
   }, []);
+
+  // Your places and your friends' places need an account. A signed-out tap goes
+  // to log in and comes back to the same map; friends-only starts with the
+  // viewer's own halal standard applied, as the feed does.
+  const changeFilters = useCallback(
+    (next: DiscoveryFilters) => {
+      if (next.whose !== "everyone" && !signedIn) {
+        const url = new URL(window.location.href);
+        for (const key of FILTER_PARAMS) url.searchParams.delete(key);
+        for (const [key, value] of new URLSearchParams(serializeDiscoveryFilters(next)))
+          url.searchParams.set(key, value);
+        window.location.assign(
+          "/login?reason=save&returnTo=" + encodeURIComponent(url.pathname + url.search),
+        );
+        return;
+      }
+      setFilters((current) =>
+        next.whose === "friends" && current.whose !== "friends" && !next.applyMyStandards
+          ? { ...next, applyMyStandards: true }
+          : next,
+      );
+    },
+    [signedIn],
+  );
 
   useEffect(() => {
     if (!filtersHydrated) return;
@@ -333,9 +406,17 @@ export default function MapView({
             bbox.join(",") +
             "&limit=" +
             VIEWPORT_LIMIT +
+            (signedIn ? "&social=1" : "") +
             (query ? "&" + query : ""),
           { signal: controller.signal },
         );
+        if (response.status === 401) {
+          // The session ended: fall back to everyone rather than an empty map.
+          setNotice("Sign in to see your places and your friends’ places.");
+          setFilters((current) => ({ ...current, whose: "everyone" }));
+          setSignedIn(false);
+          return;
+        }
         if (!response.ok) throw new Error("Places couldn’t load.");
         setResults(await response.json());
         setLoading(false);
@@ -357,7 +438,7 @@ export default function MapView({
       controller?.abort();
       instance.off("moveend", markMoved);
     };
-  }, [ready, deepLinkSettled, retry, filters, searchArea]);
+  }, [ready, deepLinkSettled, retry, filters, searchArea, signedIn]);
 
   const visible = results.places;
 
@@ -370,14 +451,41 @@ export default function MapView({
       const element = document.createElement("button");
       element.type = "button";
       const label = index < LABELLED_MARKERS ? markerLabel(place) : "";
+      const friends = results.social?.[place.id]?.friends ?? [];
       element.className = cn(
         "inline-flex items-center gap-1 rounded-full border border-black/10 bg-background px-2.5 py-1.5 font-sans text-[13px] font-extrabold whitespace-nowrap text-foreground shadow-md transition-transform hover:z-3 hover:scale-110 data-[selected=true]:scale-110 data-[selected=true]:bg-foreground data-[selected=true]:text-background",
-        !label && "size-7.5 justify-center p-0",
+        !label && !friends.length && "size-7.5 justify-center p-0",
+        friends.length > 0 && "py-1 pr-2.5 pl-1",
       );
       if (selected?.id === place.id) element.dataset.selected = "true";
-      element.textContent = label || "•";
-      element.setAttribute("aria-label", place.name);
-      element.title = place.name;
+      // A pin a friend has logged wears their face. Built with DOM nodes, not
+      // markup, so a display name can never inject HTML.
+      if (friends.length) {
+        const faces = document.createElement("span");
+        faces.className = "inline-flex -space-x-1.5";
+        for (const friend of friends) {
+          const face = document.createElement("span");
+          face.className =
+            "inline-flex size-6 items-center justify-center overflow-hidden rounded-full border-2 border-background bg-[#F6C9B0] text-[11px] font-extrabold text-foreground";
+          if (friend.avatarUrl) {
+            const image = document.createElement("img");
+            image.src = friend.avatarUrl;
+            image.alt = "";
+            image.className = "size-full object-cover";
+            face.append(image);
+          } else face.textContent = (friend.displayName || friend.handle).slice(0, 1).toUpperCase();
+          faces.append(face);
+        }
+        element.append(faces);
+        if (label) element.append(document.createTextNode(label));
+      } else element.textContent = label || "•";
+      element.setAttribute(
+        "aria-label",
+        results.social?.[place.id]?.label
+          ? `${place.name}, ${results.social[place.id].label}`
+          : place.name,
+      );
+      element.title = element.getAttribute("aria-label") || place.name;
       element.addEventListener("click", (event) => {
         event.stopPropagation();
         selectPlace(place);
@@ -436,7 +544,7 @@ export default function MapView({
           )}
         </div>
         <div className="mb-4.5">
-          <MapFilters filters={filters} onChange={setFilters} />
+          <MapFilters filters={filters} onChange={changeFilters} />
         </div>
         {error && (
           <MapStatus>
@@ -473,6 +581,14 @@ export default function MapView({
                 }}
               >
                 <PlaceTile place={place} status={place.halal_status} />
+                {results.social?.[place.id]?.label && (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-[13px] font-semibold">
+                    {results.social[place.id].friends.length > 0 && (
+                      <Faces friends={results.social[place.id].friends} size={18} />
+                    )}
+                    {results.social[place.id].label}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
@@ -522,7 +638,13 @@ export default function MapView({
             Search this area
           </Button>
         )}
-        {selected && <SelectedCard place={selected} onClose={closeSelected} />}
+        {selected && (
+          <SelectedCard
+            place={selected}
+            social={results.social?.[selected.id]}
+            onClose={closeSelected}
+          />
+        )}
       </div>
 
       <button

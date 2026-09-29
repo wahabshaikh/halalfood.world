@@ -128,11 +128,13 @@ export function CheckboxField({
 export function ToggleChip({
   pressed,
   onPressedChange,
+  disabled = false,
   className,
   children,
 }: {
   pressed: boolean;
   onPressedChange: (pressed: boolean) => void;
+  disabled?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -140,6 +142,7 @@ export function ToggleChip({
     <Toggle
       variant="outline"
       pressed={pressed}
+      disabled={disabled}
       onPressedChange={onPressedChange}
       className={cn(
         "h-9 shrink-0 rounded-full px-3.5 font-semibold data-[state=on]:border-foreground data-[state=on]:bg-secondary",

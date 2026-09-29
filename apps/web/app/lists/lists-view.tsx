@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { Button } from "@halalfood/ui/components/button";
 import { Input } from "@halalfood/ui/components/input";
-import { ChipRow, FormCard, ListIndex, Loading } from "../../src/components/blocks";
+import { ChipRow, FormCard, Loading } from "../../src/components/blocks";
+import { ListCards } from "../../src/components/list-card";
+import type { ListCard } from "../../src/lib/lists-repository";
 import { ChoiceChips, ToggleChip } from "../../src/components/form-fields";
 import { FormMessage, InsufficientData, Note } from "../../src/components/section";
 
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon } from "@hugeicons/core-free-icons";
-import type { PlaceList } from "@halalfood/core/place-lists";
 
 /**
  * Personal collections. A ranked list published to other people may only hold
@@ -17,7 +18,12 @@ import type { PlaceList } from "@halalfood/core/place-lists";
  * here says so before someone hits the error.
  */
 export default function ListsView() {
-  const [lists, setLists] = useState<PlaceList[]>([]);
+  const [lists, setLists] = useState<ListCard[]>([]);
+  const [shared, setShared] = useState<{ collaborating: ListCard[]; invites: ListCard[]; saved: ListCard[] }>({
+    collaborating: [],
+    invites: [],
+    saved: [],
+  });
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [title, setTitle] = useState("");
   const [ranked, setRanked] = useState(true);
@@ -34,7 +40,13 @@ export default function ListsView() {
       }
       if (!response.ok) throw new Error();
       const body = await response.json();
-      setLists(Array.isArray(body.lists) ? body.lists : []);
+      const cards = (value: unknown): ListCard[] => (Array.isArray(value) ? value : []);
+      setLists(cards(body.mine));
+      setShared({
+        collaborating: cards(body.collaborating),
+        invites: cards(body.invites),
+        saved: cards(body.saved),
+      });
       setState("ready");
     } catch {
       setState("error");
@@ -110,16 +122,48 @@ export default function ListsView() {
         {error && <FormMessage tone="error">{error}</FormMessage>}
       </FormCard>
 
-      {lists.length === 0 ? (
-        <InsufficientData>You have not made a list yet.</InsufficientData>
-      ) : (
-        <ListIndex
-          lists={lists.map((list) => ({
-            ...list,
-            meta: `${list.ranked ? "Ranked" : "Unranked"} · ${list.visibility}`,
-          }))}
-        />
+      {shared.invites.length > 0 && (
+        <Section title="Invitations">
+          <ListCards lists={shared.invites} />
+        </Section>
       )}
+
+      <Section title="Your lists">
+        {lists.length === 0 ? (
+          <InsufficientData>You have not made a list yet.</InsufficientData>
+        ) : (
+          <ListCards
+            lists={lists}
+            showOwner={false}
+            meta={(list) => `${list.ranked ? "Ranked" : "Unranked"} · ${list.visibility}`}
+          />
+        )}
+      </Section>
+
+      {shared.collaborating.length > 0 && (
+        <Section title="Planning with friends">
+          <ListCards lists={shared.collaborating} />
+        </Section>
+      )}
+
+      {shared.saved.length > 0 && (
+        <Section title="Saved lists">
+          <ListCards lists={shared.saved} />
+        </Section>
+      )}
+
+      <p className="text-sm text-muted-foreground">
+        Looking for ideas? <a className="font-bold underline" href="/search?tab=lists">Browse popular lists</a>.
+      </p>
     </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="grid gap-3">
+      <h2 className="text-lg font-extrabold">{title}</h2>
+      {children}
+    </section>
   );
 }

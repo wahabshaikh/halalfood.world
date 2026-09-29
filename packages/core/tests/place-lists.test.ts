@@ -1,10 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  LIST_CAPTION_MAX,
   MAX_LIST_ITEMS,
+  canEditItems,
+  canManageList,
+  canViewList,
+  collaborationConflict,
+  isEditToken,
+  listProgress,
   slugifyListTitle,
   unvisitedRankedEntries,
+  validateCollaboratorInvite,
   validateList,
+  validateListItem,
   validateListItems,
 } from "../src/place-lists";
 import {
@@ -100,4 +109,60 @@ test("an out-of-range price band is dropped rather than displayed", () => {
   assert.equal(mapPlaceFacts(PLACE_ID, { price_band: 9 }).priceBand, null);
   assert.equal(priceBandLabel(3), "$$$");
   assert.equal(priceBandLabel(null), null);
+});
+
+test("a list takes an optional one-line caption and a cover place", () => {
+  const ok = validateList({ title: "Eid shortlist", caption: "  Book early  ", coverPlaceId: PLACE_ID.toUpperCase() });
+  assert.equal(ok.ok, true);
+  if (ok.ok) {
+    assert.equal(ok.data.caption, "Book early");
+    assert.equal(ok.data.coverPlaceId, PLACE_ID);
+  }
+  assert.equal(validateList({ title: "x", caption: "a".repeat(LIST_CAPTION_MAX + 1) }).ok, false);
+  assert.equal(validateList({ title: "x", caption: "two\nlines" }).ok, false);
+  assert.equal(validateList({ title: "x", coverPlaceId: "nope" }).ok, false);
+  const bare = validateList({ title: "x" });
+  assert.ok(bare.ok && bare.data.caption === null && bare.data.coverPlaceId === null);
+});
+
+test("only owners and editors change a list's places, and only owners manage it", () => {
+  assert.equal(canEditItems("owner"), true);
+  assert.equal(canEditItems("editor"), true);
+  assert.equal(canEditItems("viewer"), false);
+  assert.equal(canManageList("owner"), true);
+  assert.equal(canManageList("editor"), false);
+});
+
+test("a ranked list cannot be a group plan", () => {
+  assert.ok(collaborationConflict({ ranked: true, visibility: "public" }));
+  assert.ok(collaborationConflict({ ranked: true, visibility: "private" }));
+  assert.equal(collaborationConflict({ ranked: false, visibility: "private" }), null);
+});
+
+test("progress counts the places the viewer has been", () => {
+  const items = [{ placeId: PLACE_ID }, { placeId: OTHER_ID }];
+  assert.deepEqual(listProgress(items, new Set([PLACE_ID])), { been: 1, total: 2 });
+  assert.deepEqual(listProgress([], new Set([PLACE_ID])), { been: 0, total: 0 });
+});
+
+test("private lists open for their people and nobody else", () => {
+  assert.equal(canViewList({ visibility: "private", role: null }), false);
+  assert.equal(canViewList({ visibility: "private", role: "viewer" }), false);
+  assert.equal(canViewList({ visibility: "private", role: "editor" }), true);
+  assert.equal(canViewList({ visibility: "private", role: "invited" }), true);
+  assert.equal(canViewList({ visibility: "unlisted", role: null }), true);
+});
+
+test("invites and single items are validated", () => {
+  assert.deepEqual(validateCollaboratorInvite({ handle: " @Hafsa_K " }), { ok: true, handle: "hafsa_k" });
+  assert.equal(validateCollaboratorInvite({ handle: "no spaces" }).ok, false);
+  assert.equal(validateCollaboratorInvite(null).ok, false);
+  assert.deepEqual(validateListItem({ placeId: PLACE_ID, note: " upstairs " }), {
+    ok: true,
+    placeId: PLACE_ID,
+    note: "upstairs",
+  });
+  assert.equal(validateListItem({ placeId: "nope" }).ok, false);
+  assert.equal(isEditToken("a".repeat(22)), true);
+  assert.equal(isEditToken("short"), false);
 });

@@ -70,3 +70,13 @@ test("a search term longer than the cap is dropped, not truncated", () => {
   assert.equal(parse(`q=${"a".repeat(200)}`).q, null);
   assert.equal(parse("q=%20%20").q, null);
 });
+
+test("whose places round-trips and counts as an active filter", () => {
+  assert.equal(parse("").whose, "everyone");
+  assert.equal(parse("whose=friends").whose, "friends");
+  assert.equal(parse("whose=strangers").whose, "everyone");
+  const mine = parse("whose=mine");
+  assert.equal(activeFilterCount(mine), 1);
+  assert.equal(serializeDiscoveryFilters(mine), "whose=mine");
+  assert.equal(serializeDiscoveryFilters(EMPTY_FILTERS), "");
+});

@@ -134,6 +134,20 @@ export const MEDIA_LINK_RATE_LIMITS = {
   },
 } as const;
 
+/** Matching a pasted link to a place fetches oEmbed and scans place names. */
+export const MEDIA_MATCH_RATE_LIMITS = {
+  matchUser: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 40,
+    cooldownMs: 1500,
+  },
+  matchIp: {
+    windowMs: 60 * 60 * 1000,
+    maxCount: 120,
+    cooldownMs: 250,
+  },
+} as const;
+
 /** Durable budgets for place photo uploads and ownership mutations. */
 export const PLACE_PHOTO_RATE_LIMITS = {
   uploadUser: {
@@ -592,6 +606,26 @@ export async function consumeMediaLinkLimits(
     [
       { key: userKey, rule: MEDIA_LINK_RATE_LIMITS.submissionUser },
       { key: ipKey, rule: MEDIA_LINK_RATE_LIMITS.submissionIp },
+    ],
+    store,
+    now,
+  );
+}
+
+export async function consumeMediaMatchLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("media-link:match:user", userId),
+    identifierKey("media-link:match:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: MEDIA_MATCH_RATE_LIMITS.matchUser },
+      { key: ipKey, rule: MEDIA_MATCH_RATE_LIMITS.matchIp },
     ],
     store,
     now,
