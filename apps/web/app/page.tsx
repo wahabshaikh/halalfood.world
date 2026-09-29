@@ -22,6 +22,7 @@ import {
   SiteHeader,
 } from "../src/components/site-chrome";
 import { PlaceRow } from "../src/components/place-tile";
+import { HomeTabs } from "../src/components/home-tabs";
 import { Button } from "@halalfood/ui/components/button";
 import {
   ChipLink,
@@ -154,6 +155,7 @@ export default async function Home({
       />
       <SiteHeader />
       <PageMain>
+        <HomeTabs active="for-you" />
         <ExploreTabs active="eat" />
         <header className="mb-7.5 grid gap-2.5">
           <h1 className="text-[clamp(28px,4vw,42px)] leading-tight">{hero.title}</h1>

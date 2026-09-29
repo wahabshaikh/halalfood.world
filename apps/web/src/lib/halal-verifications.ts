@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { database } from "../db";
 import {
+  placeHalalCheckAnswers,
   placeHalalVerificationEvidence,
   placeHalalVerifications,
 } from "../db/schema";
@@ -323,14 +324,15 @@ export function d1HalalVerificationRepository(
         // Step-by-step answers ride in the same batch as the submission.
         ...(Object.values(input.answers).some((value) => value !== null)
           ? [
-              db.run(sql`
-                INSERT INTO place_halal_check_answers (
-                  verification_id, certificate, alcohol, meat, created_at
-                ) VALUES (
-                  ${verificationId}, ${input.answers.certificate}, ${input.answers.alcohol},
-                  ${input.answers.meat}, ${now}
-                )
-              `),
+              // A query builder, not `db.run(sql...)`: drizzle's D1 batch cannot
+              // prepare a raw `run`, and throws before sending anything.
+              db.insert(placeHalalCheckAnswers).values({
+                verificationId,
+                certificate: input.answers.certificate,
+                alcohol: input.answers.alcohol,
+                meat: input.answers.meat,
+                createdAt: new Date(now),
+              }),
             ]
           : []),
       ] as unknown as Parameters<typeof db.batch>[0]);
@@ -453,6 +455,46 @@ export async function getHalalCheckGlance(
 
 /* ------------------------------------------------- assessment source rows -- */
 
+const EVIDENCE_COLUMNS = sql`
+  v.id,
+  v.place_id,
+  v.evidence_kind,
+  v.claimed_status,
+  v.scope,
+  v.scope_note,
+  v.captured_at,
+  v.expires_at,
+  v.created_at,
+  v.submitted_by_user_id,
+  v.relationship,
+  v.incentivized,
+  v.certification_body
+`;
+
+function mapEvidenceRow(row: Record<string, unknown>): EvidenceRecord[] {
+  const capturedAt = numberOrNull(row.captured_at) ?? numberOrNull(row.created_at);
+  if (capturedAt === null || typeof row.id !== "string") return [];
+  return [
+    {
+      id: row.id,
+      kind: isEvidenceKind(row.evidence_kind) ? row.evidence_kind : "first-hand",
+      claimedStatus: isHalalTaxonomyStatus(row.claimed_status)
+        ? row.claimed_status
+        : "self-declared",
+      scope: isEvidenceScope(row.scope) ? row.scope : "venue",
+      scopeNote: typeof row.scope_note === "string" ? row.scope_note : null,
+      capturedAt,
+      expiresAt: numberOrNull(row.expires_at),
+      submittedByUserId:
+        typeof row.submitted_by_user_id === "string" ? row.submitted_by_user_id : "",
+      relationship: isRelationship(row.relationship) ? row.relationship : "none",
+      incentivized: row.incentivized === 1 || row.incentivized === true,
+      certificationBody:
+        typeof row.certification_body === "string" ? row.certification_body : null,
+    },
+  ];
+}
+
 /**
  * Approved evidence for one place, shaped for `deriveHalalAssessment`.
  *
@@ -466,19 +508,7 @@ export async function listApprovedEvidenceRecords(
 ): Promise<EvidenceRecord[]> {
   const db = await client;
   const rows = await db.all<Record<string, unknown>>(sql`
-    SELECT
-      v.id,
-      v.evidence_kind,
-      v.claimed_status,
-      v.scope,
-      v.scope_note,
-      v.captured_at,
-      v.expires_at,
-      v.created_at,
-      v.submitted_by_user_id,
-      v.relationship,
-      v.incentivized,
-      v.certification_body
+    SELECT ${EVIDENCE_COLUMNS}
     FROM place_halal_verifications AS v
     INNER JOIN places AS p ON p.id = v.place_id
     WHERE v.place_id = ${placeId}
@@ -489,27 +519,41 @@ export async function listApprovedEvidenceRecords(
     LIMIT 200
   `);
 
-  return rows.flatMap((row): EvidenceRecord[] => {
-    const capturedAt = numberOrNull(row.captured_at) ?? numberOrNull(row.created_at);
-    if (capturedAt === null || typeof row.id !== "string") return [];
-    return [
-      {
-        id: row.id,
-        kind: isEvidenceKind(row.evidence_kind) ? row.evidence_kind : "first-hand",
-        claimedStatus: isHalalTaxonomyStatus(row.claimed_status)
-          ? row.claimed_status
-          : "self-declared",
-        scope: isEvidenceScope(row.scope) ? row.scope : "venue",
-        scopeNote: typeof row.scope_note === "string" ? row.scope_note : null,
-        capturedAt,
-        expiresAt: numberOrNull(row.expires_at),
-        submittedByUserId:
-          typeof row.submitted_by_user_id === "string" ? row.submitted_by_user_id : "",
-        relationship: isRelationship(row.relationship) ? row.relationship : "none",
-        incentivized: row.incentivized === 1 || row.incentivized === true,
-        certificationBody:
-          typeof row.certification_body === "string" ? row.certification_body : null,
-      },
-    ];
-  });
+  return rows.flatMap(mapEvidenceRow);
+}
+
+/**
+ * Approved evidence for several places in one read, keyed by place id. Used by
+ * lists that must apply a diner's standard to a page of places at once. Every
+ * requested place has an entry, empty when nothing is approved.
+ */
+export async function listApprovedEvidenceByPlace(
+  placeIds: readonly string[],
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
+): Promise<Map<string, EvidenceRecord[]>> {
+  const byPlace = new Map<string, EvidenceRecord[]>(
+    placeIds.map((id) => [id, []]),
+  );
+  if (!placeIds.length) return byPlace;
+  const db = await client;
+  const rows = await db.all<Record<string, unknown>>(sql`
+    SELECT ${EVIDENCE_COLUMNS}
+    FROM place_halal_verifications AS v
+    INNER JOIN places AS p ON p.id = v.place_id
+    WHERE v.place_id IN (${sql.join(
+      placeIds.map((id) => sql`${id}`),
+      sql`, `,
+    )})
+      AND v.status = 'approved'
+      AND v.superseded_by_id IS NULL
+      AND p.halal_confirmed = 1
+    ORDER BY v.created_at DESC
+    LIMIT 2000
+  `);
+  for (const row of rows) {
+    const placeId = typeof row.place_id === "string" ? row.place_id : null;
+    if (!placeId) continue;
+    byPlace.get(placeId)?.push(...mapEvidenceRow(row));
+  }
+  return byPlace;
 }

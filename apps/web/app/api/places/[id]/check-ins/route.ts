@@ -10,11 +10,26 @@ import {
 import {
   getCheckInSummary,
   getDishHighlights,
+  linkHalalCheck,
   listPublicCheckIns,
+  listVisitTimestamps,
   recordVisit,
 } from "../../../../../src/lib/visits";
+import { computeStreak, streakLine } from "@halalfood/core/streaks";
+import {
+  validateHalalVerificationSubmission,
+  type ValidatedHalalVerification,
+} from "../../../../../src/lib/halal-verification";
+import {
+  d1HalalVerificationRepository,
+  submitHalalVerification,
+} from "../../../../../src/lib/halal-verifications";
+import { getOrCreateProfile } from "../../../../../src/lib/preferences-repository";
 import { getPlaceById } from "../../../../../src/lib/places";
-import { consumeCheckInLimits } from "../../../../../src/lib/otp-rate-limit";
+import {
+  consumeCheckInLimits,
+  consumeHalalVerificationLimits,
+} from "../../../../../src/lib/otp-rate-limit";
 import { evaluateDisclosure } from "@halalfood/core/anti-manipulation";
 import { isSafeEvidenceR2Key } from "../../../../../src/lib/r2";
 import {
@@ -27,6 +42,37 @@ import {
   spendBudget,
   unavailable,
 } from "../../../../../src/lib/api";
+
+/**
+ * The optional halal check that can ride along with a visit. Answers that only
+ * say "not sure" or "didn't look" carry no information, so they are dropped
+ * instead of rejecting the whole visit.
+ */
+function halalCheckOf(
+  input: Record<string, unknown>,
+  checkIn: { relationship: string; incentivized: boolean },
+):
+  | { kind: "none" }
+  | { kind: "invalid"; error: string }
+  | { kind: "check"; data: ValidatedHalalVerification } {
+  const raw = input.halalCheck;
+  if (raw === undefined || raw === null) return { kind: "none" };
+  if (typeof raw !== "object" || Array.isArray(raw))
+    return { kind: "invalid", error: "The halal check must be an object." };
+  const informative = Object.values(raw as Record<string, unknown>).some(
+    (value) => typeof value === "string" && value !== "unsure",
+  );
+  if (!informative) return { kind: "none" };
+  // The visit's own disclosure travels with the check, so an owner, a member
+  // of staff or a paid creator cannot raise a status by logging a visit.
+  const validation = validateHalalVerificationSubmission({
+    answers: raw,
+    relationship: checkIn.relationship,
+    incentivized: checkIn.incentivized,
+  });
+  if (!validation.ok) return { kind: "invalid", error: validation.error };
+  return { kind: "check", data: validation.data };
+}
 
 /**
  * Record a visit and its ten-second check-in.
@@ -53,6 +99,9 @@ export async function POST(
   const validation = validateCheckIn(input);
   if (!validation.ok) return badRequest(validation.error);
   const checkIn = validation.data;
+
+  const halalCheck = halalCheckOf(input, checkIn);
+  if (halalCheck.kind === "invalid") return badRequest(halalCheck.error);
 
   const now = Date.now();
   let visitedAt = now;
@@ -137,8 +186,21 @@ export async function POST(
   );
   if (limited) return limited;
 
+  if (halalCheck.kind === "check") {
+    const halalLimited = await spendBudget(
+      consumeHalalVerificationLimits,
+      outcome.auth,
+      "Too many halal checks. Log the visit without one, or try again later.",
+    );
+    if (halalLimited) return halalLimited;
+  }
+
+  let result;
   try {
-    const result = await recordVisit({
+    // A shared visit needs a public handle to link from friends' feeds.
+    if (checkIn.shareToFeed)
+      await getOrCreateProfile(outcome.auth.userId).catch(() => null);
+    result = await recordVisit({
       userId: outcome.auth.userId,
       placeId,
       visitedAt,
@@ -146,19 +208,66 @@ export async function POST(
       receiptR2Key,
       checkIn,
     });
-    return json(
-      {
-        ...result,
-        placeId,
-        verificationNote,
-        countsTowardsRanking: disclosure.countsTowardsRanking,
-        disclosureLabel: disclosure.publicLabel,
-      },
-      { status: 201 },
-    );
   } catch {
     return unavailable();
   }
+
+  // The visit is already saved, so nothing after this point may fail it. A halal
+  // check that cannot be filed is reported back and the diner can resubmit it
+  // from the place page.
+  let halalCheckState: "submitted" | "not-sent" | "failed" = "not-sent";
+  if (halalCheck.kind === "check") {
+    try {
+      const submitted = await submitHalalVerification(
+        d1HalalVerificationRepository(),
+        outcome.auth.userId,
+        placeId,
+        halalCheck.data,
+      );
+      if (submitted.ok) {
+        await linkHalalCheck(
+          result.visitId,
+          outcome.auth.userId,
+          submitted.verification.id,
+        );
+        halalCheckState = "submitted";
+      } else halalCheckState = "failed";
+    } catch (error) {
+      console.error("check-in.halal-check failed", placeId, error);
+      halalCheckState = "failed";
+    }
+  }
+
+  let streak = null;
+  try {
+    const offset =
+      typeof input.utcOffsetMinutes === "number" &&
+      Math.abs(input.utcOffsetMinutes) <= 14 * 60
+        ? input.utcOffsetMinutes
+        : 0;
+    const state = computeStreak(
+      await listVisitTimestamps(outcome.auth.userId),
+      now,
+      offset,
+    );
+    streak = { ...state, line: streakLine(state) };
+  } catch {
+    streak = null;
+  }
+
+  return json(
+    {
+      ...result,
+      placeId,
+      verificationNote,
+      countsTowardsRanking: disclosure.countsTowardsRanking,
+      disclosureLabel: disclosure.publicLabel,
+      sharedToFeed: checkIn.shareToFeed,
+      halalCheck: halalCheckState,
+      streak,
+    },
+    { status: 201 },
+  );
 }
 
 /** Public aggregate and the newest public check-ins for one place. */

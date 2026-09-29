@@ -11,6 +11,7 @@
 import { sql } from "drizzle-orm";
 import { database } from "../db";
 import {
+  feedEvents,
   placeCheckInDishes,
   placeCheckIns,
   placeVisits,
@@ -107,6 +108,7 @@ export async function recordVisit(
       placeId: input.placeId,
       userId: input.userId,
       wouldReturn: checkIn.wouldReturn,
+      verdict: checkIn.verdict,
       wouldBringFriend: checkIn.wouldBringFriend,
       valueVerdict: checkIn.valueVerdict,
       serviceVerdict: checkIn.serviceVerdict,
@@ -130,6 +132,20 @@ export async function recordVisit(
         createdAt: new Date(now),
       }),
     ),
+    // The feed event lands with the visit or not at all, so a shared visit can
+    // never be missing from friends' feeds and a private one can never appear.
+    ...(checkIn.shareToFeed
+      ? [
+          db.insert(feedEvents).values({
+            id: crypto.randomUUID(),
+            actorId: input.userId,
+            kind: "visit",
+            visitId,
+            placeId: input.placeId,
+            createdAt: new Date(now),
+          }),
+        ]
+      : []),
   ] as unknown as Parameters<typeof db.batch>[0]);
 
   return {
@@ -389,4 +405,36 @@ export async function hasRecentVisit(
     LIMIT 1
   `);
   return rows.length > 0;
+}
+
+/** Attach the pending halal check a diner made on this visit. */
+export async function linkHalalCheck(
+  visitId: string,
+  userId: string,
+  verificationId: string,
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
+): Promise<void> {
+  const db = await client;
+  await db.run(sql`
+    UPDATE place_check_ins SET halal_verification_id = ${verificationId}
+    WHERE visit_id = ${visitId} AND user_id = ${userId}
+  `);
+}
+
+/** When this diner visited, newest first, for the weekly streak. */
+export async function listVisitTimestamps(
+  userId: string,
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
+): Promise<number[]> {
+  const db = await client;
+  const rows = await db.all<{ visited_at: unknown }>(sql`
+    SELECT visited_at FROM place_visits
+    WHERE user_id = ${userId}
+    ORDER BY visited_at DESC
+    LIMIT 800
+  `);
+  return rows.flatMap((row) => {
+    const value = num(row.visited_at);
+    return value === null ? [] : [value];
+  });
 }

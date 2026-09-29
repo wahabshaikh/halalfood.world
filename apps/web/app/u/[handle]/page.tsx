@@ -13,6 +13,8 @@ import {
 import { Block, ListIndex, RowList, StatGrid, StatTile } from "../../../src/components/blocks";
 import { InsufficientData, Note } from "../../../src/components/section";
 import ShareButton from "../../../src/components/share-button";
+import FollowControls from "../../../src/components/follow-controls";
+import { countFollows } from "../../../src/lib/social-repository";
 import { getProfileByHandle } from "../../../src/lib/preferences-repository";
 import { getPreferences } from "../../../src/lib/preferences-repository";
 import { listPublicListsForUser } from "../../../src/lib/lists-repository";
@@ -37,7 +39,7 @@ async function load(handle: string) {
     if (!profile) return null;
 
     const preferences = await getPreferences(profile.userId);
-    const [visits, places, lists] = await Promise.all([
+    const [visits, places, lists, follows] = await Promise.all([
       preferences.visibilityVisits === "public"
         ? listPassportVisits(profile.userId)
         : Promise.resolve([]),
@@ -47,6 +49,9 @@ async function load(handle: string) {
       preferences.visibilityLists === "public"
         ? listPublicListsForUser(profile.userId)
         : Promise.resolve([]),
+      // A missing follows table (migration 0014 not applied yet) must not take
+      // the whole profile down, so this read settles on its own.
+      countFollows(profile.userId).catch(() => null),
     ]);
 
     return {
@@ -54,6 +59,7 @@ async function load(handle: string) {
       passport: buildFoodPassport(visits),
       places: places.slice(0, 40),
       lists,
+      follows,
       visitsPrivate: preferences.visibilityVisits !== "public",
       listsPrivate: preferences.visibilityLists !== "public",
     };
@@ -96,7 +102,8 @@ export default async function DinerProfilePage({
       </Page>
     );
 
-  const { profile, passport, places, lists, visitsPrivate, listsPrivate } = loaded.data;
+  const { profile, passport, places, lists, follows, visitsPrivate, listsPrivate } =
+    loaded.data;
   const name = profile.displayName ?? profile.handle;
 
   return (
@@ -115,7 +122,15 @@ export default async function DinerProfilePage({
           {profile.homeCitySlug && (
             <p className="text-sm">Home city: {cityName(profile.homeCitySlug)}</p>
           )}
-          <div className="flex flex-wrap gap-2.5">
+          {follows && (
+            <p className="text-sm text-muted-foreground">
+              <strong className="text-foreground">{follows.followers}</strong>{" "}
+              {follows.followers === 1 ? "follower" : "followers"} ·{" "}
+              <strong className="text-foreground">{follows.following}</strong> following
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <FollowControls handle={profile.handle} />
             <ShareButton
               url={`/u/${profile.handle}`}
               title={`${name} on Halalfood`}

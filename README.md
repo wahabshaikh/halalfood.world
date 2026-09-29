@@ -6,6 +6,8 @@ The home page is a server-rendered Explore view with rows of places per city; th
 
 Places can only be added by picking a Google Maps result: the name, address, city and pin come from Google Places on the server. Halal checks are structured (certificate seen, alcohol served, slaughter method) and go to moderators before they count. Creator videos are linked by pasting an Instagram, TikTok or YouTube URL; the creator's handle, name and thumbnail come from the platform's public oEmbed response.
 
+Signed-in diners can log a visit at `/log` (a four-step verdict, dishes, a note and an optional halal check that goes to moderators), follow each other, and read a friends feed at `/feed`. The feed is assembled on read from the people you follow, hides anything blocked or private, and leaves out places that fail the reader's own dietary standard. Visits at `/visit/[id]` take likes and comments, both reportable; a weekly streak (`@halalfood/core/streaks`) pauses for empty Ramadan weeks. None of it can change a place's halal status, which still comes only from approved evidence. Design: `docs/design/social-community.html`.
+
 Brand PNGs in `apps/web/public/` are rendered from `apps/web/public/icon.svg` with `node apps/web/scripts/generate-assets.mjs` (set `PLAYWRIGHT_CHROMIUM_PATH` if Chromium isn't in Playwright's default location).
 
 ## Repository layout

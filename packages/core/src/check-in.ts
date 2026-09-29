@@ -22,6 +22,27 @@ export type WouldReturn = (typeof WOULD_RETURN)[number];
 export const WOULD_BRING_FRIEND = ["yes", "maybe", "no"] as const;
 export type WouldBringFriend = (typeof WOULD_BRING_FRIEND)[number];
 
+/**
+ * The four-step verdict from the "log a visit" sheet. It is the diner's own
+ * taste call and says nothing about halal status. `wouldReturnForVerdict`
+ * maps it onto the existing return-intent answer so aggregates keep working.
+ */
+export const VERDICTS = ["disliked", "okay", "liked", "favourite"] as const;
+export type Verdict = (typeof VERDICTS)[number];
+
+export const VERDICT_COPY: Record<Verdict, string> = {
+  disliked: "Disliked",
+  okay: "Okay",
+  liked: "Liked",
+  favourite: "Favourite",
+};
+
+export function wouldReturnForVerdict(verdict: Verdict): WouldReturn {
+  if (verdict === "disliked") return "no";
+  if (verdict === "okay") return "maybe";
+  return "definitely";
+}
+
 export const VALUE_VERDICTS = ["great", "fair", "overpriced"] as const;
 export type ValueVerdict = (typeof VALUE_VERDICTS)[number];
 
@@ -90,6 +111,8 @@ export type CheckInDishInput = {
 
 export type ValidatedCheckIn = {
   wouldReturn: WouldReturn;
+  /** The four-step verdict, when the diner gave one. */
+  verdict: Verdict | null;
   wouldBringFriend: WouldBringFriend | null;
   valueVerdict: ValueVerdict;
   serviceVerdict: ServiceVerdict | null;
@@ -101,6 +124,8 @@ export type ValidatedCheckIn = {
   dishes: CheckInDishInput[];
   context: Record<string, string>;
   visibility: "public" | "private";
+  /** Post to friends' feeds. Always false for a private visit. */
+  shareToFeed: boolean;
 };
 
 export type CheckInValidation =
@@ -132,10 +157,28 @@ export function validateCheckIn(input: unknown): CheckInValidation {
     return { ok: false, error: "Send a JSON object." };
   const body = input as Record<string, unknown>;
 
-  if (!(WOULD_RETURN as readonly unknown[]).includes(body.wouldReturn))
+  let verdict: Verdict | null = null;
+  if (body.verdict !== undefined && body.verdict !== null) {
+    if (!(VERDICTS as readonly unknown[]).includes(body.verdict))
+      return { ok: false, error: "Choose a verdict: disliked, okay, liked or favourite." };
+    verdict = body.verdict as Verdict;
+  }
+
+  // A verdict stands in for the return-intent answer when none is sent.
+  let wouldReturn: WouldReturn;
+  if (body.wouldReturn !== undefined && body.wouldReturn !== null) {
+    if (!(WOULD_RETURN as readonly unknown[]).includes(body.wouldReturn))
+      return { ok: false, error: "Choose whether you would return: definitely, maybe or no." };
+    wouldReturn = body.wouldReturn as WouldReturn;
+  } else if (verdict) {
+    wouldReturn = wouldReturnForVerdict(verdict);
+  } else {
     return { ok: false, error: "Choose whether you would return: definitely, maybe or no." };
+  }
+
   if (!(VALUE_VERDICTS as readonly unknown[]).includes(body.valueVerdict))
     return { ok: false, error: "Choose a value verdict: great, fair or overpriced." };
+  const valueVerdict = body.valueVerdict as ValueVerdict;
 
   let wouldBringFriend: WouldBringFriend | null = null;
   if (body.wouldBringFriend !== undefined && body.wouldBringFriend !== null) {
@@ -188,6 +231,10 @@ export function validateCheckIn(input: unknown): CheckInValidation {
   if (visibility !== "public" && visibility !== "private")
     return { ok: false, error: "Visibility must be public or private." };
 
+  if (body.shareToFeed !== undefined && typeof body.shareToFeed !== "boolean")
+    return { ok: false, error: "Share to feed must be true or false." };
+  const shareToFeed = visibility === "public" && body.shareToFeed !== false;
+
   const dishes: CheckInDishInput[] = [];
   if (body.dishes !== undefined && body.dishes !== null) {
     if (!Array.isArray(body.dishes))
@@ -234,9 +281,10 @@ export function validateCheckIn(input: unknown): CheckInValidation {
   return {
     ok: true,
     data: {
-      wouldReturn: body.wouldReturn as WouldReturn,
+      wouldReturn,
+      verdict,
       wouldBringFriend,
-      valueVerdict: body.valueVerdict as ValueVerdict,
+      valueVerdict,
       serviceVerdict,
       spendMinor,
       currency,
@@ -246,6 +294,7 @@ export function validateCheckIn(input: unknown): CheckInValidation {
       dishes,
       context,
       visibility,
+      shareToFeed,
     },
   };
 }
