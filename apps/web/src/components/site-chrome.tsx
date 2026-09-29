@@ -154,6 +154,7 @@ const MENU_GROUPS: { href: string; label: string }[][] = [
     { href: "/lists", label: "Lists" },
     { href: "/passport", label: "Food passport" },
     { href: "/preferences", label: "Dietary standards" },
+    { href: "/settings", label: "Settings and privacy" },
     { href: "/leaderboard", label: "Community" },
   ],
 ];

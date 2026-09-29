@@ -15,6 +15,14 @@ import { InsufficientData, Note } from "../../../src/components/section";
 import ShareButton from "../../../src/components/share-button";
 import { getProfileByHandle } from "../../../src/lib/preferences-repository";
 import { getPreferences } from "../../../src/lib/preferences-repository";
+import { getViewerId } from "../../../src/lib/auth-session";
+import { followCounts, getFollowStatus, relationTo } from "../../../src/lib/social-repository";
+import FollowButton from "../../../src/components/follow-button";
+import BlockButton from "../../../src/components/block-button";
+import { PersonAvatar } from "../../../src/components/person";
+import { avatarUrl, profileAccess } from "@halalfood/core/social";
+import { Badge } from "@halalfood/ui/components/badge";
+import { Button } from "@halalfood/ui/components/button";
 import { listPublicListsForUser } from "../../../src/lib/lists-repository";
 import { listPassportVisits, listVisitedPlaces } from "../../../src/lib/visits";
 import { buildFoodPassport } from "@halalfood/core/food-passport";
@@ -36,26 +44,39 @@ async function load(handle: string) {
     const profile = await getProfileByHandle(handle);
     if (!profile) return null;
 
-    const preferences = await getPreferences(profile.userId);
+    const viewerId = await getViewerId();
+    const relation = await relationTo(viewerId, profile.userId);
+    const access = profileAccess(relation, profile.isPrivate);
+    // A blocked viewer gets the same page as a missing account.
+    if (!access.showsIdentity) return null;
+
+    const [preferences, counts, follow] = await Promise.all([
+      getPreferences(profile.userId),
+      followCounts(profile.userId),
+      viewerId && relation !== "self"
+        ? getFollowStatus(viewerId, profile.userId)
+        : Promise.resolve(null),
+    ]);
+    const showVisits = access.showsActivity && preferences.visibilityVisits === "public";
+    const showLists = access.showsActivity && preferences.visibilityLists === "public";
     const [visits, places, lists] = await Promise.all([
-      preferences.visibilityVisits === "public"
-        ? listPassportVisits(profile.userId)
-        : Promise.resolve([]),
-      preferences.visibilityVisits === "public"
-        ? listVisitedPlaces(profile.userId)
-        : Promise.resolve([]),
-      preferences.visibilityLists === "public"
-        ? listPublicListsForUser(profile.userId)
-        : Promise.resolve([]),
+      showVisits ? listPassportVisits(profile.userId) : Promise.resolve([]),
+      showVisits ? listVisitedPlaces(profile.userId) : Promise.resolve([]),
+      showLists ? listPublicListsForUser(profile.userId) : Promise.resolve([]),
     ]);
 
     return {
       profile,
+      relation,
+      follow,
+      counts,
       passport: buildFoodPassport(visits),
       places: places.slice(0, 40),
       lists,
-      visitsPrivate: preferences.visibilityVisits !== "public",
-      listsPrivate: preferences.visibilityLists !== "public",
+      // Private account: nothing about activity is shown until the viewer follows.
+      locked: !access.showsActivity,
+      visitsPrivate: access.showsActivity && preferences.visibilityVisits !== "public",
+      listsPrivate: access.showsActivity && preferences.visibilityLists !== "public",
     };
   });
 }
@@ -72,8 +93,13 @@ export async function generateMetadata({
   const name = loaded.data.profile.displayName ?? loaded.data.profile.handle;
   return {
     title: `${name} on Halalfood`,
-    description: `${loaded.data.passport.distinctPlaces} halal places across ${loaded.data.passport.cities.length} cities.`,
+    description: loaded.data.locked
+      ? `${name} is on Halalfood.`
+      : `${loaded.data.passport.distinctPlaces} halal places across ${loaded.data.passport.cities.length} cities.`,
     alternates: { canonical: `/u/${loaded.data.profile.handle}` },
+    // Private accounts, and any page whose content depends on who is looking,
+    // stay out of search results.
+    robots: loaded.data.profile.isPrivate ? { index: false, follow: false } : undefined,
   };
 }
 
@@ -96,7 +122,8 @@ export default async function DinerProfilePage({
       </Page>
     );
 
-  const { profile, passport, places, lists, visitsPrivate, listsPrivate } = loaded.data;
+  const { profile, relation, follow, counts, passport, places, lists, locked, visitsPrivate, listsPrivate } =
+    loaded.data;
   const name = profile.displayName ?? profile.handle;
 
   return (
@@ -110,22 +137,60 @@ export default async function DinerProfilePage({
           ]}
         />
         <PageIntro eyebrow="DINER PROFILE" title={name}>
-          <p className="font-semibold text-muted-foreground">@{profile.handle}</p>
+          <div className="flex items-center gap-4">
+            <PersonAvatar
+              name={name}
+              avatarUrl={avatarUrl(profile.handle, profile.avatarKey)}
+              size={72}
+            />
+            <div className="grid gap-1">
+              <p className="font-semibold text-muted-foreground">
+                @{profile.handle}
+                {profile.isPrivate && (
+                  <Badge variant="muted" className="ml-2 align-middle">
+                    Private account
+                  </Badge>
+                )}
+              </p>
+              <p className="text-sm">
+                <strong>{counts.followers}</strong> {counts.followers === 1 ? "follower" : "followers"}
+                {" · "}
+                <strong>{counts.following}</strong> following
+              </p>
+            </div>
+          </div>
           {profile.bio && <Lead>{profile.bio}</Lead>}
           {profile.homeCitySlug && (
             <p className="text-sm">Home city: {cityName(profile.homeCitySlug)}</p>
           )}
-          <div className="flex flex-wrap gap-2.5">
+          <div className="flex flex-wrap items-start gap-2.5">
+            {relation === "self" ? (
+              <Button asChild variant="outline" size="lg">
+                <a href="/settings">Edit profile</a>
+              </Button>
+            ) : (
+              <>
+                <FollowButton handle={profile.handle} initialStatus={follow} />
+                <BlockButton handle={profile.handle} />
+              </>
+            )}
             <ShareButton
               url={`/u/${profile.handle}`}
               title={`${name} on Halalfood`}
-              text={`${passport.distinctPlaces} halal places`}
+              text={`${name} on Halalfood`}
               variant="outline"
             />
           </div>
         </PageIntro>
 
-        {visitsPrivate ? (
+        {locked && (
+          <InsufficientData>
+            This account is private. Follow {name} to see their visits and lists once they
+            approve.
+          </InsufficientData>
+        )}
+
+        {locked ? null : visitsPrivate ? (
           <InsufficientData>This diner keeps their visits private.</InsufficientData>
         ) : (
           <>
@@ -159,6 +224,7 @@ export default async function DinerProfilePage({
           </Block>
         )}
 
+        {!locked && (
         <Block title="Lists">
           {listsPrivate ? (
             <InsufficientData>This diner keeps their lists private.</InsufficientData>
@@ -168,6 +234,7 @@ export default async function DinerProfilePage({
             <ListIndex lists={lists} />
           )}
         </Block>
+        )}
       </PageMain>
       <SiteFooter />
     </Page>

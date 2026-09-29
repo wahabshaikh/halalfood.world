@@ -43,3 +43,23 @@ export async function looksSignedIn(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * The signed-in user for a server-rendered page, or `null` when signed out or
+ * the lookup fails. Pages use it to choose what to show (follow state, private
+ * content); every route that changes data resolves the session on its own.
+ */
+export async function getViewerId(): Promise<string | null> {
+  try {
+    const { headers } = await import("next/headers");
+    const auth = await createAuth();
+    const result = await auth.api.getSession({
+      headers: await headers(),
+      query: { disableCookieCache: true },
+    });
+    const userId = result?.user?.id;
+    return typeof userId === "string" && userId ? userId : null;
+  } catch {
+    return null;
+  }
+}

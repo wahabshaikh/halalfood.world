@@ -30,6 +30,8 @@ export type UserPreferences = {
   requireDedicatedKitchen: boolean;
   requirePrayerSpace: boolean;
   vegetarianOnly: boolean;
+  /** Prefers hand-slaughtered (zabiha) meat. Recorded now; place answers are matched in the feed. */
+  preferHandSlaughter: boolean;
   maxEvidenceAgeDays: number | null;
   allergies: string[];
   cuisines: string[];
@@ -46,6 +48,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   requireDedicatedKitchen: false,
   requirePrayerSpace: false,
   vegetarianOnly: false,
+  preferHandSlaughter: false,
   maxEvidenceAgeDays: null,
   allergies: [],
   cuisines: [],
@@ -129,6 +132,7 @@ export function validatePreferences(input: unknown): PreferencesValidation {
       requireDedicatedKitchen: boolOf(body.requireDedicatedKitchen, false),
       requirePrayerSpace: boolOf(body.requirePrayerSpace, false),
       vegetarianOnly: boolOf(body.vegetarianOnly, false),
+      preferHandSlaughter: boolOf(body.preferHandSlaughter, false),
       maxEvidenceAgeDays,
       allergies,
       cuisines,

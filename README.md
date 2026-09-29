@@ -6,6 +6,8 @@ The home page is a server-rendered Explore view with rows of places per city; th
 
 Places can only be added by picking a Google Maps result: the name, address, city and pin come from Google Places on the server. Halal checks are structured (certificate seen, alcohol served, slaughter method) and go to moderators before they count. Creator videos are linked by pasting an Instagram, TikTok or YouTube URL; the creator's handle, name and thumbnail come from the platform's public oEmbed response.
 
+Signing in for the first time runs a short onboarding at `/onboarding` (name, handle and optional photo, a halal standard written to the same preferences as `/preferences`, three places to try, and friends by handle or invite link). Diners can follow each other (a private account turns a follow into a request), block people, and manage all of it at `/settings`; public profiles at `/u/[handle]` show follower counts and a follow button. The social graph only decides whose visits and lists someone sees: it never feeds into a place's halal status. The design is in `docs/design/social-community.html`; this is its phase 1.
+
 Brand PNGs in `apps/web/public/` are rendered from `apps/web/public/icon.svg` with `node apps/web/scripts/generate-assets.mjs` (set `PLAYWRIGHT_CHROMIUM_PATH` if Chromium isn't in Playwright's default location).
 
 ## Repository layout
@@ -15,7 +17,7 @@ This is an npm workspaces monorepo driven by [Turborepo](https://turborepo.com),
 | Path | Package | What it holds |
 | --- | --- | --- |
 | `apps/web` | `@halalfood/web` | The vinext/Cloudflare Worker web app: routes, API handlers, D1 schema and migrations, server-only libraries, scripts and web tests. |
-| `packages/core` | `@halalfood/core` | Platform-agnostic domain logic with no DOM, database or Worker dependencies: halal taxonomy and status copy, check-ins, discovery filters, place facts, preferences, reputation, moderation, visit verification and friends. Import as `@halalfood/core/<module>`. |
+| `packages/core` | `@halalfood/core` | Platform-agnostic domain logic with no DOM, database or Worker dependencies: halal taxonomy and status copy, check-ins, discovery filters, place facts, preferences, reputation, moderation, visit verification and the social graph (handles, follows, blocks and the onboarding standard). Import as `@halalfood/core/<module>`. |
 | `packages/ui` | `@halalfood/ui` | [shadcn/ui](https://ui.shadcn.com) components (radix-nova style, [Hugeicons](https://hugeicons.com) icons) and the Tailwind theme tokens. Import as `@halalfood/ui/components/<name>`; the stylesheet is `@halalfood/ui/globals.css`. |
 
 A future `apps/mobile` (for example Expo/React Native) can depend on `@halalfood/core` directly and call the web app's `/api` routes. `@halalfood/ui` is web-only, since it renders DOM elements.
