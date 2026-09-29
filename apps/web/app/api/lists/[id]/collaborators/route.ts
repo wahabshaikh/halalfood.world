@@ -9,6 +9,8 @@ import {
   validateCollaboratorInvite,
 } from "@halalfood/core/place-lists";
 import { placeIdParam } from "@halalfood/core/params";
+import { dedupeKeys } from "@halalfood/core/notifications";
+import { tryNotify } from "../../../../../src/lib/notifications-repository";
 import { consumePersonalWriteLimits } from "../../../../../src/lib/otp-rate-limit";
 import {
   INVALID_JSON,
@@ -54,6 +56,13 @@ export async function POST(
       if (result.reason === "exists") return badRequest("They are already invited.");
       return badRequest("This list has as many collaborators as it can hold.");
     }
+    await tryNotify({
+      userId: result.person.userId,
+      kind: "list-invite",
+      actorId: outcome.auth.userId,
+      listId,
+      dedupeKey: dedupeKeys.listInvite(listId),
+    });
     return json(
       {
         collaborators: (await listCollaboratorsOf(listId)).map(({ userId: _userId, ...person }) => person),

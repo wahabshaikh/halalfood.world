@@ -7,6 +7,11 @@ import {
   type RankedContributor,
 } from "../../src/lib/contributor-leaderboard";
 import { creatorPath, listTopCreators, MEDIA_PLATFORM_LABELS } from "../../src/lib/media-links";
+import { citySlugParam } from "@halalfood/core/params";
+import { parseLeaderboardWindow, type LeaderboardWindow } from "@halalfood/core/leaderboard";
+import { listRankedDiners } from "../../src/lib/diner-leaderboard";
+import { listCities } from "../../src/lib/places";
+import { DinerBoard } from "./diner-board";
 import {
   breadcrumbJsonLd,
   canonical,
@@ -96,10 +101,36 @@ function summary(contributor: RankedContributor) {
   return parts.slice(0, 3).join(" · ") || "Just getting started";
 }
 
+const CITY_CHIPS = 5;
+
+const loadDiners = cache((window: LeaderboardWindow, city: string | null) =>
+  loadOrDegrade(async () => (await listRankedDiners(window, city)).slice(0, 50)),
+);
+
+const loadCityChoices = cache(async () => {
+  try {
+    return (await listCities({ limit: CITY_CHIPS })).map((city) => city.city_slug);
+  } catch {
+    return [];
+  }
+});
+
 const AVATAR_TINTS = ["#F6C9B0", "#CFE0F2", "#FBE3A8", "#CDE8D8", "#F4CFE0", "#E3D6F2"];
 
-export default async function LeaderboardPage() {
-  const [loaded, creators] = await Promise.all([loadLeaderboard(), loadCreators()]);
+export default async function LeaderboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const period = parseLeaderboardWindow(params.window);
+  const city = citySlugParam(typeof params.city === "string" ? params.city : null);
+  const [loaded, creators, diners, cityChoices] = await Promise.all([
+    loadLeaderboard(),
+    loadCreators(),
+    loadDiners(period, city),
+    loadCityChoices(),
+  ]);
   if (loaded.status !== "ok")
     return (
       <Page>
@@ -135,6 +166,15 @@ export default async function LeaderboardPage() {
           title="Community"
           lead="The people who add places, check them in person and share what they saw, so the next person can decide."
         />
+
+        {diners.status === "ok" && (
+          <DinerBoard
+            ranked={diners.data}
+            window={period}
+            city={city}
+            cityChoices={city && !cityChoices.includes(city) ? [city, ...cityChoices] : cityChoices}
+          />
+        )}
 
         <section
           className="mb-6 flex items-center gap-4.5 rounded-3xl bg-warning-muted p-6 text-warning-foreground"

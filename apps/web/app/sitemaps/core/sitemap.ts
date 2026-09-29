@@ -19,6 +19,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.85,
     },
     {
+      url: canonical("/events"),
+      changeFrequency: "daily",
+      priority: 0.6,
+    },
+    {
       url: canonical("/leaderboard"),
       changeFrequency: "weekly",
       priority: 0.5,

@@ -151,6 +151,9 @@ const MENU_GROUPS: { href: string; label: string }[][] = [
   ],
   [
     { href: "/feed", label: "Friends" },
+    { href: "/activity", label: "Activity" },
+    { href: "/recs", label: "Recs" },
+    { href: "/events", label: "Events" },
     { href: "/log", label: "Log a visit" },
     { href: "/saved", label: "Saved" },
     { href: "/paste", label: "Save from a reel" },
@@ -265,6 +268,7 @@ const FOOTER_COLUMNS: { title: string; links: { href: string; label: string }[] 
     title: "Community",
     links: [
       { href: "/leaderboard", label: "Community" },
+      { href: "/events", label: "Events" },
       { href: "/add", label: "Add a place" },
       { href: "/contributions", label: "Your contributions" },
     ],
@@ -273,6 +277,8 @@ const FOOTER_COLUMNS: { title: string; links: { href: string; label: string }[] 
     title: "You",
     links: [
       { href: "/feed", label: "Friends feed" },
+      { href: "/activity", label: "Activity" },
+      { href: "/recs", label: "Recs" },
       { href: "/log", label: "Log a visit" },
       { href: "/saved", label: "Saved places" },
       { href: "/paste", label: "Save from a reel" },

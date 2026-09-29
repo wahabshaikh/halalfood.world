@@ -27,6 +27,7 @@ async function present(profile: DinerProfile) {
     bio: profile.bio,
     homeCitySlug: profile.homeCitySlug,
     isPrivate: profile.isPrivate,
+    showOnLeaderboards: profile.showOnLeaderboards,
     avatarUrl: avatarUrl(profile.handle, profile.avatarKey),
     ...counts,
   };
@@ -85,6 +86,11 @@ export async function PUT(request: Request): Promise<Response> {
     if (typeof input.isPrivate !== "boolean")
       return badRequest("Private account must be true or false.");
     update.isPrivate = input.isPrivate;
+  }
+  if (input.showOnLeaderboards !== undefined) {
+    if (typeof input.showOnLeaderboards !== "boolean")
+      return badRequest("Show me on leaderboards must be true or false.");
+    update.showOnLeaderboards = input.showOnLeaderboards;
   }
 
   const limited = await spendBudget(consumePersonalWriteLimits, outcome.auth);

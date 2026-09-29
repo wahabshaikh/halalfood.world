@@ -13,6 +13,7 @@ import { EVIDENCE_KIND_COPY, RELATIONSHIP_COPY, STATUS_COPY } from "@halalfood/c
 import { REPORT_REASON_COPY } from "@halalfood/core/moderation";
 import type { QueueEntry } from "../../src/lib/moderation-repository";
 import type { ReportRow } from "../../src/lib/moderation-repository";
+import EventsAdmin from "./events-admin";
 
 /**
  * The moderation console.
@@ -316,6 +317,8 @@ export default function AdminConsole() {
           </ul>
         )}
       </Block>
+
+      <EventsAdmin />
 
       <Block title={<>Audit log</>}>
         <SectionIntro>

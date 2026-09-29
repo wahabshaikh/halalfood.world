@@ -124,6 +124,8 @@ export type DinerProfile = {
   homeCitySlug: string | null;
   avatarKey: string | null;
   isPrivate: boolean;
+  /** Listed on the diner leaderboard. A private account never is, whatever this says. */
+  showOnLeaderboards: boolean;
   /** When onboarding finished; null means the person has not been through it. */
   onboardedAt: number | null;
   createdAt: number;
@@ -148,7 +150,7 @@ export async function deriveHandle(userId: string): Promise<string> {
 
 const PROFILE_COLUMNS = sql`
   user_id, handle, display_name, bio, home_city_slug, avatar_key, is_private,
-  onboarded_at, created_at
+  show_on_leaderboards, onboarded_at, created_at
 `;
 
 export function mapProfile(row: Record<string, unknown>): DinerProfile {
@@ -162,6 +164,11 @@ export function mapProfile(row: Record<string, unknown>): DinerProfile {
       typeof row.home_city_slug === "string" ? row.home_city_slug : null,
     avatarKey: typeof row.avatar_key === "string" ? row.avatar_key : null,
     isPrivate: bool(row.is_private),
+    // Older rows and partial selects read as listed, like the column default.
+    showOnLeaderboards:
+      row.show_on_leaderboards === undefined || row.show_on_leaderboards === null
+        ? true
+        : bool(row.show_on_leaderboards),
     onboardedAt:
       row.onboarded_at !== null && row.onboarded_at !== undefined && Number.isFinite(onboardedAt)
         ? onboardedAt
@@ -216,6 +223,7 @@ export async function getOrCreateProfile(
         homeCitySlug: null,
         avatarKey: null,
         isPrivate: false,
+        showOnLeaderboards: true,
         onboardedAt: null,
         createdAt: now,
       };
@@ -227,6 +235,7 @@ export type ProfileUpdate = {
   bio?: string | null;
   homeCitySlug?: string | null;
   isPrivate?: boolean;
+  showOnLeaderboards?: boolean;
 };
 
 export async function updateProfile(
@@ -243,6 +252,7 @@ export async function updateProfile(
       bio = ${update.bio === undefined ? current.bio : update.bio},
       home_city_slug = ${update.homeCitySlug === undefined ? current.homeCitySlug : update.homeCitySlug},
       is_private = ${(update.isPrivate ?? current.isPrivate) ? 1 : 0},
+      show_on_leaderboards = ${(update.showOnLeaderboards ?? current.showOnLeaderboards) ? 1 : 0},
       updated_at = ${Date.now()}
     WHERE user_id = ${userId}
   `);

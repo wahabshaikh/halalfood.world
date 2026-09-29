@@ -1,9 +1,11 @@
 import { canComment, validateComment } from "@halalfood/core/feed";
+import { dedupeKeys } from "@halalfood/core/notifications";
 import { uuidParam } from "@halalfood/core/params";
 import {
   addComment,
   getVisitAccess,
 } from "../../../../../src/lib/feed-repository";
+import { tryNotify } from "../../../../../src/lib/notifications-repository";
 import { consumeCommentLimits } from "../../../../../src/lib/otp-rate-limit";
 import {
   INVALID_JSON,
@@ -48,6 +50,14 @@ export async function POST(
       validation.body,
       access.ownerId,
     );
+    await tryNotify({
+      userId: access.ownerId,
+      kind: "comment",
+      actorId: outcome.auth.userId,
+      visitId,
+      placeId: access.placeId,
+      dedupeKey: dedupeKeys.comment(comment.id),
+    });
     return json({ comment }, { status: 201 });
   } catch {
     return unavailable();

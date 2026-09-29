@@ -23,6 +23,10 @@ import {
 } from "../src/components/site-chrome";
 import { PlaceRow } from "../src/components/place-tile";
 import { HomeTabs } from "../src/components/home-tabs";
+import { ComingUpRow, WeeklyLeaderboardRow } from "../src/components/community-rows";
+import { listUpcomingEvents } from "../src/lib/events-repository";
+import { listRankedDiners } from "../src/lib/diner-leaderboard";
+import { cachedRead } from "../src/lib/read-cache";
 import { Button } from "@halalfood/ui/components/button";
 import {
   ChipLink,
@@ -67,6 +71,20 @@ async function loadExplore() {
   });
 }
 
+/**
+ * The community rails under the For you tab. Both are the same for every
+ * visitor and cached briefly, and either failing just hides its rail.
+ */
+async function loadCommunityRails() {
+  const [events, diners] = await Promise.all([
+    cachedRead("events:home:v1", 120, () => listUpcomingEvents({ limit: 6 })).catch(() => []),
+    listRankedDiners("week")
+      .then((ranked) => ranked.slice(0, 4))
+      .catch(() => []),
+  ]);
+  return { events, diners };
+}
+
 /** One short line of copy per situation, so the first screen reads in a glance. */
 function heroCopy(context: LocalContext | null) {
   if (context?.isLocal && context.areaName)
@@ -106,7 +124,11 @@ export default async function Home({
   }
   if ([...legacy.keys()].length) redirect("/map?" + legacy.toString());
 
-  const [loaded, signedIn] = await Promise.all([loadExplore(), looksSignedIn()]);
+  const [loaded, signedIn, rails] = await Promise.all([
+    loadExplore(),
+    looksSignedIn(),
+    loadCommunityRails(),
+  ]);
   const context = loaded.status === "ok" ? loaded.data.context : null;
   const hero = heroCopy(context);
   const area = context?.areaName ?? null;
@@ -191,7 +213,9 @@ export default async function Home({
                 <ChipLink href="/cities">All cities</ChipLink>
               </ChipRow>
             )}
+            <ComingUpRow events={rails.events} />
             <PlaceRow title="Closest to you" href="/map" places={loaded.data.near} />
+            <WeeklyLeaderboardRow diners={rails.diners} />
             {loaded.data.rows.map(({ city, places }) => (
               <PlaceRow
                 key={city.city_slug}

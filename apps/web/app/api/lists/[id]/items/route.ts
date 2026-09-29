@@ -13,6 +13,8 @@ import {
 } from "@halalfood/core/place-lists";
 import { listVisitedPlaceIds } from "../../../../../src/lib/visits";
 import { placeIdParam } from "@halalfood/core/params";
+import { dedupeKeys } from "@halalfood/core/notifications";
+import { tryNotify } from "../../../../../src/lib/notifications-repository";
 import { consumePersonalWriteLimits } from "../../../../../src/lib/otp-rate-limit";
 import {
   INVALID_JSON,
@@ -114,6 +116,15 @@ export async function POST(
     if (result === "not-found") return notFound("That halal place could not be found.");
     if (result === "exists") return badRequest("That place is already on the list.");
     if (result === "full") return badRequest("This list is full.");
+    // A collaborator's addition tells the owner. The owner adding their own does not.
+    await tryNotify({
+      userId: access.list.userId,
+      kind: "list-places-added",
+      actorId: outcome.auth.userId,
+      listId,
+      placeId: validation.placeId,
+      dedupeKey: dedupeKeys.listPlace(listId, outcome.auth.userId, validation.placeId),
+    });
     return json({ items: await listItems(listId) }, { status: 201 });
   } catch {
     return unavailable();

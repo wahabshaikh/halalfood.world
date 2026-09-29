@@ -27,6 +27,7 @@ import { ChoiceChips, ToggleChip } from "../../../src/components/form-fields";
 import { FormMessage, Note } from "../../../src/components/section";
 import { PersonAvatar } from "../../../src/components/person";
 import ShareButton from "../../../src/components/share-button";
+import { SendRecLink } from "../../../src/components/send-rec-link";
 import {
   LIST_CAPTION_MAX,
   canManageList,
@@ -64,6 +65,7 @@ export default function ListActions({
   saved: initialSaved,
   saves: initialSaves,
   itemCount,
+  sendable,
   editable,
   places,
   collaborators: initialCollaborators,
@@ -78,6 +80,8 @@ export default function ListActions({
   saved: boolean;
   saves: number;
   itemCount: number;
+  /** Public lists, and an owner's unlisted one, can be sent to friends. */
+  sendable: boolean;
   editable: EditableList;
   places: Array<{ placeId: string; name: string }>;
   collaborators: Person[];
@@ -179,6 +183,7 @@ export default function ListActions({
             Leave list
           </Button>
         )}
+        {sendable && <SendRecLink list={listId} variant="outline" className="h-10 rounded-full" />}
         <ShareButton
           url={`/list/${listId}`}
           title={title}
