@@ -12,10 +12,8 @@ import {
   getDishHighlights,
   linkHalalCheck,
   listPublicCheckIns,
-  listVisitTimestamps,
   recordVisit,
 } from "../../../../../src/lib/visits";
-import { computeStreak, streakLine } from "@halalfood/core/streaks";
 import {
   validateHalalVerificationSubmission,
   type ValidatedHalalVerification,
@@ -238,23 +236,6 @@ export async function POST(
     }
   }
 
-  let streak = null;
-  try {
-    const offset =
-      typeof input.utcOffsetMinutes === "number" &&
-      Math.abs(input.utcOffsetMinutes) <= 14 * 60
-        ? input.utcOffsetMinutes
-        : 0;
-    const state = computeStreak(
-      await listVisitTimestamps(outcome.auth.userId),
-      now,
-      offset,
-    );
-    streak = { ...state, line: streakLine(state) };
-  } catch {
-    streak = null;
-  }
-
   return json(
     {
       ...result,
@@ -264,7 +245,6 @@ export async function POST(
       disclosureLabel: disclosure.publicLabel,
       sharedToFeed: checkIn.shareToFeed,
       halalCheck: halalCheckState,
-      streak,
     },
     { status: 201 },
   );

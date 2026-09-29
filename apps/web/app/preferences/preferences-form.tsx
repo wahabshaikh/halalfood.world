@@ -61,6 +61,11 @@ const TOGGLES: Array<{
     label: "Vegetarian options needed",
     hint: "Useful when dining with a mixed group.",
   },
+  {
+    key: "preferHandSlaughter",
+    label: "Hand-slaughtered (zabiha) meat",
+    hint: "Your preference. It is matched against diners' checks, never against a badge.",
+  },
 ];
 
 export default function PreferencesForm() {

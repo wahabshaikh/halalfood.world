@@ -420,21 +420,3 @@ export async function linkHalalCheck(
     WHERE visit_id = ${visitId} AND user_id = ${userId}
   `);
 }
-
-/** When this diner visited, newest first, for the weekly streak. */
-export async function listVisitTimestamps(
-  userId: string,
-  client: DatabaseClient | Promise<DatabaseClient> = database(),
-): Promise<number[]> {
-  const db = await client;
-  const rows = await db.all<{ visited_at: unknown }>(sql`
-    SELECT visited_at FROM place_visits
-    WHERE user_id = ${userId}
-    ORDER BY visited_at DESC
-    LIMIT 800
-  `);
-  return rows.flatMap((row) => {
-    const value = num(row.visited_at);
-    return value === null ? [] : [value];
-  });
-}

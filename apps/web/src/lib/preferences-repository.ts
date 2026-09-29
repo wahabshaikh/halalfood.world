@@ -61,6 +61,7 @@ export async function getPreferences(
     requireDedicatedKitchen: bool(row.require_dedicated_kitchen),
     requirePrayerSpace: bool(row.require_prayer_space),
     vegetarianOnly: bool(row.vegetarian_only),
+    preferHandSlaughter: bool(row.prefer_hand_slaughter),
     maxEvidenceAgeDays: Number.isInteger(maxAge) && maxAge > 0 ? maxAge : null,
     allergies: stringArray(row.allergies),
     cuisines: stringArray(row.cuisines),
@@ -82,13 +83,14 @@ export async function savePreferences(
     INSERT INTO user_preferences (
       user_id, minimum_status, require_certification, avoid_alcohol, avoid_pork,
       require_dedicated_kitchen, require_prayer_space, vegetarian_only,
-      max_evidence_age_days, allergies, cuisines, home_city_slug,
+      prefer_hand_slaughter, max_evidence_age_days, allergies, cuisines, home_city_slug,
       visibility_visits, visibility_lists, created_at, updated_at
     ) VALUES (
       ${userId}, ${preferences.minimumStatus}, ${preferences.requireCertification ? 1 : 0},
       ${preferences.avoidAlcohol ? 1 : 0}, ${preferences.avoidPork ? 1 : 0},
       ${preferences.requireDedicatedKitchen ? 1 : 0}, ${preferences.requirePrayerSpace ? 1 : 0},
-      ${preferences.vegetarianOnly ? 1 : 0}, ${preferences.maxEvidenceAgeDays},
+      ${preferences.vegetarianOnly ? 1 : 0}, ${preferences.preferHandSlaughter ? 1 : 0},
+      ${preferences.maxEvidenceAgeDays},
       ${JSON.stringify(preferences.allergies)}, ${JSON.stringify(preferences.cuisines)},
       ${preferences.homeCitySlug}, ${preferences.visibilityVisits},
       ${preferences.visibilityLists}, ${now}, ${now}
@@ -101,6 +103,7 @@ export async function savePreferences(
       require_dedicated_kitchen = excluded.require_dedicated_kitchen,
       require_prayer_space = excluded.require_prayer_space,
       vegetarian_only = excluded.vegetarian_only,
+      prefer_hand_slaughter = excluded.prefer_hand_slaughter,
       max_evidence_age_days = excluded.max_evidence_age_days,
       allergies = excluded.allergies,
       cuisines = excluded.cuisines,
@@ -119,6 +122,10 @@ export type DinerProfile = {
   displayName: string | null;
   bio: string | null;
   homeCitySlug: string | null;
+  avatarKey: string | null;
+  isPrivate: boolean;
+  /** When onboarding finished; null means the person has not been through it. */
+  onboardedAt: number | null;
   createdAt: number;
 };
 
@@ -139,17 +146,13 @@ export async function deriveHandle(userId: string): Promise<string> {
   return `diner-${hex}`;
 }
 
-export async function getProfileByHandle(
-  handle: string,
-  client: DatabaseClient | Promise<DatabaseClient> = database(),
-): Promise<DinerProfile | null> {
-  const db = await client;
-  const rows = await db.all<Record<string, unknown>>(sql`
-    SELECT user_id, handle, display_name, bio, home_city_slug, created_at
-    FROM user_profiles WHERE handle = ${handle} LIMIT 1
-  `);
-  const row = rows[0];
-  if (!row) return null;
+const PROFILE_COLUMNS = sql`
+  user_id, handle, display_name, bio, home_city_slug, avatar_key, is_private,
+  onboarded_at, created_at
+`;
+
+export function mapProfile(row: Record<string, unknown>): DinerProfile {
+  const onboardedAt = Number(row.onboarded_at);
   return {
     userId: String(row.user_id),
     handle: String(row.handle),
@@ -157,8 +160,25 @@ export async function getProfileByHandle(
     bio: typeof row.bio === "string" ? row.bio : null,
     homeCitySlug:
       typeof row.home_city_slug === "string" ? row.home_city_slug : null,
+    avatarKey: typeof row.avatar_key === "string" ? row.avatar_key : null,
+    isPrivate: bool(row.is_private),
+    onboardedAt:
+      row.onboarded_at !== null && row.onboarded_at !== undefined && Number.isFinite(onboardedAt)
+        ? onboardedAt
+        : null,
     createdAt: Number(row.created_at ?? 0),
   };
+}
+
+export async function getProfileByHandle(
+  handle: string,
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
+): Promise<DinerProfile | null> {
+  const db = await client;
+  const rows = await db.all<Record<string, unknown>>(sql`
+    SELECT ${PROFILE_COLUMNS} FROM user_profiles WHERE handle = ${handle} LIMIT 1
+  `);
+  return rows[0] ? mapProfile(rows[0]) : null;
 }
 
 export async function getOrCreateProfile(
@@ -166,22 +186,12 @@ export async function getOrCreateProfile(
   client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): Promise<DinerProfile> {
   const db = await client;
-  const rows = await db.all<Record<string, unknown>>(sql`
-    SELECT user_id, handle, display_name, bio, home_city_slug, created_at
-    FROM user_profiles WHERE user_id = ${userId} LIMIT 1
-  `);
-  const existing = rows[0];
-  if (existing)
-    return {
-      userId: String(existing.user_id),
-      handle: String(existing.handle),
-      displayName:
-        typeof existing.display_name === "string" ? existing.display_name : null,
-      bio: typeof existing.bio === "string" ? existing.bio : null,
-      homeCitySlug:
-        typeof existing.home_city_slug === "string" ? existing.home_city_slug : null,
-      createdAt: Number(existing.created_at ?? 0),
-    };
+  const existing = (
+    await db.all<Record<string, unknown>>(sql`
+      SELECT ${PROFILE_COLUMNS} FROM user_profiles WHERE user_id = ${userId} LIMIT 1
+    `)
+  )[0];
+  if (existing) return mapProfile(existing);
 
   const handle = await deriveHandle(userId);
   const now = Date.now();
@@ -190,14 +200,25 @@ export async function getOrCreateProfile(
     VALUES (${userId}, ${handle}, NULL, NULL, NULL, ${now}, ${now})
     ON CONFLICT(user_id) DO NOTHING
   `);
-  return {
-    userId,
-    handle,
-    displayName: null,
-    bio: null,
-    homeCitySlug: null,
-    createdAt: now,
-  };
+  // Re-read so a concurrent first request returns the row that actually won.
+  const created = (
+    await db.all<Record<string, unknown>>(sql`
+      SELECT ${PROFILE_COLUMNS} FROM user_profiles WHERE user_id = ${userId} LIMIT 1
+    `)
+  )[0];
+  return created
+    ? mapProfile(created)
+    : {
+        userId,
+        handle,
+        displayName: null,
+        bio: null,
+        homeCitySlug: null,
+        avatarKey: null,
+        isPrivate: false,
+        onboardedAt: null,
+        createdAt: now,
+      };
 }
 
 export type ProfileUpdate = {
@@ -205,6 +226,7 @@ export type ProfileUpdate = {
   displayName?: string | null;
   bio?: string | null;
   homeCitySlug?: string | null;
+  isPrivate?: boolean;
 };
 
 export async function updateProfile(
@@ -220,6 +242,7 @@ export async function updateProfile(
       display_name = ${update.displayName === undefined ? current.displayName : update.displayName},
       bio = ${update.bio === undefined ? current.bio : update.bio},
       home_city_slug = ${update.homeCitySlug === undefined ? current.homeCitySlug : update.homeCitySlug},
+      is_private = ${(update.isPrivate ?? current.isPrivate) ? 1 : 0},
       updated_at = ${Date.now()}
     WHERE user_id = ${userId}
   `);

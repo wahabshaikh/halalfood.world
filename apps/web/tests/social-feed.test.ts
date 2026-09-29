@@ -1,6 +1,5 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { DatabaseSync } from "node:sqlite";
 import { DEFAULT_PREFERENCES, type UserPreferences } from "@halalfood/core/user-preferences";
 import {
   addComment,
@@ -14,14 +13,14 @@ import {
 } from "../src/lib/feed-repository";
 import {
   blockUser,
-  countFollows,
-  findUserIdByHandle,
+  followCounts,
   followUser,
-  getRelation,
+  relationTo,
+  respondToFollowRequest,
   unblockUser,
   unfollowUser,
 } from "../src/lib/social-repository";
-import { migratedDatabase, sqliteClient } from "./helpers/sqlite-client";
+import { createTestDatabase } from "./support/sqlite-d1";
 
 const NOW = Date.now();
 const HOUR = 3_600_000;
@@ -30,8 +29,7 @@ type World = ReturnType<typeof world>;
 
 /** Users: viewer, friend, stranger, blocked, hermit (private account). */
 function world() {
-  const db = migratedDatabase();
-  const client = sqliteClient(db);
+  const { sqlite: db, db: client } = createTestDatabase();
   let sequence = 0;
   const id = (prefix: string) => `${prefix}-${(sequence += 1)}`;
 
@@ -143,7 +141,7 @@ function world() {
 }
 
 async function follow(w: World, from: keyof World["users"], to: keyof World["users"]) {
-  const result = await followUser(w.users[from], w.users[to], w.client);
+  const result = await followUser(w.users[from], `${to}-handle`, w.client);
   assert.equal(result.ok, true);
 }
 
@@ -201,14 +199,14 @@ test("blocking hides a friend in both directions and removes the follow", async 
 
   await blockUser(w.users.viewer, w.users.friend, w.client);
   assert.equal((await feed(w)).cards.length, 0);
-  assert.equal((await getRelation(w.users.viewer, w.users.friend, w.client)).following, false);
+  assert.equal(await relationTo(w.users.viewer, w.users.friend, w.client), "blocked");
   assert.equal(await getVisitCard(visit, w.users.viewer, w.client), null);
 
   // The blocked side is hidden from the blocker too, and cannot follow back.
   assert.equal(await getVisitCard(w.visit(w.users.viewer, place), w.users.friend, w.client), null);
-  assert.deepEqual(await followUser(w.users.friend, w.users.viewer, w.client), {
+  assert.deepEqual(await followUser(w.users.friend, "viewer-handle", w.client), {
     ok: false,
-    reason: "blocked",
+    reason: "not-found",
   });
 
   await unblockUser(w.users.viewer, w.users.friend, w.client);
@@ -367,23 +365,38 @@ test("visit access follows visibility, privacy and blocks", async () => {
   assert.equal(access?.ownerId, w.users.friend);
 });
 
-test("follows are one-way, unique and cannot target yourself", async () => {
+test("a private account shows its visits only to accepted followers", async () => {
+  const w = world();
+  const place = w.place("Nalli", { certified: true });
+  w.db.prepare(`UPDATE user_profiles SET is_private = 1 WHERE user_id = ?`).run(w.users.friend);
+  const visit = w.visit(w.users.friend, place);
+
+  assert.equal(await getVisitCard(visit, null, w.client), null);
+  assert.equal(await getVisitCard(visit, w.users.viewer, w.client), null);
+
+  // A pending request opens nothing; an accepted follow does.
+  assert.deepEqual(await followUser(w.users.viewer, "friend-handle", w.client), {
+    ok: true,
+    status: "pending",
+  });
+  assert.equal(await getVisitCard(visit, w.users.viewer, w.client), null);
+  assert.equal((await feed(w)).cards.length, 0);
+
+  assert.equal(await respondToFollowRequest(w.users.friend, "viewer-handle", true, w.client), true);
+  assert.equal((await getVisitCard(visit, w.users.viewer, w.client))?.visitId, visit);
+  assert.equal((await feed(w)).cards.length, 1);
+  assert.equal((await getVisitCard(visit, w.users.stranger, w.client)), null);
+});
+
+test("follows are one-way and unique", async () => {
   const w = world();
   await follow(w, "viewer", "friend");
   await follow(w, "viewer", "friend");
-  assert.deepEqual(await followUser(w.users.viewer, w.users.viewer, w.client), {
-    ok: false,
-    reason: "self",
-  });
-  assert.deepEqual(await countFollows(w.users.friend, w.client), { followers: 1, following: 0 });
-  assert.deepEqual(await countFollows(w.users.viewer, w.client), { followers: 0, following: 1 });
-  const relation = await getRelation(w.users.friend, w.users.viewer, w.client);
-  assert.equal(relation.following, false);
-  assert.equal(relation.followedBy, true);
-  await unfollowUser(w.users.viewer, w.users.friend, w.client);
-  assert.deepEqual(await countFollows(w.users.friend, w.client), { followers: 0, following: 0 });
-  assert.equal(await findUserIdByHandle("friend-handle", w.client), w.users.friend);
-  assert.equal(await findUserIdByHandle("nobody", w.client), null);
+  assert.deepEqual(await followCounts(w.users.friend, w.client), { followers: 1, following: 0 });
+  assert.deepEqual(await followCounts(w.users.viewer, w.client), { followers: 0, following: 1 });
+  assert.equal(await relationTo(w.users.friend, w.users.viewer, w.client), "none");
+  await unfollowUser(w.users.viewer, "friend-handle", w.client);
+  assert.deepEqual(await followCounts(w.users.friend, w.client), { followers: 0, following: 0 });
 });
 
 test("an upheld report hides a comment, a dismissed one leaves it", async () => {

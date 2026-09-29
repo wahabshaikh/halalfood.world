@@ -1,32 +1,8 @@
--- Social feed, phase 2: verdicts, friends feed, reactions and comments.
+-- Social feed, phase 2: verdicts, friends feed, reactions and comments. The
+-- follows and user_blocks tables it reads come from 0014_social_graph.sql.
 -- D1/SQLite dialect. Keep comments here free of quote characters: the remote
 -- migration runner splits statements with a quote-aware scanner that does not
 -- skip comments, and it refuses DROP TABLE, so nothing is rebuilt.
-
--- One-way follows. status is pending only for a private account awaiting
--- approval; every follow created today is accepted.
-CREATE TABLE IF NOT EXISTS "follows" (
-  "follower_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
-  "followee_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
-  "status" text NOT NULL DEFAULT 'accepted' CHECK ("status" IN ('accepted', 'pending')),
-  "created_at" integer NOT NULL,
-  PRIMARY KEY ("follower_id", "followee_id"),
-  CHECK ("follower_id" <> "followee_id")
-);
-
-CREATE INDEX IF NOT EXISTS "follows_followee_idx"
-  ON "follows" ("followee_id", "status");
-
--- A block hides both people from each other everywhere in the social layer.
-CREATE TABLE IF NOT EXISTS "blocks" (
-  "blocker_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
-  "blocked_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
-  "created_at" integer NOT NULL,
-  PRIMARY KEY ("blocker_id", "blocked_id"),
-  CHECK ("blocker_id" <> "blocked_id")
-);
-
-CREATE INDEX IF NOT EXISTS "blocks_blocked_idx" ON "blocks" ("blocked_id");
 
 -- The four-step taste verdict, and the halal check a diner made on the same
 -- visit. The check itself is an ordinary pending verification that goes through

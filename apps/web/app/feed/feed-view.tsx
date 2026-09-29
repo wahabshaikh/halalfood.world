@@ -8,24 +8,18 @@ import { EmptyPanel } from "../../src/components/site-chrome";
 import { FormMessage, Note } from "../../src/components/section";
 import { VisitCard } from "../../src/components/visit-card";
 
-type Streak = { current: number; line: string; atRisk: boolean };
 type State = "loading" | "ready" | "unauthenticated" | "error";
-
-function utcOffsetMinutes() {
-  return -new Date().getTimezoneOffset();
-}
 
 export default function FeedView() {
   const [state, setState] = useState<State>("loading");
   const [cards, setCards] = useState<FeedCard[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [streak, setStreak] = useState<Streak | null>(null);
   const [hidden, setHidden] = useState(0);
   const [more, setMore] = useState(false);
   const [moreError, setMoreError] = useState(false);
 
   const load = useCallback(async (after: string | null, signal?: AbortSignal) => {
-    const params = new URLSearchParams({ utcOffsetMinutes: String(utcOffsetMinutes()) });
+    const params = new URLSearchParams();
     if (after) params.set("cursor", after);
     const response = await fetch(`/api/feed?${params}`, {
       signal,
@@ -37,7 +31,6 @@ export default function FeedView() {
     return (await response.json()) as {
       cards?: FeedCard[];
       nextCursor?: string | null;
-      streak?: Streak | null;
       hiddenByStandard?: number;
     };
   }, []);
@@ -52,7 +45,6 @@ export default function FeedView() {
         }
         setCards(Array.isArray(payload.cards) ? payload.cards : []);
         setCursor(payload.nextCursor ?? null);
-        setStreak(payload.streak ?? null);
         setHidden(payload.hiddenByStandard ?? 0);
         setState("ready");
       })
@@ -112,15 +104,13 @@ export default function FeedView() {
 
   return (
     <div className="grid gap-4">
-      {streak && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-secondary px-5 py-4">
-          <p className="text-sm font-semibold">{streak.line}</p>
+      {cards.length > 0 && (
+        <div className="flex justify-end">
           <Button asChild size="sm">
             <a href="/log">Log a visit</a>
           </Button>
         </div>
       )}
-
       {cards.length === 0 ? (
         <EmptyPanel
           art="visits"

@@ -406,6 +406,9 @@ export const userPreferences = sqliteTable("user_preferences", {
   vegetarianOnly: integer("vegetarian_only", { mode: "boolean" })
     .notNull()
     .default(false),
+  preferHandSlaughter: integer("prefer_hand_slaughter", { mode: "boolean" })
+    .notNull()
+    .default(false),
   maxEvidenceAgeDays: integer("max_evidence_age_days"),
   allergies: text("allergies", { mode: "json" }).notNull().$type<string[]>(),
   cuisines: text("cuisines", { mode: "json" }).notNull().$type<string[]>(),
@@ -424,9 +427,56 @@ export const userProfiles = sqliteTable("user_profiles", {
   displayName: text("display_name"),
   bio: text("bio"),
   homeCitySlug: text("home_city_slug"),
+  avatarKey: text("avatar_key"),
+  isPrivate: integer("is_private", { mode: "boolean" }).notNull().default(false),
+  onboardedAt: integer("onboarded_at", { mode: "timestamp_ms" }),
+  invitedByUserId: text("invited_by_user_id").references(() => authUser.id, {
+    onDelete: "set null",
+  }),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
+
+/* Social graph (migration 0014). Follows of a private account stay pending
+ * until accepted; a block hides both people from each other. */
+export const follows = sqliteTable(
+  "follows",
+  {
+    followerId: text("follower_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    followeeId: text("followee_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    status: text("status", { enum: ["pending", "accepted"] })
+      .notNull()
+      .default("accepted"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.followerId, table.followeeId] }),
+    index("follows_followee_idx").on(table.followeeId, table.status, table.createdAt),
+    index("follows_follower_idx").on(table.followerId, table.status, table.createdAt),
+  ],
+);
+
+export const userBlocks = sqliteTable(
+  "user_blocks",
+  {
+    blockerId: text("blocker_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    blockedId: text("blocked_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.blockerId, table.blockedId] }),
+    index("user_blocks_blocked_idx").on(table.blockedId),
+  ],
+);
 
 export const placeFacts = sqliteTable("place_facts", {
   placeId: text("place_id")
@@ -566,11 +616,11 @@ export const placeCheckIns = sqliteTable(
       .notNull()
       .default(false),
     relationship: text("relationship").notNull().default("none"),
-    /** Four-step taste verdict from the log sheet (migration 0014). */
+    /** Four-step taste verdict from the log sheet (migration 0015). */
     verdict: text("verdict", {
       enum: ["disliked", "okay", "liked", "favourite"],
     }),
-    /** The pending halal check made on the same visit, if any (migration 0014). */
+    /** The pending halal check made on the same visit, if any (migration 0015). */
     halalVerificationId: text("halal_verification_id").references(
       () => placeHalalVerifications.id,
       { onDelete: "set null" },
@@ -1018,47 +1068,10 @@ export const placeMediaLinks = sqliteTable(
 );
 
 /* ---------------------------------------------------------------------------
- * Social layer (migration 0014): follows, blocks, the visit feed, reactions
+ * Social layer (migration 0015): the visit feed, reactions
  * and comments. Reads and writes go through raw SQL in src/lib/social-*.ts and
  * src/lib/feed-repository.ts, except the feed event written with a visit.
  * ------------------------------------------------------------------------ */
-
-export const follows = sqliteTable(
-  "follows",
-  {
-    followerId: text("follower_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    followeeId: text("followee_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    status: text("status", { enum: ["accepted", "pending"] })
-      .notNull()
-      .default("accepted"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    primaryKey({ name: "follows_pkey", columns: [table.followerId, table.followeeId] }),
-    index("follows_followee_idx").on(table.followeeId, table.status),
-  ],
-);
-
-export const blocks = sqliteTable(
-  "blocks",
-  {
-    blockerId: text("blocker_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    blockedId: text("blocked_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    primaryKey({ name: "blocks_pkey", columns: [table.blockerId, table.blockedId] }),
-    index("blocks_blocked_idx").on(table.blockedId),
-  ],
-);
 
 export const feedEvents = sqliteTable(
   "feed_events",

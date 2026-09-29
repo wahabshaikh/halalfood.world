@@ -77,13 +77,11 @@ type CheckAnswers = {
   meat: "hand" | "machine" | "unsure" | null;
 };
 
-type Streak = { current: number; line: string };
 type DoneResult = {
   verified: boolean;
   note: string | null;
   sharedToFeed: boolean;
   halalCheck: "submitted" | "not-sent" | "failed";
-  streak: Streak | null;
 };
 
 async function body(response: Response): Promise<Record<string, unknown>> {
@@ -224,7 +222,6 @@ export default function PlaceCheckIn({
       return;
     }
 
-    const streak = payload.streak as { current?: unknown; line?: unknown } | null;
     setResult({
       verified: payload.verificationMethod !== "none",
       note: typeof payload.verificationNote === "string" ? payload.verificationNote : null,
@@ -233,10 +230,6 @@ export default function PlaceCheckIn({
         payload.halalCheck === "submitted" || payload.halalCheck === "failed"
           ? payload.halalCheck
           : "not-sent",
-      streak:
-        streak && typeof streak.current === "number" && typeof streak.line === "string"
-          ? { current: streak.current, line: streak.line }
-          : null,
     });
     setPhase("done");
   }
@@ -257,9 +250,6 @@ export default function PlaceCheckIn({
             : "Recorded as an unverified visit and labelled as such."}
         </p>
         {result?.note && <Hint>{result.note}</Hint>}
-        {result?.streak && result.streak.current > 0 && (
-          <p className="font-bold">{result.streak.line}</p>
-        )}
         {result?.halalCheck === "submitted" && (
           <Hint>
             Your halal check went to a moderator. It shows as your own

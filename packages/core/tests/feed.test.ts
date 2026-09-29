@@ -24,6 +24,8 @@ const audience = (overrides: Partial<VisitAudience> = {}): VisitAudience => ({
   ownerId: "owner",
   visitVisibility: "public",
   ownerVisitsVisibility: "public",
+  ownerIsPrivateAccount: false,
+  viewerFollowsOwner: false,
   blocked: false,
   ...overrides,
 });
@@ -48,6 +50,15 @@ test("a public visit is visible, a private one or a private account is not", () 
   assert.equal(canViewVisit(audience({ viewerId: null })), true);
   assert.equal(canViewVisit(audience({ visitVisibility: "private" })), false);
   assert.equal(canViewVisit(audience({ ownerVisitsVisibility: "private" })), false);
+});
+
+test("a private account shows its visits only to accepted followers", () => {
+  const closed = { ownerIsPrivateAccount: true };
+  assert.equal(canViewVisit(audience(closed)), false);
+  assert.equal(canViewVisit(audience({ ...closed, viewerId: null })), false);
+  assert.equal(canViewVisit(audience({ ...closed, viewerFollowsOwner: true })), true);
+  assert.equal(canViewVisit(audience({ ...closed, viewerFollowsOwner: true, blocked: true })), false);
+  assert.equal(canViewVisit(audience({ ...closed, viewerId: "owner" })), true);
 });
 
 test("the owner always sees their own visit, even blocked or private", () => {

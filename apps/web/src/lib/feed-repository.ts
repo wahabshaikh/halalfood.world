@@ -307,7 +307,7 @@ export async function listFriendsFeed(
             AND v.visibility = 'public'
             AND COALESCE(up.visibility_visits, 'public') = 'public'
             AND NOT EXISTS (
-              SELECT 1 FROM blocks AS b
+              SELECT 1 FROM user_blocks AS b
               WHERE (b.blocker_id = ${input.viewerId} AND b.blocked_id = e.actor_id)
                  OR (b.blocker_id = e.actor_id AND b.blocked_id = ${input.viewerId})
             )
@@ -386,14 +386,21 @@ export async function getVisitAccess(
     SELECT
       v.id, v.user_id, v.place_id, v.visibility,
       COALESCE(up.visibility_visits, 'public') AS owner_visibility,
+      COALESCE(pr.is_private, 0) AS owner_private,
       EXISTS (
-        SELECT 1 FROM blocks AS b
+        SELECT 1 FROM follows AS f
+        WHERE f.follower_id = ${viewerId} AND f.followee_id = v.user_id
+          AND f.status = 'accepted'
+      ) AS viewer_follows,
+      EXISTS (
+        SELECT 1 FROM user_blocks AS b
         WHERE (b.blocker_id = ${viewerId} AND b.blocked_id = v.user_id)
            OR (b.blocker_id = v.user_id AND b.blocked_id = ${viewerId})
       ) AS blocked
     FROM place_visits AS v
     INNER JOIN place_check_ins AS c ON c.visit_id = v.id
     LEFT JOIN user_preferences AS up ON up.user_id = v.user_id
+    LEFT JOIN user_profiles AS pr ON pr.user_id = v.user_id
     WHERE v.id = ${visitId}
     LIMIT 1
   `);
@@ -408,6 +415,8 @@ export async function getVisitAccess(
       ownerId: String(row.user_id),
       visitVisibility: row.visibility === "private" ? "private" : "public",
       ownerVisitsVisibility: row.owner_visibility === "private" ? "private" : "public",
+      ownerIsPrivateAccount: row.owner_private === 1 || row.owner_private === true,
+      viewerFollowsOwner: row.viewer_follows === 1 || row.viewer_follows === true,
       blocked: row.blocked === 1 || row.blocked === true,
     },
   };
@@ -502,7 +511,7 @@ export async function listComments(
     LEFT JOIN user_profiles AS pr ON pr.user_id = cm.user_id
     WHERE cm.visit_id = ${visitId} AND cm.status = 'visible'
       AND NOT EXISTS (
-        SELECT 1 FROM blocks AS b
+        SELECT 1 FROM user_blocks AS b
         WHERE (b.blocker_id = ${viewerId} AND b.blocked_id = cm.user_id)
            OR (b.blocker_id = cm.user_id AND b.blocked_id = ${viewerId})
       )

@@ -56,6 +56,10 @@ export type VisitAudience = {
   visitVisibility: "public" | "private";
   /** The owner's account-wide "who can see my visits" preference. */
   ownerVisitsVisibility: "public" | "private";
+  /** The owner has a private account: only accepted followers see their activity. */
+  ownerIsPrivateAccount: boolean;
+  /** The viewer is an accepted follower of the owner. */
+  viewerFollowsOwner: boolean;
   /** Either side has blocked the other. */
   blocked: boolean;
 };
@@ -68,6 +72,7 @@ export type VisitAudience = {
 export function canViewVisit(audience: VisitAudience): boolean {
   if (audience.viewerId && audience.viewerId === audience.ownerId) return true;
   if (audience.blocked) return false;
+  if (audience.ownerIsPrivateAccount && !audience.viewerFollowsOwner) return false;
   return (
     audience.visitVisibility === "public" &&
     audience.ownerVisitsVisibility === "public"
