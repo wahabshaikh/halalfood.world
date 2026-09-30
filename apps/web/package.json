@@ -45,9 +45,10 @@
     "test": "tsx --test tests/*.test.ts",
     "backfill:places": "tsx scripts/backfill-place-coordinates.ts",
     "backfill:mumbai-place-details": "tsx scripts/backfill-mumbai-place-details.ts",
-    "test:api": "node tests/api-smoke.mjs",
-    "test:browser": "node tests/browser-smoke.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:server": "node scripts/e2e-server.mjs",
     "db:migrate:local": "wrangler d1 migrations apply halalfood-world --local",
+    "db:seed:local": "wrangler d1 execute halalfood-world --local --file seed/places.sql",
     "db:migrate:remote": "tsx scripts/apply-d1-migrations.ts"
   }
 }

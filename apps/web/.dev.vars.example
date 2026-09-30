@@ -1,0 +1,14 @@
+# Copy to .dev.vars (gitignored) for `npm run dev`. Every value here is safe to
+# commit: the Turnstile keys are Cloudflare's always-pass test keys, and the
+# auth secret only signs local cookies.
+#
+# With BETTER_AUTH_URL on localhost, test sign-in is on: any address at
+# example.com signs in with code 424242 and no email is sent. See
+# docs/verification.md. Add RESEND_API_KEY only to receive real codes.
+BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_SECRET=local-dev-secret-change-me-0000000000000
+TURNSTILE_SITE_KEY=1x00000000000000000000AA
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+# RESEND_API_KEY=
+# EMAIL_FROM=onboarding@resend.dev
+# GOOGLE_PLACES_API_KEY=

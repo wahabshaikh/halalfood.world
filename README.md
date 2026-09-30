@@ -58,7 +58,7 @@ npm run db:migrate:local
 
 `npm run dev` (via the Cloudflare Vite plugin) and `npm start` (via `wrangler dev`) both emulate the `DB` binding locally against the SQLite file under `.wrangler/state`, so no connection string is needed for local development.
 
-Create a **gitignored** `.dev.vars` in `apps/web` containing the local-only email and auth settings below. Do not put secrets in client variables or commit this file. The Cloudflare Vite plugin loads it; the Worker reads bindings through `process.env.*` with Node compatibility enabled.
+Create a **gitignored** `.dev.vars` in `apps/web` containing the local-only email and auth settings below. [`.dev.vars.example`](apps/web/.dev.vars.example) has working local defaults. Do not put secrets in client variables or commit this file. The Cloudflare Vite plugin loads it; the Worker reads bindings through `process.env.*` with Node compatibility enabled.
 
 ```dotenv
 RESEND_API_KEY=<your Resend API key>
@@ -99,16 +99,14 @@ Email delivery uses the Workers-compatible Resend REST API. `noreply@halalfood.w
 The Crisp chat widget (`src/components/crisp-chat.tsx`) loads on every page and, when someone is signed in, sets their email and name on the Crisp session automatically. Signed-out visitors stay anonymous, and signing out resets the chat session. This is identify only. Do not turn on Crisp's "Verify your users' identity" setting, and do not add an identity secret.
 
 ```sh
+cp apps/web/.dev.vars.example apps/web/.dev.vars   # local-only values, safe defaults
+npm run db:migrate:local && npm run db:seed:local  # sample places to browse
 npm run dev
-npm run typecheck
-npm test
-# With the dev server running in another terminal:
-npm run test:api
-npx playwright install chromium
-npm run test:browser
-npm run build
-npm start
+npx playwright install chromium                    # once
+npm run verify                                     # typecheck, unit tests, end-to-end
 ```
+
+To sign in locally without email, use any address at `example.com` with code `424242`. [docs/verification.md](docs/verification.md) covers the end-to-end suite, test sign-in, and checking a pull request preview.
 
 Use the URL printed by the dev server. Development runs against the local D1 database and production against the deployed one; map/listing reads remain bounded, while Better Auth, saved-place, and rate-limit writes use the migrations below.
 
