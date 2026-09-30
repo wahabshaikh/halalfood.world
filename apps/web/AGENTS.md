@@ -45,5 +45,7 @@ APIs, migrations and deployment are the long-form reference for this package.
 - Repository tests use `createTestDatabase()` and `addUser()` from
   `tests/support/sqlite-d1.ts`, which applies every migration to an in-memory
   `node:sqlite` database, and pass its `db` as the repository's `client`.
-- `tests/api-smoke.mjs` and `tests/browser-smoke.mjs` need a running server and
-  data; they are not part of `npm test`.
+- End-to-end specs live in `e2e/*.spec.ts` (Playwright, run by
+  `npm run test:e2e`). Import `test`/`expect` from `e2e/support/test`, find
+  elements by role, depend only on `seed/places.sql`, and use a fresh
+  `signIn()` user for anything that writes. See `docs/verification.md`.

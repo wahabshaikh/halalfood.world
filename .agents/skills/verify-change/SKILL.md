@@ -1,82 +1,62 @@
 ---
 name: verify-change
-description: Decide which checks prove a change works (typecheck, unit tests, build, local dev, PR preview) and how to sign in to test signed-in flows. Use before saying any change is done.
+description: Decide which checks prove a change works (unit tests, Playwright, build, PR preview) and how to test signed-in flows. Use before saying any change is done.
 ---
 
 # Verify a change
 
-"Done" means you have evidence the change works, not that it compiles. Pick
-the cheapest check that proves the behaviour, then widen to what the change
-could break. Report what you ran and what you saw.
+"Done" means you have evidence the change works the way a user sees it, not
+that it compiles. Report what you ran and what you saw. The full reference is
+`docs/verification.md`; this is the short path.
 
-## Always
+## The ladder
 
-```sh
-npm run check        # typecheck + unit tests in every package
-```
+| Command | Checks | Speed |
+| --- | --- | --- |
+| `npx tsx --test tests/<file>.test.ts` (in a package) | One unit test file | seconds |
+| `npm run check` | Typecheck and every unit test | ~20 s |
+| `npm run test:e2e -- e2e/<file>.spec.ts` | One Playwright file against the built app | a minute or two |
+| `npm run verify` | Typecheck, unit tests, whole Playwright suite | a few minutes |
 
-Iterate on one file with `npx tsx --test tests/<file>.test.ts` inside the
-package, then run `npm run check` once before pushing.
+Iterate with the narrow commands; run `npm run verify` once before you push.
+`E2E_SKIP_BUILD=1 npm run test:e2e` reuses the last build when only tests
+changed. Playwright needs Chromium once: `npx playwright install chromium`
+(or set `PLAYWRIGHT_CHROMIUM_PATH` where a browser is preinstalled).
 
 ## By kind of change
 
-| Changed | Also run |
+| Changed | Add or run |
 | --- | --- |
-| `packages/core` rule | Its test in `packages/core/tests/`; web tests that use it |
-| Repository SQL or a migration | A repository test with `createTestDatabase()`; `npm run db:migrate:local` |
-| API route | A route test calling the handler; `curl` against `npm run dev` for the happy path |
-| Page, layout, client component, `proxy.ts` | `npm run build`, then load it in `npm run dev` |
-| `wrangler.jsonc`, `vite.config.ts`, build scripts, dependencies | `npm run build` and `npm start` (runs the built Worker in `wrangler dev`) |
-| Auth, rate limits, cookies | Tests in `apps/web/tests/auth.test.ts`, then a real sign-in (below) |
-| Anything user-visible | The PR preview (below), signed out and signed in |
+| `packages/core` rule | A test in `packages/core/tests/` |
+| Repository SQL or a migration | A repository test with `createTestDatabase()` |
+| API route | A route test calling the handler; an `e2e/api.spec.ts` case for the public contract |
+| Page, layout, client component, `proxy.ts` | A Playwright spec that visits it, desktop and mobile |
+| Signed-in feature | A Playwright spec using `signIn()` (fresh user when it writes) |
+| `wrangler.jsonc`, `vite.config.ts`, build scripts, dependencies | `npm run verify` (it builds and serves the real Worker) |
 
-`npm run test:api` and `npm run test:browser` are smoke tests against a
-running server with data (`TEST_BASE_URL`, default `http://localhost:3000`).
-They expect a populated `places` table, so they fail on an empty local
-database.
-
-## Local setup for manual checks
-
-1. `npm ci`
-2. `npm run db:migrate:local` (creates the local D1 file under `apps/web/.wrangler/state`)
-3. `apps/web/.dev.vars` (gitignored) with at least:
-
-   ```dotenv
-   BETTER_AUTH_SECRET=<32+ random characters>
-   BETTER_AUTH_URL=http://localhost:3000
-   # Cloudflare's always-pass Turnstile test keys
-   TURNSTILE_SITE_KEY=1x00000000000000000000AA
-   TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
-   RESEND_API_KEY=<a Resend key, needed to receive the OTP>
-   EMAIL_FROM=onboarding@resend.dev
-   ```
-
-4. `npm run dev` and use the printed URL.
+Specs find elements by role and name, never CSS classes, and depend only on
+`apps/web/seed/places.sql`. Add fictional rows there (keep it idempotent) when
+a test needs data.
 
 ## Signing in
 
-Sign-in is Better Auth email OTP behind Turnstile (`/login`). OTPs are stored
-hashed, so a code cannot be read back from the database: today you need a
-Resend key and an inbox you can read. With the test Turnstile keys above the
-challenge always passes. Limits: 5 codes per email per day with a 60 second
-cooldown, so reuse one session rather than signing in repeatedly.
+On local servers and PR previews, any `@example.com` address signs in with
+code `424242`: no email, no Turnstile, no send limits. Real addresses and
+production are unchanged. In tests use `signIn(page.request)` or the shared
+`USER_STATE` from `e2e/support/auth.ts`. By hand, open `/login`, enter
+`you@example.com`, then `424242`; a new address lands on onboarding.
 
-Moderator and admin screens (`/admin`) need a row in the `moderators` table
-for your user id:
+Moderator and admin screens (`/admin`) also need a `moderators` row for the
+user:
 
 ```sh
 cd apps/web && npx wrangler d1 execute halalfood-world --local \
   --command "INSERT INTO moderators (user_id, role, created_at) VALUES ('<user id>', 'admin', 0)"
 ```
 
-Keep this section current: when the repo gains a faster test sign-in path,
-document it here and in the root `AGENTS.md`.
-
 ## PR previews
 
-Every PR from this repository gets a preview Worker at
-`https://pr-<number>-halalfood-world.wahabshaikh.workers.dev`, commented on the
-PR by `.github/workflows/preview.yml`. It uses its own D1 database
-(`halalfood-world-pr-<number>`) with all migrations applied and no data, and
-production's secrets. Use it to check build, bindings, migrations and signed-in
-flows in the real runtime. Signing in there sends real email.
+Every PR gets `https://pr-<number>-halalfood-world.wahabshaikh.workers.dev`,
+commented on the PR, with its own D1 database (migrations plus seed). CI runs
+the suite on every PR and again against the preview. Check the change there
+by hand too, signed in with an `@example.com` address.

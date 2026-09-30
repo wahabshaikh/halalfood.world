@@ -43,13 +43,14 @@ Run from the repo root; the root `package.json` is authoritative.
 | Command | What it does |
 | --- | --- |
 | `npm ci` | Install (never `npm install` unless you are changing dependencies) |
-| `npm run check` | Typecheck and unit tests for every package. Run before every push. |
+| `npm run check` | Typecheck and unit tests for every package (fast, no browser) |
+| `npm run verify` | `check` plus the Playwright suite against a seeded production build. Run before calling a change done. |
 | `npm run typecheck` | `tsc --noEmit` in each package |
 | `npm test` | `node:test` suites via `tsx` in each package |
 | `npm run dev` | vinext dev server with local D1/R2 emulation |
 | `npm run build` | Production build, staged for Workers Builds |
-| `npm run db:migrate:local` | Apply D1 migrations to the local database |
-| `npm run test:api` / `npm run test:browser` | Smoke tests against a running server (`TEST_BASE_URL`) |
+| `npm run db:migrate:local` / `npm run db:seed:local` | Apply D1 migrations / load the fictional seed places locally |
+| `npm run test:e2e` | Playwright only (`-- e2e/<file>.spec.ts` for one file; `TEST_BASE_URL` to target a dev server or preview) |
 
 Run one test file while iterating:
 
@@ -70,7 +71,8 @@ two-space indent, double quotes, semicolons, trailing commas.
 | `apps/web/src/db/` | Drizzle schema (`schema.ts`) and the request-scoped D1 client |
 | `apps/web/src/components/` | App-level building blocks shared by pages (`site-chrome`, `section`, `blocks`, `form-fields`) |
 | `apps/web/migrations/` | Numbered D1 SQL migrations |
-| `apps/web/tests/` | Web tests; `tests/support/sqlite-d1.ts` runs real migrations on `node:sqlite` |
+| `apps/web/tests/` | Web unit tests; `tests/support/sqlite-d1.ts` runs real migrations on `node:sqlite` |
+| `apps/web/e2e/`, `apps/web/seed/` | Playwright specs and the idempotent seed data they assume |
 | `apps/web/wrangler.jsonc` | Worker bindings: `DB` (D1), `HALAL_EVIDENCE_R2` (R2), `ASSETS` |
 | `packages/core/` | `@halalfood/core`: pure domain rules (no DOM, DB or Worker APIs) |
 | `packages/ui/` | `@halalfood/ui`: shadcn/ui components and theme tokens |
@@ -127,23 +129,27 @@ comments (so no quote characters in SQL comments). Use `.agents/skills/add-d1-mi
 
 ## Verifying a change
 
-Pick the cheapest check that proves the change, then widen:
+Before calling a change done, run `npm run verify`. For signed-in checks use
+any `@example.com` address with code `424242` (local servers and PR previews
+only; production refuses it). `docs/verification.md` is the reference.
+
+Pick the cheapest check that proves the change while iterating, then widen:
 
 1. `npm run check` always.
 2. Changed a repository or migration: a test using `createTestDatabase()`.
 3. Changed a route: a test that calls the exported handler with a `Request`.
-4. Changed rendering, routing, bindings or build config: `npm run build`.
-5. Changed a user flow: run it in `npm run dev`, or on the PR preview URL the
-   preview workflow comments on the PR.
+4. Changed a page or user flow: a Playwright spec in `apps/web/e2e/`, signed
+   in with `signIn()` from `e2e/support/auth.ts` where the feature needs it.
+5. `npm run verify`, then check the PR preview the workflow comments on the PR.
 
-`.agents/skills/verify-change` has the details, including sign-in.
+`.agents/skills/verify-change` maps kinds of change to checks.
 
 ## Skills
 
 Playbooks live in `.agents/skills/<name>/SKILL.md` (`.claude/skills` points at
 the same folder). Load the one that matches the task:
 
-- `verify-change`: which checks to run for which change, and how to sign in locally
+- `verify-change`: which checks to run for which change, including signed-in flows
 - `add-api-route`: a JSON route handler with auth, validation, rate limit and tests
 - `add-page`: a server-rendered page with metadata, degradation and shared chrome
 - `add-d1-migration`: a schema change that is safe for production D1

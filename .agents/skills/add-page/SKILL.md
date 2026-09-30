@@ -47,6 +47,7 @@ that calls `/api`).
 
 ## Verify
 
-`npm run check`, then `npm run build` (catches server/client boundary
-mistakes that typecheck misses), then open the page in `npm run dev` or on the
-PR preview, signed out and signed in. See skill `verify-change`.
+Add or extend a Playwright spec in `apps/web/e2e/` that visits the page
+(signed in with `signIn()` if it needs a session), then run `npm run verify`:
+it builds the real Worker, which catches server/client boundary mistakes that
+typecheck misses. Check the PR preview by hand too. See skill `verify-change`.

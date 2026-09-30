@@ -12,7 +12,7 @@ After:
 
 <!-- Commands run and what you checked by hand, e.g. `npm run check`, `npm run build`, the flow on the preview URL. -->
 
-- [ ] `npm run check`
+- [ ] `npm run verify`
 - [ ] Checked on the PR preview
 
 ## Checklist

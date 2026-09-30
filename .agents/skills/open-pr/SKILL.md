@@ -8,8 +8,7 @@ description: Branch, commit, push and open a pull request for halalfood.world, t
 ## Before pushing
 
 1. Work on a branch, never `main`.
-2. `npm run check` passes. If you touched pages, config or dependencies,
-   `npm run build` passes too (skill `verify-change`).
+2. `npm run verify` passes (skill `verify-change`).
 3. Re-read the diff: no secrets, no `.dev.vars`, no staged root `dist/`,
    `migrations/` or `wrangler.jsonc` copies, no debugging output, docs updated
    (README section, nearest `AGENTS.md`) where behaviour changed.
@@ -32,10 +31,10 @@ description: Branch, commit, push and open a pull request for halalfood.world, t
 
 ## After opening
 
-- CI (`Pull request preview`) typechecks, tests, builds, then deploys the
-  preview and comments its URL. A red build is yours to fix before anything
+- CI runs `npm run verify` and deploys a preview, comments its URL, and runs
+  the Playwright suite against it. A red check is yours to fix before anything
   else.
-- Check the change on the preview URL, signed out and signed in if it
-  touches signed-in flows, and note what you checked in the PR.
+- Check the change on the preview URL, signed out and signed in (any
+  `@example.com` address, code `424242`), and note what you checked in the PR.
 - Do not merge, deploy to production, or run remote migrations unless the user
   asks.
