@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth/minimal";
 import { emailOTP } from "better-auth/plugins";
 import { database } from "../db";
 import { authSchema } from "../db/schema";
+import { TEST_OTP, usesTestSignIn } from "./auth-test-mode";
 import { sendEmail } from "./email";
 
 function environmentValue(name: string): string {
@@ -37,6 +38,17 @@ function otpEmail(otp: string) {
       "<p>This code expires in 5 minutes and can only be used once.</p>",
       "<p>If you did not request this code, you can ignore this email.</p>",
     ].join(""),
+  };
+}
+
+function skipForTestSignIn(baseURL: string) {
+  return async (request: Request, rule: { window: number; max: number }) => {
+    try {
+      const body = (await request.clone().json()) as { email?: unknown };
+      return usesTestSignIn(body?.email, baseURL) ? false : rule;
+    } catch {
+      return rule;
+    }
   };
 }
 
@@ -94,6 +106,10 @@ export async function createAuth() {
         // database storage each call would cost a D1 read and write, and a
         // few quick page views would 429 a signed-in visitor.
         "/get-session": false,
+        // Test addresses send no email and use a public code, so there is
+        // nothing to protect; this lets e2e runs sign in many users.
+        "/email-otp/send-verification-otp": skipForTestSignIn(baseURL),
+        "/sign-in/email-otp": skipForTestSignIn(baseURL),
       },
     },
     plugins: [
@@ -104,11 +120,16 @@ export async function createAuth() {
         resendStrategy: "rotate",
         storeOTP: "hashed",
         rateLimit: { window: 60, max: 3 },
+        // Test addresses get a fixed code on local and preview deployments
+        // only; see auth-test-mode.ts. Everyone else gets a random code.
+        generateOTP: ({ email }) =>
+          usesTestSignIn(email, baseURL) ? TEST_OTP : undefined,
         async sendVerificationOTP({ email, otp, type }) {
           // This PR exposes sign-in only. Keep all future OTP mail on the same
           // transactional sender if another Better Auth flow is enabled later.
           if (type !== "sign-in")
             throw new Error("Only sign-in email OTP is enabled");
+          if (usesTestSignIn(email, baseURL)) return;
           await sendEmail({ to: email, ...otpEmail(otp) });
         },
       }),

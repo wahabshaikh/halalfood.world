@@ -601,7 +601,9 @@ export default function MapView({
           showList && "hidden",
         )}
       >
-        <div ref={container} className="absolute inset-0 bg-map" aria-label="Map of halal places" />
+        {/* `absolute!` beats MapLibre's own `.maplibregl-map { position: relative }`,
+            which otherwise collapses the map to zero height. */}
+        <div ref={container} className="absolute! inset-0 bg-map" aria-label="Map of halal places" />
         <div className="absolute top-4 right-4 z-3 grid gap-2.5" aria-label="Map controls">
           <ButtonGroupVertical>
             <Button variant="ghost" size="icon-lg" className="rounded-none" aria-label="Zoom in" onClick={() => map.current?.zoomIn()}>

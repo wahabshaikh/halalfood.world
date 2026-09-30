@@ -1,4 +1,5 @@
 import { createAuth } from "../../../../src/lib/auth";
+import { usesTestSignIn } from "../../../../src/lib/auth-test-mode";
 import {
   consumeOtpRequestLimits,
   consumeOtpVerificationLimits,
@@ -59,6 +60,10 @@ async function handle(request: Request): Promise<Response> {
   const path = endpointPath(request);
   if (request.method === "POST" && path === SEND_OTP_PATH) {
     const body = await readJson(request);
+    // Test addresses on local and preview deployments send no email, so the
+    // bot check and send budgets that protect the mail provider don't apply
+    // (see src/lib/auth-test-mode.ts).
+    if (usesTestSignIn(body.email)) return authHandler(request);
     const token =
       request.headers.get("x-turnstile-token") ||
       (typeof body["cf-turnstile-response"] === "string"
@@ -92,6 +97,8 @@ async function handle(request: Request): Promise<Response> {
   if (request.method === "POST" && VERIFY_OTP_PATHS.has(path)) {
     const body = await readJson(request);
     const email = normalizeEmail(body.email);
+    // The test code is public, so there is nothing to guess for these.
+    if (usesTestSignIn(email)) return authHandler(request);
     if (email && typeof body.otp === "string") {
       try {
         const decision = await consumeOtpVerificationLimits(
@@ -107,6 +114,10 @@ async function handle(request: Request): Promise<Response> {
     }
   }
 
+  return authHandler(request);
+}
+
+async function authHandler(request: Request): Promise<Response> {
   try {
     const auth = await createAuth();
     return await auth.handler(request);
