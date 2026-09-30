@@ -13,8 +13,8 @@
     "test": "tsx --test tests/*.test.ts"
   },
   "devDependencies": {
-    "@types/node": "latest",
+    "@types/node": "^22.20.2",
     "tsx": "^4.23.13",
-    "typescript": "latest"
+    "typescript": "^7.0.2"
   }
 }
