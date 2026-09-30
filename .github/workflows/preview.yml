@@ -151,7 +151,8 @@ jobs:
         if: failure() && steps.suite.outputs.present == 'true'
         with:
           name: playwright-report-pr-${{ github.event.pull_request.number }}
-          path: apps/web/playwright-report
+          path: apps/web/.test-artifacts/
+          include-hidden-files: true
           retention-days: 7
 
   cleanup:
