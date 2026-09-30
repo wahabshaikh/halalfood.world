@@ -12,6 +12,7 @@
     "dev": "turbo run dev --filter=@halalfood/web",
     "build": "turbo run build && node scripts/stage-cloudflare-build.mjs",
     "typecheck": "turbo run typecheck",
+    "check": "turbo run typecheck test",
     "test": "turbo run test",
     "start": "npm run start --workspace=@halalfood/web",
     "deploy": "npm run deploy --workspace=@halalfood/web",
