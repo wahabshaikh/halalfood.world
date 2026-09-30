@@ -37,6 +37,8 @@ jobs:
     environment:
       name: preview
       url: ${{ steps.setup.outputs.preview_url }}
+    outputs:
+      preview_url: ${{ steps.setup.outputs.preview_url }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -58,6 +60,15 @@ jobs:
       - name: Apply migrations to the preview database
         working-directory: apps/web
         run: npx wrangler d1 migrations apply DB --remote --config dist/server/wrangler.json
+
+      - name: Seed the preview database
+        working-directory: apps/web
+        run: |
+          if [ -f seed/places.sql ]; then
+            npx wrangler d1 execute DB --remote --config dist/server/wrangler.json --file seed/places.sql
+          else
+            echo "No seed/places.sql on this branch; skipping"
+          fi
 
       - name: Upload preview version
         working-directory: apps/web
@@ -98,6 +109,50 @@ jobs:
             } else {
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
             }
+
+  e2e:
+    name: End-to-end tests on the preview
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Check for a Playwright suite
+        id: suite
+        run: |
+          if ls apps/web/playwright.config.* >/dev/null 2>&1; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No Playwright config on this branch; skipping"
+          fi
+
+      - uses: actions/setup-node@v6
+        if: steps.suite.outputs.present == 'true'
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - if: steps.suite.outputs.present == 'true'
+        run: npm ci
+
+      - name: Run Playwright against the preview
+        if: steps.suite.outputs.present == 'true'
+        working-directory: apps/web
+        env:
+          TEST_BASE_URL: ${{ needs.deploy.outputs.preview_url }}
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: failure() && steps.suite.outputs.present == 'true'
+        with:
+          name: playwright-report-pr-${{ github.event.pull_request.number }}
+          path: apps/web/playwright-report
+          retention-days: 7
 
   cleanup:
     if: >

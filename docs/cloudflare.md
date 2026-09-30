@@ -80,11 +80,15 @@ push to a pull request from this repository:
 2. `scripts/preview.mjs setup` creates or reuses the PR's D1 database, makes
    sure the preview R2 bucket exists, and rewrites the generated
    `dist/server/wrangler.json` so `DB` and `HALAL_EVIDENCE_R2` point at them.
-3. Applies every migration to the PR database.
-4. Uploads a Worker version with `wrangler versions upload --preview-alias pr-<n>`.
-   Uploading a version never changes what production serves.
+3. Applies every migration to the PR database, then loads the fictional seed
+   places from `apps/web/seed/places.sql` when that file exists.
+4. Uploads a Worker version with `wrangler versions upload --preview-alias pr-<n>`,
+   with `BETTER_AUTH_URL` set to the preview URL. Uploading a version never
+   changes what production serves.
 5. Comments the URL on the PR and records a GitHub deployment in the `preview`
    environment.
+6. Runs the Playwright suite in `apps/web` against the preview URL
+   (`TEST_BASE_URL`), when the branch has a Playwright config.
 
 When the PR closes, `scripts/preview.mjs cleanup` deletes the PR's versions and
 its D1 database. Fork and Dependabot PRs get CI but no preview, because they
