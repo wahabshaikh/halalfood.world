@@ -1,36 +1,63 @@
 {
+  // The single Worker that serves halalfood.world. Every binding the app uses is
+  // declared here; do not add bindings in the dashboard. See docs/cloudflare.md.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "halalfood-world",
   "compatibility_date": "2026-09-13",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
   "main": "vinext/server/fetch-handler",
+
+  // workers.dev stays on because pull request previews are served from
+  // pr-<n>-halalfood-world.<subdomain>.workers.dev preview aliases.
+  "workers_dev": true,
   "preview_urls": true,
+
   "assets": {
     "directory": "dist/client",
     "not_found_handling": "none",
     "binding": "ASSETS"
   },
+
+  // Production resources. PR previews rebind both to preview-only resources
+  // (scripts/preview.mjs), so previews never touch production data.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "halalfood-world",
+      "database_id": "3e4b080f-0559-4235-9923-2d6e4dec528f",
+      "migrations_dir": "migrations"
+    }
+  ],
   "r2_buckets": [
     {
       "binding": "HALAL_EVIDENCE_R2",
       "bucket_name": "halalfood-world-evidence"
     }
   ],
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "halalfood-world",
-      // Replace with the id printed by `wrangler d1 create halalfood-world`.
-      "database_id": "3e4b080f-0559-4235-9923-2d6e4dec528f",
-      "migrations_dir": "migrations"
-    }
-  ],
+
+  // Public, non-secret configuration only. Secrets (BETTER_AUTH_SECRET,
+  // RESEND_API_KEY, TURNSTILE_SECRET_KEY, GOOGLE_PLACES_API_KEY) are set with
+  // `wrangler secret put`; see .dev.vars.example for the full list.
   "vars": {
-    "BETTER_AUTH_URL": "https://halalfood.world"
+    "BETTER_AUTH_URL": "https://halalfood.world",
+    "EMAIL_FROM": "noreply@halalfood.world",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAEzrY6c5h0lb8kj5"
   },
+
   "cache": {
     "enabled": true
+  },
+
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.05
+    }
   }
 }

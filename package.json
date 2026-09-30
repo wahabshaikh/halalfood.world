@@ -10,11 +10,11 @@
   ],
   "scripts": {
     "dev": "turbo run dev --filter=@halalfood/web",
-    "build": "turbo run build && node scripts/stage-cloudflare-build.mjs",
+    "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "start": "npm run start --workspace=@halalfood/web",
-    "deploy": "npm run deploy --workspace=@halalfood/web",
+    "deploy": "npm run deploy -w @halalfood/web --",
     "test:api": "npm run test:api -w @halalfood/web --",
     "test:browser": "npm run test:browser -w @halalfood/web --",
     "db:migrate:local": "npm run db:migrate:local -w @halalfood/web --",

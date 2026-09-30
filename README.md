@@ -36,40 +36,24 @@ cd packages/ui && npx shadcn@latest add <component>
 
 **Icons** come from Hugeicons: `import { HugeiconsIcon } from "@hugeicons/react"` with an icon from `@hugeicons/core-free-icons`.
 
-Root scripts (`npm run dev`, `build`, `typecheck`, `test`, `start`, `deploy`) run through Turborepo. App-specific scripts such as the database migrations, backfills and smoke tests live in `apps/web/package.json`; the root forwards the common ones (`db:migrate:local`, `db:migrate:remote`, `backfill:*`, `test:api`, `test:browser`), and anything else runs from `apps/web` or with `npm run <script> -w @halalfood/web`. Paths below that name app files (`wrangler.jsonc`, `migrations/`, `scripts/`, `src/`, `.dev.vars`) are relative to `apps/web`.
+Root scripts (`npm run dev`, `build`, `typecheck`, `test`, `start`) run through Turborepo; production deploys run from CI (see [docs/cloudflare.md](docs/cloudflare.md)). App-specific scripts such as the database migrations, backfills and smoke tests live in `apps/web/package.json`; the root forwards the common ones (`db:migrate:local`, `db:migrate:remote`, `backfill:*`, `test:api`, `test:browser`), and anything else runs from `apps/web` or with `npm run <script> -w @halalfood/web`. Paths below that name app files (`wrangler.jsonc`, `migrations/`, `scripts/`, `src/`, `.dev.vars`) are relative to `apps/web`.
 
 ## Local setup
 
-Use Node 22:
+Use Node 22 (pinned in [`.node-version`](.node-version), which fnm, nvm, mise and Volta read):
 
 ```sh
-export PATH="$HOME/.local/share/fnm/aliases/default/bin:$HOME/.local/share/fnm:$PATH"
 node --version
 npm ci
 ```
 
-The database is Cloudflare D1 (SQLite), bound as `DB` in [`wrangler.jsonc`](apps/web/wrangler.jsonc). Create a local database and apply the migrations once:
+The database is Cloudflare D1 (SQLite), bound as `DB` in [`wrangler.jsonc`](apps/web/wrangler.jsonc). `npm run dev` (via the Cloudflare Vite plugin) and `npm start` (via `wrangler dev`) emulate D1 and R2 locally under `apps/web/.wrangler/state`, so no Cloudflare account or connection string is needed. Apply the migrations to the local database once, and again whenever a new migration lands:
 
 ```sh
-npx wrangler d1 create halalfood-world
-# Paste the printed database_id into wrangler.jsonc's d1_databases entry.
 npm run db:migrate:local
 ```
 
-`npm run dev` (via the Cloudflare Vite plugin) and `npm start` (via `wrangler dev`) both emulate the `DB` binding locally against the SQLite file under `.wrangler/state`, so no connection string is needed for local development.
-
-Create a **gitignored** `.dev.vars` in `apps/web` containing the local-only email and auth settings below. Do not put secrets in client variables or commit this file. The Cloudflare Vite plugin loads it; the Worker reads bindings through `process.env.*` with Node compatibility enabled.
-
-```dotenv
-RESEND_API_KEY=<your Resend API key>
-EMAIL_FROM=noreply@halalfood.world
-BETTER_AUTH_SECRET=<long random Better Auth secret>
-BETTER_AUTH_URL=http://localhost:3000
-TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
-TURNSTILE_SECRET_KEY=<Cloudflare Turnstile server secret>
-GOOGLE_PLACES_API_KEY=<your Google Places API key>
-# GOOGLE_MAPS_API_KEY=<fallback Google Maps API key>
-```
+Copy [`apps/web/.dev.vars.example`](apps/web/.dev.vars.example) to `apps/web/.dev.vars` (gitignored) and fill in the secrets. It uses Cloudflare Turnstile's always-pass test keys, so the sign-in page works on localhost. Never commit `.dev.vars` or expose secrets to the browser. The Worker reads these values through `process.env.*` with Node compatibility enabled.
 
 `GOOGLE_PLACES_API_KEY` is preferred; `GOOGLE_MAPS_API_KEY` is accepted as a
 fallback for existing deployments. Both are server-only secrets: never prefix
@@ -526,124 +510,4 @@ return the three counts and total.
 
 ## Cloudflare deployment
 
-Authenticate with `npx wrangler login`, or provide `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` through your shell/CI secret store. Use credentials authorized to deploy Workers and manage D1.
-
-Create the production D1 database once, fill its printed `database_id` into [`wrangler.jsonc`](apps/web/wrangler.jsonc)'s `d1_databases` entry, and apply the migrations:
-
-```sh
-npx wrangler d1 create halalfood-world
-npm run db:migrate:remote
-```
-
-```sh
-npm run build
-npx wrangler secret put RESEND_API_KEY
-npx wrangler secret put BETTER_AUTH_SECRET
-npx wrangler secret put TURNSTILE_SECRET_KEY
-npx wrangler secret put GOOGLE_PLACES_API_KEY
-npm run deploy
-```
-
-Set these Worker variables in the relevant environment before deploy:
-
-```dotenv
-BETTER_AUTH_URL=https://halalfood.world
-TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
-EMAIL_FROM=noreply@halalfood.world
-```
-
-`TURNSTILE_SITE_KEY` may be a normal public Worker variable (or a dashboard secret if preferred); only `TURNSTILE_SECRET_KEY` belongs in `wrangler secret put` and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, `GOOGLE_PLACES_API_KEY` are secret names only here; enter their values at the Wrangler prompts. Use `GOOGLE_MAPS_API_KEY` instead only when retaining an existing secret name.
-
-Enter the Resend API key, Better Auth secret, and Turnstile server secret at their respective Wrangler prompts. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
-
-```sh
-npx @vinext/cloudflare deploy --config dist/server/wrangler.json
-```
-
-### Migrating existing data from Neon
-
-This repository previously ran on Neon/Postgres. Cutting an existing deployment
-over to D1 needs a one-time, manual data export/import that isn't part of this
-codebase or CI, since it requires production credentials for both databases:
-
-1. Export each table's rows from the existing Neon database (for example with `psql \copy ... to '<file>.csv' csv`).
-2. Convert exported rows to `INSERT` statements matching the new D1 schema: ids stay as text, timestamps become Unix epoch milliseconds, booleans become `0`/`1`, and `places.serves_cuisine` becomes a JSON array string.
-3. Load the converted statements with `npx wrangler d1 execute halalfood-world --remote --file=<file>.sql`.
-4. Verify row counts per table match before decommissioning the Neon project.
-
-Wrangler prints the workers.dev URL on success. Configure the custom domain `halalfood.world` in Cloudflare after deployment if desired. Local `.dev.vars` does **not** upload production secrets. Set `EMAIL_FROM` as a Worker variable (or leave the preferred default), and use `onboarding@resend.dev` until the custom domain is verified. No tile token is needed. Deployment also requires Cloudflare authentication.
-
-The optional email smoke check is disabled unless `EMAIL_HEALTHCHECK_ENABLED=true`. To enable it, configure `EMAIL_HEALTHCHECK_TO` and store a long random bearer token as `EMAIL_HEALTHCHECK_TOKEN` (use `npx wrangler secret put EMAIL_HEALTHCHECK_TOKEN` for production), then send an authenticated `POST` to `/api/admin/email/healthcheck` with `Authorization: Bearer <token>`. The endpoint has no request-supplied recipient and returns 404 while disabled, so it cannot be used as an unauthenticated spam endpoint. Use it only for occasional operator checks; it is not a queue or mass-mailing mechanism.
-
-### Community verification R2 uploads
-
-The web app's [`wrangler.jsonc`](apps/web/wrangler.jsonc) declares the `HALAL_EVIDENCE_R2`
-R2 binding and the bucket name `halalfood-world-evidence`. Create that bucket
-once in the target Cloudflare account, or change the bucket name in
-`wrangler.jsonc` before deployment:
-
-```sh
-npx wrangler r2 bucket create halalfood-world-evidence
-```
-
-The upload path is a Worker-direct multipart upload; it does not need S3
-credentials or a public bucket. Uploads are limited to 8 MiB and the allowlist
-is `image/jpeg`, `image/png`, `image/webp`, and `application/pdf`. The server
-also checks the JPEG/PNG/WebP/PDF signature, stores an account-hashed key, and
-never accepts an arbitrary R2 key in a verification submission. R2 objects are
-served through the access-checked download route, so only approved evidence
-or the submitter's own pending evidence is readable.
-
-Place photos reuse this same `HALAL_EVIDENCE_R2` binding and
-`halalfood-world-evidence` bucket; no new Worker binding or bucket is needed.
-Photo objects use the `photos/<hashed-owner>/<uuid>.<jpg|png|webp>` prefix and
-are readable through the same proxy only while their `place_photos` row belongs
-to a listed halal place. One multipart request performs the direct R2 write and
-metadata registration together.
-
-`npm run build` generates the deployable Worker config at
-`dist/server/wrangler.json` and carries the root `r2_buckets` declaration into
-that generated config. Do not hand-edit `dist`; if the generated file is
-missing the `HALAL_EVIDENCE_R2` declaration, stop before deploying and inspect
-the vinext build output. The runtime reads this binding with vinext's native
-`cloudflare:workers` environment module and fails closed when it is absent.
-
-For Ops moderation, review the submitted links/files, then update only the
-status column (there is intentionally no admin UI in this feature). Approval
-adds community evidence to the place-page summary; it does not create a formal
-certification or change the listing flag:
-
-```sh
-npx wrangler d1 execute halalfood-world --remote --command "
-  UPDATE place_halal_verifications
-  SET status = 'approved', updated_at = unixepoch() * 1000
-  WHERE id = '<verification id>' AND status = 'pending'
-"
-```
-
-The supported status values are `pending`, `approved`, and `rejected`.
-
-The framework deployment setup follows the [official vinext documentation](https://github.com/cloudflare/vinext). Basemap availability depends on CARTO; review its service terms before scaling traffic.
-
-## Pull request previews
-
-The repository includes `.github/workflows/preview.yml` for Vercel-style previews on same-repository pull requests:
-
-- Each PR creates or reuses a Cloudflare D1 database named `halalfood-world-pr-<number>`.
-- Before upload, the deploy job applies every migration under `migrations/` to that database with `wrangler d1 migrations apply --remote`. A migration failure fails the preview.
-- The Cloudflare Worker is uploaded as a non-production version bound to that PR's D1 database, with a stable `pr-<number>` preview alias. The predicted URL is `https://pr-<number>-halalfood-world.wahabshaikh.workers.dev`.
-- The workflow creates or updates one GitHub Deployment in the `preview` environment and adds or updates one preview URL comment in the PR.
-- When the PR closes, all Cloudflare preview versions with the upload message `PR #<number>` are deleted so the alias no longer has a retained version target. The PR's D1 database is also deleted.
-
-Configure these GitHub Actions settings before opening a PR:
-
-| Setting | Type | Purpose |
-| --- | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Repository secret | Cloudflare preview upload, D1 database create/migrate/delete, version lookup, and cleanup |
-| `CLOUDFLARE_ACCOUNT_ID` | Repository secret | Cloudflare account ID |
-
-`CLOUDFLARE_API_TOKEN` needs Workers Scripts edit and D1 edit permissions. Fork pull requests are intentionally skipped because the preview deployment requires infrastructure credentials.
-
-The upload intentionally uses `--keep-vars`. It changes only the `BETTER_AUTH_URL` variable and the `DB` D1 binding; it reuses production Worker variables and secrets for Resend, Turnstile, Google Places, `BETTER_AUTH_SECRET`, and the R2 binding `halalfood-world-evidence`. Preview code can therefore send through production integrations and read or write the production R2 bucket. Future isolation could use a `preview/` key prefix or a separate bucket; that is not implemented here.
-
-Do not promote a preview version manually.
+The app is one Cloudflare Worker with a D1 database and an R2 bucket. Pull requests get their own preview (Worker version, D1 database and preview R2 bucket), and every push to `main` applies migrations and deploys production from GitHub Actions. Bindings, secrets, previews, deploys, rollbacks and first-time account setup are documented in [docs/cloudflare.md](docs/cloudflare.md).

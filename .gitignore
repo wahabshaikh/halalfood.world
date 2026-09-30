@@ -1,18 +1,23 @@
-.database_url
-.dev.vars
-.env
-.env*
+# Dependencies and build output
 node_modules
-.next
-.wrangler
-.open-next
 dist
-*.tsbuildinfo
-.test-artifacts
-.worktrees/
-.vinext
-next-env.d.ts
 .turbo
-# Copied to the repo root by scripts/stage-cloudflare-build.mjs
-/migrations
-/wrangler.jsonc
+.vinext
+.next
+next-env.d.ts
+*.tsbuildinfo
+
+# Local Cloudflare state (local D1/R2) and secrets
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+
+# Test output
+.test-artifacts
+test-results
+playwright-report
+
+# Tooling
+.worktrees/
+.DS_Store

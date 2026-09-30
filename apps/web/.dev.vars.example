@@ -1,0 +1,24 @@
+# Copy to apps/web/.dev.vars for local development. Never commit .dev.vars.
+# Production values: secrets via `npx wrangler secret put <NAME>`; public vars
+# live in wrangler.jsonc. See docs/cloudflare.md.
+
+# --- Secrets ---
+# Any random string of 32+ characters, e.g. `openssl rand -base64 32`.
+BETTER_AUTH_SECRET=
+# Resend API key. Required to send sign-in codes.
+RESEND_API_KEY=
+# Cloudflare Turnstile test secret that always passes. Real secret in production.
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+# Optional. Without it Google Places lookups are skipped.
+GOOGLE_PLACES_API_KEY=
+
+# --- Overrides of the public vars in wrangler.jsonc ---
+BETTER_AUTH_URL=http://localhost:3000
+# Cloudflare Turnstile test site key that always passes.
+TURNSTILE_SITE_KEY=1x00000000000000000000AA
+EMAIL_FROM=onboarding@resend.dev
+
+# --- Optional operator email health check ---
+# EMAIL_HEALTHCHECK_ENABLED=true
+# EMAIL_HEALTHCHECK_TO=
+# EMAIL_HEALTHCHECK_TOKEN=
