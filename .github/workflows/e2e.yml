@@ -1,4 +1,4 @@
-name: CI
+name: End-to-end
 
 on:
   pull_request:
@@ -9,12 +9,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: e2e-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: Typecheck, unit and end-to-end tests
+  e2e:
+    name: End-to-end tests
     runs-on: ubuntu-24.04
     timeout-minutes: 25
 
@@ -29,12 +29,6 @@ jobs:
           cache: npm
 
       - run: npm ci
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Unit tests
-        run: npm test
 
       - name: Install Chromium
         working-directory: apps/web

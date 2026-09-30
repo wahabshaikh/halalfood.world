@@ -10,8 +10,9 @@ feature needs it. There are three layers, fastest first.
 | `npm run test:e2e` | Playwright against the production build on a seeded local D1 | Chromium |
 | `npm run verify` | All three, in that order | Chromium |
 
-CI runs `npm run verify` on every pull request, then runs the end-to-end suite
-again against the pull request preview once it deploys.
+CI runs the end-to-end suite on every pull request
+([`.github/workflows/e2e.yml`](../.github/workflows/e2e.yml)), next to the
+typecheck and unit test checks.
 
 ## End-to-end tests
 
@@ -95,12 +96,13 @@ is exactly what a browser gets. To drive the login form itself, call
 
 Each same-repository pull request deploys to
 `https://pr-<number>-halalfood-world.wahabshaikh.workers.dev` with its own D1
-database, migrated and seeded. The link is posted as a comment on the pull
-request. Test sign-in works there, so you can check signed-in pages by hand
-with `you@example.com` and `424242`, or run the suite against it:
+database. The link is posted as a comment on the pull request. Test sign-in
+works there, so you can check signed-in pages by hand with `you@example.com`
+and `424242`, or run the suite against it:
 
 ```sh
 TEST_BASE_URL=https://pr-123-halalfood-world.wahabshaikh.workers.dev npm run test:e2e
 ```
 
-The preview workflow does this automatically after each deploy.
+The suite assumes the seed places exist; load them into a preview database
+with `wrangler d1 execute <database> --remote --file apps/web/seed/places.sql`.
