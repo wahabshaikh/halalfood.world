@@ -16,6 +16,10 @@ Activity, recs and events are phase 4 of the same design. The bell at `/activity
 
 Brand PNGs in `apps/web/public/` are rendered from `apps/web/public/icon.svg` with `node apps/web/scripts/generate-assets.mjs` (set `PLAYWRIGHT_CHROMIUM_PATH` if Chromium isn't in Playwright's default location).
 
+## Working with AI agents
+
+The repo is set up for coding agents. [`AGENTS.md`](AGENTS.md) is the entry point (product rules, commands, layout, conventions, how to verify), with package-specific notes in `apps/web/AGENTS.md`, `packages/core/AGENTS.md` and `packages/ui/AGENTS.md`. Step-by-step playbooks for common tasks (API routes, pages, D1 migrations, verification, PRs) live in [`.agents/skills`](.agents/skills). `CLAUDE.md` files import the matching `AGENTS.md`, and `.claude/settings.json` installs dependencies at session start and enables Cloudflare's official skills.
+
 ## Repository layout
 
 This is an npm workspaces monorepo driven by [Turborepo](https://turborepo.com), laid out so a mobile app can sit beside the web app and share its code:
