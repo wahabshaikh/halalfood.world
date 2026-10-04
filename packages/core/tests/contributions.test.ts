@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildMergePlan,
+  contributionReceipt,
   editModerationDecision,
   validateDish,
   validateDuplicateReport,
@@ -114,6 +115,21 @@ test("a duplicate report must point at a different, valid place", () => {
     validateDuplicateReport(PLACE_ID, { duplicateOfPlaceId: OTHER_ID }).ok,
     true,
   );
+});
+
+test("a receipt stands on its own for every review outcome", () => {
+  for (const status of ["pending", "accepted", "rejected", "needs-evidence"] as const) {
+    const receipt = contributionReceipt({
+      id: "2c75d665-aac7-4ba1-bb8e-e0ab68319d3f",
+      status,
+      summary: "QA dish",
+    });
+    assert.equal(receipt.reference, "2c75d665-aac7-4ba1-bb8e-e0ab68319d3f");
+    assert.match(receipt.next, /reference|already on the place/i);
+    assert.equal(receipt.summary, "QA dish");
+  }
+  const reported = contributionReceipt({ id: "report-1", status: "open" });
+  assert.equal(reported.statusLabel, "Reported");
 });
 
 test("a merge plan moves every table that would otherwise lose data", () => {

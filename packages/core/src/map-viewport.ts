@@ -12,6 +12,25 @@ export const DEFAULT_MAP_VIEW = {
 
 export type MapDeepLink = "place" | "city";
 
+/**
+ * Places to show when the basemap cannot draw. A city link uses that city.
+ * Anything else uses a small box around the camera so the list is not blank.
+ */
+export function fallbackDiscoverPath(
+  params: URLSearchParams,
+  view: { center: [number, number] },
+): string {
+  const city = params.get("city")?.trim() ?? "";
+  if (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(city))
+    return `/api/discover?city=${encodeURIComponent(city)}&limit=40`;
+  const [lng, lat] = view.center;
+  const span = 0.2;
+  const bbox = [lng - span, lat - span, lng + span, lat + span]
+    .map((value) => value.toFixed(5))
+    .join(",");
+  return `/api/discover?bbox=${bbox}&limit=40`;
+}
+
 export function deepLinkKind(params: URLSearchParams): MapDeepLink | null {
   if (params.get("place")) return "place";
   if (params.get("city")) return "city";

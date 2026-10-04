@@ -28,6 +28,7 @@ export default function ContributionsView() {
   const [message, setMessage] = useState<string | null>(null);
 
   async function load() {
+    setState("loading");
     try {
       const [contributions, reportList] = await Promise.all([
         fetch("/api/contributions"),
@@ -80,7 +81,19 @@ export default function ContributionsView() {
 
   if (state === "loading") return <Loading>Loading…</Loading>;
   if (state === "error")
-    return <FormMessage tone="error">Your contributions could not load.</FormMessage>;
+    return (
+      <FormMessage tone="error">
+        <span className="grid gap-2">
+          <span>
+            Contribution history couldn’t load. A reference you already copied is still the
+            receipt. This page is not required for it to count.
+          </span>
+          <Button className="justify-self-start" variant="outline" onClick={() => void load()}>
+            Try again
+          </Button>
+        </span>
+      </FormMessage>
+    );
 
   return (
     <div>
@@ -98,11 +111,15 @@ export default function ContributionsView() {
                   status={row.status}
                   statusLabel={row.statusLabel ?? row.status}
                   title={
-                    <a href={`/place/${row.placeId}`} className="font-semibold hover:underline">
-                      {row.placeName}
-                    </a>
+                    row.placeId ? (
+                      <a href={`/place/${row.placeId}`} className="font-semibold hover:underline">
+                        {row.placeName}
+                      </a>
+                    ) : (
+                      <span className="font-semibold">{row.placeName}</span>
+                    )
                   }
-                  summary={row.summary}
+                  summary={`${row.summary} · Reference ${row.id}`}
                   reason={row.statusReason}
                 />
               </li>
