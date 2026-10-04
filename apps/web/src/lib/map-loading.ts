@@ -22,6 +22,12 @@ export function unauthorizedFallback(state: {
   return { personal, filters, signedIn: false };
 }
 
+/**
+ * The toast's Sign in link: a 44x44 px tap target (min-h-11, min-w-11). The
+ * negative vertical margin keeps the pill its usual height around it.
+ */
+export const TOAST_LINK_TAP_TARGET = "-my-3 h-auto min-h-11 min-w-11 px-1 font-extrabold";
+
 /** The toast after a Friends/Yours 401 fell back to everyone's places. */
 export const SCOPE_FALLBACK_NOTICE = "Sign in to see your places and your friends’ places.";
 

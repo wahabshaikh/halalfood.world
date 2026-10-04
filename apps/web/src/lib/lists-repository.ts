@@ -11,6 +11,7 @@
  */
 
 import { eq, sql } from "drizzle-orm";
+import { containsText, normalizeSearchQuery } from "./text-search";
 import { database } from "../db";
 import { listCollaborators, placeListItems, placeLists } from "../db/schema";
 import {
@@ -154,7 +155,7 @@ export async function createList(
   const now = Date.now();
   // Slugs are unique per user; a collision gets a short suffix rather than an error.
   const existing = await db.all<{ slug: string }>(sql`
-    SELECT slug FROM place_lists WHERE user_id = ${userId} AND slug LIKE ${input.slug + "%"}
+    SELECT slug FROM place_lists WHERE user_id = ${userId} AND instr(slug, ${input.slug}) = 1
   `);
   const taken = new Set(existing.map((row) => row.slug));
   let slug = input.slug;
@@ -773,9 +774,6 @@ export async function listHub(userId: string, client: Client = database()): Prom
   };
 }
 
-function escapeLike(value: string): string {
-  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
-}
 
 /**
  * Public lists, most saved first. Lists are left out when their owner keeps
@@ -789,18 +787,15 @@ export async function searchLists(
   client: Client = database(),
 ): Promise<ListCard[]> {
   const db = await client;
-  const term = query.trim().toLowerCase();
+  const term = normalizeSearchQuery(query);
   const viewer = viewerId ?? "";
   const match = term
-    ? (() => {
-        const like = `%${escapeLike(term)}%`;
-        return sql`AND (
-          LOWER(l.title) LIKE ${like} ESCAPE '\\'
-          OR LOWER(COALESCE(l.caption, '')) LIKE ${like} ESCAPE '\\'
-          OR LOWER(COALESCE(l.description, '')) LIKE ${like} ESCAPE '\\'
-          OR pr.handle LIKE ${like} ESCAPE '\\'
-        )`;
-      })()
+    ? sql`AND (
+        ${containsText(sql`l.title`, term)}
+        OR ${containsText(sql`COALESCE(l.caption, '')`, term)}
+        OR ${containsText(sql`COALESCE(l.description, '')`, term)}
+        OR ${containsText(sql`pr.handle`, term)}
+      )`
     : sql``;
   const rows = await db.all<Record<string, unknown>>(sql`
     ${CARD_SELECT}

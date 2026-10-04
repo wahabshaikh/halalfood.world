@@ -11,6 +11,7 @@ import { FormCard } from "../../src/components/blocks";
 import { FormMessage, Note } from "../../src/components/section";
 import { cityName } from "../../src/lib/seo";
 import { signInAgainUrl } from "../../src/lib/signed-out";
+import { SEARCH_FAILED_INLINE } from "../../src/lib/search-copy";
 
 type Link = {
   platform: "instagram" | "tiktok" | "youtube";
@@ -101,7 +102,7 @@ export default function PasteView() {
         })),
       );
     } catch {
-      setError("Search is taking a moment. Please try again.");
+      setError(SEARCH_FAILED_INLINE);
     }
   }
 

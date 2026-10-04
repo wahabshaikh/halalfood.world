@@ -10,6 +10,7 @@
 
 import { listedVisitPlace, visibleVisit } from "./visits";
 import { sql, type SQL } from "drizzle-orm";
+import { containsText, normalizeSearchQuery } from "./text-search";
 import { database } from "../db";
 import { listingCachedRead } from "./listing-cache";
 import {
@@ -267,30 +268,31 @@ function buildConditions(query: DiscoveryQuery): SQL[] {
   const conditions: SQL[] = [sql`1 = 1`, ...whoseConditions(query)];
 
   if (filters.q) {
-    const term = "%" + filters.q.replace(/[\\%_]/g, "\\$&") + "%";
+    // instr(), not LIKE: D1 caps LIKE patterns at 50 bytes (text-search.ts).
+    const q = normalizeSearchQuery(filters.q);
     conditions.push(sql`(
-      p.name LIKE ${term} ESCAPE '\\'
-      OR replace(p.city_slug, '-', ' ') LIKE ${term} ESCAPE '\\'
-      OR p.street_address LIKE ${term} ESCAPE '\\'
-      OR p.address_locality LIKE ${term} ESCAPE '\\'
-      OR p.serves_cuisine LIKE ${term} ESCAPE '\\'
-      OR f.neighbourhood LIKE ${term} ESCAPE '\\'
+      ${containsText(sql`p.name`, q)}
+      OR ${containsText(sql`replace(p.city_slug, '-', ' ')`, q)}
+      OR ${containsText(sql`p.street_address`, q)}
+      OR ${containsText(sql`p.address_locality`, q)}
+      OR ${containsText(sql`p.serves_cuisine`, q)}
+      OR ${containsText(sql`f.neighbourhood`, q)}
       OR EXISTS (
         SELECT 1 FROM place_dishes AS sd
         WHERE sd.place_id = p.id AND sd.status = 'accepted'
-          AND sd.name LIKE ${term} ESCAPE '\\'
+          AND ${containsText(sql`sd.name`, q)}
       )
     )`);
   }
 
   if (filters.dish) {
-    const dishTerm = "%" + filters.dish.replace(/[\\%_]/g, "\\$&") + "%";
+    const dish = normalizeSearchQuery(filters.dish);
     conditions.push(sql`EXISTS (
       SELECT 1 FROM place_dishes AS d
-      WHERE d.place_id = p.id AND d.status = 'accepted' AND d.name LIKE ${dishTerm} ESCAPE '\\'
+      WHERE d.place_id = p.id AND d.status = 'accepted' AND ${containsText(sql`d.name`, dish)}
       UNION ALL
       SELECT 1 FROM place_check_in_dishes AS cd
-      WHERE cd.place_id = p.id AND cd.dish_name LIKE ${dishTerm} ESCAPE '\\'
+      WHERE cd.place_id = p.id AND ${containsText(sql`cd.dish_name`, dish)}
     )`);
   }
 
@@ -318,7 +320,7 @@ function buildConditions(query: DiscoveryQuery): SQL[] {
       sql`(${sql.join(
         filters.cuisines.map(
           (cuisine) =>
-            sql`LOWER(p.serves_cuisine) LIKE ${"%" + cuisine.replace(/[\\%_]/g, "\\$&") + "%"} ESCAPE '\\'`,
+            containsText(sql`p.serves_cuisine`, normalizeSearchQuery(cuisine)),
         ),
         sql` OR `,
       )})`,

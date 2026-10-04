@@ -6,6 +6,7 @@
  */
 
 import { sql } from "drizzle-orm";
+import { containsText, normalizeSearchQuery } from "./text-search";
 import { database } from "../db";
 import {
   captionSearchTerms,
@@ -27,7 +28,7 @@ export async function matchPlacesForCaption(
   if (!terms.length) return [];
   const db = await client;
   const conditions = terms.map(
-    (term) => sql`p.name LIKE ${"%" + term.replace(/[\\%_]/g, "\\$&") + "%"} ESCAPE '\\'`,
+    (term) => containsText(sql`p.name`, normalizeSearchQuery(term)),
   );
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT p.id, p.name, p.city_slug, p.address_locality, p.street_address
