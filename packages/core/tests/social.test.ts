@@ -142,6 +142,13 @@ test("the current standard is described in words", () => {
   );
 });
 
+test("a standard nobody chose reads Not set, not Custom standard", () => {
+  assert.equal(DEFAULT_PREFERENCES.minimumStatus, "self-declared");
+  assert.equal(describeStandard(DEFAULT_PREFERENCES), "Not set");
+  assert.equal(describeStandard({ ...DEFAULT_PREFERENCES, avoidAlcohol: true }), "Any halal status · No alcohol");
+  assert.equal(describeStandard({ ...DEFAULT_PREFERENCES, avoidPork: true }), "Any halal status");
+});
+
 test("onboarding needs a name and a handle and nothing else", () => {
   const minimal = validateOnboarding({ displayName: "Ayesha Khan", handle: "Ayesha.Eats" });
   assert.equal(minimal.ok, false);

@@ -152,47 +152,87 @@ export async function presentFetchFailure(
   };
 }
 
+/** A place-page block failure, with whether to offer a sign-in link. */
+export type BlockFailure = PresentedFailure & {
+  /** "signed-out" when a session was lost, "sign-in" when there never was one. */
+  signIn: "signed-out" | "sign-in" | null;
+};
+
 /**
- * Copy for a failed read of the place page's halal-checks block, by status. Each one says what
- * happened and whether trying again can help; a reference goes with it.
+ * Copy for a failed read of a place-page block (halal checks, photos,
+ * reviews), by status. Each one says what happened and whether trying again
+ * can help; a reference goes with it. 401 and 403 never offer Try again: the
+ * same request would fail the same way.
  */
-export function checksLoadFailure(
+export function placeBlockLoadFailure(
+  noun: string,
   status: number,
-): PresentedFailure {
+  hadSession = false,
+): BlockFailure {
   switch (status) {
     case 404:
-      return presentHttpFailure(
-        "this place",
-        404,
-        "This place is no longer listed, so its halal checks cannot be shown",
-      );
+      return {
+        ...presentHttpFailure(
+          "this place",
+          404,
+          `This place is no longer listed, so its ${noun} cannot be shown`,
+        ),
+        retry: false,
+        signIn: null,
+      };
     case 429:
-      return presentHttpFailure(
-        "the halal checks",
-        429,
-        "Too many requests for halal checks just now. Wait a moment, then try again",
-      );
+      return {
+        ...presentHttpFailure(
+          `the ${noun}`,
+          429,
+          `Too many requests for ${noun} just now. Wait a moment, then try again`,
+        ),
+        retry: true,
+        signIn: null,
+      };
     case 401:
+      return {
+        ...presentHttpFailure(
+          `the ${noun}`,
+          401,
+          hadSession
+            ? `You've been signed out, so the ${noun} for this place did not load. Sign in again to see them`
+            : `Sign in to see the ${noun} for this place`,
+        ),
+        retry: false,
+        signIn: hadSession ? "signed-out" : "sign-in",
+      };
     case 403:
       return {
         ...presentHttpFailure(
-          "the halal checks",
-          status,
-          "Your session could not open the halal checks. Reload the page, or sign in again",
+          `the ${noun}`,
+          403,
+          `You don't have access to the ${noun} for this place`,
         ),
-        retry: true,
+        retry: false,
+        signIn: null,
       };
     default:
       return {
         ...presentHttpFailure(
-          "the halal checks",
+          `the ${noun}`,
           503,
           status >= 500
-            ? "The halal checks for this place did not load because of a server problem. Nothing was lost"
-            : "The halal checks for this place did not load. Nothing was lost",
+            ? `The ${noun} for this place did not load because of a server problem. Nothing was lost`
+            : `The ${noun} for this place did not load. Nothing was lost`,
         ),
         retry: true,
+        signIn: null,
       };
   }
 }
 
+/** A block read that never got a response, or got one it could not read. */
+export function placeBlockTransportFailure(noun: string, error: unknown): BlockFailure {
+  return { ...presentTransportFailure(`the ${noun} for this place`, error), retry: true, signIn: null };
+}
+
+/** The halal-checks block. */
+export function checksLoadFailure(status: number, hadSession = false): BlockFailure {
+  return placeBlockLoadFailure("halal checks", status, hadSession);
+}

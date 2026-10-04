@@ -16,17 +16,17 @@ import {
   storeEvidenceFile,
   type R2BucketLike,
 } from "../../../../src/lib/r2";
-import { signedOutLoginPath } from "../../../../src/lib/signed-out";
+import { signedOutLoginPath, hasSessionCookie } from "../../../../src/lib/signed-out";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
 }
 
-function unauthorized(returnTo = "/") {
+function unauthorized(returnTo = "/", hadSession: boolean) {
   return Response.json(
     {
       error: "Sign in to upload halal verification evidence.",
-      loginUrl: signedOutLoginPath(returnTo),
+      loginUrl: signedOutLoginPath(returnTo, hadSession),
     },
     { status: 401, headers: noStore() },
   );
@@ -73,7 +73,7 @@ export async function handleR2Upload(
 ): Promise<Response> {
   const auth = await (dependencies.getAuth ?? getRequestAuth)(request);
   if (auth.status === "unavailable") return unavailable();
-  if (auth.status === "unauthenticated") return unauthorized(returnTo(request));
+  if (auth.status === "unauthenticated") return unauthorized(returnTo(request), hasSessionCookie(request));
 
   const contentType = request.headers.get("content-type")?.toLowerCase() || "";
   if (!contentType.startsWith("multipart/form-data"))

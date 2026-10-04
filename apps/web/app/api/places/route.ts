@@ -1,5 +1,6 @@
 import { findPlaces } from "../../../src/lib/places";
 import { submitPlaceLink } from "../../../src/lib/place-link-submissions";
+import { duplicateBody } from "../../../src/lib/place-duplicates";
 import { respondToGooglePlaceSubmission } from "../../../src/lib/google-place-submission";
 import { bboxParam, limitParam } from "@halalfood/core/params";
 import { getRequestAuth } from "../../../src/lib/auth-session";
@@ -9,17 +10,17 @@ import {
   retryAfterSeconds,
 } from "../../../src/lib/otp-rate-limit";
 import { validatePlaceSubmission } from "@halalfood/core/place-submission";
-import { signedOutLoginPath } from "../../../src/lib/signed-out";
+import { signedOutLoginPath, hasSessionCookie } from "../../../src/lib/signed-out";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
 }
 
-function unauthorized() {
+function unauthorized(hadSession: boolean) {
   return Response.json(
     {
       error: "Sign in to add a place.",
-      loginUrl: signedOutLoginPath("/add"),
+      loginUrl: signedOutLoginPath("/add", hadSession),
     },
     { status: 401, headers: noStore() },
   );
@@ -71,7 +72,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const auth = await getRequestAuth(request);
   if (auth.status === "unavailable") return unavailable();
-  if (auth.status === "unauthenticated") return unauthorized();
+  if (auth.status === "unauthenticated") return unauthorized(hasSessionCookie(request));
 
   let body: unknown;
   try {
@@ -104,14 +105,10 @@ export async function POST(request: Request) {
     try {
       const result = await submitPlaceLink(auth.userId, input);
       if (!result.ok) {
-        return Response.json(
-          {
-            error: `${result.place.name} is already listed.`,
-            placeId: result.place.id,
-            url: `/place/${result.place.id}`,
-          },
-          { status: 409, headers: noStore() },
-        );
+        return Response.json(duplicateBody(result.match, auth.userId), {
+          status: 409,
+          headers: noStore(),
+        });
       }
       return Response.json(
         {

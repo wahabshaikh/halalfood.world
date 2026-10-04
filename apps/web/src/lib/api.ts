@@ -8,7 +8,7 @@
 
 import { getRequestAuth, type RequestAuth } from "./auth-session";
 import { getClientIp, retryAfterSeconds } from "./otp-rate-limit";
-import { SIGNED_OUT_COPY, signedOutLoginPath } from "./signed-out";
+import { SIGNED_OUT_COPY, hasSessionCookie, signInCopyFor, signedOutLoginPath } from "./signed-out";
 
 export const NO_STORE = { "Cache-Control": "no-store" } as const;
 
@@ -37,8 +37,18 @@ export function unavailable(
   return json({ error }, { status: 503 });
 }
 
-export function unauthorized(returnTo: string, error = SIGNED_OUT_COPY): Response {
-  return json({ error, loginUrl: signedOutLoginPath(returnTo) }, { status: 401 });
+/**
+ * 401 body. `hadSession` says whether the request carried a session cookie:
+ * with one, the person was signed out; without, they never signed in.
+ */
+export function unauthorized(returnTo: string, error?: string, hadSession = true): Response {
+  return json(
+    {
+      error: error ?? (hadSession ? SIGNED_OUT_COPY : signInCopyFor(returnTo)),
+      loginUrl: signedOutLoginPath(returnTo, hadSession),
+    },
+    { status: 401 },
+  );
 }
 
 export function rateLimited(retryAfterMs: number, error = "Too many requests. Please try again later."): Response {
@@ -67,7 +77,7 @@ export async function requireUser(
   const auth = await getAuth(request);
   if (auth.status === "unavailable") return { ok: false, response: unavailable() };
   if (auth.status === "unauthenticated")
-    return { ok: false, response: unauthorized(returnTo) };
+    return { ok: false, response: unauthorized(returnTo, undefined, hasSessionCookie(request)) };
   return { ok: true, auth: { userId: auth.userId, ip: getClientIp(request) } };
 }
 

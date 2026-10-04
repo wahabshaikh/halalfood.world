@@ -17,6 +17,7 @@ import {
   unauthorized,
   unavailable,
 } from "../../../src/lib/api";
+import { hasSessionCookie } from "../../../src/lib/signed-out";
 import { domainFailure } from "../../../src/lib/domain-error";
 import { discoverResponseCacheHeaders } from "../../../src/lib/discover-response";
 
@@ -72,6 +73,7 @@ export async function GET(request: Request): Promise<Response> {
       return unauthorized(
         "/map?" + params.toString(),
         "Sign in to see your places and your friends’ places.",
+        hasSessionCookie(request),
       );
   }
 

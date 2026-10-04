@@ -2,17 +2,17 @@ import { getRequestAuth } from "../../../../src/lib/auth-session";
 import {
   d1SavedPlaceRepository,
 } from "../../../../src/lib/saved-places";
-import { signedOutLoginPath } from "../../../../src/lib/signed-out";
+import { signedOutLoginPath, hasSessionCookie } from "../../../../src/lib/signed-out";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
 }
 
-function unauthorized() {
+function unauthorized(hadSession: boolean) {
   return Response.json(
     {
       error: "Sign in to view saved places.",
-      loginUrl: signedOutLoginPath("/saved"),
+      loginUrl: signedOutLoginPath("/saved", hadSession),
     },
     { status: 401, headers: noStore() },
   );
@@ -28,7 +28,7 @@ function unavailable() {
 export async function GET(request: Request) {
   const auth = await getRequestAuth(request);
   if (auth.status === "unavailable") return unavailable();
-  if (auth.status === "unauthenticated") return unauthorized();
+  if (auth.status === "unauthenticated") return unauthorized(hasSessionCookie(request));
 
   try {
     return Response.json(await d1SavedPlaceRepository().list(auth.userId), {

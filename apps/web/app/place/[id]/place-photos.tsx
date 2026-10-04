@@ -6,8 +6,14 @@ import { Field, FieldDescription, FieldLabel } from "@halalfood/ui/components/fi
 import { Input } from "@halalfood/ui/components/input";
 import { EmptyState, FormCard, InlineCard, Loading } from "../../../src/components/blocks";
 import { FormMessage, SectionIntro } from "../../../src/components/section";
+import {
+  placeBlockLoadFailure,
+  placeBlockTransportFailure,
+  type BlockFailure,
+} from "../../../src/lib/failure-copy";
+import { BlockLoadError } from "./block-load-error";
 import { getClientSession } from "../../../src/lib/client-session";
-import { signedOutLoginPath } from "../../../src/lib/signed-out";
+import { signedOutLoginPath, wasSignedIn } from "../../../src/lib/signed-out";
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -95,7 +101,7 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
   const [authState, setAuthState] = useState<AuthState>("checking");
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  const [loadError, setLoadError] = useState<BlockFailure | null>(null);
   const [formError, setFormError] = useState("");
   const [success, setSuccess] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -107,7 +113,7 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
     let mounted = true;
     async function load() {
       setLoading(true);
-      setLoadError("");
+      setLoadError(null);
       try {
         const [photosResponse, sessionUser] = await Promise.all([
           fetch(`/api/places/${encodeURIComponent(placeId)}/photos`, {
@@ -123,19 +129,19 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
           sessionUser ? "signed-in" : "signed-out",
         );
         if (!photosResponse.ok) {
-          setLoadError(errorFrom(photosBody, "Halal place photos could not be loaded."));
+          setLoadError(placeBlockLoadFailure("photos", photosResponse.status, Boolean(sessionUser) || wasSignedIn()));
           return;
         }
         const next = readPhotosPayload(photosBody);
         if (!next) {
-          setLoadError("Halal place photos could not be loaded. Please try again.");
+          setLoadError(placeBlockLoadFailure("photos", 503));
           return;
         }
         setPhotos(next);
-      } catch {
+      } catch (caught) {
         if (mounted) {
           setAuthState("signed-out");
-          setLoadError("Halal place photos could not be loaded. Please try again.");
+          setLoadError(placeBlockTransportFailure("photos", caught));
         }
       } finally {
         if (mounted) setLoading(false);
@@ -244,7 +250,14 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
       </SectionIntro>
 
       {loading && <Loading>Loading photos…</Loading>}
-      {loadError && <FormMessage tone="error">{loadError}</FormMessage>}
+      {loadError && (
+        <BlockLoadError
+          failure={loadError}
+          returnTo={`/place/${placeId}`}
+          busy={loading}
+          onRetry={() => setReloadToken((token) => token + 1)}
+        />
+      )}
 
       {!loading && !loadError && !photos.length && (
         <EmptyState>No photos yet. Be the first to add one.</EmptyState>

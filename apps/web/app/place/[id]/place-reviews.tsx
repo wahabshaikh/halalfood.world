@@ -13,10 +13,16 @@ import {
   Loading,
 } from "../../../src/components/blocks";
 import { FormMessage, SectionIntro } from "../../../src/components/section";
+import {
+  placeBlockLoadFailure,
+  placeBlockTransportFailure,
+  type BlockFailure,
+} from "../../../src/lib/failure-copy";
+import { BlockLoadError } from "./block-load-error";
 import { getClientSession } from "../../../src/lib/client-session";
 import { clearFormDraft, draftRecord, readFormDraft, saveFormDraft } from "../../../src/lib/form-draft";
 import { presentHttpFailure, presentTransportFailure } from "../../../src/lib/failure-copy";
-import { currentReturnPath, signedOutLoginPath } from "../../../src/lib/signed-out";
+import { currentReturnPath, signedOutLoginPath, wasSignedIn } from "../../../src/lib/signed-out";
 
 const TITLE_MAX_LENGTH = 120;
 const BODY_MAX_LENGTH = 5000;
@@ -97,7 +103,7 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
   const [authState, setAuthState] = useState<AuthState>("checking");
   const [reviews, setReviews] = useState<PlaceReview[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  const [loadError, setLoadError] = useState<BlockFailure | null>(null);
   const [formError, setFormError] = useState("");
   const [success, setSuccess] = useState("");
   const [title, setTitle] = useState("");
@@ -124,7 +130,7 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
     let mounted = true;
     async function load() {
       setLoading(true);
-      setLoadError("");
+      setLoadError(null);
       try {
         const [reviewsResponse, sessionUser] = await Promise.all([
           fetch(`/api/places/${encodeURIComponent(placeId)}/reviews`, {
@@ -140,21 +146,21 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
           sessionUser ? "signed-in" : "signed-out",
         );
         if (!reviewsResponse.ok) {
-          setLoadError(errorFrom(reviewsBody, "Halal reviews could not be loaded."));
+          setLoadError(placeBlockLoadFailure("reviews", reviewsResponse.status, Boolean(sessionUser) || wasSignedIn()));
           return;
         }
         const next = readReviewsPayload(reviewsBody);
         if (!next) {
-          setLoadError("Halal reviews could not be loaded. Please try again.");
+          setLoadError(placeBlockLoadFailure("reviews", 503));
           return;
         }
         setReviews(next);
         const identity = record(reviewsBody)?.publicIdentity;
         setPublicIdentity(typeof identity === "string" && identity.trim() ? identity : null);
-      } catch {
+      } catch (caught) {
         if (mounted) {
           setAuthState("signed-out");
-          setLoadError("Halal reviews could not be loaded. Please try again.");
+          setLoadError(placeBlockTransportFailure("reviews", caught));
         }
       } finally {
         if (mounted) setLoading(false);
@@ -287,7 +293,14 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
       <SectionIntro>What people ordered, what they saw, and whether they’d go back.</SectionIntro>
 
       {loading && <Loading>Loading reviews…</Loading>}
-      {loadError && <FormMessage tone="error">{loadError}</FormMessage>}
+      {loadError && (
+        <BlockLoadError
+          failure={loadError}
+          returnTo={`/place/${placeId}`}
+          busy={loading}
+          onRetry={() => setReloadToken((token) => token + 1)}
+        />
+      )}
 
       {!loading && !loadError && !reviews.length && (
         <EmptyState>No reviews yet. Be the first to say how it was.</EmptyState>

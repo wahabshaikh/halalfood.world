@@ -42,11 +42,11 @@ import {
   type Verdict,
 } from "@halalfood/core/check-in";
 import { RELATIONSHIPS, RELATIONSHIP_COPY } from "@halalfood/core/halal-taxonomy";
+import { checkInDraft } from "../../../src/lib/check-in-draft";
 import {
   clearFormDraft,
   draftRecord,
   readFormDraft,
-  restoredShareToFeed,
   saveFormDraft,
 } from "../../../src/lib/form-draft";
 import { currentReturnPath, signedOutLoginPath } from "../../../src/lib/signed-out";
@@ -184,9 +184,8 @@ export default function PlaceCheckIn({
     if (typeof draft.incentivized === "boolean") setIncentivized(draft.incentivized);
     if (typeof draft.shareLocation === "boolean") setShareLocation(draft.shareLocation);
     if (draft.visibility === "public" || draft.visibility === "private") setVisibility(draft.visibility);
-    // Sharing is opt-in. Only a draft that records the diner ticking it brings
-    // it back; anything else (an older draft, a missing flag) stays off.
-    setShareToFeed(restoredShareToFeed(draft));
+    // Sharing is never part of a draft: a restored form always starts with
+    // "Share" unticked, and the diner ticks it again if they still mean it.
     const check = draftRecord(draft.check);
     if (check) {
       setCheck({
@@ -199,8 +198,18 @@ export default function PlaceCheckIn({
     setPhase("open");
   }, [draftKey]);
 
+  // A page restored from the back/forward cache keeps its old React state.
+  // Sharing must be ticked on the form being sent, so it starts off again.
+  useEffect(() => {
+    const reset = (event: PageTransitionEvent) => {
+      if (event.persisted) setShareToFeed(false);
+    };
+    window.addEventListener("pageshow", reset);
+    return () => window.removeEventListener("pageshow", reset);
+  }, []);
+
   function saveVisitDraft() {
-    saveFormDraft(draftKey, {
+    saveFormDraft(draftKey, checkInDraft({
       verdict,
       valueVerdict,
       serviceVerdict,
@@ -214,11 +223,9 @@ export default function PlaceCheckIn({
       incentivized,
       shareLocation,
       visibility,
-      shareToFeed,
-      shareToFeedChosen: shareToFeed,
       check,
       idempotencyKey: idempotencyKey.current,
-    });
+    }));
   }
 
   const ready = verdict !== null && valueVerdict !== null;

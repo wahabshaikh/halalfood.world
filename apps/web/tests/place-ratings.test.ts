@@ -119,7 +119,7 @@ test("rating API returns a sign-in CTA before parsing an unauthenticated request
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), {
     error: "Sign in to rate halal places.",
-    loginUrl: `/login?reason=signed-out&returnTo=${encodeURIComponent(`/place/${PLACE_ID}`)}`,
+    loginUrl: `/login?reason=sign-in&returnTo=${encodeURIComponent(`/place/${PLACE_ID}`)}`,
   });
 });
 

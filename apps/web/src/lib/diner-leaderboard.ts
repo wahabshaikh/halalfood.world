@@ -9,6 +9,7 @@
  */
 
 import { sql } from "drizzle-orm";
+import { SHARED_PUBLIC_VISIT } from "./visits";
 import { database } from "../db";
 import {
   LEADERBOARD_DEPTH,
@@ -27,6 +28,7 @@ type Client = DatabaseClient | Promise<DatabaseClient>;
 
 const DAY = 86_400_000;
 
+
 function num(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : 0;
@@ -42,10 +44,13 @@ const VERIFIED_VISITS = sql`
   LEFT JOIN place_check_ins AS c ON c.visit_id = v.id
   INNER JOIN places AS pl ON pl.id = v.place_id
   INNER JOIN user_profiles AS p ON p.user_id = v.user_id
+  LEFT JOIN user_preferences AS up ON up.user_id = v.user_id
   WHERE v.verification_method <> 'none'
     AND v.verification_confidence <> 'none'
     AND COALESCE(c.incentivized, 0) = 0
     AND COALESCE(c.relationship, 'none') = 'none'
+    -- A public board counts only what anyone could see: shared, public visits.
+    AND ${SHARED_PUBLIC_VISIT}
 `;
 
 function windowFilter(window: LeaderboardWindow, now: number) {
@@ -98,7 +103,7 @@ export function listRankedDiners(
   const load = () => loadRanking(window, citySlug, now, client ?? database());
   if (client) return load();
   const period = windowStart(window, now) ?? "all";
-  return cachedRead(`leaderboard:diners:v1:${window}:${period}:${citySlug ?? "global"}`, 5 * 60, load);
+  return cachedRead(`leaderboard:diners:v2:${window}:${period}:${citySlug ?? "global"}`, 5 * 60, load);
 }
 
 export type ViewerStanding = {

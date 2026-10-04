@@ -293,7 +293,15 @@ function noStoreHeaders(): Record<string, string> {
   return { "Cache-Control": "no-store" };
 }
 
-export function googleSearchResponse(result: GuardedGoogleSearch): Response {
+/** A Google result we already have: a listed place to open, or one under review. */
+export type GoogleResultExisting =
+  | { status: "listed"; placeId: string; name: string; url: string }
+  | { status: "pending" | "known"; name: string };
+
+export function googleSearchResponse(
+  result: GuardedGoogleSearch,
+  existing: Array<GoogleResultExisting | null> = [],
+): Response {
   const headers = noStoreHeaders();
   switch (result.outcome) {
     case "invalid":
@@ -326,10 +334,11 @@ export function googleSearchResponse(result: GuardedGoogleSearch): Response {
     case "results":
       return Response.json(
         {
-          places: result.places.map((place) => ({
+          places: result.places.map((place, index) => ({
             id: place.id,
             name: place.displayName,
             address: place.formattedAddress,
+            existing: existing[index] ?? null,
           })),
         },
         { headers },
