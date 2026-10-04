@@ -61,8 +61,13 @@ async function load(handle: string) {
     const showVisits = access.showsActivity && preferences.visibilityVisits === "public";
     const showLists = access.showsActivity && preferences.visibilityLists === "public";
     const [visits, places, lists] = await Promise.all([
-      showVisits ? listPassportVisits(profile.userId) : Promise.resolve([]),
-      showVisits ? listVisitedPlaces(profile.userId) : Promise.resolve([]),
+      // Someone else's profile shows only visits the owner chose to share.
+      showVisits
+        ? listPassportVisits(profile.userId, undefined, { sharedOnly: relation !== "self" })
+        : Promise.resolve([]),
+      showVisits
+        ? listVisitedPlaces(profile.userId, undefined, { sharedOnly: relation !== "self" })
+        : Promise.resolve([]),
       showLists ? listPublicListsForUser(profile.userId) : Promise.resolve([]),
     ]);
 

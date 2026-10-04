@@ -239,7 +239,7 @@ export default function MapView({
       setSelected(place);
       setShowList(false);
       syncUrl(place.id);
-      if (options.fly !== false && map.current)
+      if (options.fly !== false && map.current && place.lat != null && place.lng != null)
         map.current.flyTo({
           duration: 700,
           center: [place.lng, place.lat],
@@ -555,7 +555,12 @@ export default function MapView({
     markers.current = [];
     if (!ready || !map.current || !library.current) return;
     const lib = library.current;
-    markers.current = visible.map((place, index) => {
+    // Viewport reads only return pinned places; the filter keeps the type honest.
+    const pinned = visible.filter(
+      (place): place is typeof place & { lat: number; lng: number } =>
+        place.lat != null && place.lng != null,
+    );
+    markers.current = pinned.map((place, index) => {
       const element = document.createElement("button");
       element.type = "button";
       const label = index < LABELLED_MARKERS ? markerLabel(place) : "";

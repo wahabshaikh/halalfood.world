@@ -8,6 +8,8 @@ import {
   reviewEvidence,
 } from "../../../../../../src/lib/moderation-repository";
 import { reviewPlaceSubmission } from "../../../../../../src/lib/place-link-submissions";
+import { publishListingChange } from "../../../../../../src/lib/listing-cache";
+import { getListingState, parsePin } from "../../../../../../src/lib/listing-moderation";
 import { getModeratorRole } from "../../../../../../src/lib/preferences-repository";
 import { database } from "../../../../../../src/db";
 import type { RequestAuth } from "../../../../../../src/lib/auth-session";
@@ -27,6 +29,28 @@ const KINDS = ["evidence", "edit", "duplicate", "report", "appeal", "place"] as 
 type Kind = (typeof KINDS)[number];
 
 type DatabaseClient = Awaited<ReturnType<typeof database>>;
+
+/**
+ * A decision that changes what the public directory shows moves every listing
+ * cache to a new key and purges the place's documents. The decision has
+ * already committed, so a failure here is logged, not returned: data reads
+ * still turn over within seconds and documents within their s-maxage.
+ */
+async function refreshListing(
+  input: { actorUserId: string; change: string; placeId: string; citySlug: string | null },
+  db: DatabaseClient | undefined,
+): Promise<boolean> {
+  try {
+    const client = db ?? (await database());
+    const citySlug =
+      input.citySlug ?? (await getListingState(input.placeId, client))?.citySlug ?? null;
+    const { purged } = await publishListingChange({ ...input, citySlug }, client);
+    return purged;
+  } catch (error) {
+    console.warn("listing refresh failed", error instanceof Error ? error.name : "error");
+    return false;
+  }
+}
 
 export type AdminReviewDependencies = {
   getAuth?: (request: Request) => Promise<RequestAuth>;
@@ -81,6 +105,18 @@ export async function handleAdminReview(
           return badRequest("A rejection needs a reason the contributor can read.");
         const result = await reviewEvidence(id, outcome.auth.userId, decision, reason);
         if (!result.ok) return notFound("That submission is no longer pending.");
+        // An approved check changes the place's public status, which the
+        // place and city documents render.
+        if (result.placeId)
+          await refreshListing(
+            {
+              actorUserId: outcome.auth.userId,
+              change: `evidence.${decision}`,
+              placeId: result.placeId,
+              citySlug: null,
+            },
+            dependencies.database,
+          );
         return json({ ok: true, placeId: result.placeId });
       }
       case "edit": {
@@ -122,12 +158,19 @@ export async function handleAdminReview(
           return badRequest("Decide approved or rejected.");
         if (decision === "rejected" && !reason)
           return badRequest("A rejection needs a reason the contributor can read.");
+        const hasPin =
+          (input.lat !== undefined && input.lat !== null && input.lat !== "") ||
+          (input.lng !== undefined && input.lng !== null && input.lng !== "");
+        const pin = hasPin ? parsePin(input.lat, input.lng) : null;
+        if (hasPin && !pin)
+          return badRequest("A map pin needs a latitude from -90 to 90 and a longitude from -180 to 180.");
         const result = await reviewPlaceSubmission(
           id,
           outcome.auth.userId,
           decision,
           reason,
           dependencies.database,
+          decision === "approved" ? pin : null,
         );
         if (!result.ok && result.reason === "hidden-match")
           return json(
@@ -139,6 +182,16 @@ export async function handleAdminReview(
             { status: 409 },
           );
         if (!result.ok) return notFound("That place submission is no longer pending.");
+        if (decision === "approved" && result.placeId)
+          await refreshListing(
+            {
+              actorUserId: outcome.auth.userId,
+              change: "place.listed",
+              placeId: result.placeId,
+              citySlug: result.citySlug,
+            },
+            dependencies.database,
+          );
         return json({ ok: true, placeId: result.placeId });
       }
     }

@@ -42,7 +42,13 @@ import {
   type Verdict,
 } from "@halalfood/core/check-in";
 import { RELATIONSHIPS, RELATIONSHIP_COPY } from "@halalfood/core/halal-taxonomy";
-import { clearFormDraft, draftRecord, readFormDraft, saveFormDraft } from "../../../src/lib/form-draft";
+import {
+  clearFormDraft,
+  draftRecord,
+  readFormDraft,
+  restoredShareToFeed,
+  saveFormDraft,
+} from "../../../src/lib/form-draft";
 import { currentReturnPath, signedOutLoginPath } from "../../../src/lib/signed-out";
 
 /**
@@ -178,7 +184,9 @@ export default function PlaceCheckIn({
     if (typeof draft.incentivized === "boolean") setIncentivized(draft.incentivized);
     if (typeof draft.shareLocation === "boolean") setShareLocation(draft.shareLocation);
     if (draft.visibility === "public" || draft.visibility === "private") setVisibility(draft.visibility);
-    if (typeof draft.shareToFeed === "boolean") setShareToFeed(draft.shareToFeed);
+    // Sharing is opt-in. Only a draft that records the diner ticking it brings
+    // it back; anything else (an older draft, a missing flag) stays off.
+    setShareToFeed(restoredShareToFeed(draft));
     const check = draftRecord(draft.check);
     if (check) {
       setCheck({
@@ -207,6 +215,7 @@ export default function PlaceCheckIn({
       shareLocation,
       visibility,
       shareToFeed,
+      shareToFeedChosen: shareToFeed,
       check,
       idempotencyKey: idempotencyKey.current,
     });

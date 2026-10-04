@@ -9,7 +9,6 @@ import { InitialsAvatar, Loading, monogram } from "../../../src/components/block
 import { EmptyPanel } from "../../../src/components/site-chrome";
 import { FormMessage, Note } from "../../../src/components/section";
 import { ReportButton } from "../../../src/components/report-button";
-import { CommunityChain } from "../../../src/components/community-chain";
 import { VisitCard, goToLogin } from "../../../src/components/visit-card";
 
 type Loaded = { visit: FeedCard; comments: CommentView[]; canComment: boolean };
@@ -128,15 +127,6 @@ export default function VisitView({ visitId }: { visitId: string }) {
   return (
     <div className="grid gap-5">
       <VisitCard card={visit} detail />
-      <CommunityChain
-        targetType="check-in"
-        targetId={visit.visitId}
-        own={visit.author.isYou}
-        confirmCount={visit.confirmCount}
-        reportCount={visit.reportCount}
-        viewerConfirmed={visit.viewerConfirmed}
-        reportLabel="Report this visit"
-      />
 
       <section aria-labelledby="comments-title" className="grid gap-4">
         <h2 id="comments-title" className="text-xl">

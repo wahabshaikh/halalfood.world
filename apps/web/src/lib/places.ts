@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { database } from "../db";
-import { cachedRead } from "./read-cache";
+import { listingCachedRead } from "./listing-cache";
 
 import { bboxParam, citySlugParam } from "@halalfood/core/params";
 import { loadOrDegrade, type Loaded } from "./load";
@@ -16,8 +16,8 @@ export type Place = {
   website: string | null;
   rating_value: string | null;
   review_count: number | null;
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
 };
 
 /** The full row a place page renders. Coordinates may be missing. */
@@ -98,18 +98,24 @@ function toBoolean(value: unknown): boolean {
   return value === true || value === 1 || value === "1";
 }
 
-export async function findPlaces(options: {
-  bbox?: ReturnType<typeof bboxParam>;
-  q?: string;
-  limit: number;
-}) {
+export async function findPlaces(
+  options: {
+    bbox?: ReturnType<typeof bboxParam>;
+    q?: string;
+    limit: number;
+  },
+  client?: DatabaseClient | Promise<DatabaseClient>,
+) {
   // A text search is a `LIKE '%term%'` scan of every listed place, and the
   // same few city and dish names are searched over and over.
   if (options.q && !options.bbox) {
     // Keep the casing: SQLite LIKE only folds ASCII case.
     const q = options.q.trim().replace(/\s+/g, " ");
-    return cachedRead(`places:search:v2:${options.limit}:${q}`, SEARCH_TTL_SECONDS, () =>
-      queryPlaces({ q, limit: options.limit }),
+    return listingCachedRead(
+      `places:search:v2:${options.limit}:${q}`,
+      SEARCH_TTL_SECONDS,
+      () => queryPlaces({ q, limit: options.limit }, client),
+      client,
     );
   }
   // A viewport still reads every matching row because of `count(*) OVER()`,
@@ -117,21 +123,28 @@ export async function findPlaces(options: {
   if (options.bbox) {
     const { west, south, east, north } = options.bbox;
     const rounded = [west, south, east, north].map((value) => value.toFixed(2)).join(",");
-    return cachedRead(
+    return listingCachedRead(
       `places:bbox:v1:${options.limit}:${rounded}:${options.q ?? ""}`,
       60,
-      () => queryPlaces(options),
+      () => queryPlaces(options, client),
+      client,
     );
   }
-  return queryPlaces(options);
+  return queryPlaces(options, client);
 }
 
-async function queryPlaces(options: {
-  bbox?: ReturnType<typeof bboxParam>;
-  q?: string;
-  limit: number;
-}) {
-  const conditions = [COORDS_PRESENT];
+async function queryPlaces(
+  options: {
+    bbox?: ReturnType<typeof bboxParam>;
+    q?: string;
+    limit: number;
+  },
+  client?: DatabaseClient | Promise<DatabaseClient>,
+) {
+  // The map needs a pin, so a viewport only reads pinned rows. A text search
+  // is a lookup by name: a listed place without coordinates (a moderator
+  // approved a link, nobody has placed it yet) must still be findable.
+  const conditions = [options.bbox ? COORDS_PRESENT : LISTED];
   if (options.bbox) {
     const { west, south, east, north } = options.bbox;
     conditions.push(sql`lat BETWEEN ${south} AND ${north}`);
@@ -147,7 +160,7 @@ async function queryPlaces(options: {
       sql`(name LIKE ${term} ESCAPE '\\' OR replace(city_slug, '-', ' ') LIKE ${term} ESCAPE '\\' OR street_address LIKE ${term} ESCAPE '\\' OR address_locality LIKE ${term} ESCAPE '\\')`,
     );
   }
-  const db = await database();
+  const db = await (client ?? database());
   const rows = await db.all<Place & { total: number }>(sql`
     SELECT id, name, city_slug, street_address, address_locality, address_country,
       telephone, website, rating_value, review_count, lat, lng, count(*) OVER() AS total
@@ -302,14 +315,14 @@ export async function listCities(
   const limit = clamp(options.limit ?? 500, 1, MAX_CITIES);
   const offset = clamp(options.offset ?? 0, 0, 100000);
   if (offset + limit > MAX_CITIES) return queryCities(limit, offset);
-  const all = await cachedRead("places:cities:v2", DIRECTORY_TTL_SECONDS, () =>
+  const all = await listingCachedRead("places:cities:v2", DIRECTORY_TTL_SECONDS, () =>
     queryCities(MAX_CITIES, 0),
   );
   return all.slice(offset, offset + limit);
 }
 
 export async function countCities() {
-  return cachedRead("places:city-count:v2", DIRECTORY_TTL_SECONDS, async () => {
+  return listingCachedRead("places:city-count:v2", DIRECTORY_TTL_SECONDS, async () => {
     const db = await database();
     const rows = await db.all<{ total: number }>(sql`
       SELECT count(DISTINCT city_slug) AS total
@@ -340,7 +353,7 @@ export async function getCity(
   // City pages and their metadata both call this, and crawlers walk every city.
   // A caller-supplied database skips the cache so tests see their own rows.
   if (client) return load();
-  return cachedRead(`places:city-meta:v2:${citySlug}`, CITY_LISTING_TTL_SECONDS, load);
+  return listingCachedRead(`places:city-meta:v2:${citySlug}`, CITY_LISTING_TTL_SECONDS, load);
 }
 
 /**
@@ -386,7 +399,7 @@ export async function findPlacesByCity(
   // and city pages all ask for the same few slices. A caller-supplied
   // database skips that cache so tests can see their own rows.
   if (client) return load();
-  return cachedRead(
+  return listingCachedRead(
     `places:city:v2:${citySlug}:${limit}:${offset}`,
     CITY_LISTING_TTL_SECONDS,
     load,
@@ -394,7 +407,7 @@ export async function findPlacesByCity(
 }
 
 export async function countPlaces() {
-  return cachedRead("places:count:v2", DIRECTORY_TTL_SECONDS, async () => {
+  return listingCachedRead("places:count:v2", DIRECTORY_TTL_SECONDS, async () => {
     const db = await database();
     const rows = await db.all<{ total: number }>(sql`
       SELECT count(*) AS total FROM places WHERE ${LISTED}
@@ -411,7 +424,7 @@ export async function listPlaceRefs(options: { limit: number; offset: number }) 
   const limit = clamp(options.limit, 1, 25000);
   const offset = clamp(options.offset, 0, 1000000);
   // OFFSET still reads every skipped row, so each chunk is cached.
-  return cachedRead(`places:sitemap:v2:${limit}:${offset}`, SITEMAP_TTL_SECONDS, async () => {
+  return listingCachedRead(`places:sitemap:v2:${limit}:${offset}`, SITEMAP_TTL_SECONDS, async () => {
     const db = await database();
     return db.all<{ id: string; scraped_at: number | null }>(sql`
       SELECT id, scraped_at FROM places WHERE ${LISTED}

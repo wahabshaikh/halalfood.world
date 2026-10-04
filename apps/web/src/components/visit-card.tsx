@@ -187,6 +187,18 @@ export function VisitCard({
         </div>
       )}
 
+      {/* Corroborate or flag the check-in itself. Everyone else gets Confirm and
+          Report; on your own visit only the counts show. */}
+      <CommunityChain
+        targetType="check-in"
+        targetId={card.visitId}
+        own={card.author.isYou}
+        confirmCount={card.confirmCount}
+        reportCount={card.reportCount}
+        viewerConfirmed={card.viewerConfirmed}
+        reportLabel="Report this visit"
+      />
+
       <footer className="flex items-center gap-1 pt-1">
         <Button
           variant="ghost"

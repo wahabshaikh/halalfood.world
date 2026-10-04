@@ -1,12 +1,17 @@
 /**
- * Edge cache for public documents that crawlers request over and over.
+ * Shared cache headers for public documents that crawlers request over and over.
  *
- * D1 counts every row a query examines. The place table is only about 7.7k
- * rows, but nothing in front of the worker was caching HTML, so each bot
- * fetch of a place, city, guide, or sitemap ran the server render again.
- * A day of that, against a handful of human visitors, is tens of millions of
- * rows. These responses do not depend on a cookie or on the visitor's
- * location, so one cached copy per URL is safe to share.
+ * D1 counts every row a query examines, and each bot fetch of a place, city,
+ * guide, or sitemap used to run the server render again. These responses do
+ * not depend on a cookie or on the visitor's location, so one cached copy per
+ * URL is safe to share. Workers Cache (`cache.enabled` in wrangler.jsonc)
+ * stores them in front of the Worker for `s-maxage`.
+ *
+ * Each document also carries `Cache-Tag` values, so a moderator action can
+ * purge the place and city it changed (see `listing-cache.ts`) instead of
+ * waiting out the lifetime. There used to be a second copy in a named Cache
+ * API store inside the Worker. That copy was per colo and could not be purged,
+ * so an approved or unpublished place stayed stale there.
  *
  * The homepage, map, search, events, and leaderboard are left uncached:
  * they vary by the eating-city cookie or by a signed-in viewer.
@@ -40,13 +45,15 @@ export function publicCacheControl(request: Request): string | null {
   return null;
 }
 
-export type ResponseCache = {
-  match(request: Request): Promise<Response | undefined>;
-  put(request: Request, response: Response): Promise<void>;
-};
-
-function cacheKey(request: Request): Request {
-  return new Request(new URL(request.url).toString(), { method: "GET" });
+/** Cache-Tag values for a public document path. Workers Cache strips the header. */
+export function documentCacheTags(request: Request): string[] {
+  const path = new URL(request.url).pathname;
+  if (path === "/sitemap.xml" || path.startsWith("/sitemaps/")) return ["sitemaps"];
+  if (path === "/cities") return ["cities"];
+  if (path === "/guides" || GUIDE_PATH.test(path)) return ["guides"];
+  if (PLACE_PATH.test(path)) return ["places", `place-${path.slice("/place/".length).toLowerCase()}`];
+  if (CITY_PATH.test(path)) return ["cities", `city-${path.slice("/city/".length)}`];
+  return [];
 }
 
 function isSharedDocument(response: Response): boolean {
@@ -60,28 +67,16 @@ function isSharedDocument(response: Response): boolean {
 }
 
 /**
- * Serve a shared copy of a public document when one is fresh, and store a
- * successful response for the next crawler. Failures fall through to `load`.
+ * Mark a successful public document as shareable, with its purge tags.
+ * Anything else (errors, cookies, unavailable pages) passes through as is.
  */
 export async function withPublicCache(
   request: Request,
   load: () => Promise<Response>,
-  cache: ResponseCache | null,
-  waitUntil: (promise: Promise<unknown>) => void = () => {},
 ): Promise<Response> {
   const control = publicCacheControl(request);
-  if (!control || !cache) return load();
-
-  const key = cacheKey(request);
-  try {
-    const hit = await cache.match(key);
-    if (hit) return hit;
-  } catch {
-    // A broken cache must not take the page down.
-  }
-
   const response = await load();
-  if (!isSharedDocument(response)) return response;
+  if (!control || !isSharedDocument(response)) return response;
 
   const type = response.headers.get("content-type") ?? "";
   if (type.includes("html")) {
@@ -97,16 +92,8 @@ export async function withPublicCache(
 
   const headers = new Headers(response.headers);
   headers.set("Cache-Control", control);
-  const stored = new Response(response.clone().body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-  waitUntil(
-    cache.put(key, stored).catch(() => {
-      // Failing to store must not fail the response.
-    }),
-  );
+  const tags = documentCacheTags(request);
+  if (tags.length) headers.set("Cache-Tag", tags.join(","));
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

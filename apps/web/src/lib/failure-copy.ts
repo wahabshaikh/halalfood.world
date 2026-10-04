@@ -151,3 +151,48 @@ export async function presentFetchFailure(
     retry: copy.retry,
   };
 }
+
+/**
+ * Copy for a failed read of the place page's halal-checks block, by status. Each one says what
+ * happened and whether trying again can help; a reference goes with it.
+ */
+export function checksLoadFailure(
+  status: number,
+): PresentedFailure {
+  switch (status) {
+    case 404:
+      return presentHttpFailure(
+        "this place",
+        404,
+        "This place is no longer listed, so its halal checks cannot be shown",
+      );
+    case 429:
+      return presentHttpFailure(
+        "the halal checks",
+        429,
+        "Too many requests for halal checks just now. Wait a moment, then try again",
+      );
+    case 401:
+    case 403:
+      return {
+        ...presentHttpFailure(
+          "the halal checks",
+          status,
+          "Your session could not open the halal checks. Reload the page, or sign in again",
+        ),
+        retry: true,
+      };
+    default:
+      return {
+        ...presentHttpFailure(
+          "the halal checks",
+          503,
+          status >= 500
+            ? "The halal checks for this place did not load because of a server problem. Nothing was lost"
+            : "The halal checks for this place did not load. Nothing was lost",
+        ),
+        retry: true,
+      };
+  }
+}
+

@@ -12,7 +12,6 @@ import { cn } from "@halalfood/ui/lib/utils";
 import { Disclosure, InsufficientData, MetaItem, SectionHeading } from "./section";
 import type { PublicHalalVerification } from "../lib/halal-verifications";
 import type { StatusChange } from "../lib/place-decision";
-import { CommunityChain } from "./community-chain";
 
 /**
  * The audit surface for one halal claim: every source, its scope, its dates,
@@ -116,15 +115,18 @@ export default function EvidencePanel({
 
                 {item.note && <p className="text-sm">{item.note}</p>}
 
-                <CommunityChain
-                  targetType="verification"
-                  targetId={item.id}
-                  own={item.submittedByViewer || item.status !== "approved"}
-                  confirmCount={item.confirmCount}
-                  reportCount={item.reportCount}
-                  viewerConfirmed={item.viewerConfirmed}
-                  reportLabel="Report this check"
-                />
+                {/* This panel is part of the shared cached page, so it cannot know
+                    who is reading. Confirm and Report live on the per-viewer list. */}
+                <p className="text-[13px] text-muted-foreground [&_a]:font-bold [&_a]:underline">
+                  {item.confirmCount} {item.confirmCount === 1 ? "confirmation" : "confirmations"} ·{" "}
+                  {item.reportCount} {item.reportCount === 1 ? "report" : "reports"}
+                  {item.status === "approved" && (
+                    <>
+                      {" "}
+                      · <a href="#checks">Confirm or report this check</a>
+                    </>
+                  )}
+                </p>
 
                 {item.evidence.length > 0 && (
                   <ul className="grid gap-1 text-sm">

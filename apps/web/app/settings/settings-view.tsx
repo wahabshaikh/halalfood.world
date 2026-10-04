@@ -11,6 +11,11 @@ import { FormMessage } from "../../src/components/section";
 import { PersonAvatar } from "../../src/components/person";
 import { describeStandard, inviteLink } from "@halalfood/core/social";
 import type { UserPreferences } from "@halalfood/core/user-preferences";
+import { clearFormDraft, draftRecord, readFormDraft, saveFormDraft } from "../../src/lib/form-draft";
+import { signedOutLoginPath } from "../../src/lib/signed-out";
+
+/** Unsaved name and bio, kept across the sign-in redirect (this tab only). */
+const PROFILE_DRAFT_KEY = "halalfood:settings-profile-draft:v1";
 
 type Profile = {
   handle: string;
@@ -54,7 +59,7 @@ export default function SettingsView() {
         fetch("/api/blocks", { cache: "no-store" }),
       ]);
       if (profileRes.status === 401) {
-        window.location.assign(`/login?returnTo=${encodeURIComponent("/settings")}`);
+        window.location.assign(signedOutLoginPath("/settings"));
         return;
       }
       const notes: string[] = [];
@@ -68,6 +73,14 @@ export default function SettingsView() {
           setProfile(profileBody.profile);
           setName(profileBody.profile.displayName ?? "");
           setBio(profileBody.profile.bio ?? "");
+          // Back from signing in again: put the unsaved edits back in the form.
+          const draft = draftRecord(readFormDraft(PROFILE_DRAFT_KEY));
+          if (draft) {
+            clearFormDraft(PROFILE_DRAFT_KEY);
+            if (typeof draft.name === "string") setName(draft.name);
+            if (typeof draft.bio === "string") setBio(draft.bio);
+            setMessage("Your unsaved profile changes are back. Select Save profile to keep them.");
+          }
         } else {
           setProfile(null);
           notes.push("Your profile could not be loaded. You are still signed in.");
@@ -111,6 +124,14 @@ export default function SettingsView() {
     setMessage("");
     try {
       const response = await action();
+      if (response.status === 401) {
+        // Same as every other signed-in form: keep the draft, sign in again,
+        // come back here.
+        saveFormDraft(PROFILE_DRAFT_KEY, { name, bio });
+        setError("You were signed out. Taking you to sign in; your changes are kept.");
+        window.location.assign(signedOutLoginPath("/settings"));
+        return false;
+      }
       const body = await readJson<Record<string, unknown>>(response);
       if (!response.ok) {
         setError(body.error ?? "Something went wrong. Please try again.");

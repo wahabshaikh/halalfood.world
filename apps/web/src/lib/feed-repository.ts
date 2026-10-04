@@ -426,7 +426,11 @@ export async function getVisitAccess(
         SELECT 1 FROM user_blocks AS b
         WHERE (b.blocker_id = ${viewerId} AND b.blocked_id = v.user_id)
            OR (b.blocker_id = v.user_id AND b.blocked_id = ${viewerId})
-      ) AS blocked
+      ) AS blocked,
+      EXISTS (
+        SELECT 1 FROM feed_events AS se
+        WHERE se.place_id = v.place_id AND se.actor_id = v.user_id AND se.visit_id = v.id
+      ) AS shared
     FROM place_visits AS v
     INNER JOIN place_check_ins AS c ON c.visit_id = v.id
     LEFT JOIN user_preferences AS up ON up.user_id = v.user_id
@@ -448,6 +452,7 @@ export async function getVisitAccess(
       ownerIsPrivateAccount: row.owner_private === 1 || row.owner_private === true,
       viewerFollowsOwner: row.viewer_follows === 1 || row.viewer_follows === true,
       blocked: row.blocked === 1 || row.blocked === true,
+      shared: row.shared === 1 || row.shared === true,
     },
   };
 }

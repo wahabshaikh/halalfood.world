@@ -420,6 +420,15 @@ test("confirmations are unique, refuse the author, and feed the status", async (
 
   const ownVisit = await confirmCommunityTarget("author", "check-in", VISIT_ID, db);
   assert.deepEqual(ownVisit, { ok: false, reason: "own" });
+  // A public visit the author did not share is not visible to anyone else, so
+  // nobody else can confirm it either.
+  const unshared = await confirmCommunityTarget("second", "check-in", VISIT_ID, db);
+  assert.deepEqual(unshared, { ok: false, reason: "not-found" });
+  sqlite
+    .prepare(
+      `INSERT INTO feed_events (id, actor_id, kind, visit_id, place_id, created_at) VALUES ('fe-1', 'author', 'visit', ?, ?, ?)`,
+    )
+    .run(VISIT_ID, PLACE_ID, now);
   const visitConfirm = await confirmCommunityTarget("second", "check-in", VISIT_ID, db);
   assert.equal(visitConfirm.ok && visitConfirm.created, true);
   const repeatVisit = await confirmCommunityTarget("second", "check-in", VISIT_ID, db);

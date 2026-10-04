@@ -391,7 +391,8 @@ export async function listAuditLog(
   client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): Promise<AuditRow[]> {
   const db = await client;
-  const filters = [sql`1 = 1`];
+  // Cache-version bumps are bookkeeping, not moderator actions.
+  const filters = [sql`action <> 'listing.changed'`];
   if (options.targetType) filters.push(sql`target_type = ${options.targetType}`);
   if (options.targetId) filters.push(sql`target_id = ${options.targetId}`);
   const rows = await db.all<Record<string, unknown>>(sql`

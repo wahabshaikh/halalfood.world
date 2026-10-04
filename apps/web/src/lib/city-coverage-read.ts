@@ -9,7 +9,7 @@
 
 import type { CityCoverage } from "@halalfood/core/coverage";
 import { getCityCoverage } from "./coverage-repository";
-import { cachedRead } from "./read-cache";
+import { listingCachedRead } from "./listing-cache";
 
 export const CITY_COVERAGE_TTL_SECONDS = 10 * 60;
 
@@ -21,7 +21,7 @@ export function loadCachedCityCoverage(
   citySlug: string,
   load: (citySlug: string) => Promise<CityCoverage> = getCityCoverage,
 ): Promise<CityCoverage> {
-  return cachedRead(cityCoverageCacheKey(citySlug), CITY_COVERAGE_TTL_SECONDS, () =>
+  return listingCachedRead(cityCoverageCacheKey(citySlug), CITY_COVERAGE_TTL_SECONDS, () =>
     load(citySlug),
   );
 }

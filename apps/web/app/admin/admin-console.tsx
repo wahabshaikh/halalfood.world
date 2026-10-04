@@ -13,6 +13,7 @@ import { EVIDENCE_KIND_COPY, RELATIONSHIP_COPY, STATUS_COPY } from "@halalfood/c
 import { REPORT_REASON_COPY } from "@halalfood/core/moderation";
 import type { QueueEntry, ReportRow } from "../../src/lib/moderation-repository";
 import type { PendingPlaceSubmission } from "../../src/lib/place-link-submissions";
+import type { HiddenByModerator } from "../../src/lib/listing-moderation";
 import EventsAdmin from "./events-admin";
 
 /**
@@ -28,6 +29,7 @@ import EventsAdmin from "./events-admin";
 type Payload = {
   role: string;
   places: PendingPlaceSubmission[];
+  hiddenPlaces?: HiddenByModerator[];
   evidence: QueueEntry[];
   edits: Array<Record<string, unknown>>;
   duplicates: Array<Record<string, unknown>>;
@@ -49,6 +51,10 @@ export default function AdminConsole() {
   const [state, setState] = useState<"loading" | "ready" | "denied" | "error">("loading");
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [listedPlaceId, setListedPlaceId] = useState<string | null>(null);
+  const [pins, setPins] = useState<Record<string, { lat: string; lng: string }>>({});
+  const [unpublishTarget, setUnpublishTarget] = useState("");
+  const [unpublishReason, setUnpublishReason] = useState("");
 
   async function load() {
     try {
@@ -81,18 +87,69 @@ export default function AdminConsole() {
 
   async function decide(kind: string, id: string, decision: string) {
     setMessage(null);
+    setListedPlaceId(null);
+    const pin = kind === "place" && decision === "approved" ? pins[id] : undefined;
     try {
       const response = await fetch(`/api/admin/review/${kind}/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision, reason: reasons[id] ?? "" }),
+        body: JSON.stringify({
+          decision,
+          reason: reasons[id] ?? "",
+          ...(pin && (pin.lat.trim() || pin.lng.trim()) ? { lat: pin.lat, lng: pin.lng } : {}),
+        }),
       });
       const body = await response.json().catch(() => ({}));
+      if (response.status === 401 && typeof body.loginUrl === "string") {
+        window.location.href = body.loginUrl;
+        return;
+      }
       if (!response.ok) {
         setMessage(typeof body.error === "string" ? body.error : "That decision failed.");
         return;
       }
-      setMessage("Recorded, and written to the audit log.");
+      if (kind === "place" && decision === "approved" && typeof body.placeId === "string") {
+        setListedPlaceId(body.placeId);
+        setMessage(
+          pin && pin.lat.trim()
+            ? "Listed. It is in search, its city page and the map now. Written to the audit log."
+            : "Listed. It is in search and its city page now. Add a map pin on the place page to put it on the map. Written to the audit log.",
+        );
+      } else setMessage("Recorded, and written to the audit log.");
+      await load();
+    } catch {
+      setMessage("Could not reach the server.");
+    }
+  }
+
+  async function changeListing(placeId: string, action: "unpublish" | "restore", reason: string) {
+    setMessage(null);
+    setListedPlaceId(null);
+    try {
+      const response = await fetch(`/api/admin/places/${placeId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, reason }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.status === 401 && typeof body.loginUrl === "string") {
+        window.location.href = body.loginUrl;
+        return;
+      }
+      if (!response.ok) {
+        setMessage(typeof body.error === "string" ? body.error : "That change failed.");
+        return;
+      }
+      if (action === "restore") setListedPlaceId(placeId);
+      setMessage(
+        action === "unpublish"
+          ? "Unpublished. It is hidden from search, city pages and the map, and can be restored below."
+          : "Restored. It is listed again.",
+      );
+      if (action === "unpublish") {
+        setUnpublishTarget("");
+        setUnpublishReason("");
+      }
       await load();
     } catch {
       setMessage("Could not reach the server.");
@@ -125,15 +182,26 @@ export default function AdminConsole() {
     <div>
       {message && (
         <Alert role="status">
-          <AlertDescription className="font-bold text-foreground">{message}</AlertDescription>
+          <AlertDescription className="font-bold text-foreground">
+            {message}
+            {listedPlaceId && (
+              <>
+                {" "}
+                <a className="underline" href={`/place/${listedPlaceId}`}>
+                  Open the place
+                </a>
+              </>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 
       <Block title={<>Pending places ({data.places.length})</>}>
         <SectionIntro>
           Places sent from Add a place stay here until a moderator lists them or turns them down.
-          Approve makes the place listed. A rejection needs a reason, and the person who sent it
-          sees that reason on their contributions.
+          Approve lists the place at once in search and on its city page. Add a pin to put it on
+          the map too. A rejection needs a reason, and the person who sent it sees that reason on
+          their contributions.
         </SectionIntro>
         {data.places.length === 0 ? (
           <InsufficientData>Nothing waiting.</InsufficientData>
@@ -168,6 +236,32 @@ export default function AdminConsole() {
                     id={place.id}
                     placeholder="Reason (required to reject; the contributor sees it)"
                   />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      aria-label="Map pin latitude (optional)"
+                      inputMode="decimal"
+                      placeholder="Latitude (optional)"
+                      value={pins[place.id]?.lat ?? ""}
+                      onChange={(event) =>
+                        setPins((current) => ({
+                          ...current,
+                          [place.id]: { lat: event.target.value, lng: current[place.id]?.lng ?? "" },
+                        }))
+                      }
+                    />
+                    <Input
+                      aria-label="Map pin longitude (optional)"
+                      inputMode="decimal"
+                      placeholder="Longitude (optional)"
+                      value={pins[place.id]?.lng ?? ""}
+                      onChange={(event) =>
+                        setPins((current) => ({
+                          ...current,
+                          [place.id]: { lat: current[place.id]?.lat ?? "", lng: event.target.value },
+                        }))
+                      }
+                    />
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     <Button onClick={() => void decide("place", place.id, "approved")}>
                       Approve
@@ -177,6 +271,85 @@ export default function AdminConsole() {
                       onClick={() => void decide("place", place.id, "rejected")}
                     >
                       Reject
+                    </Button>
+                  </div>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Block>
+
+      <Block title={<>Unpublished places ({data.hiddenPlaces?.length ?? 0})</>}>
+        <SectionIntro>
+          Unpublishing hides a listed place from search, city pages and the map. Nothing is
+          deleted, and it can be restored here. Places hidden by the listing rules, such as
+          alcohol-led venues, are not listed here and cannot be restored.
+        </SectionIntro>
+        <form
+          className="mb-4 grid gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const match = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(
+              unpublishTarget,
+            );
+            if (!match) {
+              setMessage("Paste a place link or id.");
+              return;
+            }
+            if (!unpublishReason.trim()) {
+              setMessage("Unpublishing needs a reason. It is kept on the audit log.");
+              return;
+            }
+            void changeListing(match[1]!.toLowerCase(), "unpublish", unpublishReason.trim());
+          }}
+        >
+          <Input
+            aria-label="Place link or id to unpublish"
+            placeholder="Place link or id"
+            value={unpublishTarget}
+            onChange={(event) => setUnpublishTarget(event.target.value)}
+          />
+          <Input
+            aria-label="Reason for unpublishing (required)"
+            placeholder="Reason (required; kept on the audit log)"
+            value={unpublishReason}
+            onChange={(event) => setUnpublishReason(event.target.value)}
+          />
+          <Button type="submit" variant="outline" className="justify-self-start">
+            Unpublish
+          </Button>
+        </form>
+        {!data.hiddenPlaces?.length ? (
+          <InsufficientData>No places are unpublished.</InsufficientData>
+        ) : (
+          <ul className="grid gap-3">
+            {data.hiddenPlaces.map((place) => (
+              <li key={place.placeId}>
+                <Card size="sm" className="gap-2 px-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 font-semibold">
+                    <span>
+                      {place.name}
+                      <span className="font-normal text-muted-foreground"> · {place.citySlug}</span>
+                    </span>
+                    <Badge variant="secondary">unpublished</Badge>
+                  </div>
+                  {place.reason && (
+                    <p className="text-[13px] text-muted-foreground">{place.reason}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">Reference {place.placeId}</p>
+                  <ReasonBox id={`restore-${place.placeId}`} placeholder="Note (optional)" />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={() =>
+                        void changeListing(
+                          place.placeId,
+                          "restore",
+                          reasons[`restore-${place.placeId}`] ?? "",
+                        )
+                      }
+                    >
+                      Restore
                     </Button>
                   </div>
                 </Card>
