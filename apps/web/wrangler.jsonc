@@ -37,5 +37,11 @@
   },
   "cache": {
     "enabled": true
+  },
+  // Workers Logs. head_sampling_rate 1 keeps every request until launch
+  // traffic is high enough to sample. A later deploy keeps this setting.
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
   }
 }

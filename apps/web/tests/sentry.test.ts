@@ -80,4 +80,7 @@ test("browser DSN prefers NEXT_PUBLIC_SENTRY_DSN, then the wrangler var", () => 
 test("committed wrangler config publishes the Sentry DSN as a var", () => {
   const source = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
   assert.equal(readWranglerStringVar(source, "SENTRY_DSN"), DSN);
+  const config = JSON.parse(source.replace(/^\s*\/\/.*$/gm, ""));
+  assert.equal(config.observability.enabled, true);
+  assert.equal(config.observability.head_sampling_rate, 1);
 });

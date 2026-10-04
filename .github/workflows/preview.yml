@@ -207,13 +207,21 @@ jobs:
           # Cloudflare's stable alias format is <alias>-<worker>-<workers.dev subdomain>.
           echo "preview_url=https://pr-${{ github.event.pull_request.number }}-halalfood-world.wahabshaikh.workers.dev" >> "$GITHUB_OUTPUT"
 
-      - name: Bind the preview D1 database
+      - name: Bind preview D1 and R2
         env:
           D1_DATABASE_NAME: halalfood-world-pr-${{ github.event.pull_request.number }}
           D1_DATABASE_ID: ${{ steps.d1.outputs.database_id }}
+          TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
         run: |
           node --input-type=module <<'NODE'
           import { readFileSync, writeFileSync } from "node:fs";
+          import {
+            applyTurnstileSiteKey,
+            PREVIEW_R2_BUCKET,
+            PRODUCTION_D1_ID,
+            PRODUCTION_R2_BUCKET,
+            R2_BINDING,
+          } from "./scripts/preview-bindings.mjs";
 
           const path = "dist/server/wrangler.json";
           const config = JSON.parse(readFileSync(path, "utf8"));
@@ -221,9 +229,30 @@ jobs:
           if (!binding) {
             throw new Error("Generated wrangler config has no DB binding to rebind for preview");
           }
+          if (process.env.D1_DATABASE_ID === PRODUCTION_D1_ID) {
+            throw new Error("Refusing to bind the preview upload to the production D1 database");
+          }
           binding.database_name = process.env.D1_DATABASE_NAME;
           binding.database_id = process.env.D1_DATABASE_ID;
+
+          const bucket = config.r2_buckets?.find((entry) => entry.binding === R2_BINDING);
+          if (!bucket) {
+            throw new Error("Generated wrangler config has no evidence bucket to rebind for preview");
+          }
+          bucket.bucket_name = PREVIEW_R2_BUCKET;
+          if (bucket.bucket_name === PRODUCTION_R2_BUCKET) {
+            throw new Error("Refusing to bind the preview upload to the production R2 bucket");
+          }
+          applyTurnstileSiteKey(config, process.env.TURNSTILE_SITE_KEY);
           writeFileSync(path, JSON.stringify(config));
+          console.log(
+            "Preview bindings: D1 " +
+              binding.database_name +
+              " (" +
+              binding.database_id +
+              "), R2 " +
+              bucket.bucket_name,
+          );
           NODE
 
       - name: Upload Cloudflare preview
@@ -321,6 +350,8 @@ jobs:
               "[Open the preview](" + previewUrl + ")",
               "",
               "D1 database: " + process.env.D1_DATABASE_NAME,
+              "",
+              "R2 bucket: halalfood-world-evidence-preview",
               "",
               "_This preview is refreshed on every push to the PR._",
             ].join("\n");
