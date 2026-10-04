@@ -1,44 +1,28 @@
-import { filtersFromStandards, parseDiscoveryFilters } from "@halalfood/core/discovery-filters";
-import { citySlugParam } from "@halalfood/core/params";
-import {
-  STANDARD_PRESETS,
-  applyOnboardingStandard,
-  type StandardPreset,
-} from "@halalfood/core/social";
-import { DEFAULT_PREFERENCES } from "@halalfood/core/user-preferences";
 import { discoverPlaces } from "../../../../src/lib/discovery";
 import { json, requireUser, unavailable } from "../../../../src/lib/api";
+import { onboardingPickQueries } from "../../../../src/lib/onboarding-picks";
 
 const PICK_COUNT = 8;
 
 /**
- * Places to seed "want to try". Only places that pass the standard chosen in
- * the previous step are offered, so nobody is shown a place that fails their
- * own rules. Each row carries its halal status for the badge.
+ * Places to seed "want to try". A standard the person actually chose narrows
+ * the list. Skipping that step, or a standard that matches nothing, still
+ * returns listed places so the step is not empty.
  */
 export async function GET(request: Request): Promise<Response> {
   const outcome = await requireUser(request, "/onboarding");
   if (!outcome.ok) return outcome.response;
 
-  const params = new URL(request.url).searchParams;
-  const preset = params.get("preset") as StandardPreset | null;
-  const preferences = applyOnboardingStandard(DEFAULT_PREFERENCES, {
-    preset: preset && STANDARD_PRESETS.includes(preset) ? preset : "community",
-    avoidAlcohol: params.get("noAlcohol") === "1",
-    preferHandSlaughter: false,
-  });
-  const derived = filtersFromStandards(preferences);
-  const base = parseDiscoveryFilters(new URLSearchParams());
-  const filters = {
-    ...base,
-    statuses: derived.statuses,
-    facts: derived.facts,
-  };
-
-  const citySlug = citySlugParam(params.get("city")) ?? undefined;
+  const queries = onboardingPickQueries(new URL(request.url).searchParams);
   try {
-    const result = await discoverPlaces({ filters, citySlug, limit: PICK_COUNT });
+    let result = await discoverPlaces({ ...queries[0], limit: PICK_COUNT });
+    let relaxed = false;
+    for (let index = 1; index < queries.length && result.places.length === 0; index += 1) {
+      result = await discoverPlaces({ ...queries[index], limit: PICK_COUNT });
+      relaxed = true;
+    }
     return json({
+      relaxed,
       places: result.places.map((place) => ({
         id: place.id,
         name: place.name,
