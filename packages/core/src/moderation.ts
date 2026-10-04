@@ -220,6 +220,8 @@ export const AUDIT_ACTIONS = [
   "event.updated",
   "event.cancelled",
   "event.restored",
+  "place.listed",
+  "place.rejected",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -247,6 +249,8 @@ export const ALWAYS_AUDITED: ReadonlySet<AuditAction> = new Set([
   "report.resolved",
   "appeal.resolved",
   "facts.updated",
+  "place.listed",
+  "place.rejected",
 ]);
 
 export function requiresAudit(action: AuditAction): boolean {

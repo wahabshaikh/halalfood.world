@@ -12,6 +12,7 @@ import { cn } from "@halalfood/ui/lib/utils";
 import { Disclosure, InsufficientData, MetaItem, SectionHeading } from "./section";
 import type { PublicHalalVerification } from "../lib/halal-verifications";
 import type { StatusChange } from "../lib/place-decision";
+import { CommunityChain } from "./community-chain";
 
 /**
  * The audit surface for one halal claim: every source, its scope, its dates,
@@ -114,6 +115,16 @@ export default function EvidencePanel({
                 </dl>
 
                 {item.note && <p className="text-sm">{item.note}</p>}
+
+                <CommunityChain
+                  targetType="verification"
+                  targetId={item.id}
+                  own={item.submittedByViewer || item.status !== "approved"}
+                  confirmCount={item.confirmCount}
+                  reportCount={item.reportCount}
+                  viewerConfirmed={item.viewerConfirmed}
+                  reportLabel="Report this check"
+                />
 
                 {item.evidence.length > 0 && (
                   <ul className="grid gap-1 text-sm">

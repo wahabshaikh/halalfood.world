@@ -4,6 +4,7 @@ import {
   sqliteTable,
   text,
   index,
+  uniqueIndex,
   primaryKey,
   check,
 } from "drizzle-orm/sqlite-core";
@@ -817,6 +818,27 @@ export const contentReports = sqliteTable(
   (table) => [
     index("content_reports_status_idx").on(table.status, table.createdAt),
     index("content_reports_target_idx").on(table.targetType, table.targetId),
+  ],
+);
+
+export const communityConfirmations = sqliteTable(
+  "community_confirmations",
+  {
+    id: text("id").primaryKey(),
+    targetType: text("target_type", { enum: ["verification", "check-in"] }).notNull(),
+    targetId: text("target_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("community_confirmations_user_target_idx").on(
+      table.targetType,
+      table.targetId,
+      table.userId,
+    ),
+    index("community_confirmations_target_idx").on(table.targetType, table.targetId),
   ],
 );
 

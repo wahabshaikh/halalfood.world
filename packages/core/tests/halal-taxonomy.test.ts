@@ -83,6 +83,36 @@ test("two independent contributors are needed for community verified", () => {
   assert.equal(pair.contributorCount, 2);
 });
 
+test("one independent confirmation lifts a community-level check", () => {
+  const alone = deriveHalalAssessment(
+    [evidence({ id: "a", submittedByUserId: "user-1" })],
+    NOW,
+  );
+  assert.equal(alone.status, "self-declared");
+
+  const confirmed = deriveHalalAssessment(
+    [
+      evidence({
+        id: "a",
+        submittedByUserId: "user-1",
+        corroboratedByUserIds: ["user-1", "user-2"],
+      }),
+    ],
+    NOW,
+  );
+  assert.equal(confirmed.status, "community-verified");
+  assert.equal(confirmed.contributorCount, 2);
+
+  const stillOne = deriveHalalAssessment(
+    [
+      evidence({ id: "a", submittedByUserId: "user-1" }),
+      evidence({ id: "b", submittedByUserId: "user-1", corroboratedByUserIds: ["user-1"] }),
+    ],
+    NOW,
+  );
+  assert.equal(stillOne.status, "self-declared");
+});
+
 test("an interested party cannot push a claim past self declared", () => {
   const assessment = deriveHalalAssessment(
     [

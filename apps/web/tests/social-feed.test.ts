@@ -262,12 +262,14 @@ test("a friend's halal check shows as their observation, and rejected ones vanis
   const [none, rejected, pending] = cards;
   assert.equal(none.halalCheck, null);
   assert.equal(rejected.halalCheck, null);
-  assert.deepEqual(pending.halalCheck, {
-    status: "pending",
-    certificate: "seen",
-    alcohol: "none",
-    meat: null,
-  });
+  assert.equal(pending.halalCheck?.status, "pending");
+  assert.equal(pending.halalCheck?.certificate, "seen");
+  assert.equal(pending.halalCheck?.alcohol, "none");
+  assert.equal(pending.halalCheck?.meat, null);
+  assert.equal(pending.halalCheck?.confirmCount, 0);
+  assert.equal(pending.halalCheck?.reportCount, 0);
+  assert.equal(pending.halalCheck?.viewerConfirmed, false);
+  assert.ok(pending.halalCheck?.id);
   // The place's own status still comes only from approved evidence.
   assert.equal(pending.place.status, "verified");
 });

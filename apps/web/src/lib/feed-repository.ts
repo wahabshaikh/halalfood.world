@@ -41,11 +41,15 @@ type DatabaseClient = Awaited<ReturnType<typeof database>>;
 type Client = DatabaseClient | Promise<DatabaseClient>;
 
 export type HalalCheckRow = {
+  id: string;
   /** Pending until a moderator approves it. Rejected checks are never shown. */
   status: "pending" | "approved";
   certificate: "seen" | "not-seen" | "unsure" | null;
   alcohol: "none" | "served" | "unsure" | null;
   meat: "hand" | "machine" | "unsure" | null;
+  confirmCount: number;
+  reportCount: number;
+  viewerConfirmed: boolean;
 };
 
 export type FeedCard = {
@@ -78,6 +82,10 @@ export type FeedCard = {
   likes: number;
   comments: number;
   liked: boolean;
+  /** Confirmations and open reports of this check-in. */
+  confirmCount: number;
+  reportCount: number;
+  viewerConfirmed: boolean;
 };
 
 function num(value: unknown): number {
@@ -121,10 +129,14 @@ function halalCheckOf(row: Record<string, unknown>): HalalCheckRow | null {
   const pick = <T extends string>(value: unknown, allowed: readonly T[]) =>
     allowed.includes(value as T) ? (value as T) : null;
   const check: HalalCheckRow = {
+    id: typeof row.halal_id === "string" ? row.halal_id : "",
     status: row.halal_status,
     certificate: pick(row.certificate, ["seen", "not-seen", "unsure"] as const),
     alcohol: pick(row.alcohol, ["none", "served", "unsure"] as const),
     meat: pick(row.meat, ["hand", "machine", "unsure"] as const),
+    confirmCount: num(row.halal_confirm_count),
+    reportCount: num(row.halal_report_count),
+    viewerConfirmed: num(row.halal_viewer_confirmed) > 0,
   };
   return check.certificate || check.alcohol || check.meat ? check : null;
 }
@@ -171,20 +183,35 @@ export async function assessPlaces(
   return result;
 }
 
-const CARD_COLUMNS = sql`
-  v.id AS visit_id, v.user_id, v.visited_at,
-  v.verification_method, v.verification_confidence,
-  c.verdict, c.note, c.incentivized, c.relationship, c.created_at AS shared_at,
-  p.id AS place_id, p.name AS place_name, p.city_slug, p.street_address,
-  pr.handle, pr.display_name,
-  hv.status AS halal_status, a.certificate, a.alcohol, a.meat,
-  (SELECT COUNT(*) FROM reactions AS r WHERE r.visit_id = v.id) AS like_count,
-  (SELECT COUNT(*) FROM comments AS cm WHERE cm.visit_id = v.id AND cm.status = 'visible') AS comment_count,
-  COALESCE((
-    SELECT json_group_array(json_object('name', d.dish_name, 'verdict', d.verdict))
-    FROM place_check_in_dishes AS d WHERE d.visit_id = v.id
-  ), '[]') AS dishes
-`;
+function cardColumns(viewerId: string | null) {
+  const viewer = viewerId ?? "";
+  return sql`
+    v.id AS visit_id, v.user_id, v.visited_at,
+    v.verification_method, v.verification_confidence,
+    c.verdict, c.note, c.incentivized, c.relationship, c.created_at AS shared_at,
+    p.id AS place_id, p.name AS place_name, p.city_slug, p.street_address,
+    pr.handle, pr.display_name,
+    hv.id AS halal_id, hv.status AS halal_status, a.certificate, a.alcohol, a.meat,
+    (SELECT COUNT(*) FROM community_confirmations AS cc
+      WHERE cc.target_type = 'verification' AND cc.target_id = hv.id) AS halal_confirm_count,
+    (SELECT COUNT(*) FROM content_reports AS cr
+      WHERE cr.target_type = 'verification' AND cr.target_id = hv.id AND cr.status = 'open') AS halal_report_count,
+    (SELECT COUNT(*) FROM community_confirmations AS cc
+      WHERE cc.target_type = 'verification' AND cc.target_id = hv.id AND cc.user_id = ${viewer}) AS halal_viewer_confirmed,
+    (SELECT COUNT(*) FROM community_confirmations AS cc
+      WHERE cc.target_type = 'check-in' AND cc.target_id = v.id) AS checkin_confirm_count,
+    (SELECT COUNT(*) FROM content_reports AS cr
+      WHERE cr.target_type = 'check-in' AND cr.target_id = v.id AND cr.status = 'open') AS checkin_report_count,
+    (SELECT COUNT(*) FROM community_confirmations AS cc
+      WHERE cc.target_type = 'check-in' AND cc.target_id = v.id AND cc.user_id = ${viewer}) AS checkin_viewer_confirmed,
+    (SELECT COUNT(*) FROM reactions AS r WHERE r.visit_id = v.id) AS like_count,
+    (SELECT COUNT(*) FROM comments AS cm WHERE cm.visit_id = v.id AND cm.status = 'visible') AS comment_count,
+    COALESCE((
+      SELECT json_group_array(json_object('name', d.dish_name, 'verdict', d.verdict))
+      FROM place_check_in_dishes AS d WHERE d.visit_id = v.id
+    ), '[]') AS dishes
+  `;
+}
 
 const CARD_JOINS = sql`
   FROM place_visits AS v
@@ -237,6 +264,9 @@ function mapCard(
     likes: num(row.like_count),
     comments: num(row.comment_count),
     liked: extra.liked,
+    confirmCount: num(row.checkin_confirm_count),
+    reportCount: num(row.checkin_report_count),
+    viewerConfirmed: num(row.checkin_viewer_confirmed) > 0,
   };
 }
 
@@ -323,7 +353,7 @@ export async function listFriendsFeed(
     const visitIds = events.map((event) => String(event.visit_id));
     const [rows, liked] = await Promise.all([
       db.all<Record<string, unknown>>(sql`
-        SELECT ${CARD_COLUMNS} ${CARD_JOINS}
+        SELECT ${cardColumns(input.viewerId)} ${CARD_JOINS}
         WHERE v.id IN (${idList(visitIds)})
       `),
       likedVisitIds(input.viewerId, visitIds, db),
@@ -433,7 +463,7 @@ export async function getVisitCard(
   if (!access || !canViewVisit(access.audience)) return null;
   const [rows, liked] = await Promise.all([
     db.all<Record<string, unknown>>(sql`
-      SELECT ${CARD_COLUMNS} ${CARD_JOINS} WHERE v.id = ${visitId} LIMIT 1
+      SELECT ${cardColumns(viewerId)} ${CARD_JOINS} WHERE v.id = ${visitId} LIMIT 1
     `),
     likedVisitIds(viewerId, [visitId], db),
   ]);

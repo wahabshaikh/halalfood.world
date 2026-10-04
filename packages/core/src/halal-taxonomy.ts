@@ -164,6 +164,11 @@ export type EvidenceRecord = {
   relationship: Relationship;
   incentivized: boolean;
   certificationBody?: string | null;
+  /**
+   * Other people who confirmed this item or a public check-in tied to it.
+   * The author is not a corroborator of their own submission.
+   */
+  corroboratedByUserIds?: readonly string[];
 };
 
 export type AssessedEvidence = EvidenceRecord & {
@@ -269,6 +274,23 @@ const EMPTY_ASSESSMENT: HalalAssessment = {
  * Turn approved evidence into the public status. Callers pass only approved
  * rows; anything else is ignored defensively.
  */
+/** Submitters plus independent confirmations. The author never counts twice. */
+function voicesFor(
+  items: readonly {
+    submittedByUserId: string;
+    corroboratedByUserIds?: readonly string[];
+  }[],
+): Set<string> {
+  const voices = new Set<string>();
+  for (const item of items) {
+    if (item.submittedByUserId) voices.add(item.submittedByUserId);
+    for (const id of item.corroboratedByUserIds ?? []) {
+      if (id && id !== item.submittedByUserId) voices.add(id);
+    }
+  }
+  return voices;
+}
+
 export function deriveHalalAssessment(
   evidence: readonly EvidenceRecord[],
   now: number = Date.now(),
@@ -293,7 +315,7 @@ export function deriveHalalAssessment(
     evidenceCount: items.length,
     currentEvidenceCount: current.length,
     staleEvidenceCount: stale.length,
-    contributorCount: new Set(items.map((item) => item.submittedByUserId)).size,
+    contributorCount: voicesFor(items).size,
     latestEvidenceAt: Number.isFinite(latestEvidenceAt) ? latestEvidenceAt : null,
     earliestExpiryAt,
   };
@@ -383,9 +405,7 @@ export function deriveHalalAssessment(
 
   const verifiedItems = supportersOf("verified");
   const communityItems = supportersOf("community-verified");
-  const communityContributors = new Set(
-    communityItems.map((item) => item.submittedByUserId),
-  );
+  const communityVoices = voicesFor(communityItems);
   // `halal-options` is a scope claim, not a strength tier, so it is matched
   // exactly. Using a rank threshold here would let a venue-wide claim that
   // failed the community rule fall through and be relabelled as options-only.
@@ -401,11 +421,11 @@ export function deriveHalalAssessment(
         ? `Recognised certification from ${body} covers this branch.`
         : "Independently verified sourcing covers this branch.",
     );
-  } else if (communityItems.length >= 2 && communityContributors.size >= 2) {
+  } else if (communityItems.length >= 1 && communityVoices.size >= 2) {
     status = "community-verified";
     supporting = communityItems;
     reasons.push(
-      `${communityItems.length} consistent submissions from ${communityContributors.size} contributors support the halal claim.`,
+      `${communityItems.length} consistent ${communityItems.length === 1 ? "submission" : "submissions"} from ${communityVoices.size} independent people support the halal claim.`,
     );
   } else if (optionItems.length) {
     status = "halal-options";
@@ -416,9 +436,9 @@ export function deriveHalalAssessment(
   } else {
     status = "self-declared";
     supporting = positives;
-    if (communityItems.length === 1 || communityContributors.size === 1)
+    if (communityItems.length >= 1 && communityVoices.size < 2)
       reasons.push(
-        "Only one contributor has supported this claim, so it stays Self declared until a second independent submission arrives.",
+        "Only one person has supported this claim, so it stays Self declared until someone else confirms it or files their own.",
       );
     else
       reasons.push(
@@ -450,7 +470,7 @@ export function deriveHalalAssessment(
   let confidence: Confidence;
   if (status === "verified") confidence = expiringSoon || !venueWide ? "medium" : "high";
   else if (status === "community-verified")
-    confidence = communityContributors.size >= 4 && !expiringSoon ? "high" : "medium";
+    confidence = communityVoices.size >= 4 && !expiringSoon ? "high" : "medium";
   else if (status === "halal-options") confidence = optionItems.length >= 2 ? "medium" : "low";
   else confidence = "low";
 

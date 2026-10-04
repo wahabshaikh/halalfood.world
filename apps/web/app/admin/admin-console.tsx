@@ -11,8 +11,8 @@ import { FormMessage, InsufficientData, SectionIntro } from "../../src/component
 
 import { EVIDENCE_KIND_COPY, RELATIONSHIP_COPY, STATUS_COPY } from "@halalfood/core/halal-taxonomy";
 import { REPORT_REASON_COPY } from "@halalfood/core/moderation";
-import type { QueueEntry } from "../../src/lib/moderation-repository";
-import type { ReportRow } from "../../src/lib/moderation-repository";
+import type { QueueEntry, ReportRow } from "../../src/lib/moderation-repository";
+import type { PendingPlaceSubmission } from "../../src/lib/place-link-submissions";
 import EventsAdmin from "./events-admin";
 
 /**
@@ -27,6 +27,7 @@ import EventsAdmin from "./events-admin";
 
 type Payload = {
   role: string;
+  places: PendingPlaceSubmission[];
   evidence: QueueEntry[];
   edits: Array<Record<string, unknown>>;
   duplicates: Array<Record<string, unknown>>;
@@ -127,6 +128,63 @@ export default function AdminConsole() {
           <AlertDescription className="font-bold text-foreground">{message}</AlertDescription>
         </Alert>
       )}
+
+      <Block title={<>Pending places ({data.places.length})</>}>
+        <SectionIntro>
+          Places sent from Add a place stay here until a moderator lists them or turns them down.
+          Approve makes the place listed. A rejection needs a reason, and the person who sent it
+          sees that reason on their contributions.
+        </SectionIntro>
+        {data.places.length === 0 ? (
+          <InsufficientData>Nothing waiting.</InsufficientData>
+        ) : (
+          <ul className="grid gap-3">
+            {data.places.map((place) => (
+              <li key={place.id}>
+                <Card size="sm" className="gap-2 px-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 font-semibold">
+                    <span>
+                      {place.name}
+                      <span className="font-normal text-muted-foreground"> · {place.citySlug}</span>
+                    </span>
+                    <Badge variant="secondary">pending</Badge>
+                  </div>
+                  <p className="text-sm">{place.streetAddress}</p>
+                  <p className="text-sm break-all [&_a]:font-semibold [&_a]:underline">
+                    <a href={place.sourceUrl} target="_blank" rel="noopener noreferrer nofollow">
+                      {place.sourceUrl}
+                    </a>
+                  </p>
+                  {place.googlePlaceId && (
+                    <p className="text-xs text-muted-foreground">
+                      Google place id {place.googlePlaceId}
+                    </p>
+                  )}
+                  {place.filingNote && (
+                    <p className="text-[13px] text-muted-foreground">{place.filingNote}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">Reference {place.id}</p>
+                  <ReasonBox
+                    id={place.id}
+                    placeholder="Reason (required to reject; the contributor sees it)"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => void decide("place", place.id, "approved")}>
+                      Approve
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => void decide("place", place.id, "rejected")}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Block>
 
       <Block title={<>Evidence queue ({data.evidence.length})</>}>
         <SectionIntro>

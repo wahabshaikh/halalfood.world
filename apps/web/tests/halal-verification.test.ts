@@ -52,6 +52,10 @@ const EVIDENCE_ATTRIBUTES = {
   relationship: "none" as const,
   incentivized: false,
   stale: false,
+  confirmCount: 0,
+  reportCount: 0,
+  viewerConfirmed: false,
+  submittedByViewer: false,
 };
 
 const SUBMISSION_ATTRIBUTES = {
