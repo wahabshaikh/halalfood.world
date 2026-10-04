@@ -342,6 +342,7 @@ export default function MapView({
         map.current = instance;
         instance.on("load", () => {
           styleReady.current = true;
+          instance.resize();
           setMapBroken(false);
           setReady(true);
         });
@@ -714,11 +715,16 @@ export default function MapView({
 
       <div
         className={cn(
-          "relative h-[calc(100vh-150px)] min-[900px]:block min-[900px]:h-auto",
+          "map-stage relative h-[calc(100vh-150px)] min-h-64 min-[900px]:block min-[900px]:h-full min-[900px]:min-h-0",
           showList && "hidden",
         )}
       >
-        <div ref={container} className="absolute inset-0 bg-map" aria-label="Map of halal places" />
+        <div
+          ref={container}
+          className="map-canvas absolute inset-0 size-full bg-map"
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+          aria-label="Map of halal places"
+        />
         {mapBroken && (
           <div className="absolute inset-0 z-4 flex items-center justify-center bg-background/95 p-6 text-center">
             <div className="grid max-w-sm gap-3">

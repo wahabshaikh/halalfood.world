@@ -10,11 +10,8 @@ import {
   cityDescription,
   cityName,
   cityTitle,
-  placeShareText,
-  formatCount,
   jsonLdScript,
   OG_IMAGE,
-  plural,
   TWITTER_SITE,
 } from "../../../src/lib/seo";
 import {
@@ -51,6 +48,14 @@ const PAGE_SIZE = 60;
 
 const loadCity = cache((raw: string) => loadCityRecord(raw));
 
+const loadCoverage = cache(async (citySlug: string) => {
+  try {
+    return await getCityCoverage(citySlug);
+  } catch {
+    return null;
+  }
+});
+
 export async function generateMetadata({
   params,
   searchParams,
@@ -67,8 +72,9 @@ export async function generateMetadata({
     };
   const city = loaded.data;
   const page = pageParam((await searchParams).page);
+  const coverage = await loadCoverage(city.city_slug);
   const title = cityTitle(city.city_slug, city.place_count);
-  const description = cityDescription(city.city_slug, city.place_count);
+  const description = cityDescription(city.city_slug, city.place_count, coverage);
   const path = `/city/${city.city_slug}`;
   return {
     title: page > 0 ? `${title} — page ${page + 1}` : title,
@@ -127,8 +133,8 @@ export default async function CityPage({
   const coverage = await cachedRead(
     `places:coverage:v1:${city.city_slug}`,
     10 * 60,
-    () => getCityCoverage(city.city_slug),
-  ).catch(() => null);
+    () => loadCoverage(city.city_slug),
+  );
 
   const name = cityName(city.city_slug);
   const lastPage = Math.max(Math.ceil(total / PAGE_SIZE) - 1, 0);
@@ -171,7 +177,7 @@ export default async function CityPage({
         <Breadcrumbs trail={trail} />
         <PageIntro
           title={cityTitle(city.city_slug, city.place_count)}
-          lead={cityDescription(city.city_slug, city.place_count)}
+          lead={cityDescription(city.city_slug, city.place_count, coverage)}
         >
           <div className="flex flex-wrap items-center gap-2.5">
             <Button asChild size="xl">
@@ -186,10 +192,7 @@ export default async function CityPage({
             <ShareButton
               url={path}
               title={cityTitle(city.city_slug, city.place_count)}
-              text={placeShareText(
-                `${formatCount(city.place_count)} ${plural(city.place_count, "place")}`,
-                name,
-              )}
+              text={cityDescription(city.city_slug, city.place_count, coverage)}
             />
           </div>
         </PageIntro>

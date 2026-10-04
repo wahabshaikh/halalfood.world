@@ -17,12 +17,14 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@halalfood/ui/components/field";
 import { Input } from "@halalfood/ui/components/input";
 import { Spinner } from "@halalfood/ui/components/spinner";
+import { TURNSTILE_COMPACT_MAX_WIDTH, turnstileWidgetSize } from "../../src/lib/turnstile-size";
 
 interface TurnstileApi {
   render(
     container: HTMLElement,
     options: {
       sitekey: string;
+      size?: "normal" | "compact" | "flexible";
       callback: (token: string) => void;
       "expired-callback": () => void;
       "error-callback": () => void;
@@ -39,10 +41,12 @@ declare global {
 
 function TurnstileCheck({
   siteKey,
+  size,
   onToken,
   onError,
 }: {
   siteKey: string;
+  size: "normal" | "compact";
   onToken: (token: string) => void;
   onError: (message: string) => void;
 }) {
@@ -64,6 +68,7 @@ function TurnstileCheck({
       try {
         widgetId.current = window.turnstile.render(container.current, {
           sitekey: siteKey,
+          size,
           callback: onToken,
           "expired-callback": () => onToken(""),
           "error-callback": () => {
@@ -96,9 +101,9 @@ function TurnstileCheck({
         window.turnstile.remove(widgetId.current);
       widgetId.current = undefined;
     };
-  }, [onError, onToken, siteKey]);
+  }, [onError, onToken, siteKey, size]);
 
-  return <div ref={container} className="min-h-16" />;
+  return <div ref={container} className="min-h-16 max-w-full" />;
 }
 
 /**
@@ -138,6 +143,23 @@ export default function LoginForm({
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [turnstileSize, setTurnstileSize] = useState<"compact" | "normal" | null>(null);
+  const turnstileSizeRef = useRef<"compact" | "normal" | null>(null);
+
+  useEffect(() => {
+    const query = window.matchMedia(`(max-width: ${TURNSTILE_COMPACT_MAX_WIDTH}px)`);
+    const apply = () => {
+      const next = turnstileWidgetSize(
+        query.matches ? TURNSTILE_COMPACT_MAX_WIDTH : TURNSTILE_COMPACT_MAX_WIDTH + 1,
+      );
+      if (turnstileSizeRef.current && turnstileSizeRef.current !== next) setTurnstileToken("");
+      turnstileSizeRef.current = next;
+      setTurnstileSize(next);
+    };
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, []);
 
   const onTurnstileToken = useCallback((token: string) => {
     setTurnstileToken(token);
@@ -203,8 +225,8 @@ export default function LoginForm({
   };
 
   return (
-    <section aria-labelledby="login-title" className="mx-auto my-10 max-w-xl">
-      <Card className="gap-5 rounded-3xl px-6 py-8 shadow-lg ring-border sm:px-9">
+    <section aria-labelledby="login-title" className="mx-auto my-10 w-full max-w-xl">
+      <Card className="w-full max-w-full gap-5 rounded-3xl px-6 py-8 shadow-lg ring-border sm:px-9">
         <CardHeader className="gap-2 px-0">
           <h1 id="login-title" className="text-[26px]">
             {heading}
@@ -235,12 +257,15 @@ export default function LoginForm({
                   className="h-12 text-base"
                 />
               </Field>
-              <TurnstileCheck
-                key={turnstileReset}
-                siteKey={siteKey}
-                onToken={onTurnstileToken}
-                onError={onTurnstileError}
-              />
+              {turnstileSize && (
+                <TurnstileCheck
+                  key={`${turnstileReset}-${turnstileSize}`}
+                  siteKey={siteKey}
+                  size={turnstileSize}
+                  onToken={onTurnstileToken}
+                  onError={onTurnstileError}
+                />
+              )}
               {turnstileError && <FieldDescription>{turnstileError}</FieldDescription>}
               <Button
                 type="submit"
