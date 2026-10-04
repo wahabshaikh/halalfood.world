@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import {
   Page,
   PageMain,
@@ -34,6 +35,7 @@ export default async function LoginPage({
       ? rawReturnTo
       : "/";
 
+  const host = (await headers()).get("host");
   const reason = typeof params.reason === "string" ? params.reason : "";
   const heading =
     reason === "save"
@@ -55,7 +57,7 @@ export default async function LoginPage({
       <SiteHeader />
       <PageMain>
         <LoginForm
-          siteKey={await readWorkerEnv("TURNSTILE_SITE_KEY")}
+          siteKey={await readWorkerEnv("TURNSTILE_SITE_KEY", host)}
           returnTo={returnTo}
           heading={heading}
         />

@@ -4,6 +4,7 @@ import { emailOTP } from "better-auth/plugins";
 import { database } from "../db";
 import { authSchema } from "../db/schema";
 import { sendEmail } from "./email";
+import { hostFromRequest } from "./request-host";
 
 function environmentValue(name: string): string {
   return process.env[name]?.trim() || "";
@@ -104,12 +105,13 @@ export async function createAuth() {
         resendStrategy: "rotate",
         storeOTP: "hashed",
         rateLimit: { window: 60, max: 3 },
-        async sendVerificationOTP({ email, otp, type }) {
+        async sendVerificationOTP({ email, otp, type }, ctx) {
           // This PR exposes sign-in only. Keep all future OTP mail on the same
           // transactional sender if another Better Auth flow is enabled later.
           if (type !== "sign-in")
             throw new Error("Only sign-in email OTP is enabled");
-          await sendEmail({ to: email, ...otpEmail(otp) });
+          const host = ctx?.request ? hostFromRequest(ctx.request) : "";
+          await sendEmail({ to: email, ...otpEmail(otp) }, { host });
         },
       }),
     ],

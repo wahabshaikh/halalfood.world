@@ -30,12 +30,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await sendEmail({
-      to: recipient,
-      subject: "halalfood.world email healthcheck",
-      html: "<p>This is a halalfood.world email delivery healthcheck.</p>",
-      text: "This is a halalfood.world email delivery healthcheck.",
-    });
+    const result = await sendEmail(
+      {
+        to: recipient,
+        subject: "halalfood.world email healthcheck",
+        html: "<p>This is a halalfood.world email delivery healthcheck.</p>",
+        text: "This is a halalfood.world email delivery healthcheck.",
+      },
+      { host: new URL(request.url).host },
+    );
     return Response.json({ ok: true, id: result.id });
   } catch (error) {
     const status =

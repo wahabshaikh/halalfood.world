@@ -3,12 +3,13 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import {
   applyPreviewEnvironment,
   applyPreviewResourceBindings,
+  enforcePreviewSecretBoundary,
   PREVIEW_D1_ID,
   PREVIEW_D1_NAME,
   PREVIEW_R2_BUCKET,
   previewIsolationDecision,
-  stripProductionSecretVars,
 } from "../apps/web/src/lib/preview-bindings.ts";
+import { readProductionSecretNames } from "./read-production-secret-names.ts";
 import {
   MIGRATION_LIST_TIMEOUT_MS,
   migrationListStopReason,
@@ -42,9 +43,6 @@ writeFileSync(
 
 const generatedConfigPath = "dist/server/wrangler.json";
 const generatedConfig = JSON.parse(readFileSync(generatedConfigPath, "utf8"));
-// A plain var named like a production secret replaces that secret on the
-// version chain. Staging must not copy TURNSTILE_SITE_KEY into this config.
-stripProductionSecretVars(generatedConfig);
 
 const isolation = previewIsolationDecision(process.env);
 if (isolation === "refuse") {
@@ -55,14 +53,22 @@ if (isolation === "refuse") {
 }
 
 if (isolation === "preview") {
+  let secretNames: string[];
+  try {
+    secretNames = readProductionSecretNames();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
   applyPreviewResourceBindings(generatedConfig);
   applyPreviewEnvironment(generatedConfig);
+  enforcePreviewSecretBoundary(generatedConfig, secretNames);
   const rootCopy = JSON.parse(
     readFileSync("wrangler.jsonc", "utf8").replace(/^\s*\/\/.*$/gm, ""),
   );
   applyPreviewResourceBindings(rootCopy);
   applyPreviewEnvironment(rootCopy);
-  stripProductionSecretVars(rootCopy);
+  enforcePreviewSecretBoundary(rootCopy, secretNames);
   writeFileSync("wrangler.jsonc", `${JSON.stringify(rootCopy, null, 2)}\n`);
   console.log(
     `Non-main branch ${process.env.WORKERS_CI_BRANCH}: DB ${PREVIEW_D1_NAME} (${PREVIEW_D1_ID}), R2 ${PREVIEW_R2_BUCKET}, ENVIRONMENT=preview`,

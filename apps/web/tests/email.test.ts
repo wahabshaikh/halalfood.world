@@ -9,7 +9,9 @@ import { POST as emailHealthcheck } from "../app/api/admin/email/healthcheck/rou
 
 const originalFetch = globalThis.fetch;
 const environmentKeys = [
+  "ENVIRONMENT",
   "RESEND_API_KEY",
+  "PREVIEW_RESEND_API_KEY",
   "EMAIL_FROM",
   "EMAIL_HEALTHCHECK_ENABLED",
   "EMAIL_HEALTHCHECK_TOKEN",
@@ -191,4 +193,141 @@ test("authorized email healthcheck sends only to configured recipient", async ()
   });
   assert.equal(requestBody?.to, "ops@example.com");
   assert.equal(requestBody?.from, "onboarding@resend.dev");
+});
+
+const previewHost = "pr-63-halalfood-world.wahabshaikh.workers.dev";
+
+test("preview hosts log the OTP and do not call Resend with the production key", async () => {
+  setEnvironment({
+    ENVIRONMENT: "preview",
+    RESEND_API_KEY: "production-resend-key",
+    PREVIEW_RESEND_API_KEY: undefined,
+  });
+  let called = false;
+  globalThis.fetch = async () => {
+    called = true;
+    return new Response(JSON.stringify({ id: "should-not-send" }));
+  };
+  const lines: string[] = [];
+  const original = console.info;
+  console.info = (...args: unknown[]) => {
+    lines.push(args.map(String).join(" "));
+  };
+  try {
+    const result = await sendEmail(
+      {
+        to: "person@example.com",
+        subject: "Your halalfood.world sign-in code",
+        html: "<p>424242</p>",
+        text: "Your halalfood.world sign-in code is 424242.",
+      },
+      { host: previewHost },
+    );
+    assert.deepEqual(result, { id: "preview-not-sent" });
+    assert.equal(called, false);
+    assert.match(lines.join("\n"), /424242/);
+    assert.doesNotMatch(lines.join("\n"), /production-resend-key/);
+  } finally {
+    console.info = original;
+  }
+});
+
+test("preview hosts send only when PREVIEW_RESEND_API_KEY is set", async () => {
+  setEnvironment({
+    ENVIRONMENT: "preview",
+    RESEND_API_KEY: "production-resend-key",
+    PREVIEW_RESEND_API_KEY: "preview-only-resend-key",
+  });
+  let authorization: string | null = null;
+  globalThis.fetch = async (_input, init) => {
+    authorization = new Headers(init?.headers).get("authorization");
+    return new Response(JSON.stringify({ id: "preview-message-id" }));
+  };
+
+  const result = await sendEmail(emailInput, { host: previewHost });
+  assert.deepEqual(result, { id: "preview-message-id" });
+  assert.equal(authorization, "Bearer preview-only-resend-key");
+});
+
+test("halalfood.world still sends with RESEND_API_KEY when ENVIRONMENT would be preview", async () => {
+  setEnvironment({
+    ENVIRONMENT: "preview",
+    RESEND_API_KEY: "production-resend-key",
+    PREVIEW_RESEND_API_KEY: "preview-only-resend-key",
+  });
+  let authorization: string | null = null;
+  globalThis.fetch = async (_input, init) => {
+    authorization = new Headers(init?.headers).get("authorization");
+    return new Response(JSON.stringify({ id: "prod-message-id" }));
+  };
+
+  const result = await sendEmail(emailInput, { host: "halalfood.world" });
+  assert.deepEqual(result, { id: "prod-message-id" });
+  assert.equal(authorization, "Bearer production-resend-key");
+});
+
+test("preview healthcheck does not send through the production Resend key", async () => {
+  setEnvironment({
+    ENVIRONMENT: "preview",
+    RESEND_API_KEY: "production-resend-key",
+    PREVIEW_RESEND_API_KEY: undefined,
+    EMAIL_HEALTHCHECK_ENABLED: "true",
+    EMAIL_HEALTHCHECK_TOKEN: "healthcheck-token",
+    EMAIL_HEALTHCHECK_TO: "ops@example.com",
+  });
+  let called = false;
+  globalThis.fetch = async () => {
+    called = true;
+    return new Response(JSON.stringify({ id: "should-not-send" }));
+  };
+
+  const response = await emailHealthcheck(
+    new Request(`https://${previewHost}/api/admin/email/healthcheck`, {
+      method: "POST",
+      headers: { Authorization: "Bearer healthcheck-token" },
+    }),
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true, id: "preview-not-sent" });
+  assert.equal(called, false);
+});
+
+test("the production Worker on workers.dev sends with RESEND_API_KEY and never logs the OTP", async () => {
+  setEnvironment({
+    ENVIRONMENT: undefined,
+    RESEND_API_KEY: "production-resend-key",
+    PREVIEW_RESEND_API_KEY: "preview-only-resend-key",
+  });
+  let authorization: string | null = null;
+  globalThis.fetch = async (_input, init) => {
+    authorization = new Headers(init?.headers).get("authorization");
+    return new Response(JSON.stringify({ id: "prod-message-id" }));
+  };
+  const lines: string[] = [];
+  const original = console.info;
+  console.info = (...args: unknown[]) => {
+    lines.push(args.map(String).join(" "));
+  };
+  try {
+    for (const host of [
+      "halalfood-world.wahabshaikh.workers.dev",
+      "d9232e5d-halalfood-world.wahabshaikh.workers.dev",
+    ]) {
+      authorization = null;
+      const result = await sendEmail(
+        {
+          to: "person@example.com",
+          subject: "Your halalfood.world sign-in code",
+          html: "<p>424242</p>",
+          text: "Your halalfood.world sign-in code is 424242.",
+        },
+        { host },
+      );
+      assert.deepEqual(result, { id: "prod-message-id" }, host);
+      assert.equal(authorization, "Bearer production-resend-key", host);
+    }
+    assert.doesNotMatch(lines.join("\n"), /424242/);
+  } finally {
+    console.info = original;
+  }
 });
