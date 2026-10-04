@@ -288,97 +288,79 @@ export function d1HalalVerificationRepository(
       const verificationId = crypto.randomUUID();
       const now = Date.now();
       const attributes = input.attributes;
-      // D1 can hang a batch when a later statement's foreign key points at a
-      // row inserted earlier in that same batch. A labelled check does that:
-      // place_halal_check_answers references the verification row. The Worker
-      // then sits until it is killed, and the diner's button stays on
-      // "Sending…". Each statement is awaited on its own. D1 rejects SQL
-      // BEGIN, so a child failure deletes the parent (evidence cascades).
-      await db.insert(placeHalalVerifications).values({
-        id: verificationId,
-        placeId,
-        submittedByUserId: userId,
-        status: "pending",
-        note: input.note,
-        createdAt: new Date(now),
-        updatedAt: new Date(now),
-        evidenceKind: attributes.kind,
-        claimedStatus: attributes.claimedStatus,
-        scope: attributes.scope,
-        scopeNote: attributes.scopeNote,
-        certificationBody: attributes.certificationBody,
-        certificateId: attributes.certificateId,
-        capturedAt: new Date(attributes.capturedAt),
-        expiresAt: new Date(attributes.expiresAt),
-        relationship: attributes.relationship,
-        incentivized: attributes.incentivized,
-        visibility: attributes.visibility,
-      });
-      try {
-        if (attributes.sourceUrl) {
-          await db.insert(placeHalalVerificationEvidence).values({
-            id: crypto.randomUUID(),
-            verificationId,
-            kind: "link",
-            url: attributes.sourceUrl,
-            r2Key: null,
-            contentType: null,
-            fileName: null,
-            sizeBytes: null,
-            createdAt: new Date(now),
-          });
-        }
-        for (const item of input.evidence) {
-          await db.insert(placeHalalVerificationEvidence).values(
-            item.kind === "link"
-              ? {
-                  id: crypto.randomUUID(),
-                  verificationId,
-                  kind: "link",
-                  url: item.url,
-                  r2Key: null,
-                  contentType: null,
-                  fileName: null,
-                  sizeBytes: null,
-                  createdAt: new Date(now),
-                }
-              : {
-                  id: crypto.randomUUID(),
-                  verificationId,
-                  kind: "upload",
-                  url: null,
-                  r2Key: item.key,
-                  contentType: item.contentType,
-                  fileName: item.fileName,
-                  sizeBytes: item.sizeBytes,
-                  createdAt: new Date(now),
-                },
-          );
-        }
-        if (Object.values(input.answers).some((value) => value !== null)) {
-          await db.insert(placeHalalCheckAnswers).values({
-            verificationId,
-            certificate: input.answers.certificate,
-            alcohol: input.answers.alcohol,
-            meat: input.answers.meat,
-            createdAt: new Date(now),
-          });
-        }
-      } catch (error) {
-        try {
-          await db.run(sql`
-            DELETE FROM place_halal_verifications WHERE id = ${verificationId}
-          `);
-        } catch (cleanup) {
-          console.error(
-            JSON.stringify({
-              domain: "Sending this halal check",
-              message: cleanup instanceof Error ? cleanup.message : String(cleanup),
-            }),
-          );
-        }
-        throw error;
-      }
+      // D1 rejects SQL `BEGIN`, so this is one batch: the submission, its
+      // evidence and its step-by-step answers commit together or not at all.
+      // D1 runs a batch as one transaction in order, so the answers row may
+      // reference the verification inserted earlier in the same batch.
+      const evidenceRow = (
+        item: ValidatedHalalVerification["evidence"][number],
+      ) =>
+        item.kind === "link"
+          ? {
+              id: crypto.randomUUID(),
+              verificationId,
+              kind: "link" as const,
+              url: item.url,
+              r2Key: null,
+              contentType: null,
+              fileName: null,
+              sizeBytes: null,
+              createdAt: new Date(now),
+            }
+          : {
+              id: crypto.randomUUID(),
+              verificationId,
+              kind: "upload" as const,
+              url: null,
+              r2Key: item.key,
+              contentType: item.contentType,
+              fileName: item.fileName,
+              sizeBytes: item.sizeBytes,
+              createdAt: new Date(now),
+            };
+      await db.batch([
+        db.insert(placeHalalVerifications).values({
+          id: verificationId,
+          placeId,
+          submittedByUserId: userId,
+          status: "pending",
+          note: input.note,
+          createdAt: new Date(now),
+          updatedAt: new Date(now),
+          evidenceKind: attributes.kind,
+          claimedStatus: attributes.claimedStatus,
+          scope: attributes.scope,
+          scopeNote: attributes.scopeNote,
+          certificationBody: attributes.certificationBody,
+          certificateId: attributes.certificateId,
+          capturedAt: new Date(attributes.capturedAt),
+          expiresAt: new Date(attributes.expiresAt),
+          relationship: attributes.relationship,
+          incentivized: attributes.incentivized,
+          visibility: attributes.visibility,
+        }),
+        // The declared source is stored as a link so the evidence panel can
+        // show it alongside the uploads.
+        ...(attributes.sourceUrl
+          ? [db.insert(placeHalalVerificationEvidence).values(evidenceRow({ kind: "link", url: attributes.sourceUrl } as ValidatedHalalVerification["evidence"][number]))]
+          : []),
+        ...input.evidence.map((item) =>
+          db.insert(placeHalalVerificationEvidence).values(evidenceRow(item)),
+        ),
+        ...(Object.values(input.answers).some((value) => value !== null)
+          ? [
+              // A query builder, not `db.run(sql...)`: drizzle's D1 batch cannot
+              // prepare a raw `run`, and throws before sending anything.
+              db.insert(placeHalalCheckAnswers).values({
+                verificationId,
+                certificate: input.answers.certificate,
+                alcohol: input.answers.alcohol,
+                meat: input.answers.meat,
+                createdAt: new Date(now),
+              }),
+            ]
+          : []),
+      ] as unknown as Parameters<typeof db.batch>[0]);
       return { id: verificationId, status: "pending" };
     },
 

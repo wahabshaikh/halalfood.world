@@ -12,6 +12,8 @@ import {
 } from "../src/lib/halal-verifications";
 import { createReport, listReports } from "../src/lib/moderation-repository";
 import { getModeratorRole } from "../src/lib/preferences-repository";
+import { linkFromSelectedGooglePlace } from "../src/lib/google-place-submission";
+import { listPendingPlaceSubmissions, submitPlaceLink } from "../src/lib/place-link-submissions";
 import { addUser, createTestDatabase } from "./support/sqlite-d1";
 
 const PLACE_ID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
@@ -144,7 +146,45 @@ test("rejecting a place requires a reason the submitter can read", async () => {
   assert.ok(audit.created_at > 0);
 });
 
-test("approving a pending place lists it and records the moderator", async () => {
+test("approving a link to a listed place accepts it and records the moderator", async () => {
+  const { sqlite, db } = createTestDatabase();
+  addUser(sqlite, "submitter");
+  addUser(sqlite, "moderator");
+  sqlite
+    .prepare(`INSERT INTO moderators (user_id, role, created_at) VALUES ('moderator', 'moderator', 1)`)
+    .run();
+  insertSubmission(sqlite, { googlePlaceId: "ChIJsamad" });
+  sqlite
+    .prepare(
+      `INSERT INTO places (
+        id, name, city_slug, city_url, street_address, serves_cuisine, source, source_url,
+        scraped_at, created_at, halal_confirmed, listing_status, google_place_id
+      ) VALUES (?, 'Listed Cafe', 'london', '/city/london', '9 Other Road', '[]', 'import',
+        'https://example.com/listed', 1, 1, 1, 'listed', 'ChIJsamad')`,
+    )
+    .run(PLACE_ID);
+
+  const response = await review(db, "moderator", { decision: "approved" });
+  assert.equal(response.status, 200);
+  const body = (await response.json()) as { placeId: string };
+  assert.equal(body.placeId, PLACE_ID);
+  const submission = sqlite
+    .prepare(`SELECT status, matched_place_id FROM place_link_submissions WHERE id = ?`)
+    .get(SUBMISSION_ID) as { status: string; matched_place_id: string };
+  assert.equal(submission.status, "accepted");
+  assert.equal(submission.matched_place_id, PLACE_ID);
+  const audit = sqlite
+    .prepare(`SELECT actor_user_id, action FROM audit_log WHERE target_id = ?`)
+    .get(SUBMISSION_ID) as { actor_user_id: string; action: string };
+  assert.equal(audit.action, "place.listed");
+  assert.equal(audit.actor_user_id, "moderator");
+  assert.equal(
+    (sqlite.prepare(`SELECT COUNT(*) AS n FROM places`).get() as { n: number }).n,
+    1,
+  );
+});
+
+test("approving a link never re-lists a place that moderation hid", async () => {
   const { sqlite, db } = createTestDatabase();
   addUser(sqlite, "submitter");
   addUser(sqlite, "moderator");
@@ -163,27 +203,19 @@ test("approving a pending place lists it and records the moderator", async () =>
     .run(PLACE_ID);
 
   const response = await review(db, "moderator", { decision: "approved" });
-  assert.equal(response.status, 200);
-  const body = (await response.json()) as { placeId: string };
-  assert.equal(body.placeId, PLACE_ID);
+  assert.equal(response.status, 409);
   const place = sqlite
     .prepare(`SELECT listing_status, halal_confirmed FROM places WHERE id = ?`)
     .get(PLACE_ID) as { listing_status: string; halal_confirmed: number };
-  assert.equal(place.listing_status, "listed");
-  assert.equal(place.halal_confirmed, 1);
+  assert.equal(place.listing_status, "hidden");
+  assert.equal(place.halal_confirmed, 0);
   const submission = sqlite
-    .prepare(`SELECT status, matched_place_id FROM place_link_submissions WHERE id = ?`)
-    .get(SUBMISSION_ID) as { status: string; matched_place_id: string };
-  assert.equal(submission.status, "accepted");
-  assert.equal(submission.matched_place_id, PLACE_ID);
-  const audit = sqlite
-    .prepare(`SELECT actor_user_id, action FROM audit_log WHERE target_id = ?`)
-    .get(SUBMISSION_ID) as { actor_user_id: string; action: string };
-  assert.equal(audit.action, "place.listed");
-  assert.equal(audit.actor_user_id, "moderator");
+    .prepare(`SELECT status FROM place_link_submissions WHERE id = ?`)
+    .get(SUBMISSION_ID) as { status: string };
+  assert.equal(submission.status, "pending");
   assert.equal(
-    (sqlite.prepare(`SELECT COUNT(*) AS n FROM places`).get() as { n: number }).n,
-    1,
+    (sqlite.prepare(`SELECT COUNT(*) AS n FROM audit_log WHERE target_id = ?`).get(SUBMISSION_ID) as { n: number }).n,
+    0,
   );
 });
 
@@ -398,4 +430,40 @@ test("confirmations are unique, refuse the author, and feed the status", async (
     ).get() as { n: number }).n,
     1,
   );
+});
+
+test("a Google place filed at the details cap waits in the moderator queue", async () => {
+  const { sqlite, db } = createTestDatabase();
+  addUser(sqlite, "submitter");
+  addUser(sqlite, "moderator");
+  sqlite
+    .prepare(`INSERT INTO moderators (user_id, role, created_at) VALUES ('moderator', 'moderator', 1)`)
+    .run();
+  const link = linkFromSelectedGooglePlace({
+    mode: "google",
+    googlePlaceId: "ChIJcapfull",
+    name: "Cap Cafe",
+    address: "1 Brick Lane, London E1 6QL, UK",
+    city: "London",
+  } as Parameters<typeof linkFromSelectedGooglePlace>[0]);
+  assert.ok(link);
+  const filed = await submitPlaceLink("submitter", link, db, "google");
+  assert.equal(filed.ok && filed.status, "pending");
+
+  const queue = await listPendingPlaceSubmissions(db);
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].name, "Cap Cafe");
+  assert.equal(queue[0].googlePlaceId, "ChIJcapfull");
+
+  const id = filed.ok ? filed.id : "";
+  const response = await review(db, "moderator", { decision: "approved" }, id);
+  assert.equal(response.status, 200);
+  const { placeId } = (await response.json()) as { placeId: string };
+  const place = sqlite
+    .prepare(`SELECT listing_status, halal_confirmed, google_place_id FROM places WHERE id = ?`)
+    .get(placeId) as { listing_status: string; halal_confirmed: number; google_place_id: string };
+  assert.equal(place.listing_status, "listed");
+  assert.equal(place.halal_confirmed, 1);
+  assert.equal(place.google_place_id, "ChIJcapfull");
+  assert.equal((await listPendingPlaceSubmissions(db)).length, 0);
 });

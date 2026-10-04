@@ -129,6 +129,15 @@ export async function handleAdminReview(
           reason,
           dependencies.database,
         );
+        if (!result.ok && result.reason === "hidden-match")
+          return json(
+            {
+              error:
+                "This place is already in the directory but hidden by moderation. Approving a link does not list it again. Reject the link with a reason instead.",
+              placeId: result.placeId,
+            },
+            { status: 409 },
+          );
         if (!result.ok) return notFound("That place submission is no longer pending.");
         return json({ ok: true, placeId: result.placeId });
       }

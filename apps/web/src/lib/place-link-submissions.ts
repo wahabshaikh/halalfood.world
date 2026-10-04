@@ -142,12 +142,19 @@ async function loadPendingSubmission(
   return row;
 }
 
-async function findPlaceIdForSubmission(
+type MatchedPlace = { id: string; publiclyListed: boolean };
+
+/**
+ * A place already in the table that this submission names. A hidden or
+ * not-halal row was hidden on purpose (0020, 0022, moderation), so approving
+ * a link never lists it again; the moderator rejects the link instead.
+ */
+async function findPlaceForSubmission(
   db: DatabaseClient,
   row: SubmissionRow,
-): Promise<string | null> {
-  const rows = await db.all<{ id: string }>(sql`
-    SELECT id FROM places
+): Promise<MatchedPlace | null> {
+  const rows = await db.all<{ id: string; listing_status: string; halal_confirmed: number }>(sql`
+    SELECT id, listing_status, halal_confirmed FROM places
     WHERE (${row.google_place_id} IS NOT NULL AND google_place_id = ${row.google_place_id})
        OR (
          city_slug = ${row.city_slug}
@@ -156,15 +163,12 @@ async function findPlaceIdForSubmission(
        )
     LIMIT 1
   `);
-  return rows[0]?.id ?? null;
-}
-
-async function listExistingPlace(db: DatabaseClient, placeId: string): Promise<void> {
-  await db.run(sql`
-    UPDATE places
-    SET listing_status = 'listed', halal_confirmed = 1
-    WHERE id = ${placeId}
-  `);
+  const row0 = rows[0];
+  if (!row0) return null;
+  return {
+    id: row0.id,
+    publiclyListed: row0.listing_status === "listed" && Number(row0.halal_confirmed) === 1,
+  };
 }
 
 async function insertListedPlace(db: DatabaseClient, row: SubmissionRow): Promise<string> {
@@ -190,7 +194,7 @@ async function insertListedPlace(db: DatabaseClient, row: SubmissionRow): Promis
 
 export type PlaceReviewResult =
   | { ok: true; placeId: string | null }
-  | { ok: false; reason: "not-found" };
+  | { ok: false; reason: "not-found" | "hidden-match"; placeId?: string };
 
 /**
  * Approve lists the place. Reject stores the moderator's reason on the
@@ -231,19 +235,19 @@ export async function reviewPlaceSubmission(
     return { ok: true, placeId: null };
   }
 
-  let placeId = await findPlaceIdForSubmission(db, row);
-  if (placeId) {
-    await listExistingPlace(db, placeId);
-  } else {
+  let match = await findPlaceForSubmission(db, row);
+  if (!match) {
     try {
-      placeId = await insertListedPlace(db, row);
+      match = { id: await insertListedPlace(db, row), publiclyListed: true };
     } catch (error) {
       if (!isUniqueConstraint(error)) throw error;
-      placeId = await findPlaceIdForSubmission(db, row);
-      if (!placeId) throw error;
-      await listExistingPlace(db, placeId);
+      match = await findPlaceForSubmission(db, row);
+      if (!match) throw error;
     }
   }
+  // Never flip a hidden or not-halal row back to listed from a link review.
+  if (!match.publiclyListed) return { ok: false, reason: "hidden-match", placeId: match.id };
+  const placeId = match.id;
 
   const listedReason = "A moderator listed this place. It is not a halal certification.";
   await db.run(sql`
