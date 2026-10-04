@@ -1,3 +1,8 @@
+import {
+  GOOGLE_PLACE_QUERY_MAX_LENGTH,
+  GOOGLE_PLACE_QUERY_MIN_LENGTH,
+} from "@halalfood/core/place-submission";
+
 const GOOGLE_PLACES_DETAILS_URL =
   "https://places.googleapis.com/v1/places";
 const GOOGLE_PLACES_TEXT_SEARCH_URL =
@@ -349,16 +354,54 @@ export async function getGooglePlaceDetails(
  * Details are fetched again on submission so the browser cannot invent the
  * canonical name, address, or coordinates.
  */
+export type GoogleSearchArea = {
+  near?: { lat: number; lng: number } | null;
+  bbox?: { west: number; south: number; east: number; north: number } | null;
+};
+
+/** Bias actually sent to Google. A bbox rectangle wins over a point. */
+export function googleTextSearchLocationBias(options: GoogleSearchArea = {}) {
+  const bbox = options.bbox;
+  if (
+    bbox &&
+    bbox.west <= bbox.east &&
+    [bbox.west, bbox.south, bbox.east, bbox.north].every((value) => Number.isFinite(value))
+  ) {
+    return {
+      rectangle: {
+        low: { latitude: bbox.south, longitude: bbox.west },
+        high: { latitude: bbox.north, longitude: bbox.east },
+      },
+    };
+  }
+  if (
+    options.near &&
+    Number.isFinite(options.near.lat) &&
+    Number.isFinite(options.near.lng)
+  ) {
+    return {
+      circle: {
+        center: { latitude: options.near.lat, longitude: options.near.lng },
+        radius: 50000,
+      },
+    };
+  }
+  return null;
+}
+
 export async function searchGooglePlaces(
   query: string,
-  options: { near?: { lat: number; lng: number } | null } = {},
+  options: GoogleSearchArea = {},
 ): Promise<GooglePlaceSearchResult> {
-  const normalizedQuery = query.trim();
-  if (normalizedQuery.length < 2 || normalizedQuery.length > 120) {
+  const normalizedQuery = query.trim().replace(/\s+/g, " ");
+  if (
+    normalizedQuery.length < GOOGLE_PLACE_QUERY_MIN_LENGTH ||
+    normalizedQuery.length > GOOGLE_PLACE_QUERY_MAX_LENGTH
+  ) {
     return {
       ok: false,
       code: "INVALID_QUERY",
-      message: "A 2–120 character search is required",
+      message: `A ${GOOGLE_PLACE_QUERY_MIN_LENGTH}–${GOOGLE_PLACE_QUERY_MAX_LENGTH} character search is required`,
     };
   }
 
@@ -371,6 +414,9 @@ export async function searchGooglePlaces(
     };
   }
 
+  // A bias, not a restriction: "Karim's" still finds Delhi from London,
+  // but a bare name prefers the one down the road.
+  const locationBias = googleTextSearchLocationBias(options);
   let response: Response;
   try {
     response = await fetch(GOOGLE_PLACES_TEXT_SEARCH_URL, {
@@ -383,18 +429,7 @@ export async function searchGooglePlaces(
       },
       body: JSON.stringify({
         textQuery: normalizedQuery,
-        // A bias, not a restriction: "Karim's" still finds Delhi from London,
-        // but a bare name prefers the one down the road.
-        ...(options.near
-          ? {
-              locationBias: {
-                circle: {
-                  center: { latitude: options.near.lat, longitude: options.near.lng },
-                  radius: 50000,
-                },
-              },
-            }
-          : {}),
+        ...(locationBias ? { locationBias } : {}),
       }),
     });
   } catch {

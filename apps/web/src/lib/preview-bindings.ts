@@ -45,11 +45,18 @@ type R2Binding = {
   bucket_name?: string;
 };
 
+export type RateLimitBindingConfig = {
+  name?: string;
+  namespace_id?: string;
+  simple?: { limit?: number; period?: number };
+};
+
 export type PreviewWranglerConfig = {
   name?: string;
   d1_databases?: D1Binding[];
   r2_buckets?: R2Binding[];
   vars?: Record<string, string>;
+  ratelimits?: RateLimitBindingConfig[];
 };
 
 export const PREVIEW_ENVIRONMENT = "preview";
@@ -70,7 +77,41 @@ export function applyPreviewResourceBindings(config: PreviewWranglerConfig): Pre
   const bucket = config.r2_buckets?.find((entry) => entry.binding === R2_BINDING);
   if (!bucket) throw new Error("Wrangler config has no HALAL_EVIDENCE_R2 binding");
   bucket.bucket_name = PREVIEW_R2_BUCKET;
+  applyPreviewRateLimitNamespaces(config);
   return config;
+}
+
+/**
+ * Preview rate-limit counters must not share production namespace ids.
+ * A shared namespace_id counts preview traffic against the live Google budget.
+ */
+export function applyPreviewRateLimitNamespaces(config: PreviewWranglerConfig): PreviewWranglerConfig {
+  for (const entry of config.ratelimits ?? []) {
+    if (entry.name === "GOOGLE_SEARCH_ANON") entry.namespace_id = "81101";
+    if (entry.name === "GOOGLE_SEARCH_USER") entry.namespace_id = "81102";
+  }
+  return config;
+}
+
+/** Copy the Google search bindings from the source wrangler config onto a generated one. */
+export function copyGoogleSearchWorkerConfig(
+  target: PreviewWranglerConfig,
+  source: PreviewWranglerConfig,
+): PreviewWranglerConfig {
+  if (source.ratelimits?.length) {
+    target.ratelimits = source.ratelimits.map((entry) => ({
+      name: entry.name,
+      namespace_id: entry.namespace_id,
+      simple: entry.simple ? { limit: entry.simple.limit, period: entry.simple.period } : undefined,
+    }));
+  }
+  const cap = source.vars?.GOOGLE_SEARCH_DAILY_CAP;
+  if (cap) target.vars = { ...target.vars, GOOGLE_SEARCH_DAILY_CAP: cap };
+  return target;
+}
+
+export function parseWranglerJsonc(source: string): PreviewWranglerConfig {
+  return JSON.parse(source.replace(/^\s*\/\/.*$/gm, "")) as PreviewWranglerConfig;
 }
 
 /**

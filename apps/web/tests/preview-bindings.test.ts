@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   applyPreviewEnvironment,
   applyPreviewResourceBindings,
+  copyGoogleSearchWorkerConfig,
   PREVIEW_D1_ID,
   PREVIEW_D1_NAME,
   PREVIEW_ENVIRONMENT,
@@ -111,4 +112,28 @@ test("preview workflow and binders do not inject TURNSTILE_SITE_KEY", () => {
   assert.equal(stage.includes("applyTurnstileSiteKey"), false);
   assert.match(binder, /stripProductionSecretVars/);
   assert.match(stage, /stripProductionSecretVars/);
+  assert.match(stage, /copyGoogleSearchWorkerConfig/);
+});
+
+test("preview uploads do not share the production Google search rate-limit namespaces", () => {
+  const generated: PreviewWranglerConfig = { vars: { BETTER_AUTH_URL: "https://halalfood.world" } };
+  copyGoogleSearchWorkerConfig(generated, {
+    vars: { GOOGLE_SEARCH_DAILY_CAP: "1000" },
+    ratelimits: [
+      { name: "GOOGLE_SEARCH_ANON", namespace_id: "81001", simple: { limit: 5, period: 60 } },
+      { name: "GOOGLE_SEARCH_USER", namespace_id: "81002", simple: { limit: 20, period: 60 } },
+    ],
+  });
+  assert.equal(generated.vars?.GOOGLE_SEARCH_DAILY_CAP, "1000");
+  assert.equal(generated.vars?.BETTER_AUTH_URL, "https://halalfood.world");
+  const config = {
+    d1_databases: [{ binding: "DB", database_name: "halalfood-world", database_id: PRODUCTION_D1_ID }],
+    r2_buckets: [{ binding: "HALAL_EVIDENCE_R2", bucket_name: PRODUCTION_R2_BUCKET }],
+    ratelimits: generated.ratelimits,
+  };
+  applyPreviewResourceBindings(config);
+  assert.equal(config.ratelimits?.[0]?.namespace_id, "81101");
+  assert.equal(config.ratelimits?.[1]?.namespace_id, "81102");
+  assert.equal(config.ratelimits?.[1]?.simple?.limit, 20);
+  assert.ok((config.ratelimits?.[1]?.simple?.limit ?? 0) > (config.ratelimits?.[0]?.simple?.limit ?? 0));
 });

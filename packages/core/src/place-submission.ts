@@ -160,10 +160,17 @@ export function validatePlaceSubmission(body: unknown): ValidationResult {
   };
 }
 
+/** Places Text Search is skipped until the trimmed query is at least this long. */
+export const GOOGLE_PLACE_QUERY_MIN_LENGTH = 3;
+export const GOOGLE_PLACE_QUERY_MAX_LENGTH = 120;
+
 export function validateGooglePlaceQuery(value: unknown): GooglePlaceQueryResult {
-  const query = textValue(value, "search", 120);
+  const query = textValue(value, "search", GOOGLE_PLACE_QUERY_MAX_LENGTH);
   if ("error" in query) return { ok: false, error: query.error };
-  if (query.value.length < 2)
-    return { ok: false, error: "Search must contain 2–120 characters." };
+  if (query.value.length < GOOGLE_PLACE_QUERY_MIN_LENGTH)
+    return {
+      ok: false,
+      error: `Search must contain ${GOOGLE_PLACE_QUERY_MIN_LENGTH}–${GOOGLE_PLACE_QUERY_MAX_LENGTH} characters.`,
+    };
   return { ok: true, query: query.value };
 }

@@ -429,6 +429,10 @@ export async function consumePlaceSubmissionLimits(
   );
 }
 
+/**
+ * Fallback when the Workers Rate Limiting bindings are not on the isolate.
+ * The Google search route prefers `GOOGLE_SEARCH_ANON` / `GOOGLE_SEARCH_USER`.
+ */
 export async function consumeGooglePlaceSearchLimits(
   userId: string | null,
   ip: string,

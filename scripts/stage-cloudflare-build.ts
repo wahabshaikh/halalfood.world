@@ -3,6 +3,8 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import {
   applyPreviewEnvironment,
   applyPreviewResourceBindings,
+  copyGoogleSearchWorkerConfig,
+  parseWranglerJsonc,
   PREVIEW_D1_ID,
   PREVIEW_D1_NAME,
   PREVIEW_R2_BUCKET,
@@ -42,6 +44,8 @@ writeFileSync(
 
 const generatedConfigPath = "dist/server/wrangler.json";
 const generatedConfig = JSON.parse(readFileSync(generatedConfigPath, "utf8"));
+const sourceConfig = parseWranglerJsonc(readFileSync(`${appDir}/wrangler.jsonc`, "utf8"));
+copyGoogleSearchWorkerConfig(generatedConfig, sourceConfig);
 // A plain var named like a production secret replaces that secret on the
 // version chain. Staging must not copy TURNSTILE_SITE_KEY into this config.
 stripProductionSecretVars(generatedConfig);
