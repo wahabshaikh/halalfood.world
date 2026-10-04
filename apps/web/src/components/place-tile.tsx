@@ -1,13 +1,14 @@
 import type { Place } from "../lib/places";
 import { cityName, formatCount } from "../lib/seo";
 import { formatDistance } from "../lib/visitor-location";
+import { cardEvidenceLine } from "@halalfood/core/card-evidence";
 import { STATUS_COPY, type HalalTaxonomyStatus } from "@halalfood/core/halal-taxonomy";
 import { cn } from "@halalfood/ui/lib/utils";
 import { PlacePhoto } from "./place-photo";
 import { TONE_TEXT } from "./status-tone";
 import SavePlaceButton from "./save-place-button";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowRight01Icon, StarIcon } from "@hugeicons/core-free-icons";
+import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 
 type TilePlace = Pick<
   Place,
@@ -16,6 +17,9 @@ type TilePlace = Pick<
   /** Present on discovery results; shown instead of the address when set. */
   distance_km?: number | null;
   halal_status?: HalalTaxonomyStatus;
+  latest_evidence_at?: number | null;
+  /** Set when a status query finished. False means the card must not say Unverified. */
+  evidence_loaded?: boolean;
 };
 
 function locality(place: TilePlace) {
@@ -40,8 +44,17 @@ export function PlaceTile({
 }) {
   const href = "/place/" + encodeURIComponent(place.id);
   const halalStatus = status ?? place.halal_status;
-  // Unverified is the default for most listings; saying so on every tile is noise.
-  const showStatus = halalStatus && halalStatus !== "unverified";
+  const evidenceFailed = !status && place.evidence_loaded === false;
+  const evidenceKnown =
+    !evidenceFailed &&
+    (Boolean(status) || place.evidence_loaded === true || place.halal_status != null);
+  const evidence =
+    evidenceKnown && halalStatus
+      ? cardEvidenceLine({
+          status: halalStatus,
+          latestEvidenceAt: place.latest_evidence_at,
+        })
+      : null;
   const distance =
     typeof place.distance_km === "number" ? formatDistance(place.distance_km) : "";
   return (
@@ -71,30 +84,32 @@ export function PlaceTile({
             </a>
           </h3>
           {place.rating_value && (
-            <span
-              className="inline-flex items-center gap-1 text-sm font-semibold whitespace-nowrap"
-              aria-label={`Google rating ${place.rating_value}`}
-            >
-              <HugeiconsIcon icon={StarIcon} size={12} fill="currentColor" aria-hidden="true" />
-              {place.rating_value}
+            <span className="text-sm font-semibold whitespace-nowrap">
+              Google {place.rating_value}
             </span>
           )}
         </div>
-        {showStatus && (
-          <p className={cn("text-sm font-bold", TONE_TEXT[STATUS_COPY[halalStatus].tone])}>
-            {STATUS_COPY[halalStatus].label}
+        {evidence ? (
+          <p className={cn("text-sm font-bold", TONE_TEXT[STATUS_COPY[evidence.status].tone])}>
+            {evidence.line}
+            <span className="mt-0.5 block text-xs font-semibold text-muted-foreground">
+              {evidence.source}
+            </span>
           </p>
+        ) : place.evidence_loaded === false ? (
+          <p className="text-sm font-bold">Evidence status unavailable</p>
+        ) : null}
+        {evidence?.status === "unverified" && (
+          <p className="text-xs text-muted-foreground">Unverified does not mean not halal.</p>
         )}
         <p className="text-sm leading-snug text-muted-foreground">
           {distance ? `${distance} away · ${locality(place)}` : locality(place)}
         </p>
-        {!showStatus && (
-          <p className="text-sm leading-snug text-muted-foreground">
-            {place.review_count
-              ? formatCount(place.review_count) + " Google reviews"
-              : place.street_address}
-          </p>
-        )}
+        <p className="text-sm leading-snug text-muted-foreground">
+          {place.review_count
+            ? formatCount(place.review_count) + " Google reviews"
+            : place.street_address}
+        </p>
       </div>
     </article>
   );

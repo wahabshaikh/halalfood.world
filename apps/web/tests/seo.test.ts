@@ -10,6 +10,7 @@ import {
   jsonLdScript,
   placeDescription,
   placeJsonLd,
+  placeShareText,
   placeTitle,
   plural,
   truncate,
@@ -66,12 +67,19 @@ test("descriptions stay within the meta description budget", () => {
 });
 
 test("titles and counts read naturally in both numbers", () => {
-  assert.equal(cityTitle("mumbai", 2431), "2,431 halal restaurants in Mumbai");
-  assert.equal(cityTitle("mumbai", 1), "1 halal restaurant in Mumbai");
-  assert.equal(cityTitle("mumbai", 0), "Halal restaurants in Mumbai");
+  assert.equal(cityTitle("mumbai", 2431), "2,431 places listed in Mumbai");
+  assert.equal(cityTitle("mumbai", 1), "1 place listed in Mumbai");
+  assert.equal(cityTitle("mumbai", 0), "Places listed in Mumbai");
+  assert.equal(cityTitle("mumbai", 2431).toLowerCase().includes("halal"), false);
   assert.equal(plural(1, "place"), "place");
   assert.equal(plural(2, "city", "cities"), "cities");
-  assert.equal(placeTitle(place), "Bademiya — halal food in Mumbai");
+  assert.equal(placeTitle(place), "Bademiya in Mumbai");
+  assert.equal(
+    placeShareText("Bademiya", "Mumbai"),
+    "Bademiya in Mumbai. A listing is not a halal certification.",
+  );
+  assert.equal(placeDescription(place).includes("not a halal certification"), true);
+  assert.equal(placeDescription(place).includes("Google rating"), true);
 });
 
 test("addresses skip missing parts without leaving stray separators", () => {

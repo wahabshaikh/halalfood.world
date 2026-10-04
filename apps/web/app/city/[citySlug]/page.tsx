@@ -2,6 +2,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { findPlacesByCity, getCity } from "../../../src/lib/places";
+import { annotateCardEvidence } from "../../../src/lib/discovery";
 import { citySlugParam, pageParam } from "@halalfood/core/params";
 import {
   breadcrumbJsonLd,
@@ -9,6 +10,7 @@ import {
   cityDescription,
   cityName,
   cityTitle,
+  placeShareText,
   formatCount,
   jsonLdScript,
   OG_IMAGE,
@@ -119,7 +121,8 @@ export default async function CityPage({
       </Page>
     );
   const city = loaded.data;
-  const { places, total } = listing.data;
+  const places = await annotateCardEvidence(listing.data.places);
+  const { total } = listing.data;
   if (page > 0 && !places.length) notFound();
 
   // Coverage is informational: if it cannot be read, the listing still renders
@@ -181,8 +184,11 @@ export default async function CityPage({
             </Button>
             <ShareButton
               url={path}
-              title={`Halal food in ${name}`}
-              text={`${formatCount(city.place_count)} halal ${plural(city.place_count, "place")} in ${name}`}
+              title={cityTitle(city.city_slug, city.place_count)}
+              text={placeShareText(
+                `${formatCount(city.place_count)} ${plural(city.place_count, "place")}`,
+                name,
+              )}
             />
           </div>
         </PageIntro>

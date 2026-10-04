@@ -17,6 +17,9 @@ import {
 import { ChipLink, ChipRow, EmptyState } from "../../src/components/blocks";
 import { EventCard } from "../../src/components/event-card";
 import { Note } from "../../src/components/section";
+import { readEatingCityCookie } from "../../src/lib/eating-city";
+import { EatingCityForm } from "../../src/components/eating-city-form";
+import { listCities } from "../../src/lib/places";
 
 const TITLE = "Halal food events";
 const DESCRIPTION =
@@ -56,7 +59,9 @@ export default async function EventsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = (await searchParams).city;
-  const city = citySlugParam(typeof raw === "string" ? raw : null);
+  const requested = citySlugParam(typeof raw === "string" ? raw : null);
+  const stored = requested ? null : await readEatingCityCookie();
+  const city = requested ?? stored;
   const [loaded, everywhere] = await Promise.all([load(city), city ? load(null) : Promise.resolve(null)]);
   const all = city ? everywhere : loaded;
   const cities = all?.status === "ok" ? [...new Set(all.data.map((event) => event.citySlug))] : [];
@@ -68,8 +73,19 @@ export default async function EventsPage({
         <ExploreTabs active="community" />
         <PageIntro
           title="Coming up"
-          lead="Halal food events near you and wherever you travel. Every vendor carries its own status."
+          lead="Events follow the city you choose. Every vendor carries its own status."
         />
+        <EatingCityForm
+          cities={await listCities({ limit: 500 }).catch(() => [])}
+          selected={city}
+          networkLabel={null}
+          next="/events"
+        />
+        {stored && city === stored && (
+          <p className="mb-4 text-sm text-muted-foreground">
+            Showing events in {cityName(city)} because that is where you said you are eating.
+          </p>
+        )}
         {cities.length > 1 && (
           <ChipRow className="mb-6" role="navigation" aria-label="Cities">
             <ChipLink href="/events" active={!city}>

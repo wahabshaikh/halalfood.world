@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { MapsIcon } from "@hugeicons/core-free-icons";
 import { findPlacesByCity } from "../src/lib/places";
+import { annotateCardEvidence } from "../src/lib/discovery";
 import { loadOrDegrade } from "../src/lib/load";
 import {
   APPROXIMATE_NOTE,
@@ -14,14 +15,13 @@ import {
   SITE_URL,
 } from "../src/lib/seo";
 import {
-  ExploreTabs,
   Lead,
   Page,
   PageMain,
   SiteFooter,
   SiteHeader,
 } from "../src/components/site-chrome";
-import { PlaceRow } from "../src/components/place-tile";
+import { PlaceRow, PlaceTile } from "../src/components/place-tile";
 import { HomeTabs } from "../src/components/home-tabs";
 import { ComingUpRow, WeeklyLeaderboardRow } from "../src/components/community-rows";
 import { listUpcomingEvents } from "../src/lib/events-repository";
@@ -36,13 +36,11 @@ import {
   PromoCard,
   TextLink,
 } from "../src/components/blocks";
-import {
-  findPlacesNear,
-  loadLocalContext,
-} from "../src/lib/local-context-repository";
-import type { LocalContext } from "../src/lib/local-context";
-import { formatDistance } from "../src/lib/visitor-location";
+import { loadLocalContext } from "../src/lib/local-context-repository";
 import { looksSignedIn } from "../src/lib/auth-session";
+import { formatDistance } from "../src/lib/visitor-location";
+import { readEatingCityCookie, resolveEatingCity } from "../src/lib/eating-city";
+import { EatingCityForm } from "../src/components/eating-city-form";
 
 const ROW_CITIES = 3;
 const ROW_SIZE = 12;
@@ -51,23 +49,32 @@ const CHIP_CITIES = 8;
 /** Old map links used the home page (`/?place=…`); the map now lives at /map. */
 const MAP_PARAMS = ["place", "city", "lat", "lng", "z"];
 
-async function loadExplore() {
+async function loadExplore(eatingSlug: string | null) {
   return loadOrDegrade(async () => {
     const context = await loadLocalContext();
-    const near =
-      context.isLocal && context.location
-        ? await findPlacesNear(context.location, { limit: ROW_SIZE }).catch(() => [])
-        : [];
-    const shown = new Set(near.map((place) => place.id));
+    const eating = resolveEatingCity({
+      cookie: eatingSlug,
+      cities: context.cities,
+    });
+    const focusSlug =
+      eating.slug ?? context.cities[0]?.city_slug ?? null;
+    const focusPlaces = focusSlug
+      ? await annotateCardEvidence(
+          (await findPlacesByCity(focusSlug, { limit: ROW_SIZE })).places,
+        )
+      : [];
+    const rowCities = context.cities
+      .filter((city) => city.city_slug !== focusSlug)
+      .slice(0, ROW_CITIES);
     const rows = await Promise.all(
-      context.cities.slice(0, ROW_CITIES).map(async (city) => ({
+      rowCities.map(async (city) => ({
         city,
-        places: (await findPlacesByCity(city.city_slug, { limit: ROW_SIZE + shown.size }))
-          .places.filter((place) => !shown.has(place.id))
-          .slice(0, ROW_SIZE),
+        places: await annotateCardEvidence(
+          (await findPlacesByCity(city.city_slug, { limit: ROW_SIZE })).places,
+        ),
       })),
     );
-    return { context, near, rows };
+    return { context, eating, focusSlug, focusPlaces, rows };
   });
 }
 
@@ -75,9 +82,12 @@ async function loadExplore() {
  * The community rails under the For you tab. Both are the same for every
  * visitor and cached briefly, and either failing just hides its rail.
  */
-async function loadCommunityRails() {
+async function loadCommunityRails(citySlug: string | null) {
   const [events, diners] = await Promise.all([
-    cachedRead("events:home:v1", 120, () => listUpcomingEvents({ limit: 6 })).catch(() => []),
+    (citySlug
+      ? listUpcomingEvents({ citySlug, limit: 6 })
+      : cachedRead("events:home:v1", 120, () => listUpcomingEvents({ limit: 6 }))
+    ).catch(() => []),
     listRankedDiners("week")
       .then((ranked) => ranked.slice(0, 4))
       .catch(() => []),
@@ -85,29 +95,18 @@ async function loadCommunityRails() {
   return { events, diners };
 }
 
-/** One short line of copy per situation, so the first screen reads in a glance. */
-function heroCopy(context: LocalContext | null) {
-  if (context?.isLocal && context.areaName)
+/** The first screen names the community. A network city is never the headline. */
+function heroCopy(eatingSlug: string | null) {
+  if (eatingSlug) {
+    const name = cityName(eatingSlug);
     return {
-      title: `Halal food near ${context.areaName}`,
-      lead: "Checked by people who ate there.",
-      addFirst: false,
-    };
-  if (context?.location && context.nearest && context.areaName) {
-    const away =
-      context.nearest.distance_km !== null ? formatDistance(context.nearest.distance_km) : "";
-    return {
-      title: "Halal food, wherever you go",
-      addFirst: true,
-      lead: `Nothing listed near ${context.areaName} yet. The closest city is ${cityName(
-        context.nearest.city_slug,
-      )}${away ? `, ${away} away` : ""}.`,
+      title: `Places listed in ${name}`,
+      lead: `People who ate in ${name} can share what they saw. A listing is not a halal certification.`,
     };
   }
   return {
-    addFirst: false,
-    title: "Halal food you’ll love",
-    lead: "Near you or wherever you travel. Checked by people who ate there.",
+    title: "A community map of places people eat",
+    lead: "People who eat halal food share what they saw: a certificate, the meat, whether alcohol is served, and the date. Halalfood lists places. It does not certify them.",
   };
 }
 
@@ -124,15 +123,20 @@ export default async function Home({
   }
   if ([...legacy.keys()].length) redirect("/map?" + legacy.toString());
 
-  const [loaded, signedIn, rails] = await Promise.all([
-    loadExplore(),
+  const eatingCookie = await readEatingCityCookie();
+  const loaded = await loadExplore(eatingCookie);
+  const eatingSlug = loaded.status === "ok" ? loaded.data.eating.slug : null;
+  const [signedIn, rails] = await Promise.all([
     looksSignedIn(),
-    loadCommunityRails(),
+    loadCommunityRails(eatingSlug),
   ]);
   const context = loaded.status === "ok" ? loaded.data.context : null;
-  const hero = heroCopy(context);
-  const area = context?.areaName ?? null;
+  const hero = heroCopy(eatingSlug);
+  const area = eatingSlug ? cityName(eatingSlug) : null;
   const addHref = "/add";
+  const mapHref = eatingSlug ? `/map?city=${encodeURIComponent(eatingSlug)}` : "/map";
+  const recommendation =
+    loaded.status === "ok" ? (loaded.data.focusPlaces[0] ?? null) : null;
 
   return (
     <Page>
@@ -146,7 +150,7 @@ export default async function Home({
               name: SITE_NAME,
               url: SITE_URL,
               description:
-                "Halal restaurants near you and anywhere you travel, with halal checks from people who ate there.",
+                "Places listed by the halalfood.world community, with dated evidence. A listing is not a halal certification.",
               potentialAction: {
                 "@type": "SearchAction",
                 target: canonical("/search") + "?q={search_term_string}",
@@ -177,17 +181,32 @@ export default async function Home({
       />
       <SiteHeader />
       <PageMain>
-        <HomeTabs active="for-you" />
-        <ExploreTabs active="eat" />
-        <header className="mb-7.5 grid gap-2.5">
+        <header className="mb-6 grid gap-2.5">
           <h1 className="text-[clamp(28px,4vw,42px)] leading-tight">{hero.title}</h1>
-          <Lead>
-            {hero.lead}{" "}
-            {hero.addFirst && area && (
-              <TextLink href={addHref}>Add the first place in {area}</TextLink>
-            )}
-          </Lead>
+          <Lead>{hero.lead}</Lead>
         </header>
+        {loaded.status === "ok" && (
+          <EatingCityForm
+            cities={loaded.data.context.cities}
+            selected={eatingSlug}
+            networkLabel={context?.location?.city ?? context?.areaName ?? null}
+          />
+        )}
+        {recommendation && loaded.status === "ok" && loaded.data.focusSlug && (
+          <section className="mb-8 grid gap-3" aria-label="A place you can open now">
+            <h2 className="text-[22px] font-extrabold tracking-tight">
+              {eatingSlug ? "Open a place in this city" : "Open a listed place"}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Listed in {cityName(loaded.data.focusSlug)}. Indexing it is not a halal certification.
+              {!eatingSlug && " Choose a city above before treating this as where you are eating."}
+            </p>
+            <div className="max-w-xs">
+              <PlaceTile place={recommendation} />
+            </div>
+          </section>
+        )}
+        <HomeTabs active="for-you" />
 
         {loaded.status === "ok" ? (
           <>
@@ -213,13 +232,32 @@ export default async function Home({
                 <ChipLink href="/cities">All cities</ChipLink>
               </ChipRow>
             )}
-            <ComingUpRow events={rails.events} />
-            <PlaceRow title="Closest to you" href="/map" places={loaded.data.near} />
+            <ComingUpRow
+              events={rails.events}
+              href={eatingSlug ? `/events?city=${encodeURIComponent(eatingSlug)}` : "/events"}
+            />
+            {eatingSlug && !rails.events.length && (
+              <p className="mb-9 text-sm text-muted-foreground">
+                No events are listed in {cityName(eatingSlug)}.
+              </p>
+            )}
+            {loaded.data.focusSlug && loaded.data.focusPlaces.length > 0 && (
+              <PlaceRow
+                title={"Places listed in " + cityName(loaded.data.focusSlug)}
+                href={"/city/" + loaded.data.focusSlug}
+                places={loaded.data.focusPlaces}
+              />
+            )}
             <WeeklyLeaderboardRow diners={rails.diners} />
+            {!rails.diners.length && (
+              <p className="mb-9 text-sm text-muted-foreground">
+                No verified visits are ranked this week.
+              </p>
+            )}
             {loaded.data.rows.map(({ city, places }) => (
               <PlaceRow
                 key={city.city_slug}
-                title={"Top rated in " + cityName(city.city_slug)}
+                title={"Places listed in " + cityName(city.city_slug)}
                 href={"/city/" + city.city_slug}
                 places={places}
               />
@@ -264,8 +302,9 @@ export default async function Home({
           />
         )}
       </PageMain>
-      <FloatingPill href="/map">
-        Show map <HugeiconsIcon icon={MapsIcon} size={16} aria-hidden="true" />
+      <FloatingPill href={mapHref}>
+        {eatingSlug ? `Map of ${area}` : "Show map"}{" "}
+        <HugeiconsIcon icon={MapsIcon} size={16} aria-hidden="true" />
       </FloatingPill>
       <noscript>
         <div className="mx-auto my-10 grid max-w-3xl gap-3 px-4.5">

@@ -67,16 +67,16 @@ export function formatAddress(parts: AddressParts) {
 export function cityTitle(slug: string, count: number) {
   const name = cityName(slug);
   return count > 0
-    ? `${formatCount(count)} halal ${plural(count, "restaurant")} in ${name}`
-    : `Halal restaurants in ${name}`;
+    ? `${formatCount(count)} ${plural(count, "place")} listed in ${name}`
+    : `Places listed in ${name}`;
 }
 
 export function cityDescription(slug: string, count: number) {
   const name = cityName(slug);
   return truncate(
     count > 0
-      ? `Browse ${formatCount(count)} halal ${plural(count, "restaurant")} in ${name} on the Halalfood map, with addresses, phone numbers and ratings. Locations are approximate — confirm before visiting.`
-      : `Halal restaurants in ${name} on the Halalfood map. Locations are approximate — confirm before visiting.`,
+      ? `${formatCount(count)} ${plural(count, "place")} listed in ${name}. A listing is not a halal certification. Addresses are approximate — confirm before visiting.`
+      : `Places listed in ${name}. A listing is not a halal certification. Addresses are approximate — confirm before visiting.`,
   );
 }
 
@@ -90,7 +90,12 @@ type PlaceLike = AddressParts & {
 
 export function placeTitle(place: PlaceLike) {
   const where = place.address_locality?.trim() || cityName(place.city_slug);
-  return where ? `${place.name} — halal food in ${where}` : place.name;
+  return where ? `${place.name} in ${where}` : place.name;
+}
+
+/** Share and preview text. Indexing a place is not a certification. */
+export function placeShareText(name: string, where: string) {
+  return `${name} in ${where}. A listing is not a halal certification.`;
 }
 
 export type PlaceDescriptionOptions = {
@@ -102,28 +107,27 @@ export function placeDescription(
   options: PlaceDescriptionOptions = {},
 ) {
   const where = place.address_locality?.trim() || cityName(place.city_slug);
-  const cuisine = place.serves_cuisine?.filter(Boolean).slice(0, 3).join(", ");
   const rating =
     place.rating_value && Number.isFinite(Number(place.rating_value))
-      ? `Rated ${place.rating_value}${
+      ? `Google rating ${place.rating_value}${
           place.review_count
             ? ` from ${formatCount(place.review_count)} ${plural(place.review_count, "review")}`
             : ""
         }.`
       : "";
   const address = formatAddress(place);
-  const main = `${place.name} is a halal ${cuisine ? cuisine + " " : ""}restaurant in ${where}.`;
+  const main = `${place.name} is listed in ${where}. A listing is not a halal certification.`;
   if (options.includeCommunity) {
     const shortRating =
       place.rating_value && Number.isFinite(Number(place.rating_value))
-        ? `Rated ${place.rating_value}.`
+        ? `Google rating ${place.rating_value}.`
         : "";
     return truncate(
       [
         main,
-        shortRating,
-        "Community halal reviews, photos, reactions and evidence.",
         "Map location is approximate.",
+        shortRating,
+        "Community evidence is separate from the Google rating.",
       ]
         .filter(Boolean)
         .join(" "),
