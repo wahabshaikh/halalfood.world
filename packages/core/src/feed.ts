@@ -67,16 +67,26 @@ export type VisitAudience = {
    * was not shared stays the owner's, even when its visibility is public.
    */
   shared: boolean;
+  /**
+   * The place is still listed. A visit to an unpublished or hidden place is
+   * gone for everyone but its owner and moderators. Missing means listed.
+   */
+  placeListed?: boolean;
+  /** The viewer moderates the site and may open any visit. */
+  viewerIsModerator?: boolean;
 };
 
 /**
  * Can this viewer see this visit, its reactions and its comments? The owner
  * always can. Anyone else, signed in or not, needs all of: the owner shared
- * it (the explicit opt-in), the visit and the owner's visits are public, no
- * block in either direction, and for a private account an accepted follow.
+ * it (the explicit opt-in), the visit and the owner's visits are public, the
+ * place is still listed, no block in either direction, and for a private
+ * account an accepted follow. Moderators can open any visit.
  */
 export function canViewVisit(audience: VisitAudience): boolean {
   if (audience.viewerId && audience.viewerId === audience.ownerId) return true;
+  if (audience.viewerId && audience.viewerIsModerator) return true;
+  if (audience.placeListed === false) return false;
   if (audience.blocked) return false;
   if (!audience.shared) return false;
   if (audience.ownerIsPrivateAccount && !audience.viewerFollowsOwner) return false;

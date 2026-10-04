@@ -5,6 +5,7 @@ import {
   type OnboardingStep,
   type StandardPreset,
 } from "@halalfood/core/social";
+import { safeReturnPath } from "./signed-out";
 import { clearFormDraft, draftRecord, readFormDraft, saveFormDraft } from "./form-draft";
 
 export const ONBOARDING_DRAFT_KEY = "halalfood:onboarding-draft:v1";
@@ -89,8 +90,8 @@ export function clearOnboardingDraft(): void {
  * Only same-origin paths; never home, login or onboarding itself.
  */
 export function onboardingResumeHref(returnTo: string | null | undefined): string | null {
-  const path = typeof returnTo === "string" ? returnTo.trim() : "";
-  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) return null;
+  const path = safeReturnPath(returnTo, "");
+  if (!path) return null;
   if (path === "/" || /^\/(?:login|onboarding)(?:[/?#]|$)/.test(path)) return null;
   return path;
 }

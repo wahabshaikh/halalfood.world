@@ -9,7 +9,7 @@ import { cn } from "@halalfood/ui/lib/utils";
 import { TextLink } from "../../../src/components/blocks";
 import { Note, SectionHeading, SectionIntro } from "../../../src/components/section";
 import { getClientSession } from "../../../src/lib/client-session";
-import { signedOutLoginPath } from "../../../src/lib/signed-out";
+import { signedOutLoginPath, loginHref } from "../../../src/lib/signed-out";
 
 const RATING_VALUES = [
   "mashallah",
@@ -76,7 +76,7 @@ function errorFrom(value: unknown, fallback: string) {
 }
 
 function loginUrl(placeId: string) {
-  return `/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`;
+  return loginHref(`/place/${placeId}`);
 }
 
 const RATING_LABELS: Record<PlaceRating, string> = {

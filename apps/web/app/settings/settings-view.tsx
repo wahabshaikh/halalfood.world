@@ -9,6 +9,7 @@ import { Loading } from "../../src/components/blocks";
 import { CheckboxField } from "../../src/components/form-fields";
 import { FormMessage } from "../../src/components/section";
 import { PersonAvatar } from "../../src/components/person";
+import { SignOutButton } from "../../src/components/sign-out-button";
 import { describeStandard, inviteLink } from "@halalfood/core/social";
 import type { UserPreferences } from "@halalfood/core/user-preferences";
 import { clearFormDraft, draftRecord, readFormDraft, saveFormDraft } from "../../src/lib/form-draft";
@@ -179,6 +180,10 @@ export default function SettingsView() {
               Change
             </a>
           </p>
+        </FieldSet>
+        <FieldSet>
+          <FieldLegend>Account</FieldLegend>
+          <SignOutButton />
         </FieldSet>
       </FieldGroup>
     );
@@ -440,6 +445,12 @@ export default function SettingsView() {
       )}
       {error && <FormMessage tone="error">{error}</FormMessage>}
       {message && <FormMessage tone="success">{message}</FormMessage>}
+
+      <FieldSet>
+        <FieldLegend>Account</FieldLegend>
+        <FieldDescription>Signs you out on this device and clears drafts saved here.</FieldDescription>
+        <SignOutButton />
+      </FieldSet>
     </FieldGroup>
   );
 }

@@ -13,7 +13,7 @@ import {
 } from "../../../src/lib/failure-copy";
 import { BlockLoadError } from "./block-load-error";
 import { getClientSession } from "../../../src/lib/client-session";
-import { signedOutLoginPath, wasSignedIn } from "../../../src/lib/signed-out";
+import { signedOutLoginPath, wasSignedIn, loginHref } from "../../../src/lib/signed-out";
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -81,7 +81,7 @@ function errorFrom(value: unknown, fallback: string): string {
 }
 
 function loginUrl(placeId: string): string {
-  return `/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`;
+  return loginHref(`/place/${placeId}`);
 }
 
 function formatTimestamp(value: string): string {

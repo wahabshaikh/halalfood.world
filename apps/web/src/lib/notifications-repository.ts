@@ -14,6 +14,7 @@
 
 import { sql } from "drizzle-orm";
 import { database } from "../db";
+import { listedVisitPlace } from "./visits";
 import {
   NOTIFICATION_PAGE_SIZE,
   UNREAD_BADGE_CAP,
@@ -142,6 +143,7 @@ export async function notifyFriendVisit(
       INNER JOIN place_visits AS v ON v.id = ${input.visitId}
       LEFT JOIN user_preferences AS up ON up.user_id = ${input.actorId}
       WHERE f.followee_id = ${input.actorId} AND f.status = 'accepted'
+        AND ${listedVisitPlace("v")}
         AND v.visibility = 'public'
         AND COALESCE(up.visibility_visits, 'public') = 'public'
         AND EXISTS (SELECT 1 FROM feed_events AS e WHERE e.visit_id = ${input.visitId})

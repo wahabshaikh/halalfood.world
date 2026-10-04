@@ -66,6 +66,8 @@ export async function refreshStanding(
 ): Promise<{ role: ContributorRole; changed: boolean; reason: string }> {
   const db = await client;
 
+  // visit-visibility: role-only. Verified visits only feed the contributor
+  // role, which is never shown as a count; unshared visits still earn it.
   const [counts] = await db.all<Record<string, unknown>>(sql`
     SELECT
       (SELECT COUNT(*) FROM place_edit_suggestions

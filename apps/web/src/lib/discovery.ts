@@ -8,6 +8,7 @@
  * the pieces that matter (kind ceilings, expiry, interested parties).
  */
 
+import { listedVisitPlace, visibleVisit } from "./visits";
 import { sql, type SQL } from "drizzle-orm";
 import { database } from "../db";
 import { listingCachedRead } from "./listing-cache";
@@ -100,7 +101,7 @@ const EVIDENCE_AGGREGATE = sql`
         SELECT cc.user_id AS voice
         FROM community_confirmations AS cc
         INNER JOIN place_check_ins AS ci ON ci.visit_id = cc.target_id
-        INNER JOIN place_visits AS pv ON pv.id = ci.visit_id AND pv.visibility = 'public'
+        INNER JOIN place_visits AS pv ON pv.id = ci.visit_id AND ${visibleVisit("pv")}
         INNER JOIN place_halal_verifications AS v4 ON v4.id = ci.halal_verification_id
         WHERE cc.target_type = 'check-in'
           AND v4.place_id = v.place_id
@@ -152,6 +153,7 @@ const CHECK_IN_AGGREGATE = sql`
   INNER JOIN place_visits AS v ON v.id = c.visit_id
   WHERE c.place_id IN (SELECT id FROM candidates)
     AND c.incentivized = 0 AND c.relationship = 'none'
+    AND ${visibleVisit("v", { publicAccount: true })}
   GROUP BY c.place_id
 `;
 
@@ -203,6 +205,7 @@ function whoseConditions(query: DiscoveryQuery): SQL[] {
   if (!viewer) return [sql`0 = 1`];
   if (whose === "mine")
     return [
+      // visit-visibility: owner-only (the viewer's own visits, on listed pins).
       sql`(
         EXISTS (SELECT 1 FROM place_visits AS mv WHERE mv.user_id = ${viewer} AND mv.place_id = p.id)
         OR EXISTS (SELECT 1 FROM saved_places AS ms WHERE ms.user_id = ${viewer} AND ms.place_id = p.id)
@@ -216,6 +219,7 @@ function whoseConditions(query: DiscoveryQuery): SQL[] {
       INNER JOIN place_visits AS fv ON fv.id = fe.visit_id
       LEFT JOIN user_preferences AS fup ON fup.user_id = ff.followee_id
       WHERE ff.follower_id = ${viewer} AND ff.status = 'accepted'
+        AND ${listedVisitPlace("fv")}
         AND fv.visibility = 'public'
         AND COALESCE(fup.visibility_visits, 'public') = 'public'
         AND NOT EXISTS (
@@ -359,7 +363,9 @@ function buildOrder(query: DiscoveryQuery): SQL {
     case "value":
       return sql`(
         SELECT SUM(CASE WHEN c.value_verdict = 'great' THEN 1 ELSE 0 END)
-        FROM place_check_ins AS c WHERE c.place_id = p.id
+        FROM place_check_ins AS c
+        INNER JOIN place_visits AS vv ON vv.id = c.visit_id
+        WHERE c.place_id = p.id AND ${visibleVisit("vv", { publicAccount: true })}
       ) DESC NULLS LAST, p.id`;
     default:
       // Recommended: suitability first, then evidence strength, then real

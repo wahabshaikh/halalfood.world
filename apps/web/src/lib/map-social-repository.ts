@@ -10,6 +10,7 @@
 
 import { sql } from "drizzle-orm";
 import { database } from "../db";
+import { listedVisitPlace } from "./visits";
 import { avatarUrl } from "@halalfood/core/social";
 import { VERDICTS, type Verdict } from "@halalfood/core/check-in";
 import { pinFriends, socialLabel, type FriendVisit } from "@halalfood/core/map-social";
@@ -59,6 +60,7 @@ export async function mapSocialFor(
       LEFT JOIN user_preferences AS up ON up.user_id = e.actor_id
       LEFT JOIN place_check_ins AS c ON c.visit_id = v.id
       WHERE f.follower_id = ${viewerId} AND f.status = 'accepted'
+        AND ${listedVisitPlace("v")}
         AND v.visibility = 'public'
         AND COALESCE(up.visibility_visits, 'public') = 'public'
         AND NOT EXISTS (
@@ -69,6 +71,7 @@ export async function mapSocialFor(
       ORDER BY e.created_at DESC
       LIMIT ${FRIEND_EVENT_LIMIT}
     `),
+    // visit-visibility: owner-only (the viewer's own "been here" pins).
     db.all<{ place_id: string }>(sql`
       SELECT DISTINCT place_id FROM place_visits WHERE user_id = ${viewerId} LIMIT ${OWN_LIMIT}
     `),

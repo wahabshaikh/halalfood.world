@@ -25,6 +25,7 @@ import {
   REPORT_REASONS,
   REPORT_REASON_COPY,
 } from "@halalfood/core/moderation";
+import { signInAgainUrl } from "../../../src/lib/signed-out";
 
 /**
  * Improving the database without a long onboarding: correct a fact, add a
@@ -90,7 +91,7 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
     try {
       const { response, parsed } = await post(url, payload);
       if (response.status === 401 && typeof parsed.loginUrl === "string") {
-        window.location.href = parsed.loginUrl;
+        window.location.href = signInAgainUrl(parsed);
         return;
       }
       if (!response.ok) {

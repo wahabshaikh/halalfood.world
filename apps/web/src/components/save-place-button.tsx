@@ -7,6 +7,7 @@ import { Button } from "@halalfood/ui/components/button";
 import { cn } from "@halalfood/ui/lib/utils";
 import { getClientSession } from "../lib/client-session";
 import { nextSaveState } from "../lib/save-toggle";
+import { loginHref, currentReturnPath } from "../lib/signed-out";
 
 type SavedPlacesPayload = {
   places?: Array<{ id?: unknown }>;
@@ -30,10 +31,7 @@ function goToLogin(placeId: string) {
   } catch {
     // Without storage they just tap the heart again after logging in.
   }
-  const here = window.location.pathname + window.location.search;
-  window.location.assign(
-    `/login?reason=save&returnTo=${encodeURIComponent(here || `/place/${placeId}`)}`,
-  );
+  window.location.assign(loginHref(currentReturnPath() || `/place/${placeId}`, "save"));
 }
 
 /** Claim a pending save for this place, once, across every button on the page. */

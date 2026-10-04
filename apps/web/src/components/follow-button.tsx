@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@halalfood/ui/components/button";
 import type { FollowStatus } from "@halalfood/core/social";
+import { signInAgainUrl } from "../lib/signed-out";
 
 /**
  * Follow, request to follow, or unfollow. A private account turns a follow into
@@ -37,7 +38,7 @@ export default function FollowButton({
         loginUrl?: string;
       };
       if (response.status === 401 && body.loginUrl) {
-        window.location.assign(body.loginUrl);
+        window.location.assign(signInAgainUrl(body));
         return;
       }
       if (!response.ok) {

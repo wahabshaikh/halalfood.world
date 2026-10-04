@@ -5,7 +5,7 @@
 
 import { sql } from "drizzle-orm";
 import { isUniqueConstraint } from "./domain-error";
-import { SHARED_PUBLIC_VISIT } from "./visits";
+import { visibleVisit } from "./visits";
 import { database } from "../db";
 
 type DatabaseClient = Awaited<ReturnType<typeof database>>;
@@ -49,7 +49,7 @@ async function targetAccess(
 
   // Same rule as every other non-owner view: shared, public, owner's visits public.
   const rows = await db.all<{ user_id?: unknown; visible?: unknown }>(sql`
-    SELECT v.user_id, ${SHARED_PUBLIC_VISIT} AS visible
+    SELECT v.user_id, ${visibleVisit("v")} AS visible
     FROM place_visits AS v
     INNER JOIN place_check_ins AS c ON c.visit_id = v.id
     INNER JOIN places AS p ON p.id = v.place_id

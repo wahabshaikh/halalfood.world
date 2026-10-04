@@ -35,6 +35,7 @@ import {
   type ListVisibility,
 } from "@halalfood/core/place-lists";
 import { call } from "./call";
+import { loginHref } from "../../../src/lib/signed-out";
 
 type Person = {
   handle: string;
@@ -95,7 +96,7 @@ export default function ListActions({
 
   async function toggleSave() {
     if (!signedIn) {
-      window.location.assign(`/login?reason=save&returnTo=${encodeURIComponent(`/list/${listId}`)}`);
+      window.location.assign(loginHref(`/list/${listId}`, "save"));
       return;
     }
     setBusy(true);

@@ -18,6 +18,7 @@ import {
   unavailable,
 } from "../../../src/lib/api";
 import { hasSessionCookie } from "../../../src/lib/signed-out";
+import { mapReturnPath } from "../../../src/lib/map-return-path";
 import { domainFailure } from "../../../src/lib/domain-error";
 import { discoverResponseCacheHeaders } from "../../../src/lib/discover-response";
 
@@ -71,7 +72,7 @@ export async function GET(request: Request): Promise<Response> {
     viewerId = await optionalUser(request);
     if (!viewerId && filters.whose !== "everyone")
       return unauthorized(
-        "/map?" + params.toString(),
+        mapReturnPath(params),
         "Sign in to see your places and your friends’ places.",
         hasSessionCookie(request),
       );
@@ -116,3 +117,4 @@ export async function GET(request: Request): Promise<Response> {
     return unavailable("Places are temporarily unavailable. Please try again.");
   }
 }
+

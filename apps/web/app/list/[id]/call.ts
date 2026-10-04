@@ -1,3 +1,4 @@
+import { signInAgainUrl } from "../../../src/lib/signed-out";
 /**
  * One fetch wrapper for the list controls: JSON in and out, and a signed-out
  * tap goes to log in and comes back to the same list.
@@ -20,7 +21,7 @@ export async function call<T = Record<string, unknown>>(
       loginUrl?: string;
     };
     if (response.status === 401 && typeof parsed.loginUrl === "string") {
-      window.location.assign(parsed.loginUrl);
+      window.location.assign(signInAgainUrl(parsed));
       return { ok: false, error: "Sign in to continue." };
     }
     if (!response.ok)

@@ -7,7 +7,7 @@ import {
   SiteHeader,
 } from "../../src/components/site-chrome";
 import { readWorkerEnv } from "../../src/lib/worker-env";
-import { SIGNED_OUT_COPY, signInCopyFor } from "../../src/lib/signed-out";
+import { SIGNED_OUT_COPY, signInCopyFor, safeReturnPath } from "../../src/lib/signed-out";
 import LoginForm from "./login-form";
 
 // The site key is a Worker secret. Rendering this page per request is what
@@ -28,13 +28,7 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const rawReturnTo = params.returnTo;
-  const returnTo =
-    typeof rawReturnTo === "string" &&
-    rawReturnTo.startsWith("/") &&
-    !rawReturnTo.startsWith("//") &&
-    !rawReturnTo.includes("\\")
-      ? rawReturnTo
-      : "/";
+  const returnTo = safeReturnPath(rawReturnTo, "/");
 
   const host = (await headers()).get("host");
   const reason = typeof params.reason === "string" ? params.reason : "";

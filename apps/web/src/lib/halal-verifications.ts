@@ -1,3 +1,4 @@
+import { visibleVisit } from "./visits";
 import { sql } from "drizzle-orm";
 import { database } from "../db";
 import {
@@ -507,7 +508,7 @@ const EVIDENCE_COLUMNS = sql`
       INNER JOIN place_visits AS pv ON pv.id = ci.visit_id
       WHERE cc.target_type = 'check-in'
         AND ci.halal_verification_id = v.id
-        AND pv.visibility = 'public'
+        AND ${visibleVisit("pv")}
         AND cc.user_id <> v.submitted_by_user_id
     )
   ), '[]') AS corroborators

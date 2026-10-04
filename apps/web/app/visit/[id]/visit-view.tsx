@@ -10,6 +10,7 @@ import { EmptyPanel } from "../../../src/components/site-chrome";
 import { FormMessage, Note } from "../../../src/components/section";
 import { ReportButton } from "../../../src/components/report-button";
 import { VisitCard, goToLogin } from "../../../src/components/visit-card";
+import { loginHref } from "../../../src/lib/signed-out";
 
 type Loaded = { visit: FeedCard; comments: CommentView[]; canComment: boolean };
 
@@ -203,7 +204,7 @@ export default function VisitView({ visitId }: { visitId: string }) {
           </form>
         ) : (
           <Note>
-            <a className="underline" href={`/login?reason=comment&returnTo=${encodeURIComponent(`/visit/${visitId}`)}`}>
+            <a className="underline" href={loginHref(`/visit/${visitId}`, "comment")}>
               Log in
             </a>{" "}
             to like and comment.

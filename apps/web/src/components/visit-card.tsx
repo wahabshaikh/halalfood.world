@@ -15,6 +15,7 @@ import { cityName } from "../lib/seo";
 import { InitialsAvatar, monogram } from "./blocks";
 import { TONE_BADGE } from "./status-tone";
 import { CommunityChain } from "./community-chain";
+import { loginHref, currentReturnPath } from "../lib/signed-out";
 
 const VERDICT_TEXT: Record<NonNullable<FeedCard["verdict"]>, string> = {
   disliked: "text-destructive",
@@ -25,8 +26,7 @@ const VERDICT_TEXT: Record<NonNullable<FeedCard["verdict"]>, string> = {
 
 /** Send a signed-out visitor to sign in, then bring them back here. */
 export function goToLogin(reason = "join") {
-  const here = window.location.pathname + window.location.search;
-  window.location.assign(`/login?reason=${reason}&returnTo=${encodeURIComponent(here)}`);
+  window.location.assign(loginHref(currentReturnPath(), reason));
 }
 
 export function authorName(author: FeedCard["author"]): string {

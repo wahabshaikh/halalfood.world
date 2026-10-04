@@ -5,6 +5,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@halalfood/ui/components/dropdown-menu";
+import { SignOutMenuItem } from "./sign-out-button";
 
 type AccountState = "unknown" | "signed-out" | "signed-in" | "setup-unavailable" | "session-unavailable";
 
@@ -101,6 +102,7 @@ export function AccountMenu() {
         <DropdownMenuItem asChild>
           <a href="/settings">Open settings</a>
         </DropdownMenuItem>
+        <SignOutMenuItem />
       </>
     );
   }
@@ -115,8 +117,12 @@ export function AccountMenu() {
     );
   }
   return (
-    <DropdownMenuItem asChild className="font-extrabold">
-      <a href="/settings">Your account</a>
-    </DropdownMenuItem>
+    <>
+      <DropdownMenuItem asChild className="font-extrabold">
+        <a href="/settings">Your account</a>
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <SignOutMenuItem />
+    </>
   );
 }

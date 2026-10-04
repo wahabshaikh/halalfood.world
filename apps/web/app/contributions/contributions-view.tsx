@@ -10,6 +10,7 @@ import { FormMessage, InsufficientData, Note } from "../../src/components/sectio
 
 import type { ContributionRow } from "../../src/lib/contributions-repository";
 import type { ReportRow } from "../../src/lib/moderation-repository";
+import { signInAgainUrl } from "../../src/lib/signed-out";
 
 /**
  * Contribution status with a reason attached, plus the appeal path for any
@@ -36,7 +37,7 @@ export default function ContributionsView() {
       ]);
       if (contributions.status === 401) {
         const body = await contributions.json();
-        if (typeof body.loginUrl === "string") window.location.href = body.loginUrl;
+        if (typeof body.loginUrl === "string") window.location.href = signInAgainUrl(body);
         return;
       }
       if (!contributions.ok) throw new Error();

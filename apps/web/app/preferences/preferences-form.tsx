@@ -21,6 +21,7 @@ import {
   type UserPreferences,
 } from "@halalfood/core/user-preferences";
 import { STATUS_COPY } from "@halalfood/core/halal-taxonomy";
+import { signInAgainUrl } from "../../src/lib/signed-out";
 
 /**
  * Dietary standards.
@@ -81,7 +82,7 @@ export default function PreferencesForm() {
         const response = await fetch("/api/preferences");
         if (response.status === 401) {
           const body = await response.json();
-          if (typeof body.loginUrl === "string") window.location.href = body.loginUrl;
+          if (typeof body.loginUrl === "string") window.location.href = signInAgainUrl(body);
           return;
         }
         if (response.ok) {

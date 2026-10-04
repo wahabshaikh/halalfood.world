@@ -49,10 +49,44 @@ export function hasSessionCookie(request: Request): boolean {
   return /(?:^|;\s*)(?:__Secure-)?better-auth\.session_token=[^;\s]/.test(cookie);
 }
 
-function safePath(returnTo: string): string {
-  return returnTo.startsWith("/") && !returnTo.startsWith("//") && !returnTo.includes("\\")
-    ? returnTo
-    : "/";
+const PROBE_ORIGIN = "https://return-to.invalid";
+
+/**
+ * A same-origin path with its query, or `fallback`. Rejects other origins,
+ * protocol-relative `//host`, backslashes and control characters (a browser
+ * drops tabs and newlines, so "/\t/evil.example" would become "//evil.example").
+ */
+export function safeReturnPath(value: unknown, fallback = "/"): string {
+  if (typeof value !== "string") return fallback;
+  const path = value.trim();
+  if (!path.startsWith("/") || path.startsWith("//")) return fallback;
+  if (/[\\\u0000-\u001f\u007f]/.test(path)) return fallback;
+  try {
+    if (new URL(path, PROBE_ORIGIN).origin !== PROBE_ORIGIN) return fallback;
+  } catch {
+    return fallback;
+  }
+  return path;
+}
+
+/**
+ * The return path with the page's query kept. Callers often pass the bare
+ * route ("/place/…", "/settings"); when the browser is on that route, its query
+ * string (city, filters, the open place) is part of where the person was.
+ */
+function withCurrentQuery(path: string): string {
+  if (typeof window === "undefined" || path.includes("?") || path.includes("#")) return path;
+  const { pathname, search } = window.location;
+  return pathname === path ? pathname + search : path;
+}
+
+/** `/login?reason=…&returnTo=…`, with returnTo a safely encoded same-origin path plus query. */
+export function loginHref(returnTo: string, reason?: string | null): string {
+  const path = withCurrentQuery(safeReturnPath(returnTo));
+  const query = new URLSearchParams();
+  if (reason) query.set("reason", reason);
+  query.set("returnTo", path);
+  return `/login?${query.toString()}`;
 }
 
 /**
@@ -62,12 +96,31 @@ function safePath(returnTo: string): string {
  * `reason=sign-in`, so the login page asks rather than says "signed out".
  */
 export function signedOutLoginPath(returnTo: string, hadSession: boolean = wasSignedIn()): string {
-  const path = safePath(returnTo);
-  return `/login?reason=${hadSession ? "signed-out" : "sign-in"}&returnTo=${encodeURIComponent(path)}`;
+  return loginHref(returnTo, hadSession ? "signed-out" : "sign-in");
 }
 
 /** The page the browser is on, including the query string. */
 export function currentReturnPath(): string {
   if (typeof window === "undefined") return "/";
   return window.location.pathname + window.location.search;
+}
+
+/**
+ * Where to send someone whose request came back 401. The API's `loginUrl`
+ * only knows the API route; the page the person is on (path and query) is the
+ * one to come back to. The API's reason (signed out vs never signed in) is kept.
+ */
+export function signInAgainUrl(body?: unknown): string {
+  const loginUrl =
+    body && typeof body === "object" ? (body as { loginUrl?: unknown }).loginUrl : undefined;
+  let reason: string | null = null;
+  if (typeof loginUrl === "string") {
+    try {
+      reason = new URL(loginUrl, PROBE_ORIGIN).searchParams.get("reason");
+    } catch {
+      reason = null;
+    }
+  }
+  if (reason !== "signed-out" && reason !== "sign-in") reason = wasSignedIn() ? "signed-out" : "sign-in";
+  return loginHref(currentReturnPath(), reason);
 }
