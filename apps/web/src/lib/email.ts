@@ -1,4 +1,14 @@
+import { requestHostname } from "./request-host";
+import { isPreviewDeployment, readWorkerEnv } from "./worker-env";
+
 const RESEND_EMAILS_URL = "https://api.resend.com/emails";
+
+/**
+ * Preview versions (`ENVIRONMENT=preview` on a `*.workers.dev` host) inherit `RESEND_API_KEY` through `--keep-vars`. Mail is sent
+ * on those hosts only when this separate key is set. Otherwise the OTP is
+ * logged and Resend is not called.
+ */
+export const PREVIEW_RESEND_API_KEY_NAME = "PREVIEW_RESEND_API_KEY";
 
 /** The preferred sender once halalfood.world is verified in Resend. */
 export const DEFAULT_EMAIL_FROM = "noreply@halalfood.world";
@@ -12,6 +22,11 @@ export interface SendEmailInput {
 
 export interface SendEmailResult {
   id: string;
+}
+
+export interface SendEmailOptions {
+  /** Request host. A preview version on `*.workers.dev` does not send through `RESEND_API_KEY`. */
+  host?: string | null;
 }
 
 export type EmailErrorCode =
@@ -80,25 +95,17 @@ function validateInput(input: SendEmailInput) {
   }
 }
 
-/**
- * Send one low-volume transactional email through Resend's REST API.
- *
- * This deliberately uses the platform fetch API so it can run in a Cloudflare
- * Worker without Node-only HTTP or SDK dependencies.
- */
-export async function sendEmail(
+function logPreviewEmail(input: SendEmailInput, host: string): void {
+  const to = Array.isArray(input.to) ? input.to.join(", ") : input.to;
+  console.info(
+    `[preview-mail] ${host} did not send email to ${to}. Subject: ${input.subject}\n${input.text}`,
+  );
+}
+
+async function deliverWithResend(
   input: SendEmailInput,
+  apiKey: string,
 ): Promise<SendEmailResult> {
-  validateInput(input);
-
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  if (!apiKey) {
-    throw new EmailError(
-      "CONFIGURATION_ERROR",
-      "Email provider is not configured",
-    );
-  }
-
   const from = process.env.EMAIL_FROM?.trim() || DEFAULT_EMAIL_FROM;
   const to = normalizedRecipients(input.to);
 
@@ -159,4 +166,41 @@ export async function sendEmail(
   }
 
   return { id: payload.id };
+}
+
+/**
+ * Send one low-volume transactional email through Resend's REST API.
+ *
+ * This deliberately uses the platform fetch API so it can run in a Cloudflare
+ * Worker without Node-only HTTP or SDK dependencies.
+ *
+ * On a preview version served from `*.workers.dev` (see `isPreviewDeployment`)
+ * the production `RESEND_API_KEY` is not used. The production Worker on its
+ * own workers.dev URLs still sends normally and never logs the message.
+ * The message is logged (including a sign-in OTP in the text body) unless
+ * `PREVIEW_RESEND_API_KEY` is set.
+ */
+export async function sendEmail(
+  input: SendEmailInput,
+  options?: SendEmailOptions,
+): Promise<SendEmailResult> {
+  validateInput(input);
+
+  if (await isPreviewDeployment(options?.host)) {
+    const previewKey = await readWorkerEnv(PREVIEW_RESEND_API_KEY_NAME);
+    if (!previewKey) {
+      logPreviewEmail(input, requestHostname(options?.host));
+      return { id: "preview-not-sent" };
+    }
+    return deliverWithResend(input, previewKey);
+  }
+
+  const apiKey = await readWorkerEnv("RESEND_API_KEY");
+  if (!apiKey) {
+    throw new EmailError(
+      "CONFIGURATION_ERROR",
+      "Email provider is not configured",
+    );
+  }
+  return deliverWithResend(input, apiKey);
 }

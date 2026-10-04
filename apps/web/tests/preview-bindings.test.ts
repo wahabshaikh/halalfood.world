@@ -13,10 +13,10 @@ import {
   PREVIEW_R2_BUCKET,
   PRODUCTION_D1_ID,
   PRODUCTION_R2_BUCKET,
-  PRODUCTION_SECRET_NAMES,
   previewIsolationDecision,
-  previewVarReplacesProductionSecret,
-  stripProductionSecretVars,
+  productionSecretNamesFromCommand,
+  shadowedProductionSecrets,
+  enforcePreviewSecretBoundary,
 } from "../src/lib/preview-bindings";
 
 test("only a named non-main Workers Builds branch is isolated", () => {
@@ -61,39 +61,68 @@ test("preview uploads set ENVIRONMENT to preview", () => {
   assert.equal(config.vars?.BETTER_AUTH_URL, "https://example.test");
 });
 
-test("preview uploads do not set a var named like a production secret", () => {
-  for (const name of PREVIEW_UPLOAD_VAR_NAMES) {
-    assert.equal(previewVarReplacesProductionSecret(name), false, name);
-  }
-  for (const name of PRODUCTION_SECRET_NAMES) {
-    assert.equal(previewVarReplacesProductionSecret(name), true, name);
-  }
+test("preview secret names come from wrangler secret list and cannot drift", () => {
+  const listed = JSON.stringify(
+    [
+      { name: "RESEND_API_KEY", type: "secret_text" },
+      { name: "BRAND_NEW_SECRET", type: "secret_text" },
+    ],
+    null,
+    2,
+  );
+  const secretNames = productionSecretNamesFromCommand({
+    status: 0,
+    stdout: `\n${listed}\n`,
+    stderr: "",
+  });
+  assert.deepEqual(secretNames, ["RESEND_API_KEY", "BRAND_NEW_SECRET"]);
+  assert.deepEqual(shadowedProductionSecrets(secretNames, PREVIEW_UPLOAD_VAR_NAMES), []);
+
   const config: PreviewWranglerConfig = {
     vars: {
       BETTER_AUTH_URL: "https://pr.example",
       ENVIRONMENT: "preview",
-      TURNSTILE_SITE_KEY: "must-not-upload",
-      TURNSTILE_SECRET_KEY: "must-not-upload",
-      BETTER_AUTH_SECRET: "must-not-upload",
       RESEND_API_KEY: "must-not-upload",
-      GOOGLE_PLACES_API_KEY: "must-not-upload",
-      GOOGLE_MAPS_API_KEY: "must-not-upload",
-      EMAIL_HEALTHCHECK_TOKEN: "must-not-upload",
+      BRAND_NEW_SECRET: "must-not-upload",
       SENTRY_DSN: "https://dsn.example",
     },
   };
-  stripProductionSecretVars(config);
-  applyPreviewEnvironment(config);
-  assert.equal(config.vars?.TURNSTILE_SITE_KEY, undefined);
-  assert.equal(config.vars?.TURNSTILE_SECRET_KEY, undefined);
-  assert.equal(config.vars?.BETTER_AUTH_SECRET, undefined);
+  enforcePreviewSecretBoundary(config, secretNames);
   assert.equal(config.vars?.RESEND_API_KEY, undefined);
-  assert.equal(config.vars?.GOOGLE_PLACES_API_KEY, undefined);
-  assert.equal(config.vars?.GOOGLE_MAPS_API_KEY, undefined);
-  assert.equal(config.vars?.EMAIL_HEALTHCHECK_TOKEN, undefined);
+  assert.equal(config.vars?.BRAND_NEW_SECRET, undefined);
   assert.equal(config.vars?.BETTER_AUTH_URL, "https://pr.example");
   assert.equal(config.vars?.ENVIRONMENT, PREVIEW_ENVIRONMENT);
   assert.equal(config.vars?.SENTRY_DSN, "https://dsn.example");
+});
+
+test("preview build fails when a preview var shadows a listed production secret", () => {
+  assert.throws(
+    () => enforcePreviewSecretBoundary({ vars: { ENVIRONMENT: "preview" } }, ["ENVIRONMENT"]),
+    /shadow production secrets \(ENVIRONMENT\)/,
+  );
+  assert.throws(
+    () =>
+      productionSecretNamesFromCommand({
+        status: 1,
+        stdout: "",
+        stderr: "Authentication error",
+      }),
+    /Refusing to build the preview/,
+  );
+  assert.throws(
+    () =>
+      productionSecretNamesFromCommand({
+        status: null,
+        stdout: "",
+        stderr: "",
+        error: { code: "ETIMEDOUT", message: "timed out" },
+      }),
+    /timed out/,
+  );
+  assert.throws(
+    () => productionSecretNamesFromCommand({ status: 0, stdout: "not json", stderr: "" }),
+    /JSON array/,
+  );
 });
 
 test("preview workflow and binders do not inject TURNSTILE_SITE_KEY", () => {
@@ -104,14 +133,30 @@ test("preview workflow and binders do not inject TURNSTILE_SITE_KEY", () => {
   assert.equal(workflow.includes("secrets.TURNSTILE_SITE_KEY"), false);
   assert.equal(workflow.includes("applyTurnstileSiteKey"), false);
   const varFlags = [...workflow.matchAll(/--var "([^:]+):/g)].map((match) => match[1]);
-  assert.deepEqual(varFlags, ["BETTER_AUTH_URL", "ENVIRONMENT"]);
-  for (const name of varFlags) assert.equal(previewVarReplacesProductionSecret(name), false);
+  assert.deepEqual(varFlags, [...PREVIEW_UPLOAD_VAR_NAMES]);
   assert.equal(binder.includes("applyTurnstileSiteKey"), false);
   assert.equal(binder.includes("process.env.TURNSTILE_SITE_KEY"), false);
   assert.equal(binder.includes("TURNSTILE_SITE_KEY:"), false);
+  assert.equal(binder.includes("PRODUCTION_SECRET_NAMES"), false);
   assert.equal(stage.includes("applyTurnstileSiteKey"), false);
-  assert.match(binder, /stripProductionSecretVars/);
-  assert.match(stage, /stripProductionSecretVars/);
+  assert.equal(stage.includes("PRODUCTION_SECRET_NAMES"), false);
+  assert.match(binder, /readProductionSecretNames/);
+  assert.match(binder, /enforcePreviewSecretBoundary/);
+  assert.match(stage, /readProductionSecretNames/);
+  assert.match(stage, /enforcePreviewSecretBoundary/);
+  const reader = readFileSync(new URL("scripts/read-production-secret-names.ts", root), "utf8");
+  assert.match(reader, /wrangler", "secret", "list"/);
+  assert.match(reader, /--format", "json"/);
+  assert.equal(reader.includes("secret put"), false);
+  assert.equal(reader.includes("secret delete"), false);
+  // The GitHub bind step lists production secret names, so it needs the token.
+  const bindStep = workflow.slice(
+    workflow.indexOf("- name: Bind preview D1 and R2"),
+    workflow.indexOf("- name: Upload Cloudflare preview"),
+  );
+  assert.match(bindStep, /CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}/);
+  assert.match(bindStep, /CLOUDFLARE_ACCOUNT_ID: \$\{\{ secrets\.CLOUDFLARE_ACCOUNT_ID \}\}/);
+  assert.match(bindStep, /scripts\/bind-github-preview\.ts/);
   assert.match(stage, /copyGoogleSearchWorkerConfig/);
 });
 

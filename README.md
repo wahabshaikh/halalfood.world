@@ -352,7 +352,7 @@ There is no city flag: this command only processes `city_slug = 'mumbai'`.
 
 The `/login` page renders a Cloudflare Turnstile widget, then uses the Better Auth `emailOTP` plugin to request and verify a 6-digit sign-in code. The client uses `emailOTPClient`; successful verification creates a database-backed Better Auth session and secure, HTTP-only cookie. OTP mail is sent only through `src/lib/email.ts`, uses `EMAIL_FROM` when set, and includes both text and HTML bodies.
 
-Turnstile is fail closed: the request endpoint returns an error when either `TURNSTILE_SITE_KEY` or `TURNSTILE_SECRET_KEY` is missing, when no token is supplied, or when Cloudflare rejects the token. The site key value is rendered to the browser. On the Worker it is still stored as a secret, because a plain var of the same name would replace it. `TURNSTILE_SECRET_KEY`, `BETTER_AUTH_SECRET`, and `RESEND_API_KEY` must never be client-exposed or committed. Preview uploads (`ENVIRONMENT=preview`) use Cloudflare's always-pass test keys instead of those secrets.
+Turnstile is fail closed: the request endpoint returns an error when either `TURNSTILE_SITE_KEY` or `TURNSTILE_SECRET_KEY` is missing, when no token is supplied, or when Cloudflare rejects the token. The site key value is rendered to the browser. On the Worker it is still stored as a secret, because a plain var of the same name would replace it. `TURNSTILE_SECRET_KEY`, `BETTER_AUTH_SECRET`, and `RESEND_API_KEY` must never be client-exposed or committed. A preview version (`ENVIRONMENT=preview`, written by preview builds) served on a `*.workers.dev` host uses Cloudflare's always-pass test keys. Every other request uses the production keys, including `halalfood.world` and the production Worker's own workers.dev URLs (`halalfood-world.<account>.workers.dev` and `<version>-halalfood-world.<account>.workers.dev`), which bind the production D1 database. `BETTER_AUTH_URL` is not read for this. On a preview version, sign-in mail is logged and not sent through `RESEND_API_KEY` unless `PREVIEW_RESEND_API_KEY` is set.
 
 Rate limits use D1, not KV (this Worker has no KV binding). Better Auth's database-backed IP/endpoint limiter uses the `rate_limit` table. The auth route also uses the `auth_otp_rate_limit` table with SHA-256 hashed email/IP keys, read and written inside a `db.transaction()`: D1 is a single Durable Object per database, so the transaction already serializes concurrent writers the way Postgres advisory locks used to:
 
@@ -682,25 +682,25 @@ Configure these GitHub Actions settings before opening a PR:
 
 `CLOUDFLARE_API_TOKEN` needs Workers Scripts edit and D1 edit permissions. Fork pull requests are intentionally skipped because the preview deployment requires infrastructure credentials.
 
-The upload uses `--keep-vars` and rebinds `DB` and `HALAL_EVIDENCE_R2` before upload. It reuses production Worker variables and secrets for Resend, Turnstile, Google Places, and `BETTER_AUTH_SECRET`. Evidence uploads go to `halalfood-world-evidence-preview`, not `halalfood-world-evidence`.
+The upload uses `--keep-vars` and rebinds `DB` and `HALAL_EVIDENCE_R2` before upload. It reuses production Worker variables and secrets for Google Places and `BETTER_AUTH_SECRET`. Evidence uploads go to `halalfood-world-evidence-preview`, not `halalfood-world-evidence`. Preview hosts do not send mail with the inherited `RESEND_API_KEY`.
 
-Preview versions are versions of the production Worker `halalfood-world`. A plain text variable whose name matches a production secret replaces that secret on the uploaded version and on every later version, including main deploys. The pr-50 preview uploads on 30 Sep 2026 did this to `TURNSTILE_SITE_KEY`; main deploys then shipped without the secret until it was put back on version `09382d48`. Previews must not set these names as Wrangler vars or `wrangler versions upload --var` flags:
+Preview versions are versions of the production Worker `halalfood-world`. A plain text variable whose name matches a production secret replaces that secret on the uploaded version and on every later version, including main deploys. The pr-50 preview uploads on 30 Sep 2026 did this to `TURNSTILE_SITE_KEY`; main deploys then shipped without the secret until it was put back on version `09382d48`.
 
-- `BETTER_AUTH_SECRET`
-- `EMAIL_HEALTHCHECK_TOKEN`
-- `GOOGLE_MAPS_API_KEY`
-- `GOOGLE_PLACES_API_KEY`
-- `RESEND_API_KEY`
-- `TURNSTILE_SECRET_KEY`
-- `TURNSTILE_SITE_KEY`
+Preview builds do not keep their own list of secret names. Before a preview upload, `scripts/stage-cloudflare-build.ts` (Workers Builds, non-main) and `scripts/bind-github-preview.ts` (GitHub deploy) run:
 
-The GitHub preview upload may set only `BETTER_AUTH_URL` (the preview origin) and `ENVIRONMENT=preview`. `scripts/bind-github-preview.ts` and `scripts/stage-cloudflare-build.ts` strip the secret names out of the staged config before upload. Do not pass `TURNSTILE_SITE_KEY` from the GitHub Actions secret into that step.
+```sh
+npx wrangler secret list --name halalfood-world --format json
+```
 
-When `ENVIRONMENT` is `preview`, the login page and the Turnstile check do not read those secret names. They use Cloudflare's always-pass test keys at request time: site key `1x00000000000000000000AA` and secret `1x0000000000000000000000000000000AA`. Production secret keys reject tokens from the test site key, so the pair stays inside that lookup and is never written onto the Worker.
+That command prints names, not values. Every returned name is removed from the staged Wrangler vars. If the command fails or times out, the preview build stops. The GitHub preview upload may set only `BETTER_AUTH_URL` and `ENVIRONMENT`. If either name appears in the secret list, the build stops instead of passing it as `--var`. Do not pass `TURNSTILE_SITE_KEY` from the GitHub Actions secret into that step. `pull_request_target` runs this workflow from the default branch, so the list check in the deploy job applies to later previews after this change is on `main`. Workers Builds runs the staging script from the branch being built.
 
-Workers Builds non-main branches do not run this workflow. `scripts/stage-cloudflare-build.ts` rewrites the staged Wrangler config for those builds to D1 `halalfood-world-preview` (`c5d8e0ff-c001-48b8-8545-49861227c16f`) and the same preview R2 bucket, then applies migrations to that preview database only. Production branch `main` keeps `halalfood-world` and `halalfood-world-evidence`. Those builds also strip production secret names from vars. `ENVIRONMENT=preview` is not one of those names.
+The login page and the Turnstile check use Cloudflare's always-pass test keys only when the request host is `*.workers.dev` and the version has `ENVIRONMENT=preview`: site key `1x00000000000000000000AA` and secret `1x0000000000000000000000000000000AA`. Both are required. A request whose host is `halalfood.world` uses the production keys, including when `ENVIRONMENT` is `preview`. The production Worker is also served on workers.dev and has no `ENVIRONMENT` var, so it uses the production keys there too. Workers Builds previews set `BETTER_AUTH_URL` to `https://halalfood.world`, so that URL is not used. Production secret keys reject tokens from the test site key, so the pair stays inside that lookup and is never written onto the Worker.
 
-`TURNSTILE_SITE_KEY` is not in `wrangler.jsonc` because it is a Worker secret, not a git-stored var. The login page and the verify call read it from the Worker env at request time (`cloudflare:workers`) when `ENVIRONMENT` is not `preview`. Set or rotate it from `apps/web` with:
+On a preview version served from `*.workers.dev`, OTP mail is not sent with `RESEND_API_KEY`. The Worker logs the message, including the sign-in code, and does not call Resend. Set `PREVIEW_RESEND_API_KEY` only when a preview should send real mail. That name is not `RESEND_API_KEY`. Preview versions still inherit the production key through `--keep-vars`; they do not use it for mail.
+
+Workers Builds non-main branches do not run this workflow. `scripts/stage-cloudflare-build.ts` rewrites the staged Wrangler config for those builds to D1 `halalfood-world-preview` (`c5d8e0ff-c001-48b8-8545-49861227c16f`) and the same preview R2 bucket, then applies migrations to that preview database only. Production branch `main` keeps `halalfood-world` and `halalfood-world-evidence`. Those non-main builds also list production secret names and strip them from vars. `ENVIRONMENT=preview` is set only when that name is not itself a production secret.
+
+`TURNSTILE_SITE_KEY` is not in `wrangler.jsonc` because it is a Worker secret, not a git-stored var. The login page and the verify call read it from the Worker env at request time (`cloudflare:workers`) unless the request is a preview version on `*.workers.dev`. Set or rotate it from `apps/web` with:
 
 ```sh
 npx wrangler secret put TURNSTILE_SITE_KEY --name halalfood-world

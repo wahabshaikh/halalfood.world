@@ -114,36 +114,101 @@ export function parseWranglerJsonc(source: string): PreviewWranglerConfig {
   return JSON.parse(source.replace(/^\s*\/\/.*$/gm, "")) as PreviewWranglerConfig;
 }
 
-/**
- * Secret names on the production Worker `halalfood-world`.
- *
- * A preview upload is a version of that same Worker. A plain text var whose
- * name matches one of these replaces the secret on that version and on every
- * later version, including main deploys. `TURNSTILE_SITE_KEY` is public to the
- * browser and is still stored as a secret for that reason.
- */
-export const PRODUCTION_SECRET_NAMES = [
-  "BETTER_AUTH_SECRET",
-  "EMAIL_HEALTHCHECK_TOKEN",
-  "GOOGLE_MAPS_API_KEY",
-  "GOOGLE_PLACES_API_KEY",
-  "RESEND_API_KEY",
-  "TURNSTILE_SECRET_KEY",
-  "TURNSTILE_SITE_KEY",
-] as const;
+export const PRODUCTION_WORKER_NAME = "halalfood-world";
 
-/** Vars a preview upload may set. None of these are production secrets. */
+/** Vars a preview upload may set. A preview build fails if any of these is a production secret. */
 export const PREVIEW_UPLOAD_VAR_NAMES = ["BETTER_AUTH_URL", "ENVIRONMENT"] as const;
 
-const PRODUCTION_SECRET_NAME_SET = new Set<string>(PRODUCTION_SECRET_NAMES);
+export const SECRET_LIST_TIMEOUT_MS = 60_000;
 
-export function previewVarReplacesProductionSecret(name: string): boolean {
-  return PRODUCTION_SECRET_NAME_SET.has(name);
+export type SecretListCommandResult = {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+  error?: { code?: string; message?: string } | null;
+};
+
+/**
+ * `wrangler secret list --format json` prints an array of `{ name, type }`.
+ * Names only: the command does not return secret values. Anything else fails
+ * the preview build instead of falling back to a hardcoded name list.
+ */
+export function parseWranglerSecretList(output: string): string[] {
+  const trimmed = output.trim();
+  if (!trimmed) {
+    throw new Error("wrangler secret list returned no secret names.");
+  }
+  const start = trimmed.indexOf("[");
+  const end = trimmed.lastIndexOf("]");
+  if (start < 0 || end < start) {
+    throw new Error("wrangler secret list did not return a JSON array of secret names.");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed.slice(start, end + 1));
+  } catch {
+    throw new Error("wrangler secret list did not return a JSON array of secret names.");
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error("wrangler secret list did not return a JSON array of secret names.");
+  }
+  const names: string[] = [];
+  for (const entry of parsed) {
+    if (!entry || typeof entry !== "object" || typeof (entry as { name?: unknown }).name !== "string") {
+      throw new Error("wrangler secret list entry is missing a name.");
+    }
+    const name = (entry as { name: string }).name.trim();
+    if (!name) throw new Error("wrangler secret list entry is missing a name.");
+    names.push(name);
+  }
+  return names;
 }
 
-/** Drop secret names from Wrangler vars before a version is uploaded. */
-export function stripProductionSecretVars(config: PreviewWranglerConfig): PreviewWranglerConfig {
-  if (!config.vars) return config;
-  for (const name of PRODUCTION_SECRET_NAMES) delete config.vars[name];
-  return config;
+export function productionSecretNamesFromCommand(result: SecretListCommandResult): string[] {
+  if (result.error?.code === "ETIMEDOUT") {
+    throw new Error("wrangler secret list timed out. Refusing to build the preview.");
+  }
+  if (result.error) {
+    throw new Error(`wrangler secret list failed: ${result.error.message ?? "unknown error"}`);
+  }
+  if (result.status !== 0) {
+    const detail = `${result.stderr}\n${result.stdout}`.trim().slice(0, 500);
+    throw new Error(
+      `wrangler secret list failed (${result.status ?? "no status"}). Refusing to build the preview.${detail ? ` ${detail}` : ""}`,
+    );
+  }
+  return parseWranglerSecretList(result.stdout);
+}
+
+export function shadowedProductionSecrets(
+  secretNames: readonly string[],
+  varNames: readonly string[],
+): string[] {
+  const secrets = new Set(secretNames);
+  return varNames.filter((name) => secrets.has(name));
+}
+
+/**
+ * Drop every production secret name from Wrangler vars, and refuse the preview
+ * when a var the upload sets on purpose uses one of those names.
+ */
+export function enforcePreviewSecretBoundary(
+  config: PreviewWranglerConfig,
+  secretNames: readonly string[],
+): void {
+  const uploadShadow = shadowedProductionSecrets(secretNames, PREVIEW_UPLOAD_VAR_NAMES);
+  if (uploadShadow.length > 0) {
+    throw new Error(
+      `Refusing preview upload: preview vars shadow production secrets (${uploadShadow.join(", ")}).`,
+    );
+  }
+  if (config.vars) {
+    for (const name of secretNames) delete config.vars[name];
+  }
+  const remainingShadow = shadowedProductionSecrets(secretNames, Object.keys(config.vars ?? {}));
+  if (remainingShadow.length > 0) {
+    throw new Error(
+      `Refusing preview upload: Wrangler vars shadow production secrets (${remainingShadow.join(", ")}).`,
+    );
+  }
 }
