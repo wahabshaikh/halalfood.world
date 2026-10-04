@@ -1,16 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import { DataFastAnalytics } from "../src/components/datafast-analytics";
-import { SITE_NAME, SITE_URL, OG_IMAGE } from "../src/lib/seo";
+import { SITE_NAME, SITE_URL, OG_IMAGE, TWITTER_SITE } from "../src/lib/seo";
 import { CrispChat } from "../src/components/crisp-chat";
 import "@halalfood/ui/globals.css";
 
+const TITLE = "halalfood.world — a community map of places people eat";
 const DESCRIPTION =
-  "Find halal food you'll love, near you or anywhere you travel. Every halal check comes with a name and a date.";
+  "Places people eat, with whatever evidence they have actually shared. A listing is not a halal certification.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "halalfood.world — halal food you'll love, checked by people like you",
+    default: TITLE,
     template: "%s · " + SITE_NAME,
   },
   description: DESCRIPTION,
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
     type: "website",
     siteName: SITE_NAME,
     url: SITE_URL,
-    title: "halalfood.world — halal food you'll love, checked by people like you",
+    title: TITLE,
     description: DESCRIPTION,
     locale: "en_US",
     images: [
@@ -35,13 +36,14 @@ export const metadata: Metadata = {
         url: OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: "halalfood.world — halal food you'll love, checked by people like you",
+        alt: TITLE,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "halalfood.world — halal food you'll love, checked by people like you",
+    site: TWITTER_SITE,
+    title: TITLE,
     description: DESCRIPTION,
     images: [OG_IMAGE],
   },

@@ -11,6 +11,7 @@ import {
   jsonLdScript,
   OG_IMAGE,
   plural,
+  TWITTER_SITE,
 } from "../../src/lib/seo";
 import {
   Breadcrumbs,
@@ -54,7 +55,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description: DESCRIPTION,
       images: [{ url: OG_IMAGE, width: 1200, height: 630 }],
     },
-    twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
+    twitter: { card: "summary_large_image", site: TWITTER_SITE, title: TITLE, description: DESCRIPTION },
   };
 }
 

@@ -1,8 +1,5 @@
-import { createPlace, findPlaces } from "../../../src/lib/places";
-import {
-  findListedPlace,
-  submitPlaceLink,
-} from "../../../src/lib/place-link-submissions";
+import { findPlaces } from "../../../src/lib/places";
+import { submitPlaceLink } from "../../../src/lib/place-link-submissions";
 import { bboxParam, limitParam } from "@halalfood/core/params";
 import {
   GOOGLE_PLACES_ADD_FIELD_MASK,
@@ -17,7 +14,6 @@ import {
   getClientIp,
   retryAfterSeconds,
 } from "../../../src/lib/otp-rate-limit";
-import { canonical } from "../../../src/lib/seo";
 import { slugifyCity, validatePlaceSubmission } from "@halalfood/core/place-submission";
 
 function noStore() {
@@ -53,16 +49,6 @@ function rateLimited(retryAfterMs: number) {
         "X-Retry-After": String(seconds),
       },
     },
-  );
-}
-
-function isUniqueViolation(error: unknown) {
-  if (!error || typeof error !== "object") return false;
-  const value = error as { code?: unknown; message?: unknown };
-  return (
-    value.code === "23505" ||
-    (typeof value.message === "string" &&
-      /duplicate key|unique constraint/i.test(value.message))
   );
 }
 
@@ -187,7 +173,6 @@ export async function POST(request: Request) {
     return googleDetailsError("INVALID_RESPONSE");
   }
   const googlePlaceId = details.place.id?.trim() || input.googlePlaceId;
-  const { lat, lng } = details.coordinates;
   const city = googlePlaceLocality(details.place);
   const citySlug = city ? slugifyCity(city) : "";
   if (!city || !citySlug)
@@ -196,41 +181,43 @@ export async function POST(request: Request) {
       { status: 422, headers: noStore() },
     );
 
-  const mapsUrl = googlePlaceId ? googlePlaceMapsUrl(googlePlaceId) : null;
+  const mapsUrl = googlePlaceMapsUrl(googlePlaceId);
   try {
-    const created = await createPlace({
-      name,
-      citySlug,
-      cityUrl: canonical(`/city/${citySlug}`),
-      streetAddress: address,
-      addressLocality: city,
-      mapsUrl,
-      googlePlaceId,
-      sourceUrl: mapsUrl || canonical("/add"),
-      lat,
-      lng,
-      submittedByUserId: auth.userId,
-      halalConfirmed: input.halalConfirmed,
-    });
-    return Response.json(
-      { id: created.id, url: `/place/${created.id}` },
-      { status: 201, headers: noStore() },
-    );
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      const existing = await findListedPlace({
-        googlePlaceId,
+    const result = await submitPlaceLink(
+      auth.userId,
+      {
+        mode: "link",
         name,
+        city,
         citySlug,
-      }).catch(() => null);
+        address,
+        sourceUrl: mapsUrl,
+        googlePlaceId,
+        halalConfirmed: true,
+      },
+      undefined,
+      "google",
+    );
+    if (!result.ok) {
       return Response.json(
         {
-          error: existing ? `${existing.name} is already listed.` : "That place is already listed.",
-          ...(existing ? { placeId: existing.id, url: `/place/${existing.id}` } : {}),
+          error: `${result.place.name} is already listed.`,
+          placeId: result.place.id,
+          url: `/place/${result.place.id}`,
         },
         { status: 409, headers: noStore() },
       );
     }
+    return Response.json(
+      {
+        id: result.id,
+        status: result.status,
+        deduped: result.deduped,
+        listed: false,
+      },
+      { status: result.deduped ? 200 : 201, headers: noStore() },
+    );
+  } catch {
     return unavailable();
   }
 }

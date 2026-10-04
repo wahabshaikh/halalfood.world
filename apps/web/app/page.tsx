@@ -309,7 +309,7 @@ export default async function Home({
       <noscript>
         <div className="mx-auto my-10 grid max-w-3xl gap-3 px-4.5">
           <p>The map needs JavaScript. Every city and place page works without it.</p>
-          <TextLink href="/cities">Browse halal food by city</TextLink>
+          <TextLink href="/cities">Browse places by city</TextLink>
         </div>
       </noscript>
       <SiteFooter active="explore" />

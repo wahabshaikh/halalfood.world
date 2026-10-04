@@ -96,7 +96,7 @@ async function getSnapshot(
     FROM places AS p
     LEFT JOIN place_ratings AS r ON r.place_id = p.id
     WHERE p.id = ${placeId}
-      AND p.halal_confirmed = 1
+      AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
     GROUP BY p.id
   `);
   const row = rows[0];
@@ -130,7 +130,7 @@ export function d1PlaceRatingRepository(
         SELECT ${userId}, p.id, ${rating}, ${now}, ${now}
         FROM places AS p
         WHERE p.id = ${placeId}
-          AND p.halal_confirmed = 1
+          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
         ON CONFLICT (user_id, place_id) DO UPDATE SET
           rating = excluded.rating,
           updated_at = excluded.updated_at

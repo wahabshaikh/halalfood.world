@@ -275,7 +275,7 @@ export function d1MediaLinkRepository(
     async hasPlace(placeId) {
       const db = await client;
       const rows = await db.all(sql`
-        SELECT 1 FROM places WHERE id = ${placeId} AND halal_confirmed = 1 LIMIT 1
+        SELECT 1 FROM places WHERE id = ${placeId} AND halal_confirmed = 1 AND listing_status = 'listed' LIMIT 1
       `);
       return rows.length > 0;
     },
@@ -326,7 +326,7 @@ export async function getCreatorProfile(
       p.name AS place_name, p.city_slug, p.address_locality, p.rating_value,
       p.review_count, p.street_address
     FROM place_media_links AS m
-    INNER JOIN places AS p ON p.id = m.place_id AND p.halal_confirmed = 1
+    INNER JOIN places AS p ON p.id = m.place_id AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
     WHERE m.platform = ${platform} AND m.author_handle = ${handle}
     ORDER BY m.created_at DESC
     LIMIT 200
@@ -385,7 +385,7 @@ async function queryTopCreators(
     SELECT m.platform, m.author_handle, max(m.author_name) AS author_name,
       count(DISTINCT m.place_id) AS place_count, count(*) AS video_count
     FROM place_media_links AS m
-    INNER JOIN places AS p ON p.id = m.place_id AND p.halal_confirmed = 1
+    INNER JOIN places AS p ON p.id = m.place_id AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
     WHERE m.author_handle IS NOT NULL
     GROUP BY m.platform, m.author_handle
     ORDER BY place_count DESC, video_count DESC, m.author_handle

@@ -40,7 +40,7 @@ export function d1SavedPlaceRepository(
       const rows = await db.all(sql`
         SELECT 1
         FROM places
-        WHERE id = ${placeId} AND halal_confirmed = 1
+        WHERE id = ${placeId} AND halal_confirmed = 1 AND listing_status = 'listed'
         LIMIT 1
       `);
       return rows.length > 0;
@@ -84,7 +84,7 @@ export function d1SavedPlaceRepository(
         FROM saved_places AS saved
         INNER JOIN places AS p ON p.id = saved.place_id
         WHERE saved.user_id = ${userId}
-          AND p.halal_confirmed = 1
+          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
         ORDER BY saved.created_at DESC, p.name, p.id
         LIMIT ${SAVED_PLACES_LIMIT}
       `);

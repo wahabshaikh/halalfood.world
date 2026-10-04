@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Location01Icon, Search01Icon } from "@hugeicons/core-free-icons";
-import ShareButton from "../../src/components/share-button";
-import { Illustration } from "../../src/components/art";
 import { PageIntro } from "../../src/components/site-chrome";
 import { Button } from "@halalfood/ui/components/button";
 import { Card } from "@halalfood/ui/components/card";
@@ -77,14 +75,13 @@ export default function AddPlaceForm({
     address: "",
     sourceUrl: "",
   });
-  const [linkReceipt, setLinkReceipt] = useState<{ id: string; status: string } | null>(null);
+  const [linkReceipt, setLinkReceipt] = useState<{ id: string; status: string; name: string } | null>(null);
   const [duplicateUrl, setDuplicateUrl] = useState("");
   const [selected, setSelected] = useState<GooglePlace | null>(null);
   const [searchBusy, setSearchBusy] = useState(false);
   const [searchMessage, setSearchMessage] = useState("");
   const [submitBusy, setSubmitBusy] = useState(false);
   const [formError, setFormError] = useState("");
-  const [success, setSuccess] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -157,11 +154,6 @@ export default function AddPlaceForm({
       setSearchMessage("Type at least 2 letters.");
       return;
     }
-    if (authState === "signed-out") {
-      saveDraft();
-      window.location.assign(loginUrl);
-      return;
-    }
     setSearchBusy(true);
     setSearchMessage("");
     try {
@@ -171,9 +163,7 @@ export default function AddPlaceForm({
       });
       const body = await responseBody(response);
       if (response.status === 401) {
-        setAuthState("signed-out");
-        saveDraft();
-        window.location.assign(loginUrl);
+        setSearchMessage(errorFrom(body, "Search is unavailable right now. Try again in a moment."));
         return;
       }
       const localResponse = await fetch(
@@ -280,7 +270,11 @@ export default function AddPlaceForm({
         return;
       }
       clearDraft();
-      setSuccess({ id: body.id, name: selected.name });
+      setLinkReceipt({
+        id: body.id,
+        status: typeof body.status === "string" ? body.status : "pending",
+        name: selected.name,
+      });
     } catch {
       setFormError("We couldn’t add that place. Please try again.");
     } finally {
@@ -332,6 +326,7 @@ export default function AddPlaceForm({
       setLinkReceipt({
         id: body.id,
         status: typeof body.status === "string" ? body.status : "pending",
+        name: linkDraft.name,
       });
     } catch {
       setFormError("We couldn’t file that place. Please try again.");
@@ -348,41 +343,14 @@ export default function AddPlaceForm({
             Filed for review
           </h1>
           <p className="text-muted-foreground">
-            Status: {linkReceipt.status}. Reference {linkReceipt.id}. A moderator checks the
-            link before the place is listed. This is not a halal certification, and it is
-            not on the map yet.
+            {linkReceipt.name ? `${linkReceipt.name} is filed. ` : ""}
+            Status: {linkReceipt.status}. Reference {linkReceipt.id}. A moderator reviews it
+            before the place is listed. This is not a halal certification, and it is not on
+            the map yet.
           </p>
           <Button asChild size="xl" variant="outline">
             <a href="/contributions">History is optional</a>
           </Button>
-        </Card>
-      </section>
-    );
-
-  if (success)
-    return (
-      <section aria-labelledby="add-success-title" className="mx-auto my-10 max-w-xl">
-        <Card className="items-start gap-3.5 rounded-3xl px-9 py-9 shadow-lg ring-border">
-          <Illustration name="visits" size={88} />
-          <h1 id="add-success-title" className="text-[26px]">
-            {success.name} is on the map
-          </h1>
-          <p className="text-muted-foreground">
-            Thank you! Seen a certificate or the menu? Share it in a minute.
-          </p>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Button asChild size="xl">
-              <a href={`/place/${success.id}/check`}>Add a halal check</a>
-            </Button>
-            <Button asChild size="xl" variant="outline">
-              <a href={`/place/${success.id}`}>See the place</a>
-            </Button>
-            <ShareButton
-              url={`/place/${success.id}`}
-              title={success.name}
-              text={success.name + " is now on halalfood.world."}
-            />
-          </div>
         </Card>
       </section>
     );
@@ -392,8 +360,8 @@ export default function AddPlaceForm({
       <PageIntro
         className="pb-2"
         titleId="add-place-title"
-        title="Add a place"
-        lead="Find it on Google Maps. We’ll fill in the rest."
+        title="Help us map every halal spot"
+        lead="Search and pick a place now. Sign in only when you add it. A person reviews it before it is listed."
       />
 
       {selected ? (
@@ -442,7 +410,7 @@ export default function AddPlaceForm({
                 <Button
                   size="lg"
                   type="submit"
-                  disabled={searchBusy || authState === "checking"}
+                  disabled={searchBusy}
                 >
                   {searchBusy && <Spinner />}
                   {searchBusy ? "Searching…" : "Search"}
@@ -520,15 +488,22 @@ export default function AddPlaceForm({
           {formError && <FieldError>{formError}</FieldError>}
           <Button size="xl" type="submit" disabled={submitBusy}>
             {submitBusy && <Spinner />}
-            {submitBusy ? "Adding…" : `Add ${selected.name}`}
+            {submitBusy
+              ? "Adding…"
+              : authState === "signed-out"
+                ? `Sign in to add ${selected.name}`
+                : `Add ${selected.name}`}
           </Button>
-          <FieldDescription>By adding it, you’re telling us it serves halal food.</FieldDescription>
+          <FieldDescription>
+            By adding it, you’re telling us it serves halal food. A moderator reviews that
+            before it is listed. This is not a certification.
+          </FieldDescription>
         </form>
       )}
       {!selected && (
         <FieldDescription>
           {authState === "signed-out"
-            ? "You’ll confirm your email with a quick code, then we’ll run your search."
+            ? "You can search and pick a place while signed out. Sign in at the last step, and your pick stays."
             : "Google fills in the pin. If search fails, send a link and a moderator reviews it before it is listed."}
         </FieldDescription>
       )}

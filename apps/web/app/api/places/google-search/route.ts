@@ -22,20 +22,9 @@ function unavailable(message = "Google search is temporarily unavailable. Please
   );
 }
 
-function unauthorized() {
-  return Response.json(
-    {
-      error: "Sign in to search Google Places.",
-      loginUrl: "/login?returnTo=%2Fadd",
-    },
-    { status: 401, headers: noStore() },
-  );
-}
-
 export async function GET(request: Request) {
   const auth = await getRequestAuth(request);
-  if (auth.status === "unavailable") return unavailable();
-  if (auth.status === "unauthenticated") return unauthorized();
+  const userId = auth.status === "authenticated" ? auth.userId : null;
 
   const query = validateGooglePlaceQuery(
     new URL(request.url).searchParams.get("q"),
@@ -50,7 +39,7 @@ export async function GET(request: Request) {
 
   try {
     const decision = await consumeGooglePlaceSearchLimits(
-      auth.userId,
+      userId,
       getClientIp(request),
     );
     if (!decision.allowed) {

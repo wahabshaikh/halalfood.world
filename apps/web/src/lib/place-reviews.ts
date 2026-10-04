@@ -147,7 +147,7 @@ export function d1PlaceReviewRepository(
       const rows = await db.all(sql`
         SELECT 1
         FROM places
-        WHERE id = ${placeId} AND halal_confirmed = 1
+        WHERE id = ${placeId} AND halal_confirmed = 1 AND listing_status = 'listed'
         LIMIT 1
       `);
       return rows.length > 0;
@@ -182,7 +182,7 @@ export function d1PlaceReviewRepository(
         FROM place_reviews AS r
         INNER JOIN places AS p ON p.id = r.place_id
         WHERE r.place_id = ${placeId}
-          AND p.halal_confirmed = 1
+          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
         ORDER BY r.created_at DESC, r.updated_at DESC, r.user_id
         LIMIT 50
       `);
@@ -199,7 +199,7 @@ export function d1PlaceReviewRepository(
           INNER JOIN places AS p ON p.id = r.place_id
           WHERE r.place_id = ${placeId}
             AND r.user_id = ${userId}
-            AND p.halal_confirmed = 1
+            AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
           LIMIT 1
         `);
         rows.push(...ownRows);
@@ -218,7 +218,7 @@ export function d1PlaceReviewRepository(
           ${userId}, p.id, ${input.title}, ${input.body}, ${now}, ${now}
         FROM places AS p
         WHERE p.id = ${placeId}
-          AND p.halal_confirmed = 1
+          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
         ON CONFLICT (user_id, place_id) DO UPDATE SET
           title = excluded.title,
           body = excluded.body,
@@ -236,7 +236,7 @@ export function d1PlaceReviewRepository(
           AND place_id = ${placeId}
           AND EXISTS (
             SELECT 1 FROM places
-            WHERE places.id = place_reviews.place_id AND places.halal_confirmed = 1
+            WHERE places.id = place_reviews.place_id AND places.halal_confirmed = 1 AND places.listing_status = 'listed'
           )
         RETURNING place_id
       `);

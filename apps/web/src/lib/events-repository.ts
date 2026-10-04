@@ -128,7 +128,7 @@ export async function getEvent(
   const vendorRows = await db.all<Record<string, unknown>>(sql`
     SELECT v.id, v.name, v.note, v.place_id, p.name AS place_name
     FROM event_vendors AS v
-    LEFT JOIN places AS p ON p.id = v.place_id AND p.halal_confirmed = 1
+    LEFT JOIN places AS p ON p.id = v.place_id AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
     WHERE v.event_id = ${eventId}
     ORDER BY v.position ASC, v.name ASC
   `);
@@ -264,7 +264,7 @@ async function unknownPlaces(placeIds: readonly string[], db: DatabaseClient): P
   if (!unique.length) return false;
   const rows = await db.all<{ total: unknown }>(sql`
     SELECT COUNT(*) AS total FROM places
-    WHERE halal_confirmed = 1 AND id IN (${sql.join(
+    WHERE halal_confirmed = 1 AND listing_status = 'listed' AND id IN (${sql.join(
       unique.map((id) => sql`${id}`),
       sql`, `,
     )})

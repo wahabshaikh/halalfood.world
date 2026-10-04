@@ -2,9 +2,13 @@
  * Pure helpers shared by page metadata, JSON-LD and the sitemap routes.
  * Nothing here touches the database, so it stays unit-testable.
  */
+import { displayCuisines } from "@halalfood/core/listing-visibility";
+
 export const SITE_URL = "https://halalfood.world";
 export const SITE_NAME = "halalfood.world";
 export const OG_IMAGE = "/og.png";
+export const ADD_OG_IMAGE = "/add-og.png";
+export const TWITTER_SITE = "@iwahabshaikh";
 
 /** Every pin is a city centroid plus jitter, so say so wherever we show one. */
 export const APPROXIMATE_NOTE =
@@ -102,46 +106,47 @@ export type PlaceDescriptionOptions = {
   includeCommunity?: boolean;
 };
 
+/** Keep whole sentences. A trailing sentence is dropped before any sentence is cut mid-word. */
+function fitSentences(parts: string[], max = 160) {
+  const sentences = parts.map((part) => part.trim()).filter(Boolean);
+  while (sentences.length > 1 && sentences.join(" ").length > max) sentences.pop();
+  const text = sentences.join(" ");
+  return text.length <= max ? text : truncate(text, max);
+}
+
 export function placeDescription(
   place: PlaceLike,
   options: PlaceDescriptionOptions = {},
 ) {
   const where = place.address_locality?.trim() || cityName(place.city_slug);
+  const listed = `${place.name} is listed in ${where}.`;
+  const certification = "A listing is not a halal certification.";
+  const approximate = "Map location is approximate.";
   const rating =
     place.rating_value && Number.isFinite(Number(place.rating_value))
       ? `Google rating ${place.rating_value}${
-          place.review_count
-            ? ` from ${formatCount(place.review_count)} ${plural(place.review_count, "review")}`
-            : ""
+          options.includeCommunity || !place.review_count
+            ? ""
+            : ` from ${formatCount(place.review_count)} ${plural(place.review_count, "review")}`
         }.`
       : "";
   const address = formatAddress(place);
-  const main = `${place.name} is listed in ${where}. A listing is not a halal certification.`;
-  if (options.includeCommunity) {
-    const shortRating =
-      place.rating_value && Number.isFinite(Number(place.rating_value))
-        ? `Google rating ${place.rating_value}.`
-        : "";
-    return truncate(
-      [
-        main,
-        "Map location is approximate.",
-        shortRating,
-        "Community evidence is separate from the Google rating.",
-      ]
-        .filter(Boolean)
-        .join(" "),
-    );
-  }
-  return truncate(
-    [
-      main,
-      rating,
-      address ? `Address: ${address}.` : "",
-      "Location on the map is approximate.",
-    ]
-      .filter(Boolean)
-      .join(" "),
+  return fitSentences(
+    options.includeCommunity
+      ? [
+          listed,
+          certification,
+          approximate,
+          rating,
+          "Community evidence is separate from the Google rating.",
+        ]
+      : [
+          listed,
+          certification,
+          approximate,
+          rating,
+          address ? `Address: ${address}.` : "",
+        ],
   );
 }
 
@@ -218,15 +223,14 @@ export function placeJsonLd(
       name: "communityEvidenceNote",
       value: communityNote,
     });
+  const cuisines = displayCuisines(place.serves_cuisine);
   return {
     "@context": "https://schema.org",
     "@type": "Restaurant",
     "@id": url,
     url,
     name: place.name,
-    servesCuisine: place.serves_cuisine?.length
-      ? place.serves_cuisine
-      : undefined,
+    servesCuisine: cuisines.length ? cuisines : undefined,
     address: {
       "@type": "PostalAddress",
       streetAddress: place.street_address || undefined,

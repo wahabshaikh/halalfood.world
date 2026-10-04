@@ -516,7 +516,7 @@ export async function completeOnboarding(
     for (const placeId of input.wantToTry)
       await db.run(sql`
         INSERT INTO saved_places (user_id, place_id, created_at)
-        SELECT ${userId}, id, ${now} FROM places WHERE id = ${placeId} AND halal_confirmed = 1
+        SELECT ${userId}, id, ${now} FROM places WHERE id = ${placeId} AND halal_confirmed = 1 AND listing_status = 'listed'
         ON CONFLICT (user_id, place_id) DO NOTHING
       `);
   } catch (error) {

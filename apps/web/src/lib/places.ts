@@ -75,7 +75,9 @@ const MAX_CITIES = 2000;
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(Math.trunc(value) || min, min), max);
 
-const COORDS_PRESENT = sql`halal_confirmed = 1 AND lat IS NOT NULL AND lng IS NOT NULL`;
+/** Public rows. Hidden stays in the table; it is not a delete. */
+const LISTED = sql`halal_confirmed = 1 AND listing_status = 'listed'`;
+const COORDS_PRESENT = sql`halal_confirmed = 1 AND listing_status = 'listed' AND lat IS NOT NULL AND lng IS NOT NULL`;
 
 /** `rating_value` is stored as text ("4.30") to preserve scraped formatting; ratings are 0-5 so a numeric cast orders correctly. */
 const RATING_DESC = sql`CAST(rating_value AS REAL) DESC`;
@@ -105,7 +107,7 @@ export async function findPlaces(options: {
   if (options.q && !options.bbox) {
     // Keep the casing: SQLite LIKE only folds ASCII case.
     const q = options.q.trim().replace(/\s+/g, " ");
-    return cachedRead(`places:search:v1:${options.limit}:${q}`, SEARCH_TTL_SECONDS, () =>
+    return cachedRead(`places:search:v2:${options.limit}:${q}`, SEARCH_TTL_SECONDS, () =>
       queryPlaces({ q, limit: options.limit }),
     );
   }
@@ -148,9 +150,14 @@ async function queryPlaces(options: {
   };
 }
 
+type DatabaseClient = Awaited<ReturnType<typeof database>>;
+
 /** One place by id. The id must already have passed `placeIdParam`. */
-export async function getPlaceById(id: string): Promise<PlaceDetail | null> {
-  const db = await database();
+export async function getPlaceById(
+  id: string,
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
+): Promise<PlaceDetail | null> {
+  const db = await client;
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT id, name, city_slug, street_address, address_locality, address_region,
       postal_code, address_country, telephone, website, maps_url, google_place_id,
@@ -158,7 +165,7 @@ export async function getPlaceById(id: string): Promise<PlaceDetail | null> {
       rating_value, review_count, source, source_url, scraped_at,
       halal_confirmed, google_details_cached_at, google_details_snapshot,
       lat, lng
-    FROM places WHERE id = ${id} AND halal_confirmed = 1 LIMIT 1
+    FROM places WHERE id = ${id} AND ${LISTED} LIMIT 1
   `);
   const row = rows[0];
   if (!row) return null;
@@ -184,7 +191,7 @@ export async function createPlace(input: CreatePlaceInput) {
     ) VALUES (
       ${id}, ${input.name}, ${input.citySlug}, ${input.cityUrl}, NULL,
       ${input.streetAddress}, ${input.addressLocality}, NULL, NULL, NULL,
-      NULL, NULL, ${input.mapsUrl}, ${input.googlePlaceId}, ${JSON.stringify(["Halal"])},
+      NULL, NULL, ${input.mapsUrl}, ${input.googlePlaceId}, ${JSON.stringify([])},
       NULL, NULL, 'user-submitted', ${input.sourceUrl}, ${now},
       ${now}, ${input.lat}, ${input.lng},
       ${input.submittedByUserId}, 1
@@ -217,7 +224,7 @@ export async function listPlacesNeedingCoordinateBackfill(options: {
   return db.all<PlaceCoordinateCandidate>(sql`
     SELECT id, google_place_id, lat, lng
     FROM places
-    WHERE halal_confirmed = 1
+    WHERE ${LISTED}
       AND google_place_id IS NOT NULL AND (lat IS NULL OR lng IS NULL)
     ORDER BY id
     LIMIT ${limit}
@@ -250,7 +257,7 @@ export async function updatePlaceCoordinatesIfMissing(
     SET lat = ${coordinates.lat}, lng = ${coordinates.lng}
     WHERE id = ${id}
       AND google_place_id = ${googlePlaceId}
-      AND halal_confirmed = 1
+      AND ${LISTED}
       AND (lat IS NULL OR lng IS NULL)
     RETURNING id
   `);
@@ -265,7 +272,7 @@ async function queryCities(limit: number, offset: number) {
       min(address_country) AS address_country,
       avg(lat) AS center_lat,
       avg(lng) AS center_lng
-    FROM places WHERE ${COORDS_PRESENT}
+    FROM places WHERE ${LISTED}
     GROUP BY city_slug
     ORDER BY count(*) DESC, city_slug
     LIMIT ${limit} OFFSET ${offset}
@@ -283,33 +290,36 @@ export async function listCities(
   const limit = clamp(options.limit ?? 500, 1, MAX_CITIES);
   const offset = clamp(options.offset ?? 0, 0, 100000);
   if (offset + limit > MAX_CITIES) return queryCities(limit, offset);
-  const all = await cachedRead("places:cities:v1", DIRECTORY_TTL_SECONDS, () =>
+  const all = await cachedRead("places:cities:v2", DIRECTORY_TTL_SECONDS, () =>
     queryCities(MAX_CITIES, 0),
   );
   return all.slice(offset, offset + limit);
 }
 
 export async function countCities() {
-  return cachedRead("places:city-count:v1", DIRECTORY_TTL_SECONDS, async () => {
+  return cachedRead("places:city-count:v2", DIRECTORY_TTL_SECONDS, async () => {
     const db = await database();
     const rows = await db.all<{ total: number }>(sql`
       SELECT count(DISTINCT city_slug) AS total
-      FROM places WHERE ${COORDS_PRESENT}
+      FROM places WHERE ${LISTED}
     `);
     return rows[0]?.total ?? 0;
   });
 }
 
-/** Aggregate for one city, or `null` when the slug matches nothing. */
-export async function getCity(citySlug: string): Promise<City | null> {
-  const db = await database();
+/** Aggregate for one city, or `null` when the slug matches nothing. A city with only unpinned places still resolves. */
+export async function getCity(
+  citySlug: string,
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
+): Promise<City | null> {
+  const db = await client;
   const rows = await db.all<City>(sql`
     SELECT city_slug,
       count(*) AS place_count,
       min(address_country) AS address_country,
       avg(lat) AS center_lat,
       avg(lng) AS center_lng
-    FROM places WHERE ${COORDS_PRESENT} AND city_slug = ${citySlug}
+    FROM places WHERE ${LISTED} AND city_slug = ${citySlug}
     GROUP BY city_slug
   `);
   return rows[0] ?? null;
@@ -319,21 +329,17 @@ export async function getCity(citySlug: string): Promise<City | null> {
 export async function findPlacesByCity(
   citySlug: string,
   options: { limit?: number; offset?: number } = {},
+  client?: DatabaseClient | Promise<DatabaseClient>,
 ) {
   const limit = clamp(options.limit ?? 60, 1, 200);
   const offset = clamp(options.offset ?? 0, 0, 100000);
-  // Sorting by rating reads every place in the city; the home page, guides
-  // and city pages all ask for the same few slices.
-  return cachedRead(
-    `places:city:v1:${citySlug}:${limit}:${offset}`,
-    CITY_LISTING_TTL_SECONDS,
-    async () => {
-      const db = await database();
+  const load = async () => {
+      const db = await (client ?? database());
       const rows = await db.all<Place & { total: number }>(sql`
         SELECT id, name, city_slug, street_address, address_locality, address_country,
           telephone, website, rating_value, review_count, lat, lng,
           count(*) OVER() AS total
-        FROM places WHERE ${COORDS_PRESENT} AND city_slug = ${citySlug}
+        FROM places WHERE ${LISTED} AND city_slug = ${citySlug}
         ORDER BY ${RATING_DESC} NULLS LAST, review_count DESC NULLS LAST, id
         LIMIT ${limit} OFFSET ${offset}
       `);
@@ -343,15 +349,23 @@ export async function findPlacesByCity(
         limit,
         offset,
       };
-    },
+  };
+  // Sorting by rating reads every place in the city; the home page, guides
+  // and city pages all ask for the same few slices. A caller-supplied
+  // database skips that cache so tests can see their own rows.
+  if (client) return load();
+  return cachedRead(
+    `places:city:v2:${citySlug}:${limit}:${offset}`,
+    CITY_LISTING_TTL_SECONDS,
+    load,
   );
 }
 
 export async function countPlaces() {
-  return cachedRead("places:count:v1", DIRECTORY_TTL_SECONDS, async () => {
+  return cachedRead("places:count:v2", DIRECTORY_TTL_SECONDS, async () => {
     const db = await database();
     const rows = await db.all<{ total: number }>(sql`
-      SELECT count(*) AS total FROM places WHERE ${COORDS_PRESENT}
+      SELECT count(*) AS total FROM places WHERE ${LISTED}
     `);
     return rows[0]?.total ?? 0;
   });
@@ -365,10 +379,10 @@ export async function listPlaceRefs(options: { limit: number; offset: number }) 
   const limit = clamp(options.limit, 1, 25000);
   const offset = clamp(options.offset, 0, 1000000);
   // OFFSET still reads every skipped row, so each chunk is cached.
-  return cachedRead(`places:sitemap:v1:${limit}:${offset}`, SITEMAP_TTL_SECONDS, async () => {
+  return cachedRead(`places:sitemap:v2:${limit}:${offset}`, SITEMAP_TTL_SECONDS, async () => {
     const db = await database();
     return db.all<{ id: string; scraped_at: number | null }>(sql`
-      SELECT id, scraped_at FROM places WHERE ${COORDS_PRESENT}
+      SELECT id, scraped_at FROM places WHERE ${LISTED}
       ORDER BY id LIMIT ${limit} OFFSET ${offset}
     `);
   });

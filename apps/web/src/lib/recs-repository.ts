@@ -61,7 +61,7 @@ async function checkTarget(
 ): Promise<"ok" | "target-not-found" | "list-not-shareable"> {
   if (target.kind === "place") {
     const rows = await db.all(sql`
-      SELECT 1 FROM places WHERE id = ${target.id} AND halal_confirmed = 1 LIMIT 1
+      SELECT 1 FROM places WHERE id = ${target.id} AND halal_confirmed = 1 AND listing_status = 'listed' LIMIT 1
     `);
     return rows.length ? "ok" : "target-not-found";
   }
@@ -368,7 +368,7 @@ export async function replyToRec(
   if (reply === "want-to-try" && placeId)
     await db.run(sql`
       INSERT INTO saved_places (user_id, place_id, created_at)
-      SELECT ${userId}, id, ${Date.now()} FROM places WHERE id = ${placeId} AND halal_confirmed = 1
+      SELECT ${userId}, id, ${Date.now()} FROM places WHERE id = ${placeId} AND halal_confirmed = 1 AND listing_status = 'listed'
       ON CONFLICT (user_id, place_id) DO NOTHING
     `);
 
@@ -397,7 +397,7 @@ export async function describeRecTarget(
   if (target.kind === "place") {
     const row = (
       await db.all<Record<string, unknown>>(sql`
-        SELECT name, city_slug FROM places WHERE id = ${target.id} AND halal_confirmed = 1 LIMIT 1
+        SELECT name, city_slug FROM places WHERE id = ${target.id} AND halal_confirmed = 1 AND listing_status = 'listed' LIMIT 1
       `)
     )[0];
     return row

@@ -161,6 +161,8 @@ export const places = sqliteTable("places", {
   halalConfirmed: integer("halal_confirmed", { mode: "boolean" })
     .notNull()
     .default(true),
+  /** listed is public. hidden keeps the row so the hide can be reversed. */
+  listingStatus: text("listing_status").notNull().default("listed"),
   googleDetailsCachedAt: integer("google_details_cached_at", {
     mode: "timestamp_ms",
   }),
