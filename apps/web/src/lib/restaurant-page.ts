@@ -11,16 +11,18 @@ import {
   type GooglePlaceDetailsResult,
 } from "./google-places";
 import { formatAddress } from "./seo";
-import {
-  d1GoogleSearchBudget,
-  readGoogleDetailsDailyCap,
-} from "./google-search-budget";
+import { reserveGoogleDetailsCall } from "./google-search-budget";
 
 /** Successful Google snapshots are deliberately long-lived to protect quota. */
 export const GOOGLE_DETAILS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Cache-Control max-age for a Place Details payload. Same window as the D1 snapshot. */
 export const GOOGLE_DETAILS_CACHE_TTL_SECONDS = GOOGLE_DETAILS_CACHE_TTL_MS / 1000;
+
+/** How long a failed thin-listing lookup stays remembered, so repeat views do not spend the daily cap. */
+export const GOOGLE_DETAILS_NEGATIVE_TTL_MS = 60 * 60 * 1000;
+
+export const GOOGLE_DETAILS_NEGATIVE_TTL_SECONDS = GOOGLE_DETAILS_NEGATIVE_TTL_MS / 1000;
 
 /**
  * Google Maps Platform terms allow storing content for at most 30 days.
@@ -94,7 +96,9 @@ export type GoogleDetailsCacheWrite = {
 
 export type GoogleDetailsCacheRecord = {
   cachedAt: string;
-  snapshot: GoogleDetailsSnapshot;
+  snapshot: GoogleDetailsSnapshot | null;
+  /** HTTP status of a failed lookup. Set only for 403, 404, and 5xx. */
+  failureStatus?: number;
 };
 
 /** Per Google place id. A hit must not call Place Details. */
@@ -368,12 +372,33 @@ export function memoryGoogleDetailsCache(now: () => number = Date.now): GoogleDe
   };
 }
 
+/** 403, 404, and 5xx are remembered. Other failures can be tried again on the next view. */
+export function isPlaceDetailsFailureStatus(status: number): boolean {
+  return status === 403 || status === 404 || (status >= 500 && status <= 599);
+}
+
+export function isGoogleDetailsFailureCached(
+  record: GoogleDetailsCacheRecord | null,
+  now = new Date(),
+): boolean {
+  if (!record?.failureStatus || !isPlaceDetailsFailureStatus(record.failureStatus)) return false;
+  const cachedAt = isoTimestamp(record.cachedAt);
+  if (!cachedAt || !Number.isFinite(now.valueOf())) return false;
+  const age = now.valueOf() - new Date(cachedAt).valueOf();
+  return age >= 0 && age < GOOGLE_DETAILS_NEGATIVE_TTL_MS;
+}
+
 function parseDetailsCacheRecord(value: unknown): GoogleDetailsCacheRecord | null {
   const item = record(value);
   if (!item) return null;
   const cachedAt = isoTimestamp(item.cachedAt);
+  if (!cachedAt) return null;
+  const failureStatus = typeof item.failureStatus === "number" ? item.failureStatus : undefined;
+  if (failureStatus !== undefined && isPlaceDetailsFailureStatus(failureStatus)) {
+    return { cachedAt, snapshot: null, failureStatus };
+  }
   const snapshot = parseGoogleDetailsSnapshot(item.snapshot);
-  if (!cachedAt || !snapshot) return null;
+  if (!snapshot) return null;
   return { cachedAt, snapshot };
 }
 
@@ -430,11 +455,6 @@ export function productionGoogleDetailsCache(): GoogleDetailsCache {
   return productionDetailsCache;
 }
 
-async function reserveProductionGoogleDetailsCall(now: Date): Promise<boolean> {
-  const cap = await readGoogleDetailsDailyCap();
-  return d1GoogleSearchBudget().tryConsume(cap, now, "details");
-}
-
 async function readDetailsCache(
   cache: GoogleDetailsCache,
   googlePlaceId: string,
@@ -450,9 +470,10 @@ async function writeDetailsCache(
   cache: GoogleDetailsCache,
   googlePlaceId: string,
   value: GoogleDetailsCacheRecord,
+  ttlSeconds: number,
 ) {
   try {
-    await cache.set(googlePlaceId, value, GOOGLE_DETAILS_CACHE_TTL_SECONDS);
+    await cache.set(googlePlaceId, value, ttlSeconds);
   } catch {
     // A cache write must never fail the page.
   }
@@ -481,7 +502,7 @@ async function persistGoogleDetails(
   googlePlaceId: string,
   record: GoogleDetailsCacheRecord,
 ) {
-  if (!dependencies.saveGoogleDetails) return;
+  if (!dependencies.saveGoogleDetails || !record.snapshot) return;
   try {
     await dependencies.saveGoogleDetails({
       placeId,
@@ -524,7 +545,8 @@ function storedGoogleContent(
  * Assemble one place page. Google Place Details is optional enrichment:
  * a warm cache, or a listing that already has a name, address, and location,
  * never calls Google. An uncached call for a thin listing reserves the daily
- * cap first. A cap, a cache failure, or a provider failure still renders.
+ * cap first. A 403, 404, or 5xx is remembered for an hour so the next view
+ * does not retry. A cap, a cache failure, or a provider failure still renders.
  */
 export async function assembleRestaurantPage(
   place: PlaceDetail,
@@ -561,7 +583,16 @@ export async function assembleRestaurantPage(
     );
   }
 
-  const reserve = dependencies.reserveGoogleDetailsCall ?? reserveProductionGoogleDetailsCall;
+  if (isGoogleDetailsFailureCached(cached, now)) {
+    return finishRestaurantPage(
+      place,
+      usable.snapshot,
+      usable.snapshot ? "stale-fallback" : "unavailable",
+      usable.cachedAt,
+    );
+  }
+
+  const reserve = dependencies.reserveGoogleDetailsCall ?? reserveGoogleDetailsCall;
   let allowed = false;
   try {
     allowed = await reserve(now);
@@ -591,8 +622,17 @@ export async function assembleRestaurantPage(
     const snapshot = googleDetailsSnapshotFromPlace(result.place, result.coordinates);
     const record = { cachedAt: now.toISOString(), snapshot };
     await persistGoogleDetails(dependencies, place.id, googlePlaceId, record);
-    await writeDetailsCache(detailsCache, googlePlaceId, record);
+    await writeDetailsCache(detailsCache, googlePlaceId, record, GOOGLE_DETAILS_CACHE_TTL_SECONDS);
     return finishRestaurantPage(place, snapshot, "refreshed", record.cachedAt);
+  }
+
+  if (result && typeof result.status === "number" && isPlaceDetailsFailureStatus(result.status)) {
+    await writeDetailsCache(
+      detailsCache,
+      googlePlaceId,
+      { cachedAt: now.toISOString(), snapshot: null, failureStatus: result.status },
+      GOOGLE_DETAILS_NEGATIVE_TTL_SECONDS,
+    );
   }
 
   return finishRestaurantPage(

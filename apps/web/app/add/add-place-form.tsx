@@ -280,7 +280,13 @@ export default function AddPlaceForm({
         credentials: "include",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         // Pressing "Add" is the confirmation; the button says so.
-        body: JSON.stringify({ mode: "google", googlePlaceId: selected.id, halalConfirmed: true }),
+        body: JSON.stringify({
+          mode: "google",
+          googlePlaceId: selected.id,
+          name: selected.name,
+          address: selected.address,
+          halalConfirmed: true,
+        }),
       });
       const body = await responseBody(response);
       if (response.status === 401) {

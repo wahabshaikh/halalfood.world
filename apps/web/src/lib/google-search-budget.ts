@@ -45,6 +45,12 @@ export async function readGoogleDetailsDailyCap(): Promise<number> {
   );
 }
 
+/** Reserve one uncached Place Details call. False means the page or submission must continue without Google. */
+export async function reserveGoogleDetailsCall(now: Date): Promise<boolean> {
+  const cap = await readGoogleDetailsDailyCap();
+  return d1GoogleSearchBudget().tryConsume(cap, now, "details");
+}
+
 /** UTC day key, so the counter resets at 00:00 UTC. */
 export function googleSearchDay(now: Date): string {
   return now.toISOString().slice(0, 10);
