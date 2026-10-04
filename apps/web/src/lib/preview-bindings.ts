@@ -52,6 +52,14 @@ export type PreviewWranglerConfig = {
   vars?: Record<string, string>;
 };
 
+export const PREVIEW_ENVIRONMENT = "preview";
+
+/** Tag a preview upload so Sentry does not file it under production. */
+export function applyPreviewEnvironment(config: PreviewWranglerConfig): PreviewWranglerConfig {
+  config.vars = { ...config.vars, ENVIRONMENT: PREVIEW_ENVIRONMENT };
+  return config;
+}
+
 /** Point the DB and evidence-bucket bindings at the shared preview resources. */
 export function applyPreviewResourceBindings(config: PreviewWranglerConfig): PreviewWranglerConfig {
   const database = config.d1_databases?.find((entry) => entry.binding === D1_BINDING);

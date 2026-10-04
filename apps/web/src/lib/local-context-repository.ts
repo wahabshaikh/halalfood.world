@@ -1,4 +1,4 @@
-import { discoverPlaces, type DiscoveredPlace } from "./discovery";
+import { discoverPlaces, discoveryBboxExceedsCap, type DiscoveredPlace } from "./discovery";
 import { EMPTY_FILTERS } from "@halalfood/core/discovery-filters";
 import {
   boundingBox,
@@ -25,9 +25,11 @@ export async function findPlacesNear(
 ): Promise<DiscoveredPlace[]> {
   const radiusKm = options.radiusKm ?? LOCAL_RADIUS_KM;
   const limit = options.limit ?? 12;
+  const bbox = boundingBox(origin, radiusKm);
+  if (discoveryBboxExceedsCap(bbox)) return [];
   const result = await discoverPlaces({
     filters: { ...EMPTY_FILTERS, sort: "distance", maxDistanceKm: radiusKm },
-    bbox: boundingBox(origin, radiusKm),
+    bbox,
     origin,
     limit: options.excludeId ? limit + 1 : limit,
   });

@@ -558,7 +558,19 @@ TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
 EMAIL_FROM=noreply@halalfood.world
 ```
 
-`SENTRY_DSN` is already set as a public var in [`wrangler.jsonc`](apps/web/wrangler.jsonc) (production and the generated preview config). It is not a secret: do not also run `wrangler secret put SENTRY_DSN`, because a var and a secret with the same name conflict on deploy. The browser SDK reads `NEXT_PUBLIC_SENTRY_DSN` at build time and, when that is unset, the same `SENTRY_DSN` value. Set `NEXT_PUBLIC_SENTRY_DSN` in the Workers Builds environment only to override it. Set an `ENVIRONMENT` Worker variable when you want Sentry events tagged with something other than the Node environment (`production` in a production build, `development` locally).
+`SENTRY_DSN` is already set as a public var in [`wrangler.jsonc`](apps/web/wrangler.jsonc) (production and the generated preview config). It is not a secret: do not also run `wrangler secret put SENTRY_DSN`, because a var and a secret with the same name conflict on deploy. The browser SDK reads `NEXT_PUBLIC_SENTRY_DSN` at build time and, when that is unset, the same `SENTRY_DSN` value. Set `NEXT_PUBLIC_SENTRY_DSN` in the Workers Builds environment only to override it. Set an `ENVIRONMENT` Worker variable when you want Sentry events tagged with something other than the Node environment (`production` in a production build, `development` locally). Preview uploads set `ENVIRONMENT=preview`: Workers Builds non-main branches write it into the staged Wrangler config, and the GitHub preview workflow passes `--var ENVIRONMENT:preview`. Sentry then reports those events with environment `preview`.
+
+### Migration gate
+
+Workers Builds on `main` runs `npm run build`, then `npx wrangler deploy`. At the end of the build, `scripts/stage-cloudflare-build.ts` runs this and exits non-zero when it fails or when it lists anything still pending:
+
+```sh
+npx wrangler d1 migrations list halalfood-world --remote
+```
+
+A failing build stops Workers Builds before `wrangler deploy`. The gate does not apply migration files. It runs only when `WORKERS_CI=1` and `WORKERS_CI_BRANCH=main`. Preview builds and GitHub Actions skip it.
+
+The Workers Builds API token needs **D1 Edit** on the account, as well as the Workers Scripts Edit permission the deploy already uses. Wrangler 4's `migrations list` reads `d1_migrations` and ensures that table exists (`CREATE TABLE IF NOT EXISTS`). D1 Read is not enough for that statement. The command does not run the SQL files under `migrations/`. Add D1 Edit to the token selected in the Worker's **Settings → Builds → API token**. If the token cannot list migrations, the build fails closed and does not deploy.
 
 `TURNSTILE_SITE_KEY` may be a normal public Worker variable (or a dashboard secret if preferred); only `TURNSTILE_SECRET_KEY` belongs in `wrangler secret put` and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, `GOOGLE_PLACES_API_KEY` are secret names only here; enter their values at the Wrangler prompts. Use `GOOGLE_MAPS_API_KEY` instead only when retaining an existing secret name.
 

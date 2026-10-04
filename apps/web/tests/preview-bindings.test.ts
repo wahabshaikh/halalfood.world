@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  applyPreviewEnvironment,
   applyPreviewResourceBindings,
   applyTurnstileSiteKey,
   PREVIEW_D1_ID,
   PREVIEW_D1_NAME,
+  PREVIEW_ENVIRONMENT,
+  type PreviewWranglerConfig,
   PREVIEW_R2_BUCKET,
   PRODUCTION_D1_ID,
   PRODUCTION_R2_BUCKET,
@@ -44,6 +47,13 @@ test("preview bindings replace the production database and bucket", () => {
   assert.notEqual(config.d1_databases[0].database_id, PRODUCTION_D1_ID);
   assert.equal(config.r2_buckets[0].bucket_name, PREVIEW_R2_BUCKET);
   assert.equal(config.name, "halalfood-world");
+});
+
+test("preview uploads set ENVIRONMENT to preview", () => {
+  const config: PreviewWranglerConfig = { vars: { BETTER_AUTH_URL: "https://example.test" } };
+  applyPreviewEnvironment(config);
+  assert.equal(config.vars?.ENVIRONMENT, PREVIEW_ENVIRONMENT);
+  assert.equal(config.vars?.BETTER_AUTH_URL, "https://example.test");
 });
 
 test("an empty Turnstile site key does not clear an existing var", () => {

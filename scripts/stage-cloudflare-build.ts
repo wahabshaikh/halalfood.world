@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import {
+  applyPreviewEnvironment,
   applyPreviewResourceBindings,
   applyTurnstileSiteKey,
   PREVIEW_D1_ID,
@@ -8,6 +9,10 @@ import {
   PREVIEW_R2_BUCKET,
   previewIsolationDecision,
 } from "../apps/web/src/lib/preview-bindings.ts";
+import {
+  parseMigrationList,
+  shouldGateProductionDeploy,
+} from "../apps/web/src/lib/d1-migration-gate.ts";
 
 // Workers Builds and the pull_request_target preview workflow both run from
 // the repository root. The workflow file that actually executes is the one on
@@ -47,14 +52,16 @@ if (isolation === "refuse") {
 
 if (isolation === "preview") {
   applyPreviewResourceBindings(generatedConfig);
+  applyPreviewEnvironment(generatedConfig);
   const rootCopy = JSON.parse(
     readFileSync("wrangler.jsonc", "utf8").replace(/^\s*\/\/.*$/gm, ""),
   );
   applyPreviewResourceBindings(rootCopy);
+  applyPreviewEnvironment(rootCopy);
   applyTurnstileSiteKey(rootCopy, process.env.TURNSTILE_SITE_KEY);
   writeFileSync("wrangler.jsonc", `${JSON.stringify(rootCopy, null, 2)}\n`);
   console.log(
-    `Non-main branch ${process.env.WORKERS_CI_BRANCH}: DB ${PREVIEW_D1_NAME} (${PREVIEW_D1_ID}), R2 ${PREVIEW_R2_BUCKET}`,
+    `Non-main branch ${process.env.WORKERS_CI_BRANCH}: DB ${PREVIEW_D1_NAME} (${PREVIEW_D1_ID}), R2 ${PREVIEW_R2_BUCKET}, ENVIRONMENT=preview`,
   );
   const previewConfigPath = ".wrangler/preview-d1.json";
   writeFileSync(
@@ -80,6 +87,35 @@ if (isolation === "preview") {
     console.error("Preview D1 migration failed. Production was not migrated.");
     process.exit(migrated.status ?? 1);
   }
+}
+
+if (shouldGateProductionDeploy(process.env)) {
+  const listed = spawnSync(
+    "npx",
+    ["wrangler", "d1", "migrations", "list", "halalfood-world", "--remote"],
+    { encoding: "utf8" },
+  );
+  const output = `${listed.stdout ?? ""}\n${listed.stderr ?? ""}`;
+  if (listed.status !== 0) {
+    console.error(output);
+    console.error(
+      "Refusing to deploy: `wrangler d1 migrations list halalfood-world --remote` failed. Workers Builds will not run wrangler deploy.",
+    );
+    process.exit(listed.status || 1);
+  }
+  const parsed = parseMigrationList(output);
+  if (!parsed.ok) {
+    console.error(output);
+    console.error(`Refusing to deploy: ${parsed.reason}`);
+    process.exit(1);
+  }
+  if (parsed.pending.length > 0) {
+    console.error("Refusing to deploy. halalfood-world has pending D1 migrations:");
+    for (const name of parsed.pending) console.error(`  ${name}`);
+    console.error("Apply those migrations before deploying. This build does not apply them.");
+    process.exit(1);
+  }
+  console.log("halalfood-world has no pending D1 migrations.");
 }
 
 writeFileSync(generatedConfigPath, `${JSON.stringify(generatedConfig)}\n`);

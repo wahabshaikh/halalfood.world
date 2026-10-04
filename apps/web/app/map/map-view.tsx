@@ -446,7 +446,14 @@ export default function MapView({
           setSignedIn(false);
           return;
         }
-        if (!response.ok) throw new Error("Places couldn’t load.");
+        if (!response.ok) {
+          const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+          throw new Error(
+            typeof body?.error === "string" && body.error
+              ? body.error
+              : "Places couldn’t load.",
+          );
+        }
         setResults(await response.json());
         setLoading(false);
       } catch (caught) {
@@ -481,7 +488,14 @@ export default function MapView({
     setError("");
     fetch(path, { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error("Places couldn’t load.");
+        if (!response.ok) {
+          const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+          throw new Error(
+            typeof body?.error === "string" && body.error
+              ? body.error
+              : "Places couldn’t load.",
+          );
+        }
         setResults(await response.json());
         setLoading(false);
       })

@@ -26,6 +26,25 @@ export type SentryOptions = {
   environment?: string;
 };
 
+/**
+ * Environment baked into a preview build. An explicit ENVIRONMENT wins.
+ * Workers Builds sets WORKERS_CI=1 and WORKERS_CI_BRANCH for every build;
+ * a named branch other than main is a preview upload.
+ */
+export function bakedSentryEnvironment(env: {
+  ENVIRONMENT?: string;
+  WORKERS_CI?: string;
+  WORKERS_CI_BRANCH?: string;
+}): string {
+  const explicit = env.ENVIRONMENT?.trim() ?? "";
+  if (explicit) return explicit;
+  if (env.WORKERS_CI === "1") {
+    const branch = (env.WORKERS_CI_BRANCH ?? "").trim();
+    if (branch && branch !== "main") return "preview";
+  }
+  return "";
+}
+
 export function resolveSentryEnvironment(
   explicit: string | undefined,
   fallback: string | undefined,

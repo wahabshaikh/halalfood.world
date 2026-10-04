@@ -2,7 +2,11 @@ import {
   parseDiscoveryFilters,
   filtersFromStandards,
 } from "@halalfood/core/discovery-filters";
-import { discoverPlaces } from "../../../src/lib/discovery";
+import {
+  DiscoveryBboxTooLargeError,
+  discoverPlaces,
+  discoveryBboxExceedsCap,
+} from "../../../src/lib/discovery";
 import { mapSocialFor } from "../../../src/lib/map-social-repository";
 import { getPreferences } from "../../../src/lib/preferences-repository";
 import { bboxParam, citySlugParam, limitParam } from "@halalfood/core/params";
@@ -32,6 +36,9 @@ export async function GET(request: Request): Promise<Response> {
     limit = limitParam(params.get("limit"));
   } catch (error) {
     return badRequest((error as Error).message);
+  }
+  if (bbox && discoveryBboxExceedsCap(bbox)) {
+    return badRequest("Zoom in to search a smaller area.");
   }
 
   const citySlug = citySlugParam(params.get("city")) ?? undefined;
@@ -106,7 +113,8 @@ export async function GET(request: Request): Promise<Response> {
         },
       },
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof DiscoveryBboxTooLargeError) return badRequest(error.message);
     return unavailable("Places are temporarily unavailable. Please try again.");
   }
 }

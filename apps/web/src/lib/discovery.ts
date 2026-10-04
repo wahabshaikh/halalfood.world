@@ -35,8 +35,8 @@ export type DiscoveredPlace = Place & {
 /**
  * Per-place evidence aggregate, restricted to approved and unexpired rows.
  * `strength` mirrors the kind ceilings in halal-taxonomy.ts. Both aggregates
- * read only the `candidates` CTE's places, so a query costs rows in the
- * requested area rather than every verification and check-in ever written.
+ * read the materialized `candidates` CTE, so places in the requested area are
+ * scanned once and evidence is not read for the rest of the table.
  */
 const EVIDENCE_AGGREGATE = sql`
   SELECT
@@ -179,8 +179,44 @@ function whoseConditions(query: DiscoveryQuery): SQL[] {
 }
 
 /**
+ * A viewport wider than this is rejected. Twenty degrees of latitude is a
+ * large region. Longitude allows a 60 km nearby search: that box is about
+ * 108 degrees wide at the latitude where the helper stops widening it, and a
+ * world box is still rejected.
+ */
+export const MAX_DISCOVERY_LAT_SPAN_DEGREES = 20;
+export const MAX_DISCOVERY_LNG_SPAN_DEGREES = 120;
+
+export type DiscoveryBbox = {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+};
+
+/** Longitude span, including a box that crosses the antimeridian. */
+export function discoveryLngSpan(bbox: DiscoveryBbox): number {
+  if (bbox.west <= bbox.east) return bbox.east - bbox.west;
+  return 360 - bbox.west + bbox.east;
+}
+
+export function discoveryBboxExceedsCap(bbox: DiscoveryBbox): boolean {
+  return (
+    bbox.north - bbox.south > MAX_DISCOVERY_LAT_SPAN_DEGREES ||
+    discoveryLngSpan(bbox) > MAX_DISCOVERY_LNG_SPAN_DEGREES
+  );
+}
+
+export class DiscoveryBboxTooLargeError extends Error {
+  constructor() {
+    super("Zoom in to search a smaller area.");
+    this.name = "DiscoveryBboxTooLargeError";
+  }
+}
+
+/**
  * Conditions on `places` alone. They form the `candidates` CTE, so they must
- * stay index-friendly: the lat/lng box uses `places_listed_lat_lng_idx` and a
+ * stay index-friendly: the lat/lng box uses `places_public_lat_lng_idx` and a
  * city uses the city-leading unique index.
  */
 function buildPlaceConditions(query: DiscoveryQuery): SQL[] {
@@ -350,6 +386,7 @@ export async function discoverPlaces(
   query: DiscoveryQuery,
   client?: DatabaseClient | Promise<DatabaseClient>,
 ): Promise<DiscoveryResult> {
+  if (query.bbox && discoveryBboxExceedsCap(query.bbox)) throw new DiscoveryBboxTooLargeError();
   // Place pages ask for "nearby" once each. Places in one neighbourhood share
   // a rounded box, and `count(*) OVER()` would otherwise read that whole box
   // on every crawl of every listing.
@@ -365,7 +402,7 @@ export async function discoverPlaces(
   const distance = query.origin ? distanceExpression(query.origin) : sql`NULL`;
 
   const rows = await db.all<Record<string, unknown>>(sql`
-    WITH candidates AS (
+    WITH candidates AS MATERIALIZED (
       SELECT id, name, city_slug, street_address, address_locality,
         address_country, telephone, website, rating_value, review_count,
         lat, lng, serves_cuisine
@@ -448,6 +485,7 @@ export type CardEvidenceAnnotation = {
  */
 export async function annotateCardEvidence<T extends { id: string }>(
   places: T[],
+  client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): Promise<(T & CardEvidenceAnnotation)[]> {
   if (!places.length) return [];
   const blank = (place: T, loaded: boolean): T & CardEvidenceAnnotation => ({
@@ -457,7 +495,7 @@ export async function annotateCardEvidence<T extends { id: string }>(
     evidence_loaded: loaded,
   });
   try {
-    const db = await database();
+    const db = await client;
     const ids = [...new Set(places.map((place) => place.id))];
     const rows = await db.all<Record<string, unknown>>(sql`
       WITH candidates AS (
