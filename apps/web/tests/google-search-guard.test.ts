@@ -444,3 +444,54 @@ test("the search route skips Google for a short query", async () => {
     restoreKey();
   }
 });
+
+test("a Google rejection on the guarded path logs the reason without the key and returns the link fallback", async () => {
+  const previousKey = process.env[KEY];
+  process.env[KEY] = "AIzaSyTESTKEY000000000000000000000000000";
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    Response.json(
+      {
+        error: {
+          code: 403,
+          message: "Places API (New) has not been used. key=AIzaSyTESTKEY000000000000000000000000000",
+          status: "PERMISSION_DENIED",
+          details: [{ "@type": "type.googleapis.com/google.rpc.ErrorInfo", reason: "SERVICE_DISABLED" }],
+        },
+      },
+      { status: 403 },
+    );
+  const logged: unknown[][] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => {
+    logged.push(args);
+  };
+  let result;
+  try {
+    result = await searchWith("Dishoom London", {
+      apiKey: undefined,
+      limit: allowingLimit().limit,
+      budget: openBudget().budget,
+      cache: memoryGoogleSearchCache(),
+    });
+  } finally {
+    console.error = originalError;
+    globalThis.fetch = previousFetch;
+    if (previousKey === undefined) delete process.env[KEY];
+    else process.env[KEY] = previousKey;
+  }
+  assert.equal(result.outcome, "provider_error");
+  const response = googleSearchResponse(result);
+  assert.equal(response.status, 502);
+  assert.equal((await response.json()).fallback, "link");
+  const entry = logged.find((args) => args[0] === "google_places_error")?.[1] as
+    | Record<string, unknown>
+    | undefined;
+  assert.ok(entry, "google_places_error was logged");
+  assert.equal(entry.operation, "searchText");
+  assert.equal(entry.httpStatus, 403);
+  assert.equal(entry.googleStatus, "PERMISSION_DENIED");
+  assert.equal(entry.reason, "SERVICE_DISABLED");
+  assert.match(String(entry.message), /has not been used/);
+  assert.doesNotMatch(JSON.stringify(logged), /AIzaSyTESTKEY/);
+});
