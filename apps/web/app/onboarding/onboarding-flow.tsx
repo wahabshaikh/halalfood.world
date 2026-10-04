@@ -75,6 +75,7 @@ export default function OnboardingFlow({
   const [standard, setStandard] = useState<OnboardingStandard>(DEFAULT_ONBOARDING_STANDARD);
   const [standardTouched, setStandardTouched] = useState(false);
   const [picks, setPicks] = useState<Pick[] | null>(null);
+  const [picksRelaxed, setPicksRelaxed] = useState(false);
   const [chosen, setChosen] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -156,19 +157,26 @@ export default function OnboardingFlow({
     };
   }, [handle]);
 
-  const loadPicks = useCallback(async () => {
+  const loadPicks = useCallback(async (standardChosen = standardTouched) => {
     setPicks(null);
-    const params = new URLSearchParams({ preset: standard.preset });
-    if (standard.avoidAlcohol) params.set("noAlcohol", "1");
+    setPicksRelaxed(false);
+    const params = new URLSearchParams();
+    // The default preset is only a filter after the person chooses one.
+    if (standardChosen) {
+      params.set("standard", "1");
+      params.set("preset", standard.preset);
+      if (standard.avoidAlcohol) params.set("noAlcohol", "1");
+    }
     if (homeCity) params.set("city", homeCity);
     try {
       const response = await fetch(`/api/onboarding/picks?${params}`, { cache: "no-store" });
-      const body = (await response.json()) as { places?: Pick[] };
+      const body = (await response.json()) as { places?: Pick[]; relaxed?: boolean };
       setPicks(response.ok ? (body.places ?? []) : []);
+      setPicksRelaxed(response.ok && body.relaxed === true);
     } catch {
       setPicks([]);
     }
-  }, [standard.preset, standard.avoidAlcohol, homeCity]);
+  }, [standard.preset, standard.avoidAlcohol, standardTouched, homeCity]);
 
   // People search on the friends step.
   useEffect(() => {
@@ -195,10 +203,10 @@ export default function OnboardingFlow({
   }, [query, step]);
 
   const index = ONBOARDING_STEPS.indexOf(step);
-  const go = (next: OnboardingStep) => {
+  const go = (next: OnboardingStep, options?: { standardChosen?: boolean }) => {
     setError("");
     setStep(next);
-    if (next === "picks") void loadPicks();
+    if (next === "picks") void loadPicks(options?.standardChosen);
   };
   const next = () => go(ONBOARDING_STEPS[Math.min(index + 1, ONBOARDING_STEPS.length - 1)]!);
   const back = () => go(ONBOARDING_STEPS[Math.max(index - 1, 0)]!);
@@ -423,7 +431,7 @@ export default function OnboardingFlow({
             <div role="radiogroup" aria-label="Halal standard" className="grid gap-2.5">
               {STANDARD_PRESETS.map((preset) => {
                 const copy = STANDARD_PRESET_COPY[preset];
-                const selected = standard.preset === preset;
+                const selected = standardTouched && standard.preset === preset;
                 return (
                   <button
                     key={preset}
@@ -480,7 +488,7 @@ export default function OnboardingFlow({
               onClick={() => {
                 setStandardTouched(false);
                 setStandard(DEFAULT_ONBOARDING_STANDARD);
-                next();
+                go("picks", { standardChosen: false });
               }}
             >
               Skip for now
@@ -495,17 +503,29 @@ export default function OnboardingFlow({
                 Pick {MAX_WANT_TO_TRY} places you want to try
               </h1>
               <p className="text-base text-muted-foreground">
-                Only places that meet your standard are shown, each with its halal status.
+                {standardTouched && !picksRelaxed
+                  ? "Only places that meet your standard are shown, each with its halal status."
+                  : standardTouched
+                    ? "Listed places you can try, each with its halal status. None met your standard yet."
+                    : "Listed places you can try. Choose a standard on the previous step to narrow them."}
               </p>
             </div>
             {picks === null ? (
               <Loading>Finding places…</Loading>
             ) : picks.length === 0 ? (
               <p className="rounded-2xl bg-secondary p-4 text-sm font-semibold">
-                No places match that standard yet. You can save some from the map later.
+                {standardTouched
+                  ? "No places match that standard yet. You can save some from the map later."
+                  : "No listed places to show yet. You can save some from the map later."}
               </p>
             ) : (
-              <ul className="grid gap-2.5">
+              <>
+                {picksRelaxed && standardTouched && (
+                  <p className="text-sm text-muted-foreground">
+                    Nothing matched that standard, so these are listed places.
+                  </p>
+                )}
+                <ul className="grid gap-2.5">
                 {picks.map((place) => {
                   const selected = chosen.includes(place.id);
                   const full = chosen.length >= MAX_WANT_TO_TRY && !selected;
@@ -543,7 +563,8 @@ export default function OnboardingFlow({
                     </li>
                   );
                 })}
-              </ul>
+                </ul>
+              </>
             )}
             <div className="flex gap-3">
               <Button variant="outline" size="xl" onClick={back}>

@@ -212,7 +212,6 @@ jobs:
         env:
           D1_DATABASE_NAME: halalfood-world-pr-${{ github.event.pull_request.number }}
           D1_DATABASE_ID: ${{ steps.d1.outputs.database_id }}
-          TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
         run: npx tsx scripts/bind-github-preview.ts
 
       - name: Upload Cloudflare preview
@@ -225,6 +224,10 @@ jobs:
         run: |
           test -n "$PREVIEW_URL" || { echo "::error::Missing predicted preview URL"; exit 1; }
           set -o pipefail
+          # Only these two names may be passed as --var. A name that matches a
+          # production secret (including TURNSTILE_SITE_KEY) replaces that
+          # secret on this version and on later main deploys. Preview Turnstile
+          # uses Cloudflare's always-pass test keys at request time instead.
           npx wrangler versions upload \
             --config dist/server/wrangler.json \
             --preview-alias "$PREVIEW_ALIAS" \

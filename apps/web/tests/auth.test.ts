@@ -18,6 +18,7 @@ import { POST as authPost } from "../app/api/auth/[...all]/route";
 const environmentKeys = [
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
+  "ENVIRONMENT",
   "NODE_ENV",
   "TURNSTILE_SITE_KEY",
   "TURNSTILE_SECRET_KEY",
@@ -168,6 +169,26 @@ test("Turnstile validation fails closed when either key is missing", async () =>
   );
   assert.deepEqual(result, { ok: false, reason: "missing-config" });
   assert.equal(called, false);
+});
+
+test("preview Turnstile validation posts the always-pass test secret", async () => {
+  setEnvironment({
+    ENVIRONMENT: "preview",
+    TURNSTILE_SITE_KEY: "production-site-secret",
+    TURNSTILE_SECRET_KEY: "production-server-secret",
+  });
+  let requestBody: URLSearchParams | undefined;
+  const result = await verifyTurnstile(
+    new Request("https://pr-1-halalfood-world.wahabshaikh.workers.dev/login"),
+    "turnstile-token",
+    async (_input, init) => {
+      requestBody = new URLSearchParams(String(init?.body));
+      return new Response(JSON.stringify({ success: true }));
+    },
+  );
+  assert.deepEqual(result, { ok: true });
+  assert.equal(requestBody?.get("secret"), "1x0000000000000000000000000000000AA");
+  assert.equal(requestBody?.get("secret")?.includes("production-server-secret"), false);
 });
 
 test("Turnstile validation posts the server secret and accepts success", async () => {

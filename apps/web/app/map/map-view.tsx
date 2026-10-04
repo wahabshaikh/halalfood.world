@@ -483,7 +483,7 @@ export default function MapView({
             return;
           }
           // Filters and the search box stay as they were. An error is not an empty list.
-          setError(presentHttpFailure("Places", response.status, message));
+          setError(presentHttpFailure("places", response.status, message));
           setResults({ places: [], total: 0, limit: VIEWPORT_LIMIT });
           setLoading(false);
           return;
@@ -492,7 +492,7 @@ export default function MapView({
         setLoading(false);
       } catch (caught) {
         if ((caught as Error).name !== "AbortError") {
-          setError(presentTransportFailure("Places", caught));
+          setError(presentTransportFailure("places", caught));
           setResults({ places: [], total: 0, limit: VIEWPORT_LIMIT });
           setLoading(false);
         }
@@ -530,7 +530,7 @@ export default function MapView({
         if (!response.ok) {
           const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
           const message = typeof body?.error === "string" ? body.error : "";
-          setError(presentHttpFailure("Places", response.status, message));
+          setError(presentHttpFailure("places", response.status, message));
           setLoading(false);
           return;
         }
@@ -540,8 +540,8 @@ export default function MapView({
       .catch((caught) => {
         if ((caught as Error).name === "AbortError") return;
         // This catch is a fetch that never returned. HTTP errors are handled
-        // above so a server message is not replaced by "Failed to fetch".
-        setError(presentTransportFailure("Places", caught));
+        // above so a server message is not replaced by the browser offline error.
+        setError(presentTransportFailure("places", caught));
         setLoading(false);
       });
     return () => controller.abort();

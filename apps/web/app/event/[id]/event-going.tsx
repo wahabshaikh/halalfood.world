@@ -7,6 +7,7 @@ import { InitialsAvatar, monogram } from "../../../src/components/blocks";
 import { FormMessage } from "../../../src/components/section";
 import ShareButton from "../../../src/components/share-button";
 import { goToLogin } from "../../../src/components/visit-card";
+import { presentHttpFailure, presentTransportFailure, type PresentedFailure } from "../../../src/lib/failure-copy";
 
 type Going = {
   signedIn: boolean;
@@ -40,7 +41,7 @@ export default function EventGoing({
     line: goingLine([], initialGoing),
   });
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<PresentedFailure | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -55,7 +56,7 @@ export default function EventGoing({
 
   async function toggle() {
     setBusy(true);
-    setError("");
+    setError(null);
     try {
       const response = await fetch(`/api/events/${eventId}/going`, {
         method: state.viewerGoing ? "DELETE" : "PUT",
@@ -64,11 +65,13 @@ export default function EventGoing({
       if (response.status === 401) return goToLogin("event");
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? "That didn’t go through.");
+        // The RSVP on screen stays. A failed request is not a change of mind.
+        setError(presentHttpFailure("your RSVP", response.status, body.error));
+        return;
       }
       setState((await response.json()) as Going);
     } catch (caught) {
-      setError((caught as Error).message);
+      setError(presentTransportFailure("your RSVP", caught));
     } finally {
       setBusy(false);
     }
@@ -111,7 +114,16 @@ export default function EventGoing({
         </div>
       )}
       {state.friends.length === 0 && state.line && <p className="text-sm text-muted-foreground">{state.line}</p>}
-      {error && <FormMessage tone="error">{error}</FormMessage>}
+      {error && (
+        <FormMessage tone="error">
+          {error.message}
+          {error.retry && (
+            <Button variant="link" disabled={busy} onClick={() => void toggle()}>
+              Try again
+            </Button>
+          )}
+        </FormMessage>
+      )}
     </div>
   );
 }

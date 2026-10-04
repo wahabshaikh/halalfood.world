@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { readWorkerEnv } from "../src/lib/worker-env";
+import {
+  readWorkerEnv,
+  TURNSTILE_PREVIEW_SECRET_KEY,
+  TURNSTILE_PREVIEW_SITE_KEY,
+} from "../src/lib/worker-env";
 
 test("worker env falls back to a dynamic process.env lookup", async () => {
   const key = "TURNSTILE_SITE_KEY";
@@ -12,6 +16,27 @@ test("worker env falls back to a dynamic process.env lookup", async () => {
   } finally {
     if (previous === undefined) delete process.env[key];
     else process.env[key] = previous;
+  }
+});
+
+test("preview Turnstile lookup uses the always-pass test keys", async () => {
+  const previous = {
+    ENVIRONMENT: process.env.ENVIRONMENT,
+    TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY,
+    TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
+  };
+  process.env.ENVIRONMENT = "preview";
+  process.env.TURNSTILE_SITE_KEY = "production-site-secret";
+  process.env.TURNSTILE_SECRET_KEY = "production-server-secret";
+  try {
+    assert.equal(await readWorkerEnv("TURNSTILE_SITE_KEY"), TURNSTILE_PREVIEW_SITE_KEY);
+    assert.equal(await readWorkerEnv("TURNSTILE_SECRET_KEY"), TURNSTILE_PREVIEW_SECRET_KEY);
+    assert.equal((await readWorkerEnv("TURNSTILE_SITE_KEY")).includes("production-site-secret"), false);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   }
 });
 
