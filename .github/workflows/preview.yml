@@ -1,5 +1,10 @@
 name: Pull request preview
 
+# Opening or updating a PR must not provision Cloudflare resources by default.
+# A maintainer can opt a reviewed non-draft PR in with preview-approved.
+# Removing that label blocks later runs; it does not cancel a running deploy.
+# Merge this gate with the old workflow temporarily disabled during bootstrap.
+
 on:
   pull_request_target:
     types:
@@ -7,6 +12,10 @@ on:
       - synchronize
       - reopened
       - closed
+      - labeled
+      - unlabeled
+      - ready_for_review
+      - converted_to_draft
 
 permissions:
   contents: read
@@ -19,7 +28,9 @@ jobs:
   build:
     if: >
       github.event.action != 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false &&
+      contains(github.event.pull_request.labels.*.name, 'preview-approved')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -65,7 +76,9 @@ jobs:
     if: >
       needs.build.result == 'success' &&
       github.event.action != 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false &&
+      contains(github.event.pull_request.labels.*.name, 'preview-approved')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -322,7 +335,7 @@ jobs:
               "",
               "D1 database: " + process.env.D1_DATABASE_NAME,
               "",
-              "_This preview is refreshed on every push to the PR._",
+              "_Preview updates require the preview-approved label and a non-draft PR._",
             ].join("\n");
 
             const { owner, repo } = context.repo;
