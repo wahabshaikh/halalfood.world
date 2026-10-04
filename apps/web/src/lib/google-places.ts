@@ -176,6 +176,48 @@ function stringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+/**
+ * Google's error envelope, reduced to what we can safely log: the HTTP status,
+ * the canonical status (e.g. PERMISSION_DENIED), the ErrorInfo reason (e.g.
+ * SERVICE_DISABLED, API_KEY_HTTP_REFERRER_BLOCKED) and the message. Anything
+ * shaped like an API key is redacted so the secret never reaches logs.
+ */
+export function describeGooglePlacesError(httpStatus: number, rawBody: string) {
+  let googleStatus: string | undefined;
+  let reason: string | undefined;
+  let message: string | undefined;
+  try {
+    const error = record(record(JSON.parse(rawBody))?.error);
+    googleStatus = stringValue(error?.status);
+    message = stringValue(error?.message);
+    const details = Array.isArray(error?.details) ? error.details : [];
+    for (const detail of details) {
+      const value = stringValue(record(detail)?.reason);
+      if (value) {
+        reason = value;
+        break;
+      }
+    }
+  } catch {
+    message = rawBody.slice(0, 300) || undefined;
+  }
+  const redact = (value?: string) =>
+    value?.replace(/AIza[0-9A-Za-z_-]{20,}/g, "[redacted]").slice(0, 500);
+  return {
+    httpStatus,
+    ...(googleStatus ? { googleStatus } : {}),
+    ...(reason ? { reason } : {}),
+    ...(message ? { message: redact(message) } : {}),
+  };
+}
+
+function logGooglePlacesError(operation: string, httpStatus: number, rawBody: string) {
+  console.error("google_places_error", {
+    operation,
+    ...describeGooglePlacesError(httpStatus, rawBody),
+  });
+}
+
 function parseLocation(value: unknown): GooglePlaceLocation | undefined {
   const location = record(value);
   const latitude = location?.latitude;
@@ -313,6 +355,7 @@ export async function getGooglePlaceDetails(
   }
 
   if (!response.ok) {
+    logGooglePlacesError("placeDetails", response.status, rawBody);
     return {
       ok: false,
       code: "HTTP_ERROR",
@@ -452,6 +495,7 @@ export async function searchGooglePlaces(
     };
   }
   if (!response.ok) {
+    logGooglePlacesError("searchText", response.status, rawBody);
     return {
       ok: false,
       code: "HTTP_ERROR",
