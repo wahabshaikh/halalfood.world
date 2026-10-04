@@ -11,6 +11,22 @@ export function shouldGateProductionDeploy(env: {
   return env.WORKERS_CI === "1" && (env.WORKERS_CI_BRANCH ?? "").trim() === "main";
 }
 
+/** Remote `migrations list` must finish inside this window or the build stops. */
+export const MIGRATION_LIST_TIMEOUT_MS = 60_000;
+
+/**
+ * A non-zero exit, a spawn error, or a timeout all stop the deploy.
+ * Timeout is reported on its own so a hung list is not treated as an empty one.
+ */
+export function migrationListStopReason(result: {
+  status: number | null;
+  error?: { code?: string } | null;
+}): "timeout" | "failed" | null {
+  if (result.error?.code === "ETIMEDOUT") return "timeout";
+  if (result.error || result.status !== 0) return "failed";
+  return null;
+}
+
 export type MigrationListParse =
   | { ok: true; pending: string[] }
   | { ok: false; reason: string };

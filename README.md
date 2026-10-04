@@ -568,7 +568,13 @@ Workers Builds on `main` runs `npm run build`, then `npx wrangler deploy`. At th
 npx wrangler d1 migrations list halalfood-world --remote
 ```
 
-A failing build stops Workers Builds before `wrangler deploy`. The gate does not apply migration files. It runs only when `WORKERS_CI=1` and `WORKERS_CI_BRANCH=main`. Preview builds and GitHub Actions skip it.
+A failing build stops Workers Builds before `wrangler deploy`. The gate does not apply migration files. It runs only when `WORKERS_CI=1` and `WORKERS_CI_BRANCH=main`. Preview builds and GitHub Actions skip it. The list command has a 60 second timeout; a timeout fails the build the same way a failed command does.
+
+Applying the pending migrations does not resume the build that already failed. Retry that main build in Workers Builds, or push a commit, so the gate runs again against an empty pending list.
+
+`npm run deploy` and `npx wrangler deploy` do not run this gate. They publish the Worker that is already built.
+
+Migrations are applied before the deploy that needs them, and the previous Worker keeps serving until that deploy succeeds. Write each migration so the code already in production still works after it is applied: add columns and indexes, and leave renames and drops for a later deploy that no longer reads the old shape.
 
 The Workers Builds API token needs **D1 Edit** on the account, as well as the Workers Scripts Edit permission the deploy already uses. Wrangler 4's `migrations list` reads `d1_migrations` and ensures that table exists (`CREATE TABLE IF NOT EXISTS`). D1 Read is not enough for that statement. The command does not run the SQL files under `migrations/`. Add D1 Edit to the token selected in the Worker's **Settings → Builds → API token**. If the token cannot list migrations, the build fails closed and does not deploy.
 

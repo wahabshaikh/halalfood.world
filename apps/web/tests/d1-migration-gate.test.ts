@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseMigrationList, shouldGateProductionDeploy } from "../src/lib/d1-migration-gate";
+import {
+  MIGRATION_LIST_TIMEOUT_MS,
+  migrationListStopReason,
+  parseMigrationList,
+  shouldGateProductionDeploy,
+} from "../src/lib/d1-migration-gate";
 
 test("only the Workers Builds production branch gates deploy", () => {
   assert.equal(shouldGateProductionDeploy({}), false);
@@ -36,6 +41,16 @@ Migrations to be applied:
     ok: true,
     pending: ["0018_visit_idempotency.sql", "0020_listing_visibility.sql"],
   });
+});
+
+test("a timed-out migration list fails closed", () => {
+  assert.equal(MIGRATION_LIST_TIMEOUT_MS > 0, true);
+  assert.equal(
+    migrationListStopReason({ status: null, error: { code: "ETIMEDOUT" } }),
+    "timeout",
+  );
+  assert.equal(migrationListStopReason({ status: 1 }), "failed");
+  assert.equal(migrationListStopReason({ status: 0 }), null);
 });
 
 test("an unreadable migration list fails closed", () => {

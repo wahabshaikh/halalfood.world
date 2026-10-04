@@ -18,6 +18,7 @@ import {
   unavailable,
 } from "../../../src/lib/api";
 import { domainFailure } from "../../../src/lib/domain-error";
+import { discoverResponseCacheHeaders } from "../../../src/lib/discover-response";
 
 /**
  * Filtered discovery for the map, the list and every server-rendered listing.
@@ -105,12 +106,7 @@ export async function GET(request: Request): Promise<Response> {
     return json(
       { ...result, filters, ...(social ? { social } : {}) },
       {
-        headers: {
-          "Cache-Control":
-            filters.applyMyStandards || wantsSocial
-              ? "no-store"
-              : "public, max-age=30, s-maxage=60",
-        },
+        headers: discoverResponseCacheHeaders(!filters.applyMyStandards && !wantsSocial),
       },
     );
   } catch (error) {

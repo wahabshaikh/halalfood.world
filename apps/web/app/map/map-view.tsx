@@ -21,6 +21,7 @@ import { TextLink } from "../../src/components/blocks";
 import { PlaceTile } from "../../src/components/place-tile";
 import { PlacePhoto } from "../../src/components/place-photo";
 import SavePlaceButton from "../../src/components/save-place-button";
+import { discoveryBboxExceedsCap, type DiscoveryBbox } from "@halalfood/core/discovery-bbox";
 import {
   DEFAULT_MAP_VIEW,
   deepLinkKind,
@@ -40,6 +41,8 @@ type Results = {
 };
 
 const VIEWPORT_LIMIT = 600;
+const ZOOM_IN_CHIP = "Zoom in to search this area";
+const BBOX_TOO_WIDE_ERROR = "Zoom in to search a smaller area.";
 /** Markers beyond this many become plain dots so the map stays readable. */
 const LABELLED_MARKERS = 120;
 
@@ -58,6 +61,22 @@ const FILTER_PARAMS = [
   "mine",
   "whose",
 ];
+
+function viewportBbox(bounds: {
+  getWest(): number;
+  getSouth(): number;
+  getEast(): number;
+  getNorth(): number;
+}): DiscoveryBbox {
+  const wrap = (value: number) => ((((value + 180) % 360) + 360) % 360) - 180;
+  const world = bounds.getEast() - bounds.getWest() >= 360;
+  return {
+    west: world ? -180 : wrap(bounds.getWest()),
+    south: Math.max(-90, bounds.getSouth()),
+    east: world ? 180 : wrap(bounds.getEast()),
+    north: Math.min(90, bounds.getNorth()),
+  };
+}
 
 function locality(place: Place) {
   return place.address_locality || place.city_slug.replace(/-/g, " ");
@@ -194,6 +213,7 @@ export default function MapView({
   const [deepLinkSettled, setDeepLinkSettled] = useState(false);
   // Panning only offers a refresh, so results never swap out mid-browse.
   const [areaMoved, setAreaMoved] = useState(false);
+  const [viewportTooWide, setViewportTooWide] = useState(false);
   const [searchArea, setSearchArea] = useState(0);
   const [showList, setShowList] = useState(false);
   const [mapBroken, setMapBroken] = useState(false);
@@ -413,26 +433,30 @@ export default function MapView({
     if (!shouldLoadViewport(kind, deepLinkSettled)) return;
     const instance = map.current;
     let controller: AbortController | undefined;
+    function holdWideViewport() {
+      setViewportTooWide(true);
+      setAreaMoved(false);
+      setError("");
+      setLoading(false);
+    }
     async function loadPlaces() {
       controller?.abort();
       controller = new AbortController();
+      const bbox = viewportBbox(instance.getBounds());
+      // A z= link opens here too. Skip the fetch so the pins already on screen stay.
+      if (discoveryBboxExceedsCap(bbox)) {
+        holdWideViewport();
+        return;
+      }
+      setViewportTooWide(false);
       setLoading(true);
       setError("");
       setAreaMoved(false);
-      const bounds = instance.getBounds();
-      const wrap = (value: number) => ((((value + 180) % 360) + 360) % 360) - 180;
-      const world = bounds.getEast() - bounds.getWest() >= 360;
-      const bbox = [
-        world ? -180 : wrap(bounds.getWest()),
-        Math.max(-90, bounds.getSouth()),
-        world ? 180 : wrap(bounds.getEast()),
-        Math.min(90, bounds.getNorth()),
-      ];
       try {
         const query = serializeDiscoveryFilters(filters);
         const response = await fetch(
           "/api/discover?bbox=" +
-            bbox.join(",") +
+            [bbox.west, bbox.south, bbox.east, bbox.north].join(",") +
             "&limit=" +
             VIEWPORT_LIMIT +
             (signedIn ? "&social=1" : "") +
@@ -448,11 +472,13 @@ export default function MapView({
         }
         if (!response.ok) {
           const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
-          throw new Error(
-            typeof body?.error === "string" && body.error
-              ? body.error
-              : "Places couldn’t load.",
-          );
+          const message =
+            typeof body?.error === "string" && body.error ? body.error : "Places couldn’t load.";
+          if (response.status === 400 && (discoveryBboxExceedsCap(bbox) || message === BBOX_TOO_WIDE_ERROR)) {
+            holdWideViewport();
+            return;
+          }
+          throw new Error(message);
         }
         setResults(await response.json());
         setLoading(false);
@@ -466,6 +492,11 @@ export default function MapView({
     }
     const markMoved = () => {
       if (ignoreMove.current) return;
+      if (discoveryBboxExceedsCap(viewportBbox(instance.getBounds()))) {
+        holdWideViewport();
+        return;
+      }
+      setViewportTooWide(false);
       setAreaMoved(true);
     };
     instance.on("moveend", markMoved);
@@ -501,7 +532,7 @@ export default function MapView({
       })
       .catch((caught) => {
         if ((caught as Error).name === "AbortError") return;
-        setError("Places couldn’t load.");
+        setError((caught as Error).message || "Places couldn’t load.");
         setLoading(false);
       });
     return () => controller.abort();
@@ -626,7 +657,10 @@ export default function MapView({
             </Button>
           </MapStatus>
         )}
-        {!loading && !error && !visible.length && (
+        {viewportTooWide && !error && (
+          <MapStatus>{ZOOM_IN_CHIP}</MapStatus>
+        )}
+        {!loading && !error && !viewportTooWide && !visible.length && (
           <MapStatus>
             {filterCount
               ? "No places here match these filters. Widen them or move the map and search again."
@@ -708,18 +742,27 @@ export default function MapView({
             </Button>
           </ButtonGroupVertical>
         </div>
-        {notice && (
+        {viewportTooWide ? (
           <div
-            className="absolute top-4 left-1/2 z-5 flex -translate-x-1/2 items-center gap-2.5 rounded-full bg-background px-4 py-2.5 text-sm font-bold shadow-lg"
+            className="absolute top-4 left-1/2 z-5 flex -translate-x-1/2 items-center rounded-full bg-background px-4 py-2.5 text-sm font-bold shadow-lg"
             role="status"
           >
-            <span>{notice}</span>
-            <Button variant="ghost" size="icon-xs" aria-label="Dismiss" onClick={() => setNotice("")}>
-              <HugeiconsIcon icon={Cancel01Icon} size={15} aria-hidden="true" />
-            </Button>
+            {ZOOM_IN_CHIP}
           </div>
+        ) : (
+          notice && (
+            <div
+              className="absolute top-4 left-1/2 z-5 flex -translate-x-1/2 items-center gap-2.5 rounded-full bg-background px-4 py-2.5 text-sm font-bold shadow-lg"
+              role="status"
+            >
+              <span>{notice}</span>
+              <Button variant="ghost" size="icon-xs" aria-label="Dismiss" onClick={() => setNotice("")}>
+                <HugeiconsIcon icon={Cancel01Icon} size={15} aria-hidden="true" />
+              </Button>
+            </div>
+          )
         )}
-        {areaMoved && !loading && (
+        {areaMoved && !loading && !viewportTooWide && (
           <Button
             variant="outline"
             className="absolute top-4 left-1/2 z-3 h-10 -translate-x-1/2 rounded-full border-0 px-4 font-extrabold shadow-lg"

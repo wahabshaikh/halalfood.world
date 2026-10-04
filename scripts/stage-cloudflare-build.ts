@@ -10,6 +10,8 @@ import {
   previewIsolationDecision,
 } from "../apps/web/src/lib/preview-bindings.ts";
 import {
+  MIGRATION_LIST_TIMEOUT_MS,
+  migrationListStopReason,
   parseMigrationList,
   shouldGateProductionDeploy,
 } from "../apps/web/src/lib/d1-migration-gate.ts";
@@ -93,15 +95,18 @@ if (shouldGateProductionDeploy(process.env)) {
   const listed = spawnSync(
     "npx",
     ["wrangler", "d1", "migrations", "list", "halalfood-world", "--remote"],
-    { encoding: "utf8" },
+    { encoding: "utf8", timeout: MIGRATION_LIST_TIMEOUT_MS },
   );
   const output = `${listed.stdout ?? ""}\n${listed.stderr ?? ""}`;
-  if (listed.status !== 0) {
+  const stop = migrationListStopReason(listed);
+  if (stop) {
     console.error(output);
     console.error(
-      "Refusing to deploy: `wrangler d1 migrations list halalfood-world --remote` failed. Workers Builds will not run wrangler deploy.",
+      stop === "timeout"
+        ? "Refusing to deploy: `wrangler d1 migrations list halalfood-world --remote` timed out. Workers Builds will not run wrangler deploy."
+        : "Refusing to deploy: `wrangler d1 migrations list halalfood-world --remote` failed. Workers Builds will not run wrangler deploy.",
     );
-    process.exit(listed.status || 1);
+    process.exit(listed.status && listed.status > 0 ? listed.status : 1);
   }
   const parsed = parseMigrationList(output);
   if (!parsed.ok) {
