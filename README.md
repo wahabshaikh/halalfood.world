@@ -652,7 +652,7 @@ Configure these GitHub Actions settings before opening a PR:
 
 The upload uses `--keep-vars` and rebinds `DB` and `HALAL_EVIDENCE_R2` before upload. It reuses production Worker variables and secrets for Resend, Turnstile, Google Places, and `BETTER_AUTH_SECRET`. Evidence uploads go to `halalfood-world-evidence-preview`, not `halalfood-world-evidence`.
 
-Workers Builds non-main branches do not run this workflow. `scripts/stage-cloudflare-build.mjs` rewrites the staged Wrangler config for those builds to D1 `halalfood-world-preview` (`c5d8e0ff-c001-48b8-8545-49861227c16f`) and the same preview R2 bucket, then applies migrations to that preview database only. Production branch `main` keeps `halalfood-world` and `halalfood-world-evidence`.
+Workers Builds non-main branches do not run this workflow. `scripts/stage-cloudflare-build.ts` rewrites the staged Wrangler config for those builds to D1 `halalfood-world-preview` (`c5d8e0ff-c001-48b8-8545-49861227c16f`) and the same preview R2 bucket, then applies migrations to that preview database only. Production branch `main` keeps `halalfood-world` and `halalfood-world-evidence`.
 
 `TURNSTILE_SITE_KEY` is not in `wrangler.jsonc` because the public site key is not stored in git. Set it as a Workers Builds environment variable of the same name, and as a GitHub Actions secret of the same name, so the build can place it on the uploaded version. The live login page currently renders an empty site key, so the production Worker does not have that plain var either.
 

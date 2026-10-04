@@ -9,7 +9,7 @@ import {
   PRODUCTION_D1_ID,
   PRODUCTION_R2_BUCKET,
   previewIsolationDecision,
-} from "../../../scripts/preview-bindings.mjs";
+} from "../src/lib/preview-bindings";
 
 test("only a named non-main Workers Builds branch is isolated", () => {
   assert.equal(previewIsolationDecision({}), "production");

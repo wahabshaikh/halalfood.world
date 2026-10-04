@@ -7,7 +7,7 @@ import {
   PREVIEW_D1_NAME,
   PREVIEW_R2_BUCKET,
   previewIsolationDecision,
-} from "./preview-bindings.mjs";
+} from "../apps/web/src/lib/preview-bindings.ts";
 
 // Workers Builds and the pull_request_target preview workflow both run from
 // the repository root. The workflow file that actually executes is the one on
@@ -47,7 +47,9 @@ if (isolation === "refuse") {
 
 if (isolation === "preview") {
   applyPreviewResourceBindings(generatedConfig);
-  const rootCopy = JSON.parse(readFileSync("wrangler.jsonc", "utf8").replace(/^\s*\/\/.*$/gm, ""));
+  const rootCopy = JSON.parse(
+    readFileSync("wrangler.jsonc", "utf8").replace(/^\s*\/\/.*$/gm, ""),
+  );
   applyPreviewResourceBindings(rootCopy);
   applyTurnstileSiteKey(rootCopy, process.env.TURNSTILE_SITE_KEY);
   writeFileSync("wrangler.jsonc", `${JSON.stringify(rootCopy, null, 2)}\n`);
@@ -64,7 +66,7 @@ if (isolation === "preview") {
           binding: "DB",
           database_name: PREVIEW_D1_NAME,
           database_id: PREVIEW_D1_ID,
-          migrations_dir: "migrations",
+          migrations_dir: "../migrations",
         },
       ],
     })}\n`,

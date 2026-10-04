@@ -18,11 +18,9 @@ if (PREVIEW_D1_ID === PRODUCTION_D1_ID || PREVIEW_R2_BUCKET === PRODUCTION_R2_BU
   throw new Error("Preview resource ids must be different from production");
 }
 
-/**
- * @param {NodeJS.ProcessEnv} env
- * @returns {"production" | "preview" | "refuse"}
- */
-export function previewIsolationDecision(env) {
+export type PreviewIsolation = "production" | "preview" | "refuse";
+
+export function previewIsolationDecision(env: NodeJS.ProcessEnv): PreviewIsolation {
   if (env.WORKERS_CI !== "1") return "production";
   const branch = (env.WORKERS_CI_BRANCH ?? "").trim();
   if (branch === PRODUCTION_BRANCH) return "production";
@@ -30,29 +28,32 @@ export function previewIsolationDecision(env) {
   return "preview";
 }
 
-/**
- * Point the DB and evidence-bucket bindings at the shared preview resources.
- * @param {Record<string, unknown>} config
- */
-export function applyPreviewResourceBindings(config) {
-  const databases = config.d1_databases;
-  if (!Array.isArray(databases)) {
-    throw new Error("Wrangler config has no d1_databases array");
-  }
-  const database = databases.find(
-    (entry) => entry && typeof entry === "object" && entry.binding === D1_BINDING,
-  );
+type D1Binding = {
+  binding?: string;
+  database_name?: string;
+  database_id?: string;
+};
+
+type R2Binding = {
+  binding?: string;
+  bucket_name?: string;
+};
+
+export type PreviewWranglerConfig = {
+  name?: string;
+  d1_databases?: D1Binding[];
+  r2_buckets?: R2Binding[];
+  vars?: Record<string, string>;
+};
+
+/** Point the DB and evidence-bucket bindings at the shared preview resources. */
+export function applyPreviewResourceBindings(config: PreviewWranglerConfig): PreviewWranglerConfig {
+  const database = config.d1_databases?.find((entry) => entry.binding === D1_BINDING);
   if (!database) throw new Error("Wrangler config has no DB binding");
   database.database_name = PREVIEW_D1_NAME;
   database.database_id = PREVIEW_D1_ID;
 
-  const buckets = config.r2_buckets;
-  if (!Array.isArray(buckets)) {
-    throw new Error("Wrangler config has no r2_buckets array");
-  }
-  const bucket = buckets.find(
-    (entry) => entry && typeof entry === "object" && entry.binding === R2_BINDING,
-  );
+  const bucket = config.r2_buckets?.find((entry) => entry.binding === R2_BINDING);
   if (!bucket) throw new Error("Wrangler config has no HALAL_EVIDENCE_R2 binding");
   bucket.bucket_name = PREVIEW_R2_BUCKET;
   return config;
@@ -61,17 +62,13 @@ export function applyPreviewResourceBindings(config) {
 /**
  * Copy a public Turnstile site key from the build environment into Worker vars.
  * An empty value is left untouched so a missing secret cannot blank the key.
- * @param {Record<string, unknown>} config
- * @param {string | undefined} siteKey
  */
-export function applyTurnstileSiteKey(config, siteKey) {
+export function applyTurnstileSiteKey(
+  config: PreviewWranglerConfig,
+  siteKey: string | undefined,
+): PreviewWranglerConfig {
   const value = siteKey?.trim();
   if (!value) return config;
-  const vars =
-    config.vars && typeof config.vars === "object" && !Array.isArray(config.vars)
-      ? config.vars
-      : {};
-  vars.TURNSTILE_SITE_KEY = value;
-  config.vars = vars;
+  config.vars = { ...config.vars, TURNSTILE_SITE_KEY: value };
   return config;
 }
