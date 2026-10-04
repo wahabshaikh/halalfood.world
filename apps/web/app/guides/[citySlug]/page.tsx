@@ -6,6 +6,7 @@ import { Button } from "@halalfood/ui/components/button";
 import { PromoCard, TextLink } from "../../../src/components/blocks";
 import { MapsLocation01Icon } from "@hugeicons/core-free-icons";
 import { findPlacesByCity, getCity } from "../../../src/lib/places";
+import { annotateCardEvidence } from "../../../src/lib/discovery";
 import { citySlugParam } from "@halalfood/core/params";
 import {
   breadcrumbJsonLd,
@@ -29,6 +30,7 @@ import { loadOrDegrade } from "../../../src/lib/load";
 import { PlaceGrid, SectionTitle } from "../../../src/components/place-tile";
 import ShareButton from "../../../src/components/share-button";
 import {
+  GUIDE_PICK_NOTE,
   GUIDE_SELECTION_NOTE,
   guideDescription,
   guidePath,
@@ -91,14 +93,15 @@ export default async function GuidePage({
       <Page>
         <SiteHeader />
         <PageMain>
-          <Unavailable retryPath={guidePath(citySlug)} />
+          <Unavailable retryPath={guidePath(citySlug)} domain="This guide" />
         </PageMain>
         <SiteFooter />
       </Page>
     );
 
   const { city, listing } = loaded.data;
-  const { places, total } = listing;
+  const places = await annotateCardEvidence(listing.places);
+  const { total } = listing;
   const trail = [
     { name: "halalfood.world", path: "/" },
     { name: "Guides", path: "/guides" },
@@ -152,6 +155,7 @@ export default async function GuidePage({
           <div className="mb-4 grid gap-1">
             <SectionTitle id="guide-places-title">Places to start with</SectionTitle>
             <p className="text-muted-foreground">{GUIDE_SELECTION_NOTE}</p>
+            <p className="text-muted-foreground">{GUIDE_PICK_NOTE}</p>
           </div>
           <PlaceGrid places={places} />
         </section>

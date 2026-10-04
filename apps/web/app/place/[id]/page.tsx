@@ -270,7 +270,7 @@ export default async function PlacePage({
       <Page>
         <SiteHeader />
         <PageMain>
-          <Unavailable retryPath={"/place/" + encodeURIComponent(id)} />
+          <Unavailable retryPath={"/place/" + encodeURIComponent(id)} domain="This place" />
         </PageMain>
         <SiteFooter />
       </Page>
@@ -313,7 +313,7 @@ export default async function PlacePage({
   return (
     <Page>
       <SiteHeader />
-      <PageMain className="pb-36 md:pb-16">
+      <PageMain className="pb-[calc(9.5rem+env(safe-area-inset-bottom))] md:pb-16">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -647,7 +647,7 @@ export default async function PlacePage({
           </aside>
         </div>
       </PageMain>
-      <div className="fixed inset-x-0 bottom-[calc(66px+env(safe-area-inset-bottom))] z-50 flex items-center justify-between gap-3 border-t bg-background px-4.5 py-3 md:hidden">
+      <div className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-40 flex items-center justify-between gap-3 border-t bg-background px-4.5 py-2.5 md:hidden">
         <div className="min-w-0">
           <strong className="block truncate underline">{place.name}</strong>
           <span className="text-[13px] text-muted-foreground">

@@ -513,6 +513,7 @@ export async function listApprovedEvidenceRecords(
     INNER JOIN places AS p ON p.id = v.place_id
     WHERE v.place_id = ${placeId}
       AND v.status = 'approved'
+      AND v.visibility = 'public'
       AND v.superseded_by_id IS NULL
       AND p.halal_confirmed = 1
     ORDER BY v.created_at DESC
@@ -545,6 +546,7 @@ export async function listApprovedEvidenceByPlace(
       sql`, `,
     )})
       AND v.status = 'approved'
+      AND v.visibility = 'public'
       AND v.superseded_by_id IS NULL
       AND p.halal_confirmed = 1
     ORDER BY v.created_at DESC

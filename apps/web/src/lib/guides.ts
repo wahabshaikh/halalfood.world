@@ -6,7 +6,7 @@ export function guidePath(citySlug: string) {
 }
 
 export function guideTitle(citySlug: string) {
-  return "A halal food guide to " + cityName(citySlug);
+  return "A starting guide to places listed in " + cityName(citySlug);
 }
 
 export function guideDescription(city: Pick<City, "city_slug" | "place_count">) {
@@ -21,7 +21,11 @@ export function guideDescription(city: Pick<City, "city_slug" | "place_count">) 
 }
 
 export const GUIDE_SELECTION_NOTE =
-  "Guide starting points are ordered by the public listing rating and review volume already on the map. They are not paid placements or halal certification.";
+  "Editorial order follows the public Google rating and review volume already on the listing. That is not a halal ranking, a paid placement, or a certification.";
+
+/** Shown on every guide pick so a Google sort is not read as evidence. */
+export const GUIDE_PICK_NOTE =
+  "Each pick below shows its own evidence status and date. If that line says unverified, the guide has no dated evidence for it.";
 
 export function guideKicker(city: Pick<City, "city_slug" | "address_country">) {
   return [cityName(city.city_slug), city.address_country].filter(Boolean).join(" · ");

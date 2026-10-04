@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { chooseDuplicateTarget } from "@halalfood/core/contributions";
 import { Button } from "@halalfood/ui/components/button";
 import { Input } from "@halalfood/ui/components/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@halalfood/ui/components/tabs";
@@ -66,7 +67,12 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
   const [dishPrice, setDishPrice] = useState("");
   const [dishScope, setDishScope] = useState("unknown");
 
-  const [duplicateId, setDuplicateId] = useState("");
+  const [duplicateQuery, setDuplicateQuery] = useState("");
+  const [duplicateHits, setDuplicateHits] = useState<
+    { id: string; name: string; street_address?: string; city_slug?: string }[]
+  >([]);
+  const [duplicateSearch, setDuplicateSearch] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [duplicatePick, setDuplicatePick] = useState<{ id: string; name: string } | null>(null);
 
   const [reportReason, setReportReason] = useState<
     (typeof REPORT_REASONS)[number]
@@ -263,12 +269,73 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
         </TabsContent>
 
         <TabsContent value="duplicate" className="mt-3 grid max-w-xl gap-3">
-          <Input
-            aria-label="The other place's id"
-            value={duplicateId}
-            placeholder="The other place's id (from its URL)"
-            onChange={(event) => setDuplicateId(event.target.value.trim())}
-          />
+          <div className="flex flex-wrap gap-2">
+            <Input
+              aria-label="Search for the other venue or address"
+              value={duplicateQuery}
+              placeholder="Venue or address"
+              onChange={(event) => setDuplicateQuery(event.target.value)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy || duplicateQuery.trim().length < 2}
+              onClick={() => {
+                setDuplicateSearch("loading");
+                setDuplicatePick(null);
+                void fetch(
+                  `/api/places/search?q=${encodeURIComponent(duplicateQuery.trim())}&limit=8`,
+                  { headers: { Accept: "application/json" } },
+                )
+                  .then(async (response) => {
+                    if (!response.ok) throw new Error("search");
+                    const body = (await response.json()) as {
+                      places?: { id: string; name: string; street_address?: string; city_slug?: string }[];
+                    };
+                    setDuplicateHits(Array.isArray(body.places) ? body.places : []);
+                    setDuplicateSearch("ready");
+                  })
+                  .catch(() => {
+                    setDuplicateHits([]);
+                    setDuplicateSearch("error");
+                  });
+              }}
+            >
+              Search
+            </Button>
+          </div>
+          {duplicateSearch === "error" && (
+            <p className="text-sm text-destructive">
+              Place search failed. Try again. Nothing was filed and nothing was merged.
+            </p>
+          )}
+          {duplicateSearch === "ready" && duplicateHits.length === 0 && (
+            <p className="text-sm text-muted-foreground">No listing matched that search.</p>
+          )}
+          {duplicateHits.length > 0 && (
+            <ul className="grid gap-1">
+              {duplicateHits.map((hit) => (
+                <li key={hit.id}>
+                  <button
+                    type="button"
+                    className="w-full rounded-xl border px-3 py-2 text-left text-sm hover:bg-secondary"
+                    aria-pressed={duplicatePick?.id === hit.id}
+                    onClick={() => setDuplicatePick({ id: hit.id, name: hit.name })}
+                  >
+                    <strong>{hit.name}</strong>
+                    <span className="block text-muted-foreground">
+                      {[hit.street_address, hit.city_slug].filter(Boolean).join(" · ")}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {duplicatePick && (
+            <p className="text-sm">
+              Chosen: <strong>{duplicatePick.name}</strong>. This files a report. It does not merge the listings.
+            </p>
+          )}
           <Textarea
             aria-label="How do you know they are the same venue?"
             rows={2}
@@ -277,20 +344,28 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
             onChange={(event) => setNote(event.target.value)}
           />
           <p className={hint}>
-            A merge moves every visit, evidence item, photo, save and list entry
-            onto the place that is kept. Nothing is discarded.
+            A later merge, if a person approves it, moves visits, evidence, photos, saves and list entries onto the place that is kept. This form does not do that.
           </p>
           <Button
             size="lg"
             className="justify-self-start"
-            disabled={busy || !duplicateId}
-            onClick={() =>
-              send(
+            disabled={busy}
+            onClick={() => {
+              const choice = chooseDuplicateTarget(placeId, duplicatePick, {
+                status: duplicateSearch,
+                resultCount: duplicateHits.length,
+              });
+              if (!choice.ok) {
+                setError(choice.error);
+                setReceipt(null);
+                return;
+              }
+              void send(
                 `/api/places/${placeId}/duplicates`,
-                { duplicateOfPlaceId: duplicateId, note: note.trim() || undefined },
+                { duplicateOfPlaceId: choice.duplicateOfPlaceId, note: note.trim() || undefined },
                 () => "Duplicate report received. Nothing is merged until a moderator decides.",
-              )
-            }
+              );
+            }}
           >
             Report duplicate
           </Button>

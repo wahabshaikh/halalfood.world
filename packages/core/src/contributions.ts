@@ -329,6 +329,41 @@ export type DuplicateValidation =
   | { ok: true; data: { duplicateOfPlaceId: string; note: string | null } }
   | { ok: false; error: string };
 
+export type DuplicateCandidate = {
+  id: string;
+  name: string;
+};
+
+/**
+ * The duplicate form picks a searched listing. An empty search, a failed
+ * lookup, and the current place itself are not a report. Choosing a candidate
+ * does not merge anything.
+ */
+export function chooseDuplicateTarget(
+  placeId: string,
+  candidate: DuplicateCandidate | null,
+  search: { status: "idle" | "loading" | "ready" | "error"; resultCount: number },
+): { ok: true; duplicateOfPlaceId: string } | { ok: false; error: string } {
+  if (search.status === "error")
+    return {
+      ok: false,
+      error: "Place search failed. Try again. Nothing was filed and nothing was merged.",
+    };
+  if (search.status === "loading")
+    return { ok: false, error: "Search is still running." };
+  if (!candidate)
+    return {
+      ok: false,
+      error:
+        search.resultCount > 1
+          ? "More than one listing matches. Choose the other place. An uncertain match is not merged."
+          : "Search for the other venue and choose it. An id on its own is not enough.",
+    };
+  if (candidate.id.toLowerCase() === placeId.toLowerCase())
+    return { ok: false, error: "That is this place. Choose the other listing." };
+  return { ok: true, duplicateOfPlaceId: candidate.id };
+}
+
 export function validateDuplicateReport(
   placeId: string,
   input: unknown,

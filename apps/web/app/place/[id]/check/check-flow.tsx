@@ -185,7 +185,7 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
 
   if (auth === "signed-out")
     return (
-      <StepperBody className="justify-items-start">
+      <StepperBody className="justify-items-start pb-28">
         <Illustration name="vouches" size={96} />
         <h1 className="text-[clamp(26px,4vw,32px)]">Check {placeName}</h1>
         <p className="text-muted-foreground">
@@ -205,7 +205,7 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
 
   if (step === DONE_STEP)
     return (
-      <StepperBody>
+      <StepperBody className="pb-28">
         <EmptyPanel
           art="vouches"
           title="Thank you!"
@@ -223,7 +223,7 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
 
   return (
     <>
-      <StepperBody>
+      <StepperBody className="pb-28">
         <Eyebrow>At {placeName}</Eyebrow>
         {current ? (
           <>
