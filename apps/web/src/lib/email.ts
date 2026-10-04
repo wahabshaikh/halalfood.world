@@ -1,10 +1,10 @@
-import { isPreviewHost, requestHostname } from "./request-host";
-import { readWorkerEnv } from "./worker-env";
+import { requestHostname } from "./request-host";
+import { isPreviewDeployment, readWorkerEnv } from "./worker-env";
 
 const RESEND_EMAILS_URL = "https://api.resend.com/emails";
 
 /**
- * Preview hosts inherit `RESEND_API_KEY` through `--keep-vars`. Mail is sent
+ * Preview versions (`ENVIRONMENT=preview` on a `*.workers.dev` host) inherit `RESEND_API_KEY` through `--keep-vars`. Mail is sent
  * on those hosts only when this separate key is set. Otherwise the OTP is
  * logged and Resend is not called.
  */
@@ -25,7 +25,7 @@ export interface SendEmailResult {
 }
 
 export interface SendEmailOptions {
-  /** Request host. `*.workers.dev` does not send through `RESEND_API_KEY`. */
+  /** Request host. A preview version on `*.workers.dev` does not send through `RESEND_API_KEY`. */
   host?: string | null;
 }
 
@@ -174,7 +174,9 @@ async function deliverWithResend(
  * This deliberately uses the platform fetch API so it can run in a Cloudflare
  * Worker without Node-only HTTP or SDK dependencies.
  *
- * On a `*.workers.dev` host the production `RESEND_API_KEY` is not used.
+ * On a preview version served from `*.workers.dev` (see `isPreviewDeployment`)
+ * the production `RESEND_API_KEY` is not used. The production Worker on its
+ * own workers.dev URLs still sends normally and never logs the message.
  * The message is logged (including a sign-in OTP in the text body) unless
  * `PREVIEW_RESEND_API_KEY` is set.
  */
@@ -184,7 +186,7 @@ export async function sendEmail(
 ): Promise<SendEmailResult> {
   validateInput(input);
 
-  if (isPreviewHost(options?.host)) {
+  if (await isPreviewDeployment(options?.host)) {
     const previewKey = await readWorkerEnv(PREVIEW_RESEND_API_KEY_NAME);
     if (!previewKey) {
       logPreviewEmail(input, requestHostname(options?.host));

@@ -172,9 +172,29 @@ test("Turnstile validation fails closed when either key is missing", async () =>
   assert.equal(called, false);
 });
 
-test("workers.dev Turnstile validation posts the always-pass test secret", async () => {
+test("production Worker on workers.dev keeps the production Turnstile secret", async () => {
   setEnvironment({
-    ENVIRONMENT: "production",
+    ENVIRONMENT: undefined,
+    BETTER_AUTH_URL: "https://halalfood.world",
+    TURNSTILE_SITE_KEY: "production-site-secret",
+    TURNSTILE_SECRET_KEY: "production-server-secret",
+  });
+  let requestBody: URLSearchParams | undefined;
+  const result = await verifyTurnstile(
+    new Request("https://halalfood-world.wahabshaikh.workers.dev/login"),
+    "turnstile-token",
+    async (_input, init) => {
+      requestBody = new URLSearchParams(String(init?.body));
+      return new Response(JSON.stringify({ success: false, "error-codes": ["invalid-input-response"] }));
+    },
+  );
+  assert.equal(result.ok, false);
+  assert.equal(requestBody?.get("secret"), "production-server-secret");
+});
+
+test("preview version on workers.dev posts the always-pass test secret", async () => {
+  setEnvironment({
+    ENVIRONMENT: "preview",
     BETTER_AUTH_URL: "https://halalfood.world",
     TURNSTILE_SITE_KEY: "production-site-secret",
     TURNSTILE_SECRET_KEY: "production-server-secret",

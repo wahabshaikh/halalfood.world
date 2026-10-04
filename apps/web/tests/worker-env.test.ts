@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { isPreviewHost } from "../src/lib/request-host";
 import {
+  isPreviewDeployment,
   readWorkerEnv,
   TURNSTILE_PREVIEW_SECRET_KEY,
   TURNSTILE_PREVIEW_SITE_KEY,
@@ -20,14 +21,14 @@ test("worker env falls back to a dynamic process.env lookup", async () => {
   }
 });
 
-test("workers.dev hosts use Turnstile test keys even when BETTER_AUTH_URL is production", async () => {
+test("preview versions on workers.dev use Turnstile test keys even when BETTER_AUTH_URL is production", async () => {
   const previous = {
     ENVIRONMENT: process.env.ENVIRONMENT,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY,
     TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
   };
-  process.env.ENVIRONMENT = "production";
+  process.env.ENVIRONMENT = "preview";
   process.env.BETTER_AUTH_URL = "https://halalfood.world";
   process.env.TURNSTILE_SITE_KEY = "production-site-secret";
   process.env.TURNSTILE_SECRET_KEY = "production-server-secret";
@@ -35,12 +36,44 @@ test("workers.dev hosts use Turnstile test keys even when BETTER_AUTH_URL is pro
   try {
     assert.equal(isPreviewHost(previewHost), true);
     assert.equal(isPreviewHost(`${previewHost}:443`), true);
+    assert.equal(await isPreviewDeployment(previewHost), true);
     assert.equal(await readWorkerEnv("TURNSTILE_SITE_KEY", previewHost), TURNSTILE_PREVIEW_SITE_KEY);
     assert.equal(await readWorkerEnv("TURNSTILE_SECRET_KEY", previewHost), TURNSTILE_PREVIEW_SECRET_KEY);
     assert.equal(
       (await readWorkerEnv("TURNSTILE_SITE_KEY", previewHost)).includes("production-site-secret"),
       false,
     );
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
+test("the production Worker on its own workers.dev URLs keeps production Turnstile keys", async () => {
+  const previous = {
+    ENVIRONMENT: process.env.ENVIRONMENT,
+    TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY,
+    TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
+  };
+  process.env.TURNSTILE_SITE_KEY = "production-site-secret";
+  process.env.TURNSTILE_SECRET_KEY = "production-server-secret";
+  const productionHosts = [
+    "halalfood-world.wahabshaikh.workers.dev",
+    "d9232e5d-halalfood-world.wahabshaikh.workers.dev",
+  ];
+  try {
+    for (const environment of [undefined, "", "production", "Preview "]) {
+      if (environment === undefined) delete process.env.ENVIRONMENT;
+      else process.env.ENVIRONMENT = environment;
+      for (const host of productionHosts) {
+        assert.equal(isPreviewHost(host), true, host);
+        assert.equal(await isPreviewDeployment(host), false, `${host} ${environment}`);
+        assert.equal(await readWorkerEnv("TURNSTILE_SITE_KEY", host), "production-site-secret", host);
+        assert.equal(await readWorkerEnv("TURNSTILE_SECRET_KEY", host), "production-server-secret", host);
+      }
+    }
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];
@@ -91,5 +124,6 @@ test("login does not inline the Turnstile site key at build time", () => {
   assert.equal(workerEnv.includes("process.env.BETTER_AUTH_URL"), false);
   assert.equal(workerEnv.includes('readWorkerBinding("BETTER_AUTH_URL")'), false);
   assert.equal(requestHost.includes("process.env"), false);
-  assert.equal(workerEnv.includes('readWorkerBinding("ENVIRONMENT")'), false);
+  assert.match(workerEnv, /isPreviewHost\(host\)/);
+  assert.match(workerEnv, /readWorkerBinding\("ENVIRONMENT"\)\) === PREVIEW_ENVIRONMENT_VALUE/);
 });
