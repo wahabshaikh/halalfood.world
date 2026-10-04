@@ -11,7 +11,11 @@ import {
 } from "@halalfood/core/moderation";
 import { SelectField } from "./form-fields";
 import { FormMessage } from "./section";
-import { goToLogin } from "./visit-card";
+
+function goToLogin(reason = "report") {
+  const here = window.location.pathname + window.location.search;
+  window.location.assign(`/login?reason=${reason}&returnTo=${encodeURIComponent(here)}`);
+}
 
 /**
  * Report a visit or a comment into the existing moderation queue. Reports go
@@ -22,11 +26,13 @@ export function ReportButton({
   targetId,
   label = "Report",
   idPrefix,
+  onSent,
 }: {
   targetType: ReportTarget;
   targetId: string;
   label?: string;
   idPrefix: string;
+  onSent?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<ReportReason>("harassment");
@@ -62,6 +68,7 @@ export function ReportButton({
         return;
       }
       setState("sent");
+      onSent?.();
     } catch {
       setError("Could not reach the server. Please try again.");
       setState("idle");

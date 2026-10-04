@@ -20,9 +20,11 @@ import { Progress } from "@halalfood/ui/components/progress";
 import { Textarea } from "@halalfood/ui/components/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@halalfood/ui/components/toggle-group";
 import { cn } from "@halalfood/ui/lib/utils";
+import { contributionReceipt, type ContributionReceipt } from "@halalfood/core/contributions";
 import { Illustration } from "../../../../src/components/art";
 import { EmptyPanel, Eyebrow } from "../../../../src/components/site-chrome";
 import { getClientSession } from "../../../../src/lib/client-session";
+import { presentHttpFailure, presentTransportFailure } from "../../../../src/lib/failure-copy";
 
 type Question = "certificate" | "alcohol" | "meat";
 type Answers = Record<Question, string | null>;
@@ -93,6 +95,7 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [receipt, setReceipt] = useState<ContributionReceipt | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const placeHref = `/place/${encodeURIComponent(placeId)}`;
   const selfHref = `${placeHref}/check`;
@@ -169,12 +172,35 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
         return;
       }
       if (!response.ok) {
-        setError(errorFrom(payload, "We couldn’t send your check. Please try again."));
+        setError(
+          presentHttpFailure(
+            "this halal check",
+            response.status,
+            typeof payload?.error === "string" ? payload.error : null,
+          ).message,
+        );
         return;
       }
+      if (typeof payload?.id !== "string" || !payload.id) {
+        setError(
+          presentHttpFailure(
+            "this halal check",
+            503,
+            "The check was sent but no reference came back",
+          ).message,
+        );
+        return;
+      }
+      setReceipt(
+        contributionReceipt({
+          id: payload.id,
+          status: typeof payload.status === "string" ? payload.status : "pending",
+          summary: "Halal check",
+        }),
+      );
       setStep(DONE_STEP);
-    } catch {
-      setError("We couldn’t send your check. Please try again.");
+    } catch (caught) {
+      setError(presentTransportFailure("this halal check", caught).message);
     } finally {
       setBusy(false);
     }
@@ -209,7 +235,11 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
         <EmptyPanel
           art="vouches"
           title="Thank you!"
-          description={`Your check for ${placeName} is with our reviewers. Once it’s approved, it’s the first thing the next person will see.`}
+          description={
+            receipt
+              ? `${receipt.summary} for ${placeName}. Status: ${receipt.statusLabel}. Reference ${receipt.reference}. ${receipt.next}`
+              : `Your check for ${placeName} is with our reviewers.`
+          }
         >
           <Button asChild size="xl">
             <a href={placeHref}>Back to {placeName}</a>

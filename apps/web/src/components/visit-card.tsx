@@ -14,6 +14,7 @@ import type { FeedCard } from "../lib/feed-repository";
 import { cityName } from "../lib/seo";
 import { InitialsAvatar, monogram } from "./blocks";
 import { TONE_BADGE } from "./status-tone";
+import { CommunityChain } from "./community-chain";
 
 const VERDICT_TEXT: Record<NonNullable<FeedCard["verdict"]>, string> = {
   disliked: "text-destructive",
@@ -172,6 +173,17 @@ export function VisitCard({
               ? "Approved by a moderator."
               : "Waiting for a moderator. It does not change the place’s status until it is approved."}
           </p>
+          {card.halalCheck.id && (
+            <CommunityChain
+              targetType="verification"
+              targetId={card.halalCheck.id}
+              own={card.author.isYou || card.halalCheck.status !== "approved"}
+              confirmCount={card.halalCheck.confirmCount}
+              reportCount={card.halalCheck.reportCount}
+              viewerConfirmed={card.halalCheck.viewerConfirmed}
+              reportLabel="Report this check"
+            />
+          )}
         </div>
       )}
 

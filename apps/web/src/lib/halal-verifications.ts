@@ -55,6 +55,13 @@ export type PublicHalalVerification = {
   incentivized: boolean;
   /** True once the effective expiry has passed; stale evidence never ranks. */
   stale: boolean;
+  /** Independent confirmations of this check. */
+  confirmCount: number;
+  /** Open reports sitting in the moderation queue. */
+  reportCount: number;
+  viewerConfirmed: boolean;
+  /** True when the signed-in viewer filed this check. */
+  submittedByViewer: boolean;
 };
 
 export type UploadAccess = {
@@ -100,6 +107,12 @@ function numberOrNull(value: unknown): number | null {
 
 function visibleStatus(value: unknown): Extract<HalalVerificationStatus, "pending" | "approved"> {
   return value === "approved" ? "approved" : "pending";
+}
+
+function countOf(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && /^-?\d+$/.test(value)) return Number(value);
+  return 0;
 }
 
 function uploadUrl(key: string): string {
@@ -210,7 +223,23 @@ export function d1HalalVerificationRepository(
               ) AS e
             ),
             '[]'
-          ) AS evidence
+          ) AS evidence,
+          (
+            SELECT COUNT(*) FROM community_confirmations AS cc
+            WHERE cc.target_type = 'verification' AND cc.target_id = v.id
+          ) AS confirm_count,
+          (
+            SELECT COUNT(*) FROM content_reports AS cr
+            WHERE cr.target_type = 'verification' AND cr.target_id = v.id
+              AND cr.status = 'open'
+          ) AS report_count,
+          (
+            SELECT COUNT(*) FROM community_confirmations AS cc
+            WHERE cc.target_type = 'verification' AND cc.target_id = v.id
+              AND cc.user_id = ${userId ?? ""}
+          ) AS viewer_confirmed,
+          CASE WHEN v.submitted_by_user_id = ${userId ?? ""} THEN 1 ELSE 0 END
+            AS submitted_by_viewer
         FROM place_halal_verifications AS v
         INNER JOIN places AS p ON p.id = v.place_id
         LEFT JOIN place_halal_check_answers AS a ON a.verification_id = v.id
@@ -246,6 +275,10 @@ export function d1HalalVerificationRepository(
           relationship: isRelationship(row.relationship) ? row.relationship : "none",
           incentivized: row.incentivized === 1 || row.incentivized === true,
           stale: expiresAt !== null && expiresAt <= now,
+          confirmCount: countOf(row.confirm_count),
+          reportCount: countOf(row.report_count),
+          viewerConfirmed: countOf(row.viewer_confirmed) > 0,
+          submittedByViewer: countOf(row.submitted_by_viewer) > 0,
         } satisfies PublicHalalVerification;
       });
     },
@@ -255,87 +288,97 @@ export function d1HalalVerificationRepository(
       const verificationId = crypto.randomUUID();
       const now = Date.now();
       const attributes = input.attributes;
-      // D1 rejects SQL `BEGIN`, so this is a batch: the submission and its
-      // evidence rows land together or not at all. A verification with no
-      // evidence would sit in the moderation queue with nothing to review.
-      await db.batch([
-        db.insert(placeHalalVerifications).values({
-          id: verificationId,
-          placeId,
-          submittedByUserId: userId,
-          status: "pending",
-          note: input.note,
-          createdAt: new Date(now),
-          updatedAt: new Date(now),
-          evidenceKind: attributes.kind,
-          claimedStatus: attributes.claimedStatus,
-          scope: attributes.scope,
-          scopeNote: attributes.scopeNote,
-          certificationBody: attributes.certificationBody,
-          certificateId: attributes.certificateId,
-          capturedAt: new Date(attributes.capturedAt),
-          expiresAt: new Date(attributes.expiresAt),
-          relationship: attributes.relationship,
-          incentivized: attributes.incentivized,
-          visibility: attributes.visibility,
-        }),
-        // The declared source is stored as a link so the evidence panel can
-        // show it alongside the uploads.
-        ...(attributes.sourceUrl
-          ? [
-              db.insert(placeHalalVerificationEvidence).values({
-                id: crypto.randomUUID(),
-                verificationId,
-                kind: "link",
-                url: attributes.sourceUrl,
-                r2Key: null,
-                contentType: null,
-                fileName: null,
-                sizeBytes: null,
-                createdAt: new Date(now),
-              }),
-            ]
-          : []),
-        ...input.evidence.map((item) =>
-          item.kind === "link"
-            ? db.insert(placeHalalVerificationEvidence).values({
-                id: crypto.randomUUID(),
-                verificationId,
-                kind: "link",
-                url: item.url,
-                r2Key: null,
-                contentType: null,
-                fileName: null,
-                sizeBytes: null,
-                createdAt: new Date(now),
-              })
-            : db.insert(placeHalalVerificationEvidence).values({
-                id: crypto.randomUUID(),
-                verificationId,
-                kind: "upload",
-                url: null,
-                r2Key: item.key,
-                contentType: item.contentType,
-                fileName: item.fileName,
-                sizeBytes: item.sizeBytes,
-                createdAt: new Date(now),
-              }),
-        ),
-        // Step-by-step answers ride in the same batch as the submission.
-        ...(Object.values(input.answers).some((value) => value !== null)
-          ? [
-              // A query builder, not `db.run(sql...)`: drizzle's D1 batch cannot
-              // prepare a raw `run`, and throws before sending anything.
-              db.insert(placeHalalCheckAnswers).values({
-                verificationId,
-                certificate: input.answers.certificate,
-                alcohol: input.answers.alcohol,
-                meat: input.answers.meat,
-                createdAt: new Date(now),
-              }),
-            ]
-          : []),
-      ] as unknown as Parameters<typeof db.batch>[0]);
+      // D1 can hang a batch when a later statement's foreign key points at a
+      // row inserted earlier in that same batch. A labelled check does that:
+      // place_halal_check_answers references the verification row. The Worker
+      // then sits until it is killed, and the diner's button stays on
+      // "Sending…". Each statement is awaited on its own. D1 rejects SQL
+      // BEGIN, so a child failure deletes the parent (evidence cascades).
+      await db.insert(placeHalalVerifications).values({
+        id: verificationId,
+        placeId,
+        submittedByUserId: userId,
+        status: "pending",
+        note: input.note,
+        createdAt: new Date(now),
+        updatedAt: new Date(now),
+        evidenceKind: attributes.kind,
+        claimedStatus: attributes.claimedStatus,
+        scope: attributes.scope,
+        scopeNote: attributes.scopeNote,
+        certificationBody: attributes.certificationBody,
+        certificateId: attributes.certificateId,
+        capturedAt: new Date(attributes.capturedAt),
+        expiresAt: new Date(attributes.expiresAt),
+        relationship: attributes.relationship,
+        incentivized: attributes.incentivized,
+        visibility: attributes.visibility,
+      });
+      try {
+        if (attributes.sourceUrl) {
+          await db.insert(placeHalalVerificationEvidence).values({
+            id: crypto.randomUUID(),
+            verificationId,
+            kind: "link",
+            url: attributes.sourceUrl,
+            r2Key: null,
+            contentType: null,
+            fileName: null,
+            sizeBytes: null,
+            createdAt: new Date(now),
+          });
+        }
+        for (const item of input.evidence) {
+          await db.insert(placeHalalVerificationEvidence).values(
+            item.kind === "link"
+              ? {
+                  id: crypto.randomUUID(),
+                  verificationId,
+                  kind: "link",
+                  url: item.url,
+                  r2Key: null,
+                  contentType: null,
+                  fileName: null,
+                  sizeBytes: null,
+                  createdAt: new Date(now),
+                }
+              : {
+                  id: crypto.randomUUID(),
+                  verificationId,
+                  kind: "upload",
+                  url: null,
+                  r2Key: item.key,
+                  contentType: item.contentType,
+                  fileName: item.fileName,
+                  sizeBytes: item.sizeBytes,
+                  createdAt: new Date(now),
+                },
+          );
+        }
+        if (Object.values(input.answers).some((value) => value !== null)) {
+          await db.insert(placeHalalCheckAnswers).values({
+            verificationId,
+            certificate: input.answers.certificate,
+            alcohol: input.answers.alcohol,
+            meat: input.answers.meat,
+            createdAt: new Date(now),
+          });
+        }
+      } catch (error) {
+        try {
+          await db.run(sql`
+            DELETE FROM place_halal_verifications WHERE id = ${verificationId}
+          `);
+        } catch (cleanup) {
+          console.error(
+            JSON.stringify({
+              domain: "Sending this halal check",
+              message: cleanup instanceof Error ? cleanup.message : String(cleanup),
+            }),
+          );
+        }
+        throw error;
+      }
       return { id: verificationId, status: "pending" };
     },
 
@@ -468,7 +511,24 @@ const EVIDENCE_COLUMNS = sql`
   v.submitted_by_user_id,
   v.relationship,
   v.incentivized,
-  v.certification_body
+  v.certification_body,
+  COALESCE((
+    SELECT json_group_array(voice) FROM (
+      SELECT cc.user_id AS voice
+      FROM community_confirmations AS cc
+      WHERE cc.target_type = 'verification' AND cc.target_id = v.id
+        AND cc.user_id <> v.submitted_by_user_id
+      UNION
+      SELECT cc.user_id AS voice
+      FROM community_confirmations AS cc
+      INNER JOIN place_check_ins AS ci ON ci.visit_id = cc.target_id
+      INNER JOIN place_visits AS pv ON pv.id = ci.visit_id
+      WHERE cc.target_type = 'check-in'
+        AND ci.halal_verification_id = v.id
+        AND pv.visibility = 'public'
+        AND cc.user_id <> v.submitted_by_user_id
+    )
+  ), '[]') AS corroborators
 `;
 
 function mapEvidenceRow(row: Record<string, unknown>): EvidenceRecord[] {
@@ -491,8 +551,22 @@ function mapEvidenceRow(row: Record<string, unknown>): EvidenceRecord[] {
       incentivized: row.incentivized === 1 || row.incentivized === true,
       certificationBody:
         typeof row.certification_body === "string" ? row.certification_body : null,
+      corroboratedByUserIds: userIdList(row.corroborators),
     },
   ];
+}
+
+function userIdList(value: unknown): string[] {
+  let entries = value;
+  if (typeof value === "string") {
+    try {
+      entries = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(entries)) return [];
+  return entries.filter((id): id is string => typeof id === "string" && id.length > 0);
 }
 
 /**

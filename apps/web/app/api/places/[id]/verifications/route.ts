@@ -25,6 +25,7 @@ import {
   type R2BucketLike,
 } from "../../../../../src/lib/r2";
 import type { RequestAuth } from "../../../../../src/lib/auth-session";
+import { domainFailure } from "../../../../../src/lib/domain-error";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
@@ -163,8 +164,8 @@ export async function handleVerificationPost(
       },
       { status: 201, headers: noStore() },
     );
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Sending this halal check", error);
   }
 }
 

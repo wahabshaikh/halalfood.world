@@ -20,7 +20,10 @@ import {
   type HalalStatus,
 } from "@halalfood/core/halal-status-view";
 import { answerLabel, type GlanceQuestion } from "@halalfood/core/halal-glance-view";
+import { contributionReceipt, type ContributionReceipt } from "@halalfood/core/contributions";
+import { CommunityChain } from "../../../src/components/community-chain";
 import { getClientSession } from "../../../src/lib/client-session";
+import { presentHttpFailure, presentTransportFailure } from "../../../src/lib/failure-copy";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
 type Evidence =
@@ -41,6 +44,10 @@ type Verification = {
   createdAt: string;
   evidence: Evidence[];
   answers: Answers | null;
+  confirmCount: number;
+  reportCount: number;
+  viewerConfirmed: boolean;
+  submittedByViewer: boolean;
 };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -93,6 +100,8 @@ function readVerifications(body: Record<string, unknown> | null): Verification[]
   if (!Array.isArray(body?.verifications)) return [];
   return body.verifications.flatMap((value): Verification[] => {
     const item = record(value);
+    if (!item || typeof item.id !== "string") return [];
+    const count = (key: string) => (typeof item[key] === "number" ? (item[key] as number) : 0);
     const evidence = Array.isArray(item?.evidence)
       ? item.evidence.flatMap((raw): Evidence[] => {
           const entry = record(raw);
@@ -128,6 +137,10 @@ function readVerifications(body: Record<string, unknown> | null): Verification[]
             createdAt: item.createdAt,
             evidence,
             answers: readAnswers(item.answers),
+            confirmCount: count("confirmCount"),
+            reportCount: count("reportCount"),
+            viewerConfirmed: item.viewerConfirmed === true,
+            submittedByViewer: item.submittedByViewer === true,
           },
         ]
       : [];
@@ -145,7 +158,7 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [receipt, setReceipt] = useState<ContributionReceipt | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = async () => {
@@ -187,7 +200,7 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError("");
-    setSuccess(false);
+    setReceipt(null);
     const linkValues = links
       .split(/\r?\n/)
       .map((value) => value.trim())
@@ -267,17 +280,40 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
         return;
       }
       if (!verificationResponse.ok) {
-        setFormError(errorFrom(verificationBody, "We could not submit this verification."));
+        setFormError(
+          presentHttpFailure(
+            "this halal check",
+            verificationResponse.status,
+            typeof verificationBody?.error === "string" ? verificationBody.error : null,
+          ).message,
+        );
+        return;
+      }
+      if (typeof verificationBody?.id !== "string" || !verificationBody.id) {
+        setFormError(
+          presentHttpFailure(
+            "this halal check",
+            503,
+            "The check was sent but no reference came back",
+          ).message,
+        );
         return;
       }
       setLinks("");
       setNote("");
       setFiles([]);
       if (fileInput.current) fileInput.current.value = "";
-      setSuccess(true);
-      await load();
-    } catch {
-      setFormError("We could not submit this verification. Please try again.");
+      setReceipt(
+        contributionReceipt({
+          id: verificationBody.id,
+          status:
+            typeof verificationBody.status === "string" ? verificationBody.status : "pending",
+          summary: "Halal check",
+        }),
+      );
+      void load();
+    } catch (caught) {
+      setFormError(presentTransportFailure("this halal check", caught).message);
     } finally {
       setBusy(false);
     }
@@ -370,6 +406,15 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
                   </div>
                 )}
                 {verification.note && <p className="text-[15px] leading-normal">{verification.note}</p>}
+                <CommunityChain
+                  targetType="verification"
+                  targetId={verification.id}
+                  own={verification.submittedByViewer || verification.status !== "approved"}
+                  confirmCount={verification.confirmCount}
+                  reportCount={verification.reportCount}
+                  viewerConfirmed={verification.viewerConfirmed}
+                  reportLabel="Report this check"
+                />
                 {!!verification.evidence.length && (
                   <ul className="flex flex-wrap gap-2">
                     {verification.evidence.map((evidence, index) => (
@@ -454,8 +499,11 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
                   placeholder="Helpful context for the reviewer"
                 />
               </Field>
-              {success && (
-                <FormMessage tone="success">Thank you! It’s with our reviewers now.</FormMessage>
+              {receipt && (
+                <FormMessage tone="success">
+                  {receipt.summary}. Status: {receipt.statusLabel}. Reference {receipt.reference}.{" "}
+                  {receipt.next}
+                </FormMessage>
               )}
               {formError && <FormMessage tone="error">{formError}</FormMessage>}
               <Button size="lg" className="justify-self-start" type="submit" disabled={busy}>

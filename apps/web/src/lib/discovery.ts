@@ -70,10 +70,50 @@ const EVIDENCE_AGGREGATE = sql`
     ) AS strength,
     SUM(CASE WHEN v.claimed_status = 'not-halal' THEN 1 ELSE 0 END) AS negative_count,
     SUM(CASE WHEN v.claimed_status <> 'not-halal' THEN 1 ELSE 0 END) AS positive_count,
-    COUNT(DISTINCT CASE
-      WHEN v.claimed_status IN ('verified', 'community-verified')
-        AND v.incentivized = 0 AND v.relationship = 'none'
-      THEN v.submitted_by_user_id END) AS community_contributors
+    (
+      SELECT COUNT(*) FROM (
+        SELECT v2.submitted_by_user_id AS voice
+        FROM place_halal_verifications AS v2
+        WHERE v2.place_id = v.place_id
+          AND v2.status = 'approved'
+          AND v2.visibility = 'public'
+          AND v2.superseded_by_id IS NULL
+          AND v2.claimed_status IN ('verified', 'community-verified')
+          AND v2.incentivized = 0
+          AND v2.relationship = 'none'
+          AND COALESCE(v2.expires_at, v2.created_at + 15552000000) > unixepoch('subsec') * 1000
+        UNION
+        SELECT cc.user_id AS voice
+        FROM community_confirmations AS cc
+        INNER JOIN place_halal_verifications AS v3
+          ON cc.target_type = 'verification' AND v3.id = cc.target_id
+        WHERE v3.place_id = v.place_id
+          AND v3.status = 'approved'
+          AND v3.visibility = 'public'
+          AND v3.superseded_by_id IS NULL
+          AND v3.claimed_status IN ('verified', 'community-verified')
+          AND v3.incentivized = 0
+          AND v3.relationship = 'none'
+          AND COALESCE(v3.expires_at, v3.created_at + 15552000000) > unixepoch('subsec') * 1000
+          AND cc.user_id <> v3.submitted_by_user_id
+        UNION
+        SELECT cc.user_id AS voice
+        FROM community_confirmations AS cc
+        INNER JOIN place_check_ins AS ci ON ci.visit_id = cc.target_id
+        INNER JOIN place_visits AS pv ON pv.id = ci.visit_id AND pv.visibility = 'public'
+        INNER JOIN place_halal_verifications AS v4 ON v4.id = ci.halal_verification_id
+        WHERE cc.target_type = 'check-in'
+          AND v4.place_id = v.place_id
+          AND v4.status = 'approved'
+          AND v4.visibility = 'public'
+          AND v4.superseded_by_id IS NULL
+          AND v4.claimed_status IN ('verified', 'community-verified')
+          AND v4.incentivized = 0
+          AND v4.relationship = 'none'
+          AND COALESCE(v4.expires_at, v4.created_at + 15552000000) > unixepoch('subsec') * 1000
+          AND cc.user_id <> v4.submitted_by_user_id
+      )
+    ) AS community_contributors
   FROM place_halal_verifications AS v
   WHERE v.place_id IN (SELECT id FROM candidates)
     AND v.status = 'approved'

@@ -7,7 +7,10 @@ import {
   resolveReport,
   reviewEvidence,
 } from "../../../../../../src/lib/moderation-repository";
+import { reviewPlaceSubmission } from "../../../../../../src/lib/place-link-submissions";
 import { getModeratorRole } from "../../../../../../src/lib/preferences-repository";
+import { database } from "../../../../../../src/db";
+import type { RequestAuth } from "../../../../../../src/lib/auth-session";
 import { placeIdParam } from "@halalfood/core/params";
 import {
   INVALID_JSON,
@@ -20,17 +23,27 @@ import {
   unavailable,
 } from "../../../../../../src/lib/api";
 
-const KINDS = ["evidence", "edit", "duplicate", "report", "appeal"] as const;
+const KINDS = ["evidence", "edit", "duplicate", "report", "appeal", "place"] as const;
 type Kind = (typeof KINDS)[number];
+
+type DatabaseClient = Awaited<ReturnType<typeof database>>;
+
+export type AdminReviewDependencies = {
+  getAuth?: (request: Request) => Promise<RequestAuth>;
+  getRole?: (userId: string) => Promise<"moderator" | "admin" | null>;
+  database?: DatabaseClient;
+};
 
 /**
  * One moderation decision. Every branch writes an audit entry through the
  * repository, and an evidence decision additionally re-derives the place status
- * and records the transition.
+ * and records the transition. A place decision lists or rejects a pending
+ * submission. The role check reads the moderators table.
  */
-export async function POST(
+export async function handleAdminReview(
   request: Request,
   context: { params: Promise<{ kind: string; id: string }> },
+  dependencies: AdminReviewDependencies = {},
 ): Promise<Response> {
   const { kind: rawKind, id: rawId } = await context.params;
   if (!(KINDS as readonly string[]).includes(rawKind))
@@ -39,12 +52,12 @@ export async function POST(
   const id = placeIdParam(rawId);
   if (!id) return badRequest("Invalid id.");
 
-  const outcome = await requireUser(request, "/admin");
+  const outcome = await requireUser(request, "/admin", dependencies.getAuth);
   if (!outcome.ok) return outcome.response;
 
   let role: Awaited<ReturnType<typeof getModeratorRole>>;
   try {
-    role = await getModeratorRole(outcome.auth.userId);
+    role = await (dependencies.getRole ?? getModeratorRole)(outcome.auth.userId);
   } catch {
     return unavailable();
   }
@@ -104,8 +117,30 @@ export async function POST(
         if (!ok) return notFound("That appeal is already resolved.");
         return json({ ok: true });
       }
+      case "place": {
+        if (decision !== "approved" && decision !== "rejected")
+          return badRequest("Decide approved or rejected.");
+        if (decision === "rejected" && !reason)
+          return badRequest("A rejection needs a reason the contributor can read.");
+        const result = await reviewPlaceSubmission(
+          id,
+          outcome.auth.userId,
+          decision,
+          reason,
+          dependencies.database,
+        );
+        if (!result.ok) return notFound("That place submission is no longer pending.");
+        return json({ ok: true, placeId: result.placeId });
+      }
     }
   } catch {
     return unavailable();
   }
+}
+
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ kind: string; id: string }> },
+): Promise<Response> {
+  return handleAdminReview(request, context);
 }
