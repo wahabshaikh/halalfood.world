@@ -94,8 +94,9 @@ export function isRawFetchMessage(message: string): boolean {
 
 /**
  * Copy for an HTTP error from a route that already returned JSON.
- * A server `error` string is shown as-is. A missing or raw fetch string
- * falls back to the status copy, so "Failed to fetch" never reaches the UI.
+ * A server `error` string is shown with a support reference. A missing or raw
+ * fetch string falls back to the status copy, so "Failed to fetch" never
+ * reaches the UI.
  */
 export function presentHttpFailure(
   domain: string,
@@ -105,7 +106,10 @@ export function presentHttpFailure(
   const server = serverMessage?.trim() ?? "";
   const kind = failureKindFromStatus(status) ?? 503;
   const copy = failureCopy(kind, domain);
-  if (server && !isRawFetchMessage(server)) return { message: server, retry: copy.retry };
+  if (server && !isRawFetchMessage(server)) {
+    const sentence = /[.!?]$/.test(server) ? server : `${server}.`;
+    return { message: `${sentence} Reference ${supportReference()}.`, retry: copy.retry };
+  }
   return { message: formatFailure(kind, domain, supportReference()), retry: copy.retry };
 }
 

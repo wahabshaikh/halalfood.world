@@ -578,7 +578,7 @@ Migrations are applied before the deploy that needs them, and the previous Worke
 
 The Workers Builds API token needs **D1 Edit** on the account, as well as the Workers Scripts Edit permission the deploy already uses. Wrangler 4's `migrations list` reads `d1_migrations` and ensures that table exists (`CREATE TABLE IF NOT EXISTS`). D1 Read is not enough for that statement. The command does not run the SQL files under `migrations/`. Add D1 Edit to the token selected in the Worker's **Settings → Builds → API token**. If the token cannot list migrations, the build fails closed and does not deploy.
 
-`TURNSTILE_SITE_KEY` may be a normal public Worker variable or a dashboard secret. The login page reads it from the Worker env on each request and passes it to the widget, so a secret that is already set is enough. It must not be a `NEXT_PUBLIC_` build variable. Only `TURNSTILE_SECRET_KEY` is a server secret, and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, `GOOGLE_PLACES_API_KEY` are secret names only here; enter their values at the Wrangler prompts. Use `GOOGLE_MAPS_API_KEY` instead only when retaining an existing secret name.
+`TURNSTILE_SITE_KEY` may be a normal public Worker variable or a dashboard secret. The login page reads it from the Worker env on each request and passes it to the widget, so setting it as a Worker secret takes effect without a rebuild. It must not be a `NEXT_PUBLIC_` build variable. Only `TURNSTILE_SECRET_KEY` is a server secret, and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, `GOOGLE_PLACES_API_KEY` are secret names only here; enter their values at the Wrangler prompts. Use `GOOGLE_MAPS_API_KEY` instead only when retaining an existing secret name.
 
 Enter the Resend API key, Better Auth secret, and Turnstile server secret at their respective Wrangler prompts. If Wrangler asks to create the named Worker before its first deployment, accept. The generated Worker name is `halalfood-world`; `npm run deploy` invokes `@vinext/cloudflare` against `dist/server/wrangler.json`. Equivalent:
 
@@ -674,6 +674,12 @@ The upload uses `--keep-vars` and rebinds `DB` and `HALAL_EVIDENCE_R2` before up
 
 Workers Builds non-main branches do not run this workflow. `scripts/stage-cloudflare-build.ts` rewrites the staged Wrangler config for those builds to D1 `halalfood-world-preview` (`c5d8e0ff-c001-48b8-8545-49861227c16f`) and the same preview R2 bucket, then applies migrations to that preview database only. Production branch `main` keeps `halalfood-world` and `halalfood-world-evidence`.
 
-`TURNSTILE_SITE_KEY` is not in `wrangler.jsonc` because the public site key is not stored in git. The login page and the verify call read it from the Worker env at request time (`cloudflare:workers`), so the existing Worker secret is used and no Workers Builds or GitHub build variable is required.
+`TURNSTILE_SITE_KEY` is not in `wrangler.jsonc` because the public site key is not stored in git. The login page and the verify call read it from the Worker env at request time (`cloudflare:workers`), so no Workers Builds or GitHub build variable is required. The production Worker must still have it: as of 2026-10-04 its secrets are `BETTER_AUTH_SECRET`, `GOOGLE_MAPS_API_KEY`, `GOOGLE_PLACES_API_KEY`, `RESEND_API_KEY`, and `TURNSTILE_SECRET_KEY`, with no `TURNSTILE_SITE_KEY`, so sign-in reports that the bot check is not configured. Copy the site key of the Turnstile widget that pairs with `TURNSTILE_SECRET_KEY` (Cloudflare dashboard, Turnstile) and set it from `apps/web`:
+
+```sh
+npx wrangler secret put TURNSTILE_SITE_KEY --name halalfood-world
+```
+
+Check with `npx wrangler secret list --name halalfood-world`.
 
 Do not promote a preview version manually.

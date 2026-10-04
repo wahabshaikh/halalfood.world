@@ -52,16 +52,23 @@ test("403, 404, 429 and offline each have their own copy and never echo Failed t
 });
 
 test("map HTTP errors keep the server message and fetch failures never show Failed to fetch", () => {
-  const http = presentHttpFailure("Places", 503, "Zoom in to search a smaller area.");
-  assert.equal(http.message, "Zoom in to search a smaller area.");
+  const http = presentHttpFailure("Places", 503, "Places are temporarily unavailable. Please try again.");
+  assert.match(
+    http.message,
+    /^Places are temporarily unavailable\. Please try again\. Reference [a-z0-9-]{4,16}\.$/,
+  );
   assert.equal(http.retry, true);
 
-  const forbidden = presentHttpFailure("Places", 403, "This area is not available to this account.");
-  assert.equal(forbidden.message, "This area is not available to this account.");
+  const forbidden = presentHttpFailure("Places", 403, "This area is not available to this account");
+  assert.match(
+    forbidden.message,
+    /^This area is not available to this account\. Reference [a-z0-9-]{4,16}\.$/,
+  );
   assert.equal(forbidden.retry, false);
 
   const missing = presentHttpFailure("Places", 404, "");
   assert.match(missing.message, /not here/i);
+  assert.match(missing.message, /Reference [a-z0-9-]{4,16}\./);
   assert.equal(missing.message.includes("Failed to fetch"), false);
 
   for (const raw of ["Failed to fetch", "Load failed"]) {
