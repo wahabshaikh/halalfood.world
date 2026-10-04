@@ -1,3 +1,8 @@
+import {
+  GOOGLE_PLACE_QUERY_MAX_LENGTH,
+  GOOGLE_PLACE_QUERY_MIN_LENGTH,
+} from "@halalfood/core/place-submission";
+
 const GOOGLE_PLACES_DETAILS_URL =
   "https://places.googleapis.com/v1/places";
 const GOOGLE_PLACES_TEXT_SEARCH_URL =
@@ -171,6 +176,48 @@ function stringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+/**
+ * Google's error envelope, reduced to what we can safely log: the HTTP status,
+ * the canonical status (e.g. PERMISSION_DENIED), the ErrorInfo reason (e.g.
+ * SERVICE_DISABLED, API_KEY_HTTP_REFERRER_BLOCKED) and the message. Anything
+ * shaped like an API key is redacted so the secret never reaches logs.
+ */
+export function describeGooglePlacesError(httpStatus: number, rawBody: string) {
+  let googleStatus: string | undefined;
+  let reason: string | undefined;
+  let message: string | undefined;
+  try {
+    const error = record(record(JSON.parse(rawBody))?.error);
+    googleStatus = stringValue(error?.status);
+    message = stringValue(error?.message);
+    const details = Array.isArray(error?.details) ? error.details : [];
+    for (const detail of details) {
+      const value = stringValue(record(detail)?.reason);
+      if (value) {
+        reason = value;
+        break;
+      }
+    }
+  } catch {
+    message = rawBody.slice(0, 300) || undefined;
+  }
+  const redact = (value?: string) =>
+    value?.replace(/AIza[0-9A-Za-z_-]{20,}/g, "[redacted]").slice(0, 500);
+  return {
+    httpStatus,
+    ...(googleStatus ? { googleStatus } : {}),
+    ...(reason ? { reason } : {}),
+    ...(message ? { message: redact(message) } : {}),
+  };
+}
+
+function logGooglePlacesError(operation: string, httpStatus: number, rawBody: string) {
+  console.error("google_places_error", {
+    operation,
+    ...describeGooglePlacesError(httpStatus, rawBody),
+  });
+}
+
 function parseLocation(value: unknown): GooglePlaceLocation | undefined {
   const location = record(value);
   const latitude = location?.latitude;
@@ -308,6 +355,7 @@ export async function getGooglePlaceDetails(
   }
 
   if (!response.ok) {
+    logGooglePlacesError("placeDetails", response.status, rawBody);
     return {
       ok: false,
       code: "HTTP_ERROR",
@@ -349,16 +397,54 @@ export async function getGooglePlaceDetails(
  * Details are fetched again on submission so the browser cannot invent the
  * canonical name, address, or coordinates.
  */
+export type GoogleSearchArea = {
+  near?: { lat: number; lng: number } | null;
+  bbox?: { west: number; south: number; east: number; north: number } | null;
+};
+
+/** Bias actually sent to Google. A bbox rectangle wins over a point. */
+export function googleTextSearchLocationBias(options: GoogleSearchArea = {}) {
+  const bbox = options.bbox;
+  if (
+    bbox &&
+    bbox.west <= bbox.east &&
+    [bbox.west, bbox.south, bbox.east, bbox.north].every((value) => Number.isFinite(value))
+  ) {
+    return {
+      rectangle: {
+        low: { latitude: bbox.south, longitude: bbox.west },
+        high: { latitude: bbox.north, longitude: bbox.east },
+      },
+    };
+  }
+  if (
+    options.near &&
+    Number.isFinite(options.near.lat) &&
+    Number.isFinite(options.near.lng)
+  ) {
+    return {
+      circle: {
+        center: { latitude: options.near.lat, longitude: options.near.lng },
+        radius: 50000,
+      },
+    };
+  }
+  return null;
+}
+
 export async function searchGooglePlaces(
   query: string,
-  options: { near?: { lat: number; lng: number } | null } = {},
+  options: GoogleSearchArea = {},
 ): Promise<GooglePlaceSearchResult> {
-  const normalizedQuery = query.trim();
-  if (normalizedQuery.length < 2 || normalizedQuery.length > 120) {
+  const normalizedQuery = query.trim().replace(/\s+/g, " ");
+  if (
+    normalizedQuery.length < GOOGLE_PLACE_QUERY_MIN_LENGTH ||
+    normalizedQuery.length > GOOGLE_PLACE_QUERY_MAX_LENGTH
+  ) {
     return {
       ok: false,
       code: "INVALID_QUERY",
-      message: "A 2–120 character search is required",
+      message: `A ${GOOGLE_PLACE_QUERY_MIN_LENGTH}–${GOOGLE_PLACE_QUERY_MAX_LENGTH} character search is required`,
     };
   }
 
@@ -371,6 +457,9 @@ export async function searchGooglePlaces(
     };
   }
 
+  // A bias, not a restriction: "Karim's" still finds Delhi from London,
+  // but a bare name prefers the one down the road.
+  const locationBias = googleTextSearchLocationBias(options);
   let response: Response;
   try {
     response = await fetch(GOOGLE_PLACES_TEXT_SEARCH_URL, {
@@ -383,18 +472,7 @@ export async function searchGooglePlaces(
       },
       body: JSON.stringify({
         textQuery: normalizedQuery,
-        // A bias, not a restriction: "Karim's" still finds Delhi from London,
-        // but a bare name prefers the one down the road.
-        ...(options.near
-          ? {
-              locationBias: {
-                circle: {
-                  center: { latitude: options.near.lat, longitude: options.near.lng },
-                  radius: 50000,
-                },
-              },
-            }
-          : {}),
+        ...(locationBias ? { locationBias } : {}),
       }),
     });
   } catch {
@@ -417,6 +495,7 @@ export async function searchGooglePlaces(
     };
   }
   if (!response.ok) {
+    logGooglePlacesError("searchText", response.status, rawBody);
     return {
       ok: false,
       code: "HTTP_ERROR",

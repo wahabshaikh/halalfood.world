@@ -3,7 +3,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   applyPreviewEnvironment,
+  applyPreviewRateLimitNamespaces,
   applyPreviewResourceBindings,
+  copyGoogleSearchWorkerConfig,
   PREVIEW_D1_ID,
   PREVIEW_D1_NAME,
   PREVIEW_ENVIRONMENT,
@@ -156,4 +158,50 @@ test("preview workflow and binders do not inject TURNSTILE_SITE_KEY", () => {
   assert.match(bindStep, /CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}/);
   assert.match(bindStep, /CLOUDFLARE_ACCOUNT_ID: \$\{\{ secrets\.CLOUDFLARE_ACCOUNT_ID \}\}/);
   assert.match(bindStep, /scripts\/bind-github-preview\.ts/);
+  assert.match(stage, /copyGoogleSearchWorkerConfig/);
+  assert.match(binder, /applyPreviewRateLimitNamespaces\(config\)/);
+});
+
+test("preview uploads do not share the production Google search rate-limit namespaces", () => {
+  const generated: PreviewWranglerConfig = { vars: { BETTER_AUTH_URL: "https://halalfood.world" } };
+  copyGoogleSearchWorkerConfig(generated, {
+    vars: { GOOGLE_SEARCH_DAILY_CAP: "1000" },
+    ratelimits: [
+      { name: "GOOGLE_SEARCH_ANON", namespace_id: "81001", simple: { limit: 5, period: 60 } },
+      { name: "GOOGLE_SEARCH_USER", namespace_id: "81002", simple: { limit: 20, period: 60 } },
+    ],
+  });
+  assert.equal(generated.vars?.GOOGLE_SEARCH_DAILY_CAP, "1000");
+  assert.equal(generated.vars?.BETTER_AUTH_URL, "https://halalfood.world");
+  const config = {
+    d1_databases: [{ binding: "DB", database_name: "halalfood-world", database_id: PRODUCTION_D1_ID }],
+    r2_buckets: [{ binding: "HALAL_EVIDENCE_R2", bucket_name: PRODUCTION_R2_BUCKET }],
+    ratelimits: generated.ratelimits,
+  };
+  applyPreviewResourceBindings(config);
+  assert.equal(config.ratelimits?.[0]?.namespace_id, "81101");
+  assert.equal(config.ratelimits?.[1]?.namespace_id, "81102");
+  assert.equal(config.ratelimits?.[1]?.simple?.limit, 20);
+  assert.ok((config.ratelimits?.[1]?.simple?.limit ?? 0) > (config.ratelimits?.[0]?.simple?.limit ?? 0));
+});
+
+test("a preview rate limit left on a production namespace refuses the upload", () => {
+  assert.throws(
+    () =>
+      applyPreviewRateLimitNamespaces({
+        ratelimits: [{ name: "SOME_NEW_LIMIT", namespace_id: "81001", simple: { limit: 1, period: 60 } }],
+      }),
+    /share production namespaces/,
+  );
+  const config: PreviewWranglerConfig = {
+    ratelimits: [
+      { name: "GOOGLE_SEARCH_ANON", namespace_id: "81001" },
+      { name: "GOOGLE_SEARCH_USER", namespace_id: "81002" },
+    ],
+  };
+  applyPreviewRateLimitNamespaces(config);
+  assert.deepEqual(
+    config.ratelimits?.map((entry) => entry.namespace_id),
+    ["81101", "81102"],
+  );
 });

@@ -45,11 +45,18 @@ type R2Binding = {
   bucket_name?: string;
 };
 
+export type RateLimitBindingConfig = {
+  name?: string;
+  namespace_id?: string;
+  simple?: { limit?: number; period?: number };
+};
+
 export type PreviewWranglerConfig = {
   name?: string;
   d1_databases?: D1Binding[];
   r2_buckets?: R2Binding[];
   vars?: Record<string, string>;
+  ratelimits?: RateLimitBindingConfig[];
 };
 
 export const PREVIEW_ENVIRONMENT = "preview";
@@ -70,7 +77,60 @@ export function applyPreviewResourceBindings(config: PreviewWranglerConfig): Pre
   const bucket = config.r2_buckets?.find((entry) => entry.binding === R2_BINDING);
   if (!bucket) throw new Error("Wrangler config has no HALAL_EVIDENCE_R2 binding");
   bucket.bucket_name = PREVIEW_R2_BUCKET;
+  applyPreviewRateLimitNamespaces(config);
   return config;
+}
+
+/**
+ * Preview rate-limit counters must not share production namespace ids.
+ * A shared namespace_id counts preview traffic against the live Google budget.
+ */
+export function applyPreviewRateLimitNamespaces(config: PreviewWranglerConfig): PreviewWranglerConfig {
+  for (const entry of config.ratelimits ?? []) {
+    const preview = entry.name ? PREVIEW_RATE_LIMIT_NAMESPACES[entry.name] : undefined;
+    if (preview) entry.namespace_id = preview;
+  }
+  const shared = (config.ratelimits ?? []).filter((entry) =>
+    PRODUCTION_RATE_LIMIT_NAMESPACE_IDS.has(String(entry.namespace_id ?? "")),
+  );
+  if (shared.length > 0) {
+    throw new Error(
+      `Refusing preview upload: rate limits share production namespaces (${shared
+        .map((entry) => `${entry.name}=${entry.namespace_id}`)
+        .join(", ")}).`,
+    );
+  }
+  return config;
+}
+
+/** Production rate-limit namespace ids, from wrangler.jsonc. */
+export const PRODUCTION_RATE_LIMIT_NAMESPACE_IDS: ReadonlySet<string> = new Set(["81001", "81002"]);
+
+/** Preview namespace id for each rate-limit binding. */
+export const PREVIEW_RATE_LIMIT_NAMESPACES: Readonly<Record<string, string>> = {
+  GOOGLE_SEARCH_ANON: "81101",
+  GOOGLE_SEARCH_USER: "81102",
+};
+
+/** Copy the Google search bindings from the source wrangler config onto a generated one. */
+export function copyGoogleSearchWorkerConfig(
+  target: PreviewWranglerConfig,
+  source: PreviewWranglerConfig,
+): PreviewWranglerConfig {
+  if (source.ratelimits?.length) {
+    target.ratelimits = source.ratelimits.map((entry) => ({
+      name: entry.name,
+      namespace_id: entry.namespace_id,
+      simple: entry.simple ? { limit: entry.simple.limit, period: entry.simple.period } : undefined,
+    }));
+  }
+  const cap = source.vars?.GOOGLE_SEARCH_DAILY_CAP;
+  if (cap) target.vars = { ...target.vars, GOOGLE_SEARCH_DAILY_CAP: cap };
+  return target;
+}
+
+export function parseWranglerJsonc(source: string): PreviewWranglerConfig {
+  return JSON.parse(source.replace(/^\s*\/\/.*$/gm, "")) as PreviewWranglerConfig;
 }
 
 export const PRODUCTION_WORKER_NAME = "halalfood-world";

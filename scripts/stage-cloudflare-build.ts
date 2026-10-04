@@ -4,6 +4,8 @@ import {
   applyPreviewEnvironment,
   applyPreviewResourceBindings,
   enforcePreviewSecretBoundary,
+  copyGoogleSearchWorkerConfig,
+  parseWranglerJsonc,
   PREVIEW_D1_ID,
   PREVIEW_D1_NAME,
   PREVIEW_R2_BUCKET,
@@ -43,6 +45,10 @@ writeFileSync(
 
 const generatedConfigPath = "dist/server/wrangler.json";
 const generatedConfig = JSON.parse(readFileSync(generatedConfigPath, "utf8"));
+const sourceConfig = parseWranglerJsonc(readFileSync(`${appDir}/wrangler.jsonc`, "utf8"));
+// vinext drops ratelimits and new vars from the generated config. Copy them
+// from the source config before the preview rewrite below.
+copyGoogleSearchWorkerConfig(generatedConfig, sourceConfig);
 
 const isolation = previewIsolationDecision(process.env);
 if (isolation === "refuse") {

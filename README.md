@@ -165,7 +165,7 @@ Use the URL printed by the dev server. Development runs against the local D1 dat
 | `GET /api/contributions` | JSON | Every submission by the signed-in user with its status and reason. |
 | `GET /api/admin/queue`, `GET /api/admin/audit` | JSON | Moderator-only queue and audit log. |
 | `POST /api/admin/review/[kind]/[id]` | JSON | One moderator decision on evidence, an edit, a duplicate, a report or an appeal. |
-| `GET /api/places/google-search` | JSON | Authenticated, rate-limited Google Places (New) Text Search for the add form. |
+| `GET /api/places/google-search` | JSON | Signed-out or signed-in Google Places (New) Text Search for the add form. Per-IP rate limit, result cache, and a daily call cap. |
 | `GET/POST /api/places/[id]/verifications` | JSON | Public approved evidence lookup; authenticated, rate-limited community halal verification submission. |
 | `POST/GET /api/uploads/r2` | Multipart/stream | Authenticated direct R2 upload and approved/own-pending evidence download. |
 | `/api/auth/*` | Better Auth catch-all | Email OTP request, verification, session, and sign-out endpoints. |
@@ -362,9 +362,24 @@ Rate limits use D1, not KV (this Worker has no KV binding). Better Auth's databa
 Place submissions reuse the same durable table and transactional pattern,
 with separate hashed key namespaces: one signed-in user may submit at most 5
 places per 24 hours with a 60-second cooldown, and one IP may submit at most 30
-per 24 hours with a 10-second cooldown. Authenticated Google Text Search is
-also capped at 30 requests per user per hour (1-second cooldown) and 120 per IP
-per hour (250ms cooldown), keeping the optional paid lookup bounded.
+per 24 hours with a 10-second cooldown. Google Text Search stays available
+while signed out. Anonymous callers are limited by the `GOOGLE_SEARCH_ANON`
+Workers Rate Limiting binding (5 requests per 60 seconds per IP). Signed-in
+callers use `GOOGLE_SEARCH_USER` (20 requests per 60 seconds per user). Those
+bindings count inside one Cloudflare location. A D1 counter,
+`google_search_daily`, caps Google calls for the whole site
+(var `GOOGLE_SEARCH_DAILY_CAP`, default 1000 per UTC day). Queries shorter
+than 3 characters and cache hits never call Google. Repeated text, after
+lowercasing, trimming, and collapsing whitespace, shares a cache entry for
+6 hours, bucketed by location or bbox when the query has one. When the daily
+cap is reached the route returns listed D1 places and the add-with-a-link
+fallback instead of an error. If the rate-limit binding is missing, the older
+D1 buckets still apply: 30 requests per signed-in user per hour and 120 per
+IP per hour.
+Production uses rate-limit namespaces 81001 (anonymous) and 81002
+(signed-in). Workers Builds and GitHub preview uploads rewrite them to 81101
+and 81102, and refuse to upload if any rate limit still uses a production
+namespace.
 
 Save and unsave mutations reuse the same durable table with their own hashed
 key namespace: one user may perform at most 120 save actions per hour with a
@@ -493,7 +508,7 @@ node scripts/generate-assets.mjs
 - `POST /api/places`: requires a Better Auth session and `halalConfirmed: true`; accepts `mode: google` with a selected `googlePlaceId`, or `mode: manual` with name, address and city. Returns 201 with the new place id, 401 for sign-in, 409 for a duplicate, and 429 when the durable submission budget is exhausted.
 - `GET /api/places/saved`: requires a Better Auth session and returns up to 200 saved halal places, newest first. Unauthenticated requests return 401 with a `/login?returnTo=%2Fsaved` hint.
 - `POST/DELETE /api/places/:id/saved`: requires a Better Auth session, validates the UUID and confirms the target is an existing halal listing. Both methods return the resulting `saved` state and 429 when either save-action bucket is exhausted.
-- `GET /api/places/google-search?q=...`: requires a Better Auth session and uses server-only Google Places (New) Text Search when configured. It is rate-limited separately from submissions.
+- `GET /api/places/google-search?q=...`: signed-out and signed-in. Uses server-only Google Places (New) Text Search when the query is at least 3 characters, the per-caller rate limit allows it, the result is not cached, and the daily cap has room. Optional `bbox=west,south,east,north` biases and caches by that area. A full day returns 200 with `fallback: "link"` and local places. 429 uses the shared rate-limit copy.
 - `GET /api/places/:id/verifications`: returns approved community evidence to everyone and the current contributor's own pending submission when signed in, plus a `summary` derived only from approved rows (`evidence-backed` or `unverified`, with the approved count and latest reviewed timestamp). Submitter ids are never exposed; pending evidence never changes the public summary.
 - `POST /api/places/:id/verifications`: requires a Better Auth session and at least one HTTPS Zabihah, Instagram, TikTok, or YouTube link or validated R2 upload. New rows are `pending` and the user/IP rate-limit buckets are consumed before the write.
 - `GET /api/places/:id/rating`: returns `counts` for `mashallah`, `alhamdulillah`, and `astaghfirullah`, plus `rating` for the current signed-in user (or `null`).
