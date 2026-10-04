@@ -85,3 +85,15 @@ test("the map wires it up: toast link, kept scope, menu read on the tap", () => 
   assert.match(menu, /event\.currentTarget\.href = menuLoginHref\(\)/);
   assert.doesNotMatch(menu, /href="\/login\?reason=join"/);
 });
+
+test("the fallback toast hides while the all-fail error box is up (no overlap at 390)", async () => {
+  const { mapNoticeVisible, SCOPE_FALLBACK_NOTICE } = await import("../src/lib/map-loading");
+  const failure = { message: "Sign in to open places on the map.", signIn: true };
+  assert.equal(mapNoticeVisible({ notice: SCOPE_FALLBACK_NOTICE, error: null, viewportTooWide: false }), true);
+  assert.equal(mapNoticeVisible({ notice: SCOPE_FALLBACK_NOTICE, error: failure, viewportTooWide: false }), false);
+  assert.equal(mapNoticeVisible({ notice: SCOPE_FALLBACK_NOTICE, error: null, viewportTooWide: true }), false);
+  assert.equal(mapNoticeVisible({ notice: "", error: null, viewportTooWide: false }), false);
+  const view = readFileSync(new URL("../app/map/map-view.tsx", import.meta.url), "utf8");
+  assert.match(view, /mapNoticeVisible\(\{ notice, error, viewportTooWide \}\) && \(/);
+  assert.doesNotMatch(view, /\) : \(\s*notice && \(/);
+});

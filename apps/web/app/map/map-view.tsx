@@ -10,7 +10,7 @@ import type { PinSocial } from "../../src/lib/map-social-repository";
 import { getClientSession } from "../../src/lib/client-session";
 import { retryDecision } from "../../src/lib/fetch-retry";
 import { currentReturnPath, signedOutLoginPath, loginHref, signInAgainUrl } from "../../src/lib/signed-out";
-import { filtersForUrl, SCOPE_FALLBACK_NOTICE, unauthorizedFallback } from "../../src/lib/map-loading";
+import { filtersForUrl, mapNoticeVisible, SCOPE_FALLBACK_NOTICE, unauthorizedFallback } from "../../src/lib/map-loading";
 import {
   EMPTY_FILTERS,
   activeFilterCount,
@@ -847,7 +847,7 @@ export default function MapView({
             {ZOOM_IN_CHIP}
           </div>
         ) : (
-          notice && (
+          mapNoticeVisible({ notice, error, viewportTooWide }) && (
             <div
               className="absolute top-4 left-1/2 z-5 flex -translate-x-1/2 items-center gap-2.5 rounded-full bg-background px-4 py-2.5 text-sm font-bold shadow-lg"
               role="status"

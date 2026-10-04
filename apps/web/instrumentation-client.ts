@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/react";
 import { browserSentryOptions, resolveSentryEnvironment } from "./src/lib/sentry-options";
+import { installStaleChunkReload } from "./src/lib/stale-chunk-reload";
 
 declare const __HALALFOOD_SENTRY_DSN__: string;
 declare const __HALALFOOD_SENTRY_ENVIRONMENT__: string;
@@ -10,6 +11,7 @@ function runtimeEnvironment(): string | undefined {
 }
 
 if (typeof window !== "undefined") {
+  installStaleChunkReload(window);
   const options = browserSentryOptions({
     dsn: __HALALFOOD_SENTRY_DSN__,
     environment: resolveSentryEnvironment(

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -73,7 +74,12 @@ test("a public HTML response is marked shareable and tagged for purge", async ()
   };
   const response = await withPublicCache(request("https://halalfood.world/city/london"), load);
   assert.equal(await response.text(), "<html>London</html>");
-  assert.match(response.headers.get("cache-control") ?? "", /s-maxage=600/);
+  // The edge keeps it for 10 minutes; browsers always ask again, so a deploy
+  // never leaves a browser holding pre-deploy HTML.
+  assert.match(response.headers.get("cloudflare-cdn-cache-control") ?? "", /max-age=600/);
+  assert.match(response.headers.get("cloudflare-cdn-cache-control") ?? "", /stale-while-revalidate=86400/);
+  assert.equal(response.headers.get("cache-control"), "public, max-age=0, must-revalidate");
+  assert.doesNotMatch(response.headers.get("cache-control") ?? "", /stale-while-revalidate|s-maxage/);
   assert.equal(response.headers.get("cache-tag"), "cities,city-london");
   assert.equal(loads, 1);
 
@@ -105,6 +111,14 @@ test("an unavailable noindex page is not marked shareable", async () => {
       }),
   );
   assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(response.headers.get("cloudflare-cdn-cache-control"), null);
   assert.equal(response.headers.get("cache-tag"), null);
   assert.match(await response.text(), /noindex/);
+});
+
+test("edge copies are per Worker version, so a deploy starts from an empty cache", () => {
+  // Workers Cache puts the version in the key unless cross_version_cache is on.
+  const config = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+  assert.match(config, /"cache":\s*\{\s*"enabled":\s*true\s*\}/);
+  assert.doesNotMatch(config, /cross_version_cache/);
 });
