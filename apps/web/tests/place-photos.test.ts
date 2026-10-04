@@ -202,7 +202,7 @@ test("place photo upload and delete are auth-gated", async () => {
   assert.equal(upload.status, 401);
   assert.deepEqual(await upload.json(), {
     error: "Sign in to add a halal place photo.",
-    loginUrl: `/login?returnTo=${encodeURIComponent(`/place/${PLACE_ID}`)}`,
+    loginUrl: `/login?reason=signed-out&returnTo=${encodeURIComponent(`/place/${PLACE_ID}`)}`,
   });
 
   const deletion = await handlePlacePhotoDelete(

@@ -15,6 +15,9 @@ test("the map canvas is sized by its parent, not by Tailwind absolute alone", ()
   assert.equal(view.includes("min-[900px]:h-auto"), false);
   assert.match(view, /className="map-canvas absolute inset-0 size-full bg-map"/);
   assert.match(view, /height: "100%"/);
+  assert.match(view, /absolute bottom-36 /);
+  assert.match(view, /min-\[900px\]:bottom-7/);
+  assert.match(view, /Show list/);
   const rule = css.slice(css.indexOf(".map-stage > .map-canvas.maplibregl-map"));
   assert.match(rule, /height:\s*100%;/);
   assert.match(rule, /position:\s*absolute;/);
@@ -77,6 +80,78 @@ test("map canvas height stays above 0 at 320, 768 and 1280", async (t) => {
       assert.ok(height.height > 0, `width ${width} height ${height.height}`);
     }
     await page.close();
+  } finally {
+    await browser.close();
+  }
+});
+
+test("the selected place card clears the Show list button at 320, 390 and 430", async (t) => {
+  let chromium: typeof import("playwright").chromium;
+  try {
+    ({ chromium } = await import("playwright"));
+  } catch {
+    t.skip("playwright is not installed");
+    return;
+  }
+  let browser: Awaited<ReturnType<typeof chromium.launch>>;
+  try {
+    browser = await chromium.launch();
+  } catch {
+    t.skip("Chromium is not installed");
+    return;
+  }
+  const page = await browser.newPage();
+  try {
+    const probe = await page.request.get("http://localhost:3000/map", { timeout: 3000 }).catch(() => null);
+    if (!probe?.ok()) {
+      t.skip("map dev server is not running");
+      return;
+    }
+    await page.route("**/api/places/**", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+          name: "Bademiya",
+          street_address: "123 Tulloch Road, Colaba Causeway, near the gateway",
+          address_locality: "Mumbai",
+          city_slug: "mumbai",
+          lat: 18.922,
+          lng: 72.8347,
+          rating_value: "4.2",
+        }),
+      }),
+    );
+    for (const width of [320, 390, 430]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("http://localhost:3000/map?place=3f2504e0-4f89-11d3-9a0c-0305e82c3301", {
+        waitUntil: "domcontentloaded",
+      });
+      await page.waitForSelector("[aria-label='Selected place']", { timeout: 15000 });
+      const overlap = await page.evaluate(() => {
+        const card = document.querySelector("[aria-label='Selected place']");
+        const button = [...document.querySelectorAll("button")].find((element) =>
+          element.textContent?.includes("Show list"),
+        );
+        const address = card?.querySelectorAll("span")[1];
+        if (!card || !button || !address) return { missing: true, overlap: true, addressBottom: 0, buttonTop: 0 };
+        const cardBox = card.getBoundingClientRect();
+        const buttonBox = button.getBoundingClientRect();
+        const addressBox = address.getBoundingClientRect();
+        const cardHits =
+          !(cardBox.right < buttonBox.left || buttonBox.right < cardBox.left || cardBox.bottom < buttonBox.top || buttonBox.bottom < cardBox.top);
+        const addressHits =
+          !(addressBox.right < buttonBox.left || buttonBox.right < addressBox.left || addressBox.bottom < buttonBox.top || buttonBox.bottom < addressBox.top);
+        return {
+          missing: false,
+          overlap: cardHits || addressHits,
+          addressBottom: addressBox.bottom,
+          buttonTop: buttonBox.top,
+        };
+      });
+      assert.equal(overlap.missing, false, `width ${width}`);
+      assert.equal(overlap.overlap, false, `width ${width} ${JSON.stringify(overlap)}`);
+    }
   } finally {
     await browser.close();
   }

@@ -16,6 +16,7 @@ import {
   storeEvidenceFile,
   type R2BucketLike,
 } from "../../../../src/lib/r2";
+import { signedOutLoginPath } from "../../../../src/lib/signed-out";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
@@ -25,7 +26,7 @@ function unauthorized(returnTo = "/") {
   return Response.json(
     {
       error: "Sign in to upload halal verification evidence.",
-      loginUrl: `/login?returnTo=${encodeURIComponent(returnTo)}`,
+      loginUrl: signedOutLoginPath(returnTo),
     },
     { status: 401, headers: noStore() },
   );

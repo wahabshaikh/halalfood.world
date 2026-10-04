@@ -5,6 +5,11 @@ import { database } from "../db";
 import { authSchema } from "../db/schema";
 import { sendEmail } from "./email";
 import { hostFromRequest } from "./request-host";
+import {
+  SESSION_COOKIE_CACHE_SECONDS,
+  SESSION_EXPIRES_IN_SECONDS,
+  SESSION_UPDATE_AGE_SECONDS,
+} from "./session-lifetime";
 
 function environmentValue(name: string): string {
   return process.env[name]?.trim() || "";
@@ -79,11 +84,16 @@ export async function createAuth() {
       },
     },
     session: {
+      // 30 days, rolled forward once a day while the session is used.
+      // The session cookie Max-Age follows expiresIn.
+      expiresIn: SESSION_EXPIRES_IN_SECONDS,
+      updateAge: SESSION_UPDATE_AGE_SECONDS,
       // UI session checks (`/api/auth/get-session`) are answered from a signed
-      // cookie instead of a D1 read. Routes that change data still resolve the
-      // session from the database via `getRequestAuth` (disableCookieCache),
-      // so a revoked session can never write.
-      cookieCache: { enabled: true, maxAge: 5 * 60 },
+      // cookie instead of a D1 read. This maxAge is the cache cookie only.
+      // Routes that change data still resolve the session from the database
+      // via `getRequestAuth` (disableCookieCache), so a revoked session can
+      // never write.
+      cookieCache: { enabled: true, maxAge: SESSION_COOKIE_CACHE_SECONDS },
     },
     rateLimit: {
       enabled: true,
