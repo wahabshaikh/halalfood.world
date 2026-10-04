@@ -165,13 +165,14 @@ test("preview workflow and binders do not inject TURNSTILE_SITE_KEY", () => {
 test("preview uploads do not share the production Google search rate-limit namespaces", () => {
   const generated: PreviewWranglerConfig = { vars: { BETTER_AUTH_URL: "https://halalfood.world" } };
   copyGoogleSearchWorkerConfig(generated, {
-    vars: { GOOGLE_SEARCH_DAILY_CAP: "1000" },
+    vars: { GOOGLE_SEARCH_DAILY_CAP: "1000", GOOGLE_DETAILS_DAILY_CAP: "1000" },
     ratelimits: [
       { name: "GOOGLE_SEARCH_ANON", namespace_id: "81001", simple: { limit: 5, period: 60 } },
       { name: "GOOGLE_SEARCH_USER", namespace_id: "81002", simple: { limit: 20, period: 60 } },
     ],
   });
   assert.equal(generated.vars?.GOOGLE_SEARCH_DAILY_CAP, "1000");
+  assert.equal(generated.vars?.GOOGLE_DETAILS_DAILY_CAP, "1000");
   assert.equal(generated.vars?.BETTER_AUTH_URL, "https://halalfood.world");
   const config = {
     d1_databases: [{ binding: "DB", database_name: "halalfood-world", database_id: PRODUCTION_D1_ID }],
