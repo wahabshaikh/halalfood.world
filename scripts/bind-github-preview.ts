@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import {
   applyPreviewEnvironment,
+  applyPreviewRateLimitNamespaces,
   enforcePreviewSecretBoundary,
   PREVIEW_R2_BUCKET,
   PRODUCTION_D1_ID,
@@ -34,9 +35,12 @@ if (bucket.bucket_name === PRODUCTION_R2_BUCKET) {
   throw new Error("Refusing to bind the preview upload to the production R2 bucket");
 }
 applyPreviewEnvironment(config);
+// The build copied the production rate-limit namespaces into this config.
+// Preview traffic must not count against the live Google search limits.
+applyPreviewRateLimitNamespaces(config);
 const secretNames = readProductionSecretNames();
 enforcePreviewSecretBoundary(config, secretNames);
 writeFileSync(path, JSON.stringify(config));
 console.log(
-  `Preview bindings: D1 ${binding.database_name} (${binding.database_id}), R2 ${bucket.bucket_name}, ENVIRONMENT=preview. ${secretNames.length} production secret names were not set as vars.`,
+  `Preview bindings: D1 ${binding.database_name} (${binding.database_id}), R2 ${bucket.bucket_name}, ENVIRONMENT=preview, rate limits ${(config.ratelimits ?? []).map((entry: { name?: string; namespace_id?: string }) => `${entry.name}=${entry.namespace_id}`).join(" ") || "none"}. ${secretNames.length} production secret names were not set as vars.`,
 );

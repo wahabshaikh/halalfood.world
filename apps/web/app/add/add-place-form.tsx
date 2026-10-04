@@ -22,7 +22,9 @@ import {
   ItemTitle,
 } from "@halalfood/ui/components/item";
 import { Spinner } from "@halalfood/ui/components/spinner";
+import { GOOGLE_PLACE_QUERY_MIN_LENGTH } from "@halalfood/core/place-submission";
 import { getClientSession } from "../../src/lib/client-session";
+import { presentHttpFailure } from "../../src/lib/failure-copy";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
 type GooglePlace = { id: string; name: string; address: string };
@@ -45,6 +47,21 @@ async function responseBody(response: Response) {
 
 function errorFrom(body: Record<string, unknown> | null, fallback: string) {
   return typeof body?.error === "string" && body.error.trim() ? body.error : fallback;
+}
+
+function listedFrom(value: unknown, addressKey = "address"): ListedPlace[] {
+  return (Array.isArray(value) ? value : []).flatMap((entry): ListedPlace[] => {
+    const place = record(entry);
+    return typeof place?.id === "string" && typeof place.name === "string"
+      ? [
+          {
+            id: place.id,
+            name: place.name,
+            address: typeof place[addressKey] === "string" ? place[addressKey] : "",
+          },
+        ]
+      : [];
+  });
 }
 
 const loginUrl = "/login?returnTo=%2Fadd";
@@ -121,7 +138,11 @@ export default function AddPlaceForm({
         });
         if (draft.providerDown === true) setProviderDown(true);
       }
-      if (!saved && typeof draft.query === "string" && draft.query.trim().length >= 2)
+      if (
+        !saved &&
+        typeof draft.query === "string" &&
+        draft.query.trim().length >= GOOGLE_PLACE_QUERY_MIN_LENGTH
+      )
         setResumeSearch(true);
     } catch {
       // A malformed or unavailable draft is ignored.
@@ -150,8 +171,8 @@ export default function AddPlaceForm({
   async function search(event?: React.FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     const term = query.trim();
-    if (term.length < 2) {
-      setSearchMessage("Type at least 2 letters.");
+    if (term.length < GOOGLE_PLACE_QUERY_MIN_LENGTH) {
+      setSearchMessage("Type at least 3 letters.");
       return;
     }
     setSearchBusy(true);
@@ -166,27 +187,33 @@ export default function AddPlaceForm({
         setSearchMessage(errorFrom(body, "Search is unavailable right now. Try again in a moment."));
         return;
       }
-      const localResponse = await fetch(
-        "/api/places/search?q=" + encodeURIComponent(term) + "&limit=5",
-        { cache: "no-store" },
-      );
-      const localBody = await responseBody(localResponse);
-      const already = (Array.isArray(localBody?.places) ? localBody.places : []).flatMap(
-        (value): ListedPlace[] => {
-          const place = record(value);
-          return typeof place?.id === "string" && typeof place.name === "string"
-            ? [
-                {
-                  id: place.id,
-                  name: place.name,
-                  address:
-                    typeof place.street_address === "string" ? place.street_address : "",
-                },
-              ]
-            : [];
-        },
-      );
-      setListed(already);
+      const embedded = listedFrom(body?.local);
+      let already = embedded;
+      if (embedded.length) {
+        setListed(embedded);
+      } else {
+        const localResponse = await fetch(
+          "/api/places/search?q=" + encodeURIComponent(term) + "&limit=5",
+          { cache: "no-store" },
+        );
+        const localBody = await responseBody(localResponse);
+        already = listedFrom(localBody?.places, "street_address");
+        setListed(already);
+      }
+      if (response.status === 429) {
+        setSearchMessage(
+          presentHttpFailure(
+            "Google search",
+            429,
+            typeof body?.error === "string" ? body.error : null,
+          ).message,
+        );
+        return;
+      }
+      if (response.status === 400) {
+        setSearchMessage(errorFrom(body, "Type at least 3 letters."));
+        return;
+      }
       if (!response.ok || body?.fallback === "link") {
         setProviderDown(true);
         setLinkDraft((current) => ({ ...current, name: current.name || term }));

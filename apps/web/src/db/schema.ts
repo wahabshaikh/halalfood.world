@@ -127,6 +127,16 @@ export const authOtpRateLimit = sqliteTable("auth_otp_rate_limit", {
 });
 
 /**
+ * Global daily count of paid Places Text Search calls. Written only from
+ * google-search-budget.ts. One row per UTC day.
+ */
+export const googleSearchDaily = sqliteTable("google_search_daily", {
+  day: text("day").primaryKey(),
+  callCount: integer("call_count").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+/**
  * `servesCuisine`, timestamps, and booleans below are read and written
  * exclusively through raw SQL in src/lib/*.ts, not drizzle's query builder,
  * so these column definitions document shape rather than drive (de)serialization.

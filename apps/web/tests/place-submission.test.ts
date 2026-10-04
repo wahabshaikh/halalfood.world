@@ -65,9 +65,13 @@ test("Google validation requires a selected place and bounds search input", () =
     ok: false,
     error: "Choose a place from Google search first.",
   });
-  assert.deepEqual(validateGooglePlaceQuery("a"), {
+  assert.deepEqual(validateGooglePlaceQuery("ab"), {
     ok: false,
-    error: "Search must contain 2–120 characters.",
+    error: "Search must contain 3–120 characters.",
+  });
+  assert.deepEqual(validateGooglePlaceQuery("  ab "), {
+    ok: false,
+    error: "Search must contain 3–120 characters.",
   });
   assert.deepEqual(validateGooglePlaceQuery("  halal kitchen "), {
     ok: true,

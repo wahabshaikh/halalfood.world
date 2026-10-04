@@ -1,96 +1,53 @@
-import {
-  searchGooglePlaces,
-  getGooglePlacesApiKey,
-} from "../../../../src/lib/google-places";
-import { getRequestAuth } from "../../../../src/lib/auth-session";
-import {
-  consumeGooglePlaceSearchLimits,
-  getClientIp,
-  retryAfterSeconds,
-} from "../../../../src/lib/otp-rate-limit";
+import { bboxParam } from "@halalfood/core/params";
 import { validateGooglePlaceQuery } from "@halalfood/core/place-submission";
+import { getRequestAuth } from "../../../../src/lib/auth-session";
+import { getClientIp } from "../../../../src/lib/otp-rate-limit";
+import {
+  googleSearchResponse,
+  guardedGoogleTextSearch,
+} from "../../../../src/lib/google-search-guard";
 import { locationFromRequest } from "../../../../src/lib/visitor-location";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
 }
 
-function unavailable(message = "Google search is temporarily unavailable. Please try again.") {
-  return Response.json(
-    { error: message },
-    { status: 503, headers: noStore() },
-  );
-}
-
 export async function GET(request: Request) {
+  const params = new URL(request.url).searchParams;
+  // Reject a short query before session lookup or any Google call.
+  const parsed = validateGooglePlaceQuery(params.get("q"));
+  if (!parsed.ok) {
+    return Response.json({ error: parsed.error }, { status: 400, headers: noStore() });
+  }
+  const rawBbox = params.get("bbox");
+  let bbox: ReturnType<typeof bboxParam> | null = null;
+  if (rawBbox) {
+    try {
+      bbox = bboxParam(rawBbox);
+    } catch (error) {
+      return Response.json(
+        { error: (error as Error).message },
+        { status: 400, headers: noStore() },
+      );
+    }
+  }
+
   const auth = await getRequestAuth(request);
   const userId = auth.status === "authenticated" ? auth.userId : null;
 
-  const query = validateGooglePlaceQuery(
-    new URL(request.url).searchParams.get("q"),
-  );
-  if (!query.ok)
-    return Response.json(
-      { error: query.error },
-      { status: 400, headers: noStore() },
-    );
-  if (!getGooglePlacesApiKey())
-    return unavailable("Search is paused right now. Please try again later.");
-
   try {
-    const decision = await consumeGooglePlaceSearchLimits(
+    const result = await guardedGoogleTextSearch({
+      query: parsed.query,
       userId,
-      getClientIp(request),
-    );
-    if (!decision.allowed) {
-      const seconds = retryAfterSeconds(decision.retryAfterMs);
-      return Response.json(
-        { error: "Too many Google searches. Please try again later." },
-        {
-          status: 429,
-          headers: {
-            ...noStore(),
-            "Retry-After": String(seconds),
-            "X-Retry-After": String(seconds),
-          },
-        },
-      );
-    }
-  } catch {
-    return unavailable();
-  }
-
-  try {
-    const result = await searchGooglePlaces(query.query, {
+      ip: getClientIp(request),
       near: locationFromRequest(request),
+      bbox,
     });
-    if (!result.ok) {
-      if (result.code === "NOT_CONFIGURED")
-        return unavailable("Search is paused right now. Please try again later.");
-      if (result.code === "INVALID_QUERY")
-        return Response.json(
-          { error: result.message },
-          { status: 400, headers: noStore() },
-        );
-      return Response.json(
-        {
-          error: "Google search didn’t work. Add the place with a link instead. A moderator reviews it before it is listed.",
-          fallback: "link",
-        },
-        { status: 502, headers: noStore() },
-      );
-    }
-    return Response.json(
-      {
-        places: result.places.map((place) => ({
-          id: place.id,
-          name: place.displayName,
-          address: place.formattedAddress,
-        })),
-      },
-      { headers: noStore() },
-    );
+    return googleSearchResponse(result);
   } catch {
-    return unavailable();
+    return Response.json(
+      { error: "Google search is temporarily unavailable. Please try again." },
+      { status: 503, headers: noStore() },
+    );
   }
 }
