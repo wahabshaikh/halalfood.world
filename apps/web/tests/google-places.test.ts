@@ -241,3 +241,47 @@ test("googlePlaceLocality prefers the locality, then the postal town", () => {
   assert.equal(googlePlaceLocality({}), null);
   assert.equal(googlePlaceLocality({ addressComponents: [{ longText: "  ", types: ["locality"] }] }), null);
 });
+
+test("Google search rejection logs Google's reason without the API key", async () => {
+  setEnvironment({ GOOGLE_PLACES_API_KEY: "AIzaSyTESTKEY000000000000000000000000000" });
+  globalThis.fetch = async () =>
+    Response.json(
+      {
+        error: {
+          code: 403,
+          message:
+            "Requests from referer <empty> are blocked. key=AIzaSyTESTKEY000000000000000000000000000",
+          status: "PERMISSION_DENIED",
+          details: [
+            {
+              "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+              reason: "API_KEY_HTTP_REFERRER_BLOCKED",
+            },
+          ],
+        },
+      },
+      { status: 403 },
+    );
+  const logged: unknown[][] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => {
+    logged.push(args);
+  };
+  try {
+    const result = await searchGooglePlaces("Dishoom London");
+    assert.equal(result.ok, false);
+    assert.equal(!result.ok && result.code, "HTTP_ERROR");
+    assert.equal(!result.ok && result.status, 403);
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal(logged.length, 1);
+  assert.equal(logged[0][0], "google_places_error");
+  const entry = logged[0][1] as Record<string, unknown>;
+  assert.equal(entry.operation, "searchText");
+  assert.equal(entry.httpStatus, 403);
+  assert.equal(entry.googleStatus, "PERMISSION_DENIED");
+  assert.equal(entry.reason, "API_KEY_HTTP_REFERRER_BLOCKED");
+  assert.match(String(entry.message), /referer <empty> are blocked/);
+  assert.doesNotMatch(JSON.stringify(logged), /AIzaSyTESTKEY/);
+});
