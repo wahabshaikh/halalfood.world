@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@halalfood/ui/components/button";
+import { signInAgainUrl } from "../lib/signed-out";
 
 /** Block a diner after a confirmation. Blocking hides you from each other and removes any follow. */
 export default function BlockButton({ handle }: { handle: string }) {
@@ -17,7 +18,7 @@ export default function BlockButton({ handle }: { handle: string }) {
       const response = await fetch(`/api/blocks/${encodeURIComponent(handle)}`, { method: "POST" });
       const body = (await response.json().catch(() => ({}))) as { error?: string; loginUrl?: string };
       if (response.status === 401 && body.loginUrl) {
-        window.location.assign(body.loginUrl);
+        window.location.assign(signInAgainUrl(body));
         return;
       }
       if (!response.ok) {

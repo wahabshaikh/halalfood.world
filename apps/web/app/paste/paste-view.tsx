@@ -10,6 +10,7 @@ import { Item, ItemContent, ItemDescription, ItemTitle } from "@halalfood/ui/com
 import { FormCard } from "../../src/components/blocks";
 import { FormMessage, Note } from "../../src/components/section";
 import { cityName } from "../../src/lib/seo";
+import { signInAgainUrl } from "../../src/lib/signed-out";
 
 type Link = {
   platform: "instagram" | "tiktok" | "youtube";
@@ -44,7 +45,7 @@ async function post<T>(url: string, body?: unknown): Promise<{ ok: true; body: T
     });
     const parsed = (await response.json().catch(() => ({}))) as T & { error?: string; loginUrl?: string };
     if (response.status === 401 && typeof parsed.loginUrl === "string") {
-      window.location.assign(parsed.loginUrl);
+      window.location.assign(signInAgainUrl(parsed));
       return { ok: false, error: "Sign in to continue." };
     }
     if (!response.ok) return { ok: false, error: parsed.error ?? "Something went wrong. Please try again." };

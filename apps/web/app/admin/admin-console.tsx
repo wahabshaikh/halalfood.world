@@ -15,6 +15,7 @@ import type { QueueEntry, ReportRow } from "../../src/lib/moderation-repository"
 import type { PendingPlaceSubmission } from "../../src/lib/place-link-submissions";
 import type { HiddenByModerator } from "../../src/lib/listing-moderation";
 import EventsAdmin from "./events-admin";
+import { signInAgainUrl } from "../../src/lib/signed-out";
 
 /**
  * The moderation console.
@@ -61,7 +62,7 @@ export default function AdminConsole() {
       const response = await fetch("/api/admin/queue");
       if (response.status === 401) {
         const body = await response.json();
-        if (typeof body.loginUrl === "string") window.location.href = body.loginUrl;
+        if (typeof body.loginUrl === "string") window.location.href = signInAgainUrl(body);
         return;
       }
       if (response.status === 403) {
@@ -101,7 +102,7 @@ export default function AdminConsole() {
       });
       const body = await response.json().catch(() => ({}));
       if (response.status === 401 && typeof body.loginUrl === "string") {
-        window.location.href = body.loginUrl;
+        window.location.href = signInAgainUrl(body);
         return;
       }
       if (!response.ok) {
@@ -133,7 +134,7 @@ export default function AdminConsole() {
       });
       const body = await response.json().catch(() => ({}));
       if (response.status === 401 && typeof body.loginUrl === "string") {
-        window.location.href = body.loginUrl;
+        window.location.href = signInAgainUrl(body);
         return;
       }
       if (!response.ok) {

@@ -10,7 +10,7 @@ import type { PinSocial } from "../../src/lib/map-social-repository";
 import { getClientSession } from "../../src/lib/client-session";
 import { retryDecision } from "../../src/lib/fetch-retry";
 import { unauthorizedFallback } from "../../src/lib/map-loading";
-import { currentReturnPath, signedOutLoginPath } from "../../src/lib/signed-out";
+import { currentReturnPath, signedOutLoginPath, loginHref } from "../../src/lib/signed-out";
 import {
   EMPTY_FILTERS,
   activeFilterCount,
@@ -270,9 +270,7 @@ export default function MapView({
         for (const key of FILTER_PARAMS) url.searchParams.delete(key);
         for (const [key, value] of new URLSearchParams(serializeDiscoveryFilters(next)))
           url.searchParams.set(key, value);
-        window.location.assign(
-          "/login?reason=save&returnTo=" + encodeURIComponent(url.pathname + url.search),
-        );
+        window.location.assign(loginHref(url.pathname + url.search, "save"));
         return;
       }
       setFilters((current) =>
@@ -483,7 +481,13 @@ export default function MapView({
             "&limit=" +
             VIEWPORT_LIMIT +
             (signedIn ? "&social=1" : "") +
-            (query ? "&" + query : ""),
+            (query ? "&" + query : "") +
+            // Personal scopes can 401; the sign-in link in that answer should
+            // bring the person back to this page (city included), not the API
+            // query. Public requests stay unchanged so they keep their cache.
+            (filters.whose !== "everyone"
+              ? "&returnTo=" + encodeURIComponent(currentReturnPath())
+              : ""),
           { signal: controller.signal },
         );
         if (response.status === 401) {
@@ -904,6 +908,12 @@ function MapFailureActions({
         <Button variant="link" asChild>
           <a
             href={signedOutLoginPath(currentReturnPath(), signedIn)}
+            // The map rewrites its URL (city, filters, the open place) without
+            // re-rendering this link, so read the address again on the click.
+            onClick={(event) => {
+              event.preventDefault();
+              window.location.assign(signedOutLoginPath(currentReturnPath(), signedIn));
+            }}
           >
             {signedIn ? "Sign in again" : "Sign in"}
           </a>

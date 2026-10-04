@@ -11,6 +11,7 @@ import { FormMessage, InsufficientData, Note } from "../../src/components/sectio
 
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon } from "@hugeicons/core-free-icons";
+import { signInAgainUrl } from "../../src/lib/signed-out";
 
 /**
  * Personal collections. A ranked list published to other people may only hold
@@ -35,7 +36,7 @@ export default function ListsView() {
       const response = await fetch("/api/lists");
       if (response.status === 401) {
         const body = await response.json();
-        if (typeof body.loginUrl === "string") window.location.href = body.loginUrl;
+        if (typeof body.loginUrl === "string") window.location.href = signInAgainUrl(body);
         return;
       }
       if (!response.ok) throw new Error();

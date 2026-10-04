@@ -1,3 +1,4 @@
+import { safeReturnPath } from "../../src/lib/signed-out";
 import type { Metadata } from "next";
 import { Page, PageMain, SiteHeader } from "../../src/components/site-chrome";
 import { listCities } from "../../src/lib/places";
@@ -13,14 +14,6 @@ export const metadata: Metadata = {
 const HANDLE = /^[a-z0-9][a-z0-9_-]{1,30}[a-z0-9]$/;
 
 /** Only same-site paths, so the redirect after onboarding can never leave the site. */
-function safePath(value: unknown, fallback: string): string {
-  return typeof value === "string" &&
-    value.startsWith("/") &&
-    !value.startsWith("//") &&
-    !value.includes("\\")
-    ? value
-    : fallback;
-}
 
 export default async function OnboardingPage({
   searchParams,
@@ -32,7 +25,7 @@ export default async function OnboardingPage({
     typeof params.ref === "string" && HANDLE.test(params.ref.toLowerCase())
       ? params.ref.toLowerCase()
       : null;
-  const returnTo = safePath(params.returnTo, "/");
+  const returnTo = safeReturnPath(params.returnTo, "/");
 
   // The city list is a nicety; the step still works without it.
   let cities: string[] = [];

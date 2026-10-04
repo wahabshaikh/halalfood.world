@@ -25,7 +25,7 @@ import { Spinner } from "@halalfood/ui/components/spinner";
 import { GOOGLE_PLACE_QUERY_MIN_LENGTH } from "@halalfood/core/place-submission";
 import { getClientSession } from "../../src/lib/client-session";
 import { presentHttpFailure, presentTransportFailure } from "../../src/lib/failure-copy";
-import { currentReturnPath, signedOutLoginPath } from "../../src/lib/signed-out";
+import { currentReturnPath, signedOutLoginPath, loginHref } from "../../src/lib/signed-out";
 import { matchListedPlace } from "../../src/lib/place-match";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
@@ -88,7 +88,6 @@ function duplicateFrom(body: Record<string, unknown> | null, fallbackName: strin
   return { status: body?.code === "already_pending" ? "pending" : "known", name: fallbackName };
 }
 
-const loginUrl = "/login?returnTo=%2Fadd";
 const draftKey = "halalfood:add-place-draft";
 
 /**
@@ -306,7 +305,7 @@ export default function AddPlaceForm({
     if (selectedExisting) return;
     if (authState === "signed-out") {
       saveDraft();
-      window.location.assign(loginUrl);
+      window.location.assign(loginHref(currentReturnPath()));
       return;
     }
     setSubmitBusy(true);
@@ -362,7 +361,7 @@ export default function AddPlaceForm({
     setDuplicateUrl("");
     if (authState === "signed-out") {
       saveDraft();
-      window.location.assign(loginUrl);
+      window.location.assign(loginHref(currentReturnPath()));
       return;
     }
     setSubmitBusy(true);

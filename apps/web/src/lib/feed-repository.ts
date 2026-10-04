@@ -36,6 +36,7 @@ import {
   type UserPreferences,
 } from "@halalfood/core/user-preferences";
 import { listApprovedEvidenceByPlace } from "./halal-verifications";
+import { listedVisitPlace } from "./visits";
 
 type DatabaseClient = Awaited<ReturnType<typeof database>>;
 type Client = DatabaseClient | Promise<DatabaseClient>;
@@ -213,6 +214,7 @@ function cardColumns(viewerId: string | null) {
   `;
 }
 
+// visit-visibility: gated (every caller filters rows by canViewVisit or the feed rule).
 const CARD_JOINS = sql`
   FROM place_visits AS v
   INNER JOIN place_check_ins AS c ON c.visit_id = v.id
@@ -326,7 +328,10 @@ export async function listFriendsFeed(
       FROM feed_events AS e
       INNER JOIN place_visits AS v ON v.id = e.visit_id
       LEFT JOIN user_preferences AS up ON up.user_id = e.actor_id
-      WHERE (
+      -- A visit to a place that is no longer listed leaves every feed, the
+      -- owner's included; the owner can still open it from its own link.
+      WHERE ${listedVisitPlace("v")}
+        AND (
           e.actor_id = ${input.viewerId}
           OR (
             EXISTS (
@@ -430,7 +435,9 @@ export async function getVisitAccess(
       EXISTS (
         SELECT 1 FROM feed_events AS se
         WHERE se.place_id = v.place_id AND se.actor_id = v.user_id AND se.visit_id = v.id
-      ) AS shared
+      ) AS shared,
+      ${listedVisitPlace("v")} AS place_listed,
+      EXISTS (SELECT 1 FROM moderators AS m WHERE m.user_id = ${viewerId}) AS viewer_moderator
     FROM place_visits AS v
     INNER JOIN place_check_ins AS c ON c.visit_id = v.id
     LEFT JOIN user_preferences AS up ON up.user_id = v.user_id
@@ -453,6 +460,8 @@ export async function getVisitAccess(
       viewerFollowsOwner: row.viewer_follows === 1 || row.viewer_follows === true,
       blocked: row.blocked === 1 || row.blocked === true,
       shared: row.shared === 1 || row.shared === true,
+      placeListed: row.place_listed === 1 || row.place_listed === true,
+      viewerIsModerator: row.viewer_moderator === 1 || row.viewer_moderator === true,
     },
   };
 }

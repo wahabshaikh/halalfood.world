@@ -60,6 +60,15 @@ test("a private account shows its visits only to accepted followers", () => {
   assert.equal(canViewVisit(audience({ ...closed, viewerFollowsOwner: true })), true);
   assert.equal(canViewVisit(audience({ ...closed, viewerFollowsOwner: true, blocked: true })), false);
   assert.equal(canViewVisit(audience({ ...closed, viewerId: "owner" })), true);
+
+  // A visit to a place that is no longer listed: only the owner and moderators.
+  const unlisted = { placeListed: false };
+  assert.equal(canViewVisit(audience(unlisted)), false);
+  assert.equal(canViewVisit(audience({ ...unlisted, viewerId: null })), false);
+  assert.equal(canViewVisit(audience({ ...unlisted, viewerFollowsOwner: true })), false);
+  assert.equal(canViewVisit(audience({ ...unlisted, viewerId: "owner" })), true);
+  assert.equal(canViewVisit(audience({ ...unlisted, viewerIsModerator: true })), true);
+  assert.equal(canViewVisit(audience({ ...unlisted, viewerId: null, viewerIsModerator: true })), false);
 });
 
 test("the owner always sees their own visit, even blocked or private", () => {

@@ -180,6 +180,7 @@ async function findVisitByIdempotencyKey(
   userId: string,
   idempotencyKey: string,
 ): Promise<Omit<RecordVisitResult, "deduped"> | null> {
+  // visit-visibility: owner-only (idempotent retry of the user's own check-in).
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT id, verification_method, verification_confidence
     FROM place_visits
@@ -217,7 +218,7 @@ export async function getCheckInSummary(
       v.verification_confidence
     FROM place_check_ins AS c
     INNER JOIN place_visits AS v ON v.id = c.visit_id
-    WHERE c.place_id = ${placeId}
+    WHERE c.place_id = ${placeId} AND ${visibleVisit("v", { publicAccount: true })}
     ORDER BY c.created_at DESC
     LIMIT 2000
   `);
@@ -254,7 +255,9 @@ export async function getDishHighlights(
     SELECT d.dish_name, d.normalized_name, d.verdict
     FROM place_check_in_dishes AS d
     INNER JOIN place_check_ins AS c ON c.visit_id = d.visit_id
+    INNER JOIN place_visits AS v ON v.id = c.visit_id
     WHERE d.place_id = ${placeId}
+      AND ${visibleVisit("v", { publicAccount: true })}
       AND c.incentivized = 0
       AND c.relationship = 'none'
     LIMIT 5000
@@ -280,31 +283,58 @@ export type PublicCheckIn = {
 };
 
 /**
- * The one rule for showing a visit to anyone but its owner, signed in or not:
- * the owner explicitly shared it (a `feed_events` row, written only when
- * "Share this visit to my followers' feeds" was ticked), the visit is public,
- * and the owner's visits are public. Needs `v` (place_visits) and `up`
- * (the owner's user_preferences, LEFT JOINed). Uses feed_events_place_idx.
+ * THE rule for a visit seen by anyone but its owner, and for every public
+ * count built from visits or check-ins (profile tiles, passport, visited
+ * places, place check-in summaries and dish highlights, discovery ranking,
+ * the diner leaderboard, profile meta descriptions):
+ *
+ * - the owner ticked "Share" (a `feed_events` row, written only then),
+ * - the visit is public and the owner's visits are public,
+ * - the place is still listed (not unpublished or hidden),
+ * - with `publicAccount`, the owner's account is not private. Use it for
+ *   counts with no viewer (place aggregates, leaderboards). A profile view
+ *   checks follows and blocks itself before showing anything.
+ *
+ * Self-contained: it needs only the visit's alias, never a particular join.
+ * Every query over place_visits or place_check_ins that feeds a public number
+ * goes through here; tests/visit-visibility-audit.test.ts enforces that.
  */
-export function sharedPublicVisit(alias: "v" | "iv" | "sv" = "v") {
+export function visibleVisit(alias: string = "v", options: { publicAccount?: boolean } = {}) {
+  if (!/^[a-z][a-z0-9_]*$/.test(alias)) throw new Error("visit alias");
   const v = sql.raw(alias);
+  const account = options.publicAccount
+    ? sql`AND NOT EXISTS (
+      SELECT 1 FROM user_profiles AS vpr WHERE vpr.user_id = ${v}.user_id AND vpr.is_private = 1
+    )`
+    : sql``;
   return sql`(
   ${v}.visibility = 'public'
-  AND COALESCE(up.visibility_visits, 'public') = 'public'
+  AND NOT EXISTS (
+    SELECT 1 FROM user_preferences AS vup
+    WHERE vup.user_id = ${v}.user_id AND COALESCE(vup.visibility_visits, 'public') <> 'public'
+  )
   AND EXISTS (
     SELECT 1 FROM feed_events AS se
     WHERE se.place_id = ${v}.place_id AND se.actor_id = ${v}.user_id AND se.visit_id = ${v}.id
   )
+  AND ${listedVisitPlace(alias)}
+  ${account}
 )`;
 }
 
-export const SHARED_PUBLIC_VISIT = sharedPublicVisit("v");
-
 /**
- * Someone else's view of a diner's places also leaves out places that are no
- * longer listed (unpublished, or hidden by the listing rules). Needs `p`.
+ * The visit's place is listed. The owner's own passport and visited places
+ * use this alone: a visit to a place that was unpublished stays in the
+ * owner's history (their /visit page still opens) but leaves every count.
  */
-export const LISTED_PLACE = sql`(p.listing_status = 'listed' AND p.halal_confirmed = 1)`;
+export function listedVisitPlace(alias: string = "v") {
+  if (!/^[a-z][a-z0-9_]*$/.test(alias)) throw new Error("visit alias");
+  const v = sql.raw(alias);
+  return sql`EXISTS (
+    SELECT 1 FROM places AS lp
+    WHERE lp.id = ${v}.place_id AND lp.listing_status = 'listed' AND lp.halal_confirmed = 1
+  )`;
+}
 
 /** Newest shared public check-ins for one place, from public accounts. */
 export async function listPublicCheckIns(
@@ -327,8 +357,7 @@ export async function listPublicCheckIns(
     INNER JOIN place_visits AS v ON v.id = c.visit_id
     LEFT JOIN user_profiles AS p ON p.user_id = c.user_id
     LEFT JOIN user_preferences AS up ON up.user_id = c.user_id
-    WHERE c.place_id = ${placeId} AND ${SHARED_PUBLIC_VISIT}
-      AND COALESCE(p.is_private, 0) = 0
+    WHERE c.place_id = ${placeId} AND ${visibleVisit("v", { publicAccount: true })}
     ORDER BY c.created_at DESC
     LIMIT ${Math.min(Math.max(limit, 1), 50)}
   `);
@@ -372,6 +401,7 @@ export async function listVisitedPlaceIds(
   client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): Promise<Set<string>> {
   const db = await client;
+  // visit-visibility: owner-only (marks places the signed-in user has been).
   const rows = await db.all<{ place_id: string }>(sql`
     SELECT DISTINCT place_id FROM place_visits WHERE user_id = ${userId} LIMIT 5000
   `);
@@ -386,9 +416,8 @@ export async function listPassportVisits(
   options: { sharedOnly?: boolean } = {},
 ): Promise<PassportVisit[]> {
   const db = await client;
-  const audience = options.sharedOnly
-    ? sql`${SHARED_PUBLIC_VISIT} AND ${LISTED_PLACE}`
-    : sql`1 = 1`;
+  const audience = options.sharedOnly ? visibleVisit("v") : listedVisitPlace("v");
+  // visit-visibility: audience (built above from visibleVisit or listedVisitPlace).
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT
       v.place_id, v.visited_at, v.verification_method, v.verification_confidence,
@@ -435,11 +464,12 @@ export async function listVisitedPlaces(
 ): Promise<VisitedPlaceSummary[]> {
   const db = await client;
   const audience = options.sharedOnly
-    ? sql`${SHARED_PUBLIC_VISIT} AND ${LISTED_PLACE}`
-    : sql`v.visibility = 'public'`;
+    ? visibleVisit("v")
+    : sql`v.visibility = 'public' AND ${listedVisitPlace("v")}`;
   // The "would return" shown next to a place comes from the same visits the
   // viewer may see, never from a newer unshared one.
-  const latestAudience = options.sharedOnly ? sharedPublicVisit("iv") : sql`1 = 1`;
+  const latestAudience = options.sharedOnly ? visibleVisit("iv") : sql`1 = 1`;
+  // visit-visibility: audience (built above from visibleVisit or listedVisitPlace).
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT
       v.place_id, p.name, p.city_slug, p.lat, p.lng,
@@ -485,6 +515,7 @@ export async function hasRecentVisit(
   client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): Promise<boolean> {
   const db = await client;
+  // visit-visibility: owner-only (duplicate check-in guard).
   const rows = await db.all(sql`
     SELECT 1 FROM place_visits
     WHERE user_id = ${userId} AND place_id = ${placeId}

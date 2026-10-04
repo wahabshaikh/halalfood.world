@@ -9,7 +9,7 @@
  */
 
 import { sql } from "drizzle-orm";
-import { SHARED_PUBLIC_VISIT } from "./visits";
+import { visibleVisit } from "./visits";
 import { database } from "../db";
 import {
   LEADERBOARD_DEPTH,
@@ -49,8 +49,9 @@ const VERIFIED_VISITS = sql`
     AND v.verification_confidence <> 'none'
     AND COALESCE(c.incentivized, 0) = 0
     AND COALESCE(c.relationship, 'none') = 'none'
-    -- A public board counts only what anyone could see: shared, public visits.
-    AND ${SHARED_PUBLIC_VISIT}
+    -- A public board counts only what anyone could see: shared, public visits
+    -- on listed places, from public accounts.
+    AND ${visibleVisit("v", { publicAccount: true })}
 `;
 
 function windowFilter(window: LeaderboardWindow, now: number) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { Button } from "@halalfood/ui/components/button";
 import { Card } from "@halalfood/ui/components/card";
 import { FieldLegend, FieldSet } from "@halalfood/ui/components/field";
@@ -42,7 +42,7 @@ import {
   type Verdict,
 } from "@halalfood/core/check-in";
 import { RELATIONSHIPS, RELATIONSHIP_COPY } from "@halalfood/core/halal-taxonomy";
-import { checkInDraft } from "../../../src/lib/check-in-draft";
+import { checkInDraft, checkInSheetReducer, initialCheckInSheet } from "../../../src/lib/check-in-draft";
 import {
   clearFormDraft,
   draftRecord,
@@ -63,7 +63,6 @@ import { currentReturnPath, signedOutLoginPath } from "../../../src/lib/signed-o
  */
 
 type DishEntry = { name: string; verdict: DishVerdict };
-type Phase = "idle" | "open" | "saving" | "done";
 
 const VERDICT_HINT: Record<Verdict, string> = {
   disliked: "I would not go back",
@@ -126,7 +125,8 @@ export default function PlaceCheckIn({
   /** Start with the sheet open, as on the "log a visit" page. */
   defaultOpen?: boolean;
 }) {
-  const [phase, setPhase] = useState<Phase>(defaultOpen ? "open" : "idle");
+  const [sheet, dispatchSheet] = useReducer(checkInSheetReducer, defaultOpen, initialCheckInSheet);
+  const { phase, shareToFeed } = sheet;
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [valueVerdict, setValueVerdict] = useState<ValueVerdict | null>(null);
   const [serviceVerdict, setServiceVerdict] = useState<ServiceVerdict | null>(null);
@@ -140,7 +140,6 @@ export default function PlaceCheckIn({
   const [incentivized, setIncentivized] = useState(false);
   const [shareLocation, setShareLocation] = useState(true);
   const [visibility, setVisibility] = useState<"public" | "private">("public");
-  const [shareToFeed, setShareToFeed] = useState(false);
   const [check, setCheck] = useState<CheckAnswers>({
     certificate: null,
     alcohol: null,
@@ -195,14 +194,14 @@ export default function PlaceCheckIn({
       });
     }
     if (typeof draft.idempotencyKey === "string" && draft.idempotencyKey) idempotencyKey.current = draft.idempotencyKey;
-    setPhase("open");
+    dispatchSheet({ type: "open" });
   }, [draftKey]);
 
   // A page restored from the back/forward cache keeps its old React state.
   // Sharing must be ticked on the form being sent, so it starts off again.
   useEffect(() => {
     const reset = (event: PageTransitionEvent) => {
-      if (event.persisted) setShareToFeed(false);
+      dispatchSheet({ type: "pageshow", persisted: event.persisted });
     };
     window.addEventListener("pageshow", reset);
     return () => window.removeEventListener("pageshow", reset);
@@ -243,7 +242,7 @@ export default function PlaceCheckIn({
 
   async function submit() {
     if (!ready) return;
-    setPhase("saving");
+    dispatchSheet({ type: "saving" });
     setError(null);
 
     let locationProof: Record<string, number> | undefined;
@@ -262,7 +261,7 @@ export default function PlaceCheckIn({
       : undefined;
     if (spendMinor !== undefined && !Number.isFinite(spendMinor)) {
       setError("Spend must be a number.");
-      setPhase("open");
+      dispatchSheet({ type: "failed" });
       return;
     }
 
@@ -293,7 +292,7 @@ export default function PlaceCheckIn({
       });
     } catch {
       setError("Could not reach the server. Please try again.");
-      setPhase("open");
+      dispatchSheet({ type: "failed" });
       return;
     }
 
@@ -309,7 +308,7 @@ export default function PlaceCheckIn({
           ? payload.error
           : "Could not record that visit.",
       );
-      setPhase("open");
+      dispatchSheet({ type: "failed" });
       return;
     }
 
@@ -328,7 +327,7 @@ export default function PlaceCheckIn({
           ? payload.halalCheck
           : "not-sent",
     });
-    setPhase("done");
+    dispatchSheet({ type: "done" });
   }
 
   if (phase === "done")
@@ -390,7 +389,7 @@ export default function PlaceCheckIn({
           Three taps: how it was, what you ordered, was it worth it. No stars,
           no essay. It goes to your followers&rsquo; feeds only if you tick &ldquo;Share&rdquo;.
         </SectionIntro>
-        <Button size="xl" onClick={() => setPhase("open")}>
+        <Button size="xl" onClick={() => dispatchSheet({ type: "open" })}>
           Check in
         </Button>
       </section>
@@ -398,6 +397,11 @@ export default function PlaceCheckIn({
 
   return (
     <section className="my-6" aria-labelledby="check-in-title">
+      {/* A form only so the browser never restores field state into it. The
+          disabled first submit button stops Enter from submitting or pressing
+          another button; sending is the "Record this visit" button below. */}
+      <form autoComplete="off" onSubmit={(event) => event.preventDefault()}>
+      <button type="submit" disabled hidden aria-hidden="true" tabIndex={-1} />
       <Card className="gap-5 px-5 py-5">
         <SectionHeading
           id="check-in-title"
@@ -408,7 +412,7 @@ export default function PlaceCheckIn({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setPhase("idle")}
+              onClick={() => dispatchSheet({ type: "close" })}
               aria-label="Close the check-in"
             >
               <HugeiconsIcon icon={Cancel01Icon} size={18} />
@@ -696,7 +700,7 @@ export default function PlaceCheckIn({
           id="check-in-share"
           checked={visibility === "public" && shareToFeed}
           disabled={visibility === "private"}
-          onCheckedChange={(checked) => setShareToFeed(checked === true)}
+          onCheckedChange={(checked) => dispatchSheet({ type: "share", checked: checked === true })}
         >
           Share this visit to my followers&rsquo; feeds. Off unless you tick it.
         </CheckboxField>
@@ -716,6 +720,7 @@ export default function PlaceCheckIn({
           this form — it only exists on the restaurant&rsquo;s own page.
         </Hint>
       </Card>
+      </form>
     </section>
   );
 }

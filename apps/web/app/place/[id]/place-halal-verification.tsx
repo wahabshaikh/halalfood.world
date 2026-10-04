@@ -32,7 +32,7 @@ import {
   presentTransportFailure,
 } from "../../../src/lib/failure-copy";
 import { BlockLoadError } from "./block-load-error";
-import { signedOutLoginPath, wasSignedIn } from "../../../src/lib/signed-out";
+import { signedOutLoginPath, wasSignedIn, loginHref } from "../../../src/lib/signed-out";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
 type Evidence =
@@ -489,7 +489,7 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
           description="Log in with a one-time email code to share it for review."
           action={
             <Button asChild variant="outline">
-              <a href={`/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`}>
+              <a href={loginHref(`/place/${placeId}`)}>
                 Log in to share
               </a>
             </Button>

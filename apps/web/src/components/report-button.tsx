@@ -11,10 +11,10 @@ import {
 } from "@halalfood/core/moderation";
 import { SelectField } from "./form-fields";
 import { FormMessage } from "./section";
+import { loginHref, currentReturnPath } from "../lib/signed-out";
 
 function goToLogin(reason = "report") {
-  const here = window.location.pathname + window.location.search;
-  window.location.assign(`/login?reason=${reason}&returnTo=${encodeURIComponent(here)}`);
+  window.location.assign(loginHref(currentReturnPath(), reason));
 }
 
 /**

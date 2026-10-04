@@ -34,6 +34,7 @@ import {
 } from "@halalfood/core/social";
 import { DEFAULT_PREFERENCES } from "@halalfood/core/user-preferences";
 import { STATUS_COPY, type HalalTaxonomyStatus } from "@halalfood/core/halal-taxonomy";
+import { loginHref, currentReturnPath } from "../../src/lib/signed-out";
 
 type Pick = {
   id: string;
@@ -104,11 +105,7 @@ export default function OnboardingFlow({
         const response = await fetch("/api/onboarding", { cache: "no-store" });
         if (response.status === 401) {
           // Keep the invite (and any return path) through sign-in.
-          window.location.assign(
-            `/login?reason=join&returnTo=${encodeURIComponent(
-              window.location.pathname + window.location.search,
-            )}`,
-          );
+          window.location.assign(loginHref(currentReturnPath(), "join"));
           return;
         }
         if (response.ok) {

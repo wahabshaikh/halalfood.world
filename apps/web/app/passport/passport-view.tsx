@@ -10,6 +10,7 @@ import { FormMessage, InsufficientData, SectionIntro } from "../../src/component
 import type { FoodPassport, Milestone } from "@halalfood/core/food-passport";
 import type { VisitedPlaceSummary } from "../../src/lib/visits";
 import ShareButton from "../../src/components/share-button";
+import { signInAgainUrl } from "../../src/lib/signed-out";
 
 /**
  * The food passport: coverage, milestones and a personal food map.
@@ -59,7 +60,7 @@ export default function PassportView() {
         const response = await fetch("/api/passport");
         if (response.status === 401) {
           const body = await response.json();
-          if (typeof body.loginUrl === "string") window.location.href = body.loginUrl;
+          if (typeof body.loginUrl === "string") window.location.href = signInAgainUrl(body);
           return;
         }
         if (!response.ok) throw new Error();

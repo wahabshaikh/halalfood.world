@@ -6,6 +6,7 @@ import { Card } from "@halalfood/ui/components/card";
 import { Input } from "@halalfood/ui/components/input";
 import { getClientSession } from "../../../src/lib/client-session";
 import { FormMessage, Note } from "../../../src/components/section";
+import { signInAgainUrl } from "../../../src/lib/signed-out";
 
 type Listing = {
   placeId: string;
@@ -71,7 +72,7 @@ export default function PlaceModeration({ placeId }: { placeId: string }) {
         loginUrl?: string;
       };
       if (response.status === 401 && body.loginUrl) {
-        window.location.assign(body.loginUrl);
+        window.location.assign(signInAgainUrl(body));
         return;
       }
       if (!response.ok || !body.listing) {

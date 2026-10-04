@@ -8,10 +8,10 @@ import {
   presentTransportFailure,
 } from "../lib/failure-copy";
 import { ReportButton } from "./report-button";
+import { loginHref, currentReturnPath } from "../lib/signed-out";
 
 function goToLogin() {
-  const here = window.location.pathname + window.location.search;
-  window.location.assign(`/login?reason=confirm&returnTo=${encodeURIComponent(here)}`);
+  window.location.assign(loginHref(currentReturnPath(), "confirm"));
 }
 
 /**

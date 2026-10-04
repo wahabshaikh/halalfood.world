@@ -22,7 +22,7 @@ import { BlockLoadError } from "./block-load-error";
 import { getClientSession } from "../../../src/lib/client-session";
 import { clearFormDraft, draftRecord, readFormDraft, saveFormDraft } from "../../../src/lib/form-draft";
 import { presentHttpFailure, presentTransportFailure } from "../../../src/lib/failure-copy";
-import { currentReturnPath, signedOutLoginPath, wasSignedIn } from "../../../src/lib/signed-out";
+import { currentReturnPath, signedOutLoginPath, wasSignedIn, loginHref } from "../../../src/lib/signed-out";
 
 const TITLE_MAX_LENGTH = 120;
 const BODY_MAX_LENGTH = 5000;
@@ -87,7 +87,7 @@ function errorFrom(value: unknown, fallback: string): string {
 }
 
 function loginUrl(placeId: string): string {
-  return `/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`;
+  return loginHref(`/place/${placeId}`);
 }
 
 function formatTimestamp(value: string): string {

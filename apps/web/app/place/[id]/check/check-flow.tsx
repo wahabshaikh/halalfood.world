@@ -26,7 +26,7 @@ import { EmptyPanel, Eyebrow } from "../../../../src/components/site-chrome";
 import { getClientSession } from "../../../../src/lib/client-session";
 import { clearFormDraft, draftRecord, readFormDraft, saveFormDraft } from "../../../../src/lib/form-draft";
 import { presentHttpFailure, presentTransportFailure } from "../../../../src/lib/failure-copy";
-import { signedOutLoginPath } from "../../../../src/lib/signed-out";
+import { signedOutLoginPath, loginHref } from "../../../../src/lib/signed-out";
 
 type Question = "certificate" | "alcohol" | "meat";
 type Answers = Record<Question, string | null>;
@@ -261,7 +261,7 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
         </p>
         <div className="flex flex-wrap gap-2.5">
           <Button asChild size="xl">
-            <a href={`/login?returnTo=${encodeURIComponent(selfHref)}`}>Log in to check</a>
+            <a href={loginHref(selfHref)}>Log in to check</a>
           </Button>
           <Button asChild size="xl" variant="outline">
             <a href={placeHref}>Not now</a>
