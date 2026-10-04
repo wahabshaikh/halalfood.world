@@ -42,7 +42,13 @@ import {
   type Verdict,
 } from "@halalfood/core/check-in";
 import { RELATIONSHIPS, RELATIONSHIP_COPY } from "@halalfood/core/halal-taxonomy";
-import { clearFormDraft, draftRecord, readFormDraft, saveFormDraft } from "../../../src/lib/form-draft";
+import {
+  clearFormDraft,
+  draftRecord,
+  readFormDraft,
+  restoredShareToFeed,
+  saveFormDraft,
+} from "../../../src/lib/form-draft";
 import { currentReturnPath, signedOutLoginPath } from "../../../src/lib/signed-out";
 
 /**
@@ -178,7 +184,9 @@ export default function PlaceCheckIn({
     if (typeof draft.incentivized === "boolean") setIncentivized(draft.incentivized);
     if (typeof draft.shareLocation === "boolean") setShareLocation(draft.shareLocation);
     if (draft.visibility === "public" || draft.visibility === "private") setVisibility(draft.visibility);
-    if (typeof draft.shareToFeed === "boolean") setShareToFeed(draft.shareToFeed);
+    // Sharing is opt-in. Only a draft that records the diner ticking it brings
+    // it back; anything else (an older draft, a missing flag) stays off.
+    setShareToFeed(restoredShareToFeed(draft));
     const check = draftRecord(draft.check);
     if (check) {
       setCheck({
@@ -207,6 +215,7 @@ export default function PlaceCheckIn({
       shareLocation,
       visibility,
       shareToFeed,
+      shareToFeedChosen: shareToFeed,
       check,
       idempotencyKey: idempotencyKey.current,
     });
@@ -372,7 +381,7 @@ export default function PlaceCheckIn({
         <SectionHeading eyebrow="RECORD A VISIT" title={`Been to ${placeName}?`} />
         <SectionIntro>
           Three taps: how it was, what you ordered, was it worth it. No stars,
-          no essay. Friends who follow you see it in their feed.
+          no essay. It goes to your followers&rsquo; feeds only if you tick &ldquo;Share&rdquo;.
         </SectionIntro>
         <Button size="xl" onClick={() => setPhase("open")}>
           Check in
@@ -665,14 +674,6 @@ export default function PlaceCheckIn({
                 coordinates.
               </CheckboxField>
               <CheckboxField
-                id="check-in-share"
-                checked={visibility === "public" && shareToFeed}
-                disabled={visibility === "private"}
-                onCheckedChange={setShareToFeed}
-              >
-                Share this visit to my followers&rsquo; feeds.
-              </CheckboxField>
-              <CheckboxField
                 id="check-in-private"
                 checked={visibility === "private"}
                 onCheckedChange={(checked) => setVisibility(checked ? "private" : "public")}
@@ -682,6 +683,16 @@ export default function PlaceCheckIn({
             </FieldSet>
           </div>
         </Disclosure>
+
+        {/* Sharing is opt-in and always in view, never tucked in a disclosure. */}
+        <CheckboxField
+          id="check-in-share"
+          checked={visibility === "public" && shareToFeed}
+          disabled={visibility === "private"}
+          onCheckedChange={(checked) => setShareToFeed(checked === true)}
+        >
+          Share this visit to my followers&rsquo; feeds. Off unless you tick it.
+        </CheckboxField>
 
         {error && <FormMessage tone="error">{error}</FormMessage>}
 

@@ -5,6 +5,7 @@
 
 import { sql } from "drizzle-orm";
 import { isUniqueConstraint } from "./domain-error";
+import { SHARED_PUBLIC_VISIT } from "./visits";
 import { database } from "../db";
 
 type DatabaseClient = Awaited<ReturnType<typeof database>>;
@@ -46,18 +47,21 @@ async function targetAccess(
     return { state: "ok" };
   }
 
-  const rows = await db.all<{ user_id?: unknown; visibility?: unknown }>(sql`
-    SELECT v.user_id, v.visibility
+  // Same rule as every other non-owner view: shared, public, owner's visits public.
+  const rows = await db.all<{ user_id?: unknown; visible?: unknown }>(sql`
+    SELECT v.user_id, ${SHARED_PUBLIC_VISIT} AS visible
     FROM place_visits AS v
     INNER JOIN place_check_ins AS c ON c.visit_id = v.id
     INNER JOIN places AS p ON p.id = v.place_id
+    LEFT JOIN user_preferences AS up ON up.user_id = v.user_id
     WHERE v.id = ${targetId}
       AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
     LIMIT 1
   `);
   const row = rows[0];
-  if (!row || row.visibility !== "public") return { state: "missing" };
+  if (!row) return { state: "missing" };
   if (row.user_id === userId) return { state: "own" };
+  if (!(row.visible === 1 || row.visible === true)) return { state: "missing" };
   return { state: "ok" };
 }
 

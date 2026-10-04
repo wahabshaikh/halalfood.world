@@ -24,7 +24,12 @@ import { contributionReceipt, type ContributionReceipt } from "@halalfood/core/c
 import { CommunityChain } from "../../../src/components/community-chain";
 import { getClientSession } from "../../../src/lib/client-session";
 import { clearFormDraft, draftRecord, readFormDraft, saveFormDraft } from "../../../src/lib/form-draft";
-import { presentHttpFailure, presentTransportFailure } from "../../../src/lib/failure-copy";
+import {
+  checksLoadFailure,
+  presentHttpFailure,
+  presentTransportFailure,
+  type PresentedFailure,
+} from "../../../src/lib/failure-copy";
 import { signedOutLoginPath } from "../../../src/lib/signed-out";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
@@ -154,7 +159,7 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
   const [verifications, setVerifications] = useState<Verification[]>([]);
   const [statusSummary, setStatusSummary] = useState<HalalStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  const [loadError, setLoadError] = useState<PresentedFailure | null>(null);
   const [links, setLinks] = useState("");
   const [note, setNote] = useState("");
   const draftKey = `halalfood:halal-check-draft:${placeId}`;
@@ -176,7 +181,8 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = async () => {
-    setLoadError("");
+    setLoadError(null);
+    setLoading(true);
     try {
       const [verificationResponse, sessionUser] = await Promise.all([
         fetch(`/api/places/${encodeURIComponent(placeId)}/verifications`, {
@@ -189,21 +195,17 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
       const verificationBody = await responseBody(verificationResponse);
       setAuthState(sessionUser ? "signed-in" : "signed-out");
       if (!verificationResponse.ok) {
-        setStatusSummary({ status: "unavailable" });
-        setLoadError(
-          presentHttpFailure(
-            "checks",
-            verificationResponse.status,
-            errorFrom(verificationBody, "Verifications could not be loaded."),
-          ).message,
-        );
+        // One message for one failure: the status card is hidden rather than
+        // repeating a generic "unavailable" above the specific reason.
+        setStatusSummary(null);
+        setLoadError(checksLoadFailure(verificationResponse.status));
         return;
       }
       setStatusSummary(parseHalalStatus(verificationBody?.summary));
       setVerifications(readVerifications(verificationBody));
     } catch (caught) {
-      setStatusSummary({ status: "unavailable" });
-      setLoadError(presentTransportFailure("checks", caught).message);
+      setStatusSummary(null);
+      setLoadError(presentTransportFailure("the halal checks for this place", caught));
     } finally {
       setLoading(false);
     }
@@ -387,7 +389,21 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
       )}
 
       {loading && <Loading>Loading checks…</Loading>}
-      {loadError && <FormMessage tone="error">{loadError}</FormMessage>}
+      {loadError && (
+        <FormMessage tone="error">
+          {loadError.message}{" "}
+          {loadError.retry && (
+            <Button
+              variant="link"
+              className="h-auto p-0 font-bold"
+              disabled={loading}
+              onClick={() => void load()}
+            >
+              Try again
+            </Button>
+          )}
+        </FormMessage>
+      )}
       {!loading && !loadError && !verifications.length && (
         <EmptyState>Nobody has shared a check yet. Been here? It takes about a minute.</EmptyState>
       )}

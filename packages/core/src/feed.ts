@@ -62,16 +62,23 @@ export type VisitAudience = {
   viewerFollowsOwner: boolean;
   /** Either side has blocked the other. */
   blocked: boolean;
+  /**
+   * The owner ticked "Share this visit to my followers' feeds". A visit that
+   * was not shared stays the owner's, even when its visibility is public.
+   */
+  shared: boolean;
 };
 
 /**
  * Can this viewer see this visit, its reactions and its comments? The owner
- * always can. Nobody can once either side has blocked the other, and a private
- * visit or a private account is only ever the owner's.
+ * always can. Anyone else, signed in or not, needs all of: the owner shared
+ * it (the explicit opt-in), the visit and the owner's visits are public, no
+ * block in either direction, and for a private account an accepted follow.
  */
 export function canViewVisit(audience: VisitAudience): boolean {
   if (audience.viewerId && audience.viewerId === audience.ownerId) return true;
   if (audience.blocked) return false;
+  if (!audience.shared) return false;
   if (audience.ownerIsPrivateAccount && !audience.viewerFollowsOwner) return false;
   return (
     audience.visitVisibility === "public" &&

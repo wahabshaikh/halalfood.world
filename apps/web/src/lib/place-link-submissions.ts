@@ -171,7 +171,11 @@ async function findPlaceForSubmission(
   };
 }
 
-async function insertListedPlace(db: DatabaseClient, row: SubmissionRow): Promise<string> {
+async function insertListedPlace(
+  db: DatabaseClient,
+  row: SubmissionRow,
+  pin: { lat: number; lng: number } | null,
+): Promise<string> {
   const id = crypto.randomUUID();
   const now = Date.now();
   await db.run(sql`
@@ -186,14 +190,14 @@ async function insertListedPlace(db: DatabaseClient, row: SubmissionRow): Promis
       ${row.street_address}, NULL, NULL, NULL, NULL,
       NULL, NULL, NULL, ${row.google_place_id}, ${JSON.stringify([])},
       NULL, NULL, 'user-submitted', ${row.source_url}, ${now}, ${now},
-      NULL, NULL, ${row.submitted_by_user_id}, 1, 'listed'
+      ${pin?.lat ?? null}, ${pin?.lng ?? null}, ${row.submitted_by_user_id}, 1, 'listed'
     )
   `);
   return id;
 }
 
 export type PlaceReviewResult =
-  | { ok: true; placeId: string | null }
+  | { ok: true; placeId: string | null; citySlug: string | null }
   | { ok: false; reason: "not-found" | "hidden-match"; placeId?: string };
 
 /**
@@ -207,6 +211,8 @@ export async function reviewPlaceSubmission(
   decision: "approved" | "rejected",
   reason: string | null,
   client: DatabaseClient | Promise<DatabaseClient> = database(),
+  /** Optional map pin for a newly listed row. Without one it is findable but not on the map. */
+  pin: { lat: number; lng: number } | null = null,
 ): Promise<PlaceReviewResult> {
   const db = await client;
   const row = await loadPendingSubmission(db, id);
@@ -232,13 +238,13 @@ export async function reviewPlaceSubmission(
       },
       db,
     );
-    return { ok: true, placeId: null };
+    return { ok: true, placeId: null, citySlug: null };
   }
 
   let match = await findPlaceForSubmission(db, row);
   if (!match) {
     try {
-      match = { id: await insertListedPlace(db, row), publiclyListed: true };
+      match = { id: await insertListedPlace(db, row, pin), publiclyListed: true };
     } catch (error) {
       if (!isUniqueConstraint(error)) throw error;
       match = await findPlaceForSubmission(db, row);
@@ -269,5 +275,5 @@ export async function reviewPlaceSubmission(
     },
     db,
   );
-  return { ok: true, placeId };
+  return { ok: true, placeId, citySlug: row.city_slug };
 }

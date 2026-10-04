@@ -279,7 +279,23 @@ export type PublicCheckIn = {
   dishes: Array<{ name: string; verdict: DishVerdict }>;
 };
 
-/** Newest public check-ins for one place, for the profile. */
+/**
+ * The one rule for showing a visit to anyone but its owner, signed in or not:
+ * the owner explicitly shared it (a `feed_events` row, written only when
+ * "Share this visit to my followers' feeds" was ticked), the visit is public,
+ * and the owner's visits are public. Needs `v` (place_visits) and `up`
+ * (the owner's user_preferences, LEFT JOINed). Uses feed_events_place_idx.
+ */
+export const SHARED_PUBLIC_VISIT = sql`(
+  v.visibility = 'public'
+  AND COALESCE(up.visibility_visits, 'public') = 'public'
+  AND EXISTS (
+    SELECT 1 FROM feed_events AS se
+    WHERE se.place_id = v.place_id AND se.actor_id = v.user_id AND se.visit_id = v.id
+  )
+)`;
+
+/** Newest shared public check-ins for one place, from public accounts. */
 export async function listPublicCheckIns(
   placeId: string,
   limit = 20,
@@ -299,7 +315,9 @@ export async function listPublicCheckIns(
     FROM place_check_ins AS c
     INNER JOIN place_visits AS v ON v.id = c.visit_id
     LEFT JOIN user_profiles AS p ON p.user_id = c.user_id
-    WHERE c.place_id = ${placeId} AND v.visibility = 'public'
+    LEFT JOIN user_preferences AS up ON up.user_id = c.user_id
+    WHERE c.place_id = ${placeId} AND ${SHARED_PUBLIC_VISIT}
+      AND COALESCE(p.is_private, 0) = 0
     ORDER BY c.created_at DESC
     LIMIT ${Math.min(Math.max(limit, 1), 50)}
   `);
@@ -353,8 +371,11 @@ export async function listVisitedPlaceIds(
 export async function listPassportVisits(
   userId: string,
   client: DatabaseClient | Promise<DatabaseClient> = database(),
+  /** For anyone but the owner: only visits the owner shared. */
+  options: { sharedOnly?: boolean } = {},
 ): Promise<PassportVisit[]> {
   const db = await client;
+  const audience = options.sharedOnly ? SHARED_PUBLIC_VISIT : sql`1 = 1`;
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT
       v.place_id, v.visited_at, v.verification_method, v.verification_confidence,
@@ -363,7 +384,8 @@ export async function listPassportVisits(
     FROM place_visits AS v
     INNER JOIN places AS p ON p.id = v.place_id
     LEFT JOIN place_facts AS f ON f.place_id = v.place_id
-    WHERE v.user_id = ${userId}
+    LEFT JOIN user_preferences AS up ON up.user_id = v.user_id
+    WHERE v.user_id = ${userId} AND ${audience}
     ORDER BY v.visited_at DESC
     LIMIT 5000
   `);
@@ -395,8 +417,11 @@ export type VisitedPlaceSummary = {
 export async function listVisitedPlaces(
   userId: string,
   client: DatabaseClient | Promise<DatabaseClient> = database(),
+  /** For anyone but the owner: only visits the owner shared. */
+  options: { sharedOnly?: boolean } = {},
 ): Promise<VisitedPlaceSummary[]> {
   const db = await client;
+  const audience = options.sharedOnly ? SHARED_PUBLIC_VISIT : sql`v.visibility = 'public'`;
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT
       v.place_id, p.name, p.city_slug, p.lat, p.lng,
@@ -410,7 +435,8 @@ export async function listVisitedPlaces(
       ) AS would_return
     FROM place_visits AS v
     INNER JOIN places AS p ON p.id = v.place_id
-    WHERE v.user_id = ${userId} AND v.visibility = 'public'
+    LEFT JOIN user_preferences AS up ON up.user_id = v.user_id
+    WHERE v.user_id = ${userId} AND ${audience}
     GROUP BY v.place_id
     ORDER BY last_visited_at DESC
     LIMIT 1000

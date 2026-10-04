@@ -10,7 +10,7 @@
 
 import { sql, type SQL } from "drizzle-orm";
 import { database } from "../db";
-import { cachedRead } from "./read-cache";
+import { listingCachedRead } from "./listing-cache";
 import {
   FACT_FILTER_SQL,
   type DiscoveryFilters,
@@ -411,7 +411,7 @@ export async function discoverPlaces(
   // a rounded box, and `count(*) OVER()` would otherwise read that whole box
   // on every crawl of every listing.
   if (!client && sharedDiscovery(query)) {
-    return cachedRead(discoveryCacheKey(query), 10 * 60, () =>
+    return listingCachedRead(discoveryCacheKey(query), 10 * 60, () =>
       discoverPlaces(query, database()),
     );
   }

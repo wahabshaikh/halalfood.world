@@ -54,6 +54,7 @@ import SavePlaceButton from "../../../src/components/save-place-button";
 import { PlacePhoto as PlacePhotoArt } from "../../../src/components/place-photo";
 import PlaceHalalVerification from "./place-halal-verification";
 import PlaceCheckIn from "./place-check-in";
+import PlaceModeration from "./place-moderation";
 import PlaceContribute from "./place-contribute";
 import {
   DecisionHeadline,
@@ -461,6 +462,7 @@ export default async function PlacePage({
             </Button>
           </div>
         </section>
+        <PlaceModeration placeId={place.id} />
 
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-20">
           <div>

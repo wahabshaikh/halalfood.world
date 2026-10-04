@@ -15,6 +15,11 @@ import FollowButton from "../../src/components/follow-button";
 import { TONE_BADGE } from "../../src/components/status-tone";
 import { cityName } from "../../src/lib/seo";
 import {
+  clearOnboardingDraft,
+  readOnboardingDraft,
+  saveOnboardingDraft,
+} from "../../src/lib/onboarding-draft";
+import {
   DEFAULT_ONBOARDING_STANDARD,
   MAX_WANT_TO_TRY,
   ONBOARDING_STEPS,
@@ -80,6 +85,10 @@ export default function OnboardingFlow({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [finished, setFinished] = useState<{ handle: string; following: string | null } | null>(null);
+  // The draft is only written after it has been read back, so the empty first
+  // render never overwrites what a reload is about to restore.
+  const [draftOwner, setDraftOwner] = useState<string | null>(null);
+  const [restorePicks, setRestorePicks] = useState<boolean | null>(null);
 
   const [query, setQuery] = useState("");
   const [people, setPeople] = useState<Person[]>([]);
@@ -89,6 +98,7 @@ export default function OnboardingFlow({
   // name keeps it if they reload half way.
   useEffect(() => {
     (async () => {
+      let owner: string | null = null;
       try {
         const response = await fetch("/api/onboarding", { cache: "no-store" });
         if (response.status === 401) {
@@ -112,6 +122,7 @@ export default function OnboardingFlow({
             };
           };
           if (body.completed) {
+            clearOnboardingDraft();
             window.location.replace(invitedBy ? `/u/${invitedBy}` : returnTo);
             return;
           }
@@ -119,10 +130,26 @@ export default function OnboardingFlow({
           if (body.profile.handleChosen) setHandle(body.profile.handle);
           setAvatarUrl(body.profile.avatarUrl);
           setHomeCity(body.profile.homeCitySlug);
+          owner = body.profile.handle;
         }
       } catch {
         // Fall through: the steps still work and the final save will report errors.
       }
+      // A reload part way through (this tab only) comes back to the same step
+      // with what was typed. The draft wins over the server copy because the
+      // server only learns these answers when onboarding finishes.
+      const draft = owner ? readOnboardingDraft(owner) : null;
+      if (draft) {
+        if (draft.displayName) setDisplayName(draft.displayName);
+        if (draft.handle) setHandle(draft.handle);
+        if (draft.homeCity) setHomeCity(draft.homeCity);
+        setStandard(draft.standard);
+        setStandardTouched(draft.standardTouched);
+        setChosen(draft.chosen);
+        setStep(draft.step);
+        if (draft.step === "picks") setRestorePicks(draft.standardTouched);
+      }
+      setDraftOwner(owner);
       setLoading(false);
     })();
   }, [invitedBy, returnTo]);
@@ -177,6 +204,31 @@ export default function OnboardingFlow({
       setPicks([]);
     }
   }, [standard.preset, standard.avoidAlcohol, standardTouched, homeCity]);
+
+  useEffect(() => {
+    if (!draftOwner) return;
+    if (step === "ready") {
+      clearOnboardingDraft();
+      return;
+    }
+    saveOnboardingDraft({
+      owner: draftOwner,
+      step,
+      displayName,
+      handle,
+      homeCity,
+      standard,
+      standardTouched,
+      chosen,
+    });
+  }, [draftOwner, step, displayName, handle, homeCity, standard, standardTouched, chosen]);
+
+  // Restored onto the picks step: load them once the restored answers are in state.
+  useEffect(() => {
+    if (restorePicks === null) return;
+    setRestorePicks(null);
+    void loadPicks(restorePicks);
+  }, [restorePicks, loadPicks]);
 
   // People search on the friends step.
   useEffect(() => {
@@ -262,6 +314,7 @@ export default function OnboardingFlow({
         else if (response.status === 409 || response.status === 400) setStep("profile");
         return;
       }
+      clearOnboardingDraft();
       setFinished({ handle: body.profile.handle, following: body.followed ? invitedBy : null });
       setStep("ready");
     } catch {

@@ -27,6 +27,7 @@ const audience = (overrides: Partial<VisitAudience> = {}): VisitAudience => ({
   ownerIsPrivateAccount: false,
   viewerFollowsOwner: false,
   blocked: false,
+  shared: true,
   ...overrides,
 });
 
@@ -77,6 +78,11 @@ test("the owner always sees their own visit, even blocked or private", () => {
 
 test("blocking hides the visit in both directions", () => {
   assert.equal(canViewVisit(audience({ blocked: true })), false);
+  // Public but not shared: only the owner sees it, signed in or not.
+  assert.equal(canViewVisit(audience({ shared: false })), false);
+  assert.equal(canViewVisit(audience({ shared: false, viewerId: null })), false);
+  assert.equal(canViewVisit(audience({ shared: false, viewerFollowsOwner: true })), false);
+  assert.equal(canViewVisit(audience({ shared: false, viewerId: "owner" })), true);
   assert.equal(canComment(audience({ blocked: true })), false);
 });
 
