@@ -5,7 +5,9 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
-  "main": "vinext/server/fetch-handler",
+  // Custom entry wraps vinext/server/fetch-handler with Sentry. The build emits
+  // the bundled file as `main` in dist/server/wrangler.json.
+  "main": "./worker/index.ts",
   "preview_urls": true,
   "assets": {
     "directory": "dist/client",
@@ -28,7 +30,10 @@
     }
   ],
   "vars": {
-    "BETTER_AUTH_URL": "https://halalfood.world"
+    "BETTER_AUTH_URL": "https://halalfood.world",
+    // Public DSN (it also ships in the browser bundle). Do not also set this
+    // name with `wrangler secret put`; a var and a secret conflict on deploy.
+    "SENTRY_DSN": "https://628e981cc4682959d5a7b79f0b73ecea@o4512156631171073.ingest.us.sentry.io/4512190880284672"
   },
   "cache": {
     "enabled": true

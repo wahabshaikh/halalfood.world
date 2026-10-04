@@ -78,7 +78,10 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      data-sentry-environment={process.env.ENVIRONMENT?.trim() || undefined}
+    >
       <body>
         {children}
         <DataFastAnalytics />

@@ -69,6 +69,10 @@ TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
 TURNSTILE_SECRET_KEY=<Cloudflare Turnstile server secret>
 GOOGLE_PLACES_API_KEY=<your Google Places API key>
 # GOOGLE_MAPS_API_KEY=<fallback Google Maps API key>
+# Optional. Overrides the public SENTRY_DSN var in wrangler.jsonc for local Workers.
+# SENTRY_DSN=
+# Optional build-time override for the browser SDK. Falls back to SENTRY_DSN.
+# NEXT_PUBLIC_SENTRY_DSN=
 ```
 
 `GOOGLE_PLACES_API_KEY` is preferred; `GOOGLE_MAPS_API_KEY` is accepted as a
@@ -551,6 +555,8 @@ BETTER_AUTH_URL=https://halalfood.world
 TURNSTILE_SITE_KEY=<public Cloudflare Turnstile site key>
 EMAIL_FROM=noreply@halalfood.world
 ```
+
+`SENTRY_DSN` is already set as a public var in [`wrangler.jsonc`](apps/web/wrangler.jsonc) (production and the generated preview config). It is not a secret: do not also run `wrangler secret put SENTRY_DSN`, because a var and a secret with the same name conflict on deploy. The browser SDK reads `NEXT_PUBLIC_SENTRY_DSN` at build time and, when that is unset, the same `SENTRY_DSN` value. Set `NEXT_PUBLIC_SENTRY_DSN` in the Workers Builds environment only to override it. Set an `ENVIRONMENT` Worker variable when you want Sentry events tagged with something other than the Node environment (`production` in a production build, `development` locally).
 
 `TURNSTILE_SITE_KEY` may be a normal public Worker variable (or a dashboard secret if preferred); only `TURNSTILE_SECRET_KEY` belongs in `wrangler secret put` and it must never be sent to the browser. `BETTER_AUTH_URL` must match the public origin so Better Auth can validate origins and issue HTTPS/SameSite cookies. Keep the local `.dev.vars` values separate from production. `RESEND_API_KEY`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, `GOOGLE_PLACES_API_KEY` are secret names only here; enter their values at the Wrangler prompts. Use `GOOGLE_MAPS_API_KEY` instead only when retaining an existing secret name.
 
