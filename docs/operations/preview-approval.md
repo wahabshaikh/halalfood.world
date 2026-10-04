@@ -14,7 +14,7 @@ Removing the label stops future builds/deploys. Cancel any already-running
 workflow separately if you need it to stop. Closing the PR retains the
 existing cleanup path. Removing the label alone does not delete its preview.
 
-## Bootstrap without creating a preview
+## Bootstrap
 
 1. With owner approval, temporarily disable only `Pull request preview`.
 2. Open and review this workflow PR while that workflow is disabled. The old
@@ -25,3 +25,7 @@ existing cleanup path. Removing the label alone does not delete its preview.
    until an actual preview run is approved.
 
 No production deployment or database migration is authorized by this gate.
+
+Alternatively, the owner can approve the old workflow creating resources for
+this one bootstrap PR, after its included quota/cost headroom is checked.
+That exception does not authorize previews for subsequent fixes or merging.

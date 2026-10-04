@@ -3,7 +3,7 @@ name: Pull request preview
 # Opening or updating a PR must not provision Cloudflare resources by default.
 # A maintainer can opt a reviewed non-draft PR in with preview-approved.
 # Removing that label blocks later runs; it does not cancel a running deploy.
-# Merge this gate with the old workflow temporarily disabled during bootstrap.
+# Bootstrap requires the old workflow disabled OR explicit one-preview approval.
 
 on:
   pull_request_target:
