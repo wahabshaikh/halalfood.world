@@ -381,7 +381,7 @@ export default function PlaceCheckIn({
         <SectionHeading eyebrow="RECORD A VISIT" title={`Been to ${placeName}?`} />
         <SectionIntro>
           Three taps: how it was, what you ordered, was it worth it. No stars,
-          no essay. Friends who follow you see it in their feed.
+          no essay. It goes to your followers&rsquo; feeds only if you tick &ldquo;Share&rdquo;.
         </SectionIntro>
         <Button size="xl" onClick={() => setPhase("open")}>
           Check in
@@ -674,14 +674,6 @@ export default function PlaceCheckIn({
                 coordinates.
               </CheckboxField>
               <CheckboxField
-                id="check-in-share"
-                checked={visibility === "public" && shareToFeed}
-                disabled={visibility === "private"}
-                onCheckedChange={setShareToFeed}
-              >
-                Share this visit to my followers&rsquo; feeds.
-              </CheckboxField>
-              <CheckboxField
                 id="check-in-private"
                 checked={visibility === "private"}
                 onCheckedChange={(checked) => setVisibility(checked ? "private" : "public")}
@@ -691,6 +683,16 @@ export default function PlaceCheckIn({
             </FieldSet>
           </div>
         </Disclosure>
+
+        {/* Sharing is opt-in and always in view, never tucked in a disclosure. */}
+        <CheckboxField
+          id="check-in-share"
+          checked={visibility === "public" && shareToFeed}
+          disabled={visibility === "private"}
+          onCheckedChange={(checked) => setShareToFeed(checked === true)}
+        >
+          Share this visit to my followers&rsquo; feeds. Off unless you tick it.
+        </CheckboxField>
 
         {error && <FormMessage tone="error">{error}</FormMessage>}
 
