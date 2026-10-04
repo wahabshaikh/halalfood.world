@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; }
+    .b { font-family: "Space Grotesk", system-ui, sans-serif; color: #F1F5EF; -webkit-font-smoothing: antialiased; }
+    .b-d { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.035em; }
+    .b-num { font-variant-numeric: tabular-nums; font-family: "Archivo", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.04em; }
+    .b-lbl { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; color: #7E8C84; }
+    .b-screen { width: 390px; height: 844px; background: #0B100E; overflow: hidden; display: flex; flex-direction: column; }
+    .b-card { background: #161D19; border: 1px solid #262F2A; border-radius: 18px; }
+    .b-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; flex-shrink: 0; }
+    .b-icobtn { width: 44px; height: 44px; border-radius: 12px; background: #161D19; border: 1px solid #262F2A; display: grid; place-items: center; }
+    .b-cta { height: 54px; border-radius: 15px; background: #FFB347; color: #10170F; display: flex; align-items: center; justify-content: center; gap: 9px; font-family: "Archivo", sans-serif; font-size: 16px; font-weight: 800; letter-spacing: -0.02em; box-shadow: 0 0 28px #FFB34733; }
+    .b-tabbar { display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; background: #0E1412; border-top: 1px solid #212A25; padding: 10px 8px calc(11px + env(safe-area-inset-bottom, 0px)); flex-shrink: 0; }
+    .b-tab { display: flex; flex-direction: column; align-items: center; gap: 5px; min-height: 44px; justify-content: center; }
+    .b-tab span { font-size: 10px; font-weight: 600; color: #7E8C84; }
+    .b-tab.on span { color: #FFB347; font-weight: 700; }
+    a { color: #FFB347; text-decoration: none; }
+    a:hover { color: #FFC978; }
+  </style>
+</helmet>
+<div class="b b-screen">
+
+  <div class="b-top">
+    <div class="b-icobtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F1F5EF" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></div>
+    <div style="display: flex; gap: 6px; align-items: center;">
+      <span style="width: 22px; height: 5px; border-radius: 3px; background: #FFB347;"></span>
+      <span style="width: 22px; height: 5px; border-radius: 3px; background: #FFB347;"></span>
+      <span style="width: 22px; height: 5px; border-radius: 3px; background: #2B3530;"></span>
+    </div>
+    <div style="width: 44px;"></div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 6px 18px 0;">
+
+    <div class="b-d" style="font-size: 32px; line-height: 1.08;">Put it on the map</div>
+    <div style="font-size: 13px; color: #8A978F; margin-top: 7px; line-height: 1.55;">Nobody has claimed this one yet. First to add it gets their name on the place forever.</div>
+
+    <div class="b-lbl" style="margin: 20px 0 10px;">The meat</div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="border-radius: 16px; background: #12261D; border: 2px solid #6FE3A5; padding: 14px 15px; display: flex; align-items: center; gap: 12px;">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="#6FE3A5" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"/><path d="m8.2 12.3 2.5 2.5 5-5.2" stroke="#0B100E" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div style="flex: 1;">
+          <div style="font-size: 14.5px; font-weight: 700; color: #6FE3A5;">Hand-slaughtered</div>
+          <div style="font-size: 11.5px; color: #6C9D84; margin-top: 2px;">Staff said so, or it's on the certificate</div>
+        </div>
+      </div>
+      <div style="border-radius: 16px; background: #161D19; border: 1px solid #2B3530; padding: 14px 15px; display: flex; align-items: center; gap: 12px;">
+        <span style="width: 21px; height: 21px; border-radius: 50%; border: 1.8px solid #3A4A42; flex-shrink: 0;"></span>
+        <div style="flex: 1;">
+          <div style="font-size: 14.5px; font-weight: 700; color: #B3BFB8;">Machine-slaughtered</div>
+          <div style="font-size: 11.5px; color: #6B7871; margin-top: 2px;">Certified, but not by hand</div>
+        </div>
+      </div>
+      <div style="border-radius: 16px; background: #161D19; border: 1px solid #2B3530; padding: 14px 15px; display: flex; align-items: center; gap: 12px;">
+        <span style="width: 21px; height: 21px; border-radius: 50%; border: 1.8px solid #3A4A42; flex-shrink: 0;"></span>
+        <div style="flex: 1;">
+          <div style="font-size: 14.5px; font-weight: 700; color: #B3BFB8;">Don't know yet</div>
+          <div style="font-size: 11.5px; color: #6B7871; margin-top: 2px;">Goes up as a quest for someone else</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="b-lbl" style="margin: 20px 0 10px;">Pin it</div>
+    <div style="position: relative; height: 132px; border-radius: 18px; overflow: hidden; border: 1px solid #262F2A; background: #0F1512;">
+      <div style="position: absolute; inset: 0; background:
+        repeating-linear-gradient(98deg, transparent 0 38px, #18211C 38px 40px),
+        repeating-linear-gradient(8deg, transparent 0 48px, #18211C 48px 50px);"></div>
+      <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 96px; height: 96px; border-radius: 50%; background: radial-gradient(circle, #FFB34726, transparent 65%);"></div>
+      <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -100%);">
+        <svg width="28" height="34" viewBox="0 0 24 30" fill="#FFB347"><path d="M12 30c5.5-8 9-12.4 9-17.4A9 9 0 0 0 3 12.6C3 17.6 6.5 22 12 30Z"/><circle cx="12" cy="12" r="3.4" fill="#0B100E"/></svg>
+      </div>
+      <div style="position: absolute; right: 11px; bottom: 11px; height: 28px; padding: 0 12px; display: flex; align-items: center; border-radius: 999px; background: #0B100ECC; border: 1px solid #2B3530; font-size: 11.5px; font-weight: 700;">Drag to adjust</div>
+    </div>
+    <div style="margin-top: 11px;">
+      <div class="b-d" style="font-size: 17px;">Karak House</div>
+      <div style="font-size: 12.5px; color: #8A978F; margin-top: 4px;">208 Stratford Road, Birmingham B11 1AR</div>
+    </div>
+
+    <!-- reward -->
+    <div style="margin-top: 16px; padding: 14px 16px; border-radius: 17px; background: linear-gradient(120deg, #1F1A10, #12251C); border: 1px solid #3A3020;">
+      <div class="b-lbl" style="color: #C9A46B;">What this pays</div>
+      <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px;">
+        <div>
+          <div class="b-num" style="font-size: 22px; color: #FFB347;">+50</div>
+          <div style="font-size: 10px; color: #7E8C84; margin-top: 2px;">published</div>
+        </div>
+        <div style="width: 1px; height: 30px; background: #2B3530;"></div>
+        <div>
+          <div class="b-num" style="font-size: 22px; color: #6FE3A5;">+75</div>
+          <div style="font-size: 10px; color: #7E8C84; margin-top: 2px;">with a proof</div>
+        </div>
+        <div style="width: 1px; height: 30px; background: #2B3530;"></div>
+        <div>
+          <div class="b-num" style="font-size: 22px; color: #FF8A3D;">1.5×</div>
+          <div style="font-size: 10px; color: #7E8C84; margin-top: 2px;">streak bonus</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="padding: 12px 18px calc(14px + env(safe-area-inset-bottom, 0px)); background: #0B100E; border-top: 1px solid #1C2420; flex-shrink: 0; display: flex; gap: 9px;">
+    <div style="width: 92px; height: 54px; border-radius: 15px; border: 1px solid #2B3530; background: #161D19; display: grid; place-items: center; font-family: Archivo, sans-serif; font-size: 15px; font-weight: 800; color: #B3BFB8;">Back</div>
+    <div class="b-cta" style="flex: 1;">Next</div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

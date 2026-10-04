@@ -1,0 +1,156 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap">
+  <style>
+    body { margin: 0; }
+    .c { font-family: "Karla", system-ui, sans-serif; color: #141F1E; -webkit-font-smoothing: antialiased; }
+    .c-d { font-family: "Syne", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.02em; }
+    .c-num { font-variant-numeric: tabular-nums; font-family: "Syne", sans-serif; font-weight: 800; }
+    .c-lbl { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; font-weight: 700; color: #0E6F66; }
+    .c-screen { width: 390px; height: 844px; background: #FBF6EC; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+    .c-card { background: #FFFFFF; border: 2px solid #141F1E; border-radius: 10px; box-shadow: 3px 3px 0 #141F1E; }
+    .c-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; flex-shrink: 0; }
+    .c-icobtn { width: 44px; height: 44px; border-radius: 10px; background: #FFFFFF; border: 2px solid #141F1E; display: grid; place-items: center; box-shadow: 2px 2px 0 #141F1E; }
+    .c-cta { height: 54px; border-radius: 10px; background: #0E6F66; color: #FBF6EC; border: 2px solid #141F1E; box-shadow: 3px 3px 0 #141F1E; display: flex; align-items: center; justify-content: center; gap: 9px; font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800; }
+    .c-nav { position: absolute; left: 18px; right: 18px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); height: 62px; border-radius: 999px; background: #141F1E; display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; padding: 0 6px; }
+    .c-navi { display: grid; place-items: center; min-height: 44px; border-radius: 999px; }
+    .c-navi.on { background: #F0A319; }
+    a { color: #0E6F66; text-decoration: none; font-weight: 600; }
+    a:hover { color: #0B564F; }
+  </style>
+</helmet>
+<div class="c c-screen">
+
+  <div class="c-top">
+    <div>
+      <div class="c-lbl">Your passport</div>
+      <div class="c-d" style="font-size: 27px; line-height: 1.1; margin-top: 3px;">Birmingham</div>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <div class="c-icobtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#141F1E" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg></div>
+      <div style="width: 40px; height: 40px; border-radius: 10px; background: #F0A319; border: 2px solid #141F1E; box-shadow: 2px 2px 0 #141F1E; display: grid; place-items: center; font-family: Syne, sans-serif; font-size: 13px; font-weight: 800;">AK</div>
+    </div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 4px 18px 0;">
+
+    <!-- passport stamp strip -->
+    <div class="c-card" style="padding: 14px 15px; background: #0E6F66; border-color: #141F1E; position: relative; overflow: hidden;">
+      <div style="position: absolute; right: -22px; top: -22px; opacity: .18;">
+        <svg width="120" height="120" viewBox="0 0 24 24" fill="#FBF6EC"><path d="M12 1.5 14.6 7l5.9.5-4.5 3.9 1.4 5.8L12 14.1 6.6 17.2 8 11.4 3.5 7.5 9.4 7Z"/></svg>
+      </div>
+      <div style="position: relative;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <div class="c-lbl" style="color: #9FD8D1;">Stamps collected</div>
+          <div class="c-num" style="font-size: 15px; color: #FBF6EC;">18 / 40</div>
+        </div>
+        <div style="display: flex; gap: 5px; margin-top: 12px; flex-wrap: wrap;">
+          <span style="width: 22px; height: 22px; border-radius: 4px; background: #F0A319; display: grid; place-items: center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="#141F1E"><path d="M12 1.5 14.6 7l5.9.5-4.5 3.9 1.4 5.8L12 14.1 6.6 17.2 8 11.4 3.5 7.5 9.4 7Z"/></svg></span>
+          <span style="width: 22px; height: 22px; border-radius: 4px; background: #F0A319; display: grid; place-items: center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="#141F1E"><path d="M12 1.5 14.6 7l5.9.5-4.5 3.9 1.4 5.8L12 14.1 6.6 17.2 8 11.4 3.5 7.5 9.4 7Z"/></svg></span>
+          <span style="width: 22px; height: 22px; border-radius: 4px; background: #F0A319; display: grid; place-items: center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="#141F1E"><path d="M12 1.5 14.6 7l5.9.5-4.5 3.9 1.4 5.8L12 14.1 6.6 17.2 8 11.4 3.5 7.5 9.4 7Z"/></svg></span>
+          <span style="width: 22px; height: 22px; border-radius: 4px; background: #F0A319; display: grid; place-items: center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="#141F1E"><path d="M12 1.5 14.6 7l5.9.5-4.5 3.9 1.4 5.8L12 14.1 6.6 17.2 8 11.4 3.5 7.5 9.4 7Z"/></svg></span>
+          <span style="width: 22px; height: 22px; border-radius: 4px; background: #F0A319;"></span>
+          <span style="width: 22px; height: 22px; border-radius: 4px; background: #F0A319;"></span>
+          <span style="width: 22px; height: 22px; border-radius: 4px; background: #0B564F; border: 1px dashed #64A9A2;"></span>
+          <span style="width: 22px; height: 22px; border-radius: 4px; background: #0B564F; border: 1px dashed #64A9A2;"></span>
+          <span style="width: 22px; height: 22px; border-radius: 4px; background: #0B564F; border: 1px dashed #64A9A2;"></span>
+          <span style="width: 22px; height: 22px; border-radius: 4px; background: #0B564F; border: 1px dashed #64A9A2;"></span>
+        </div>
+        <div style="font-size: 11.5px; color: #BEE3DF; margin-top: 11px; line-height: 1.45;">Two more stamps in Sparkbrook unlocks the <strong style="color: #F0A319;">Ladypool Road</strong> tile.</div>
+      </div>
+    </div>
+
+    <!-- segmented -->
+    <div style="display: flex; margin-top: 14px; border: 2px solid #141F1E; border-radius: 10px; overflow: hidden; background: #FFFFFF; box-shadow: 3px 3px 0 #141F1E;">
+      <div style="flex: 1; text-align: center; padding: 10px 0; background: #141F1E; color: #FBF6EC; font-family: Syne, sans-serif; font-size: 13px; font-weight: 800;">List</div>
+      <div style="flex: 1; text-align: center; padding: 10px 0; font-family: Syne, sans-serif; font-size: 13px; font-weight: 800; color: #5C6B66;">Map</div>
+      <div style="flex: 1; text-align: center; padding: 10px 0; font-family: Syne, sans-serif; font-size: 13px; font-weight: 800; color: #5C6B66;">Quests</div>
+    </div>
+
+    <!-- filter tiles -->
+    <div style="display: flex; gap: 8px; margin-top: 13px; overflow: hidden;">
+      <div style="display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 8px; background: #0E6F66; color: #FBF6EC; border: 2px solid #141F1E; font-size: 12.5px; font-weight: 700; white-space: nowrap;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="#F0A319"><path d="M12 1.5 14.6 7l5.9.5-4.5 3.9 1.4 5.8L12 14.1 6.6 17.2 8 11.4 3.5 7.5 9.4 7Z"/></svg>
+        Stamped
+      </div>
+      <div style="display: flex; align-items: center; height: 34px; padding: 0 12px; border-radius: 8px; background: #FFFFFF; border: 2px solid #141F1E; font-size: 12.5px; font-weight: 700; white-space: nowrap;">Grills</div>
+      <div style="display: flex; align-items: center; height: 34px; padding: 0 12px; border-radius: 8px; background: #FFFFFF; border: 2px solid #141F1E; font-size: 12.5px; font-weight: 700; white-space: nowrap;">Biryani</div>
+      <div style="display: flex; align-items: center; height: 34px; padding: 0 12px; border-radius: 8px; background: #FFFFFF; border: 2px solid #141F1E; font-size: 12.5px; font-weight: 700; white-space: nowrap;">Cafés</div>
+    </div>
+
+    <!-- place cards -->
+    <div class="c-card" style="margin-top: 14px; padding: 13px 14px; display: flex; gap: 13px; align-items: center;">
+      <div style="width: 52px; height: 52px; border-radius: 8px; background: #0E6F66; border: 2px solid #141F1E; display: grid; place-items: center; flex-shrink: 0;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="#F0A319"><path d="M12 1.5 14.6 7l5.9.5-4.5 3.9 1.4 5.8L12 14.1 6.6 17.2 8 11.4 3.5 7.5 9.4 7Z"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <div class="c-d" style="font-size: 16.5px;">Zaitoon Grill</div>
+        <div style="font-size: 12px; color: #5C6B66; margin-top: 3px;">Turkish grill · 0.4 mi</div>
+        <div style="display: flex; gap: 7px; margin-top: 8px;">
+          <span style="display: flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; color: #0E6F66;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="#0E6F66"><path d="M12 20.5S3.5 14.9 3.5 9.4A4.9 4.9 0 0 1 12 6.2a4.9 4.9 0 0 1 8.5 3.2c0 5.5-8.5 11.1-8.5 11.1Z"/></svg>
+            184
+          </span>
+          <span style="font-size: 11.5px; font-weight: 700; color: #B07A12;">46</span>
+          <span style="font-size: 11.5px; font-weight: 700; color: #C4553B;">3</span>
+        </div>
+      </div>
+      <div style="width: 28px; height: 28px; border-radius: 50%; background: #F0A319; border: 2px solid #141F1E; display: grid; place-items: center; flex-shrink: 0;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="#141F1E"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>
+      </div>
+    </div>
+
+    <div class="c-card" style="margin-top: 11px; padding: 13px 14px; display: flex; gap: 13px; align-items: center; background: #FDF0D8; border-style: dashed;">
+      <div style="width: 52px; height: 52px; border-radius: 8px; background: #FBF6EC; border: 2px dashed #141F1E; display: grid; place-items: center; flex-shrink: 0;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#141F1E" stroke-width="2" stroke-linecap="round"><path d="M12 8v5M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <div class="c-d" style="font-size: 16.5px;">Karak House</div>
+        <div style="font-size: 12px; color: #5C6B66; margin-top: 3px;">Café · 0.6 mi · no stamp yet</div>
+        <div style="display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; height: 26px; padding: 0 10px; border-radius: 6px; background: #F0A319; border: 1.5px solid #141F1E; font-size: 11px; font-weight: 700;">
+          Claim the stamp · +75
+        </div>
+      </div>
+    </div>
+
+    <div class="c-card" style="margin-top: 11px; padding: 13px 14px; display: flex; gap: 13px; align-items: center;">
+      <div style="width: 52px; height: 52px; border-radius: 8px; background: #C4553B; border: 2px solid #141F1E; display: grid; place-items: center; flex-shrink: 0;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="#FBF6EC"><path d="M12 1.5 14.6 7l5.9.5-4.5 3.9 1.4 5.8L12 14.1 6.6 17.2 8 11.4 3.5 7.5 9.4 7Z"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <div class="c-d" style="font-size: 16.5px;">Bismillah Biryani</div>
+        <div style="font-size: 12px; color: #5C6B66; margin-top: 3px;">Hyderabadi · 0.9 mi</div>
+        <div style="display: flex; gap: 7px; margin-top: 8px;">
+          <span style="display: flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; color: #0E6F66;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="#0E6F66"><path d="M12 20.5S3.5 14.9 3.5 9.4A4.9 4.9 0 0 1 12 6.2a4.9 4.9 0 0 1 8.5 3.2c0 5.5-8.5 11.1-8.5 11.1Z"/></svg>
+            203
+          </span>
+          <span style="font-size: 11.5px; font-weight: 700; color: #B07A12;">71</span>
+        </div>
+      </div>
+      <div style="width: 28px; height: 28px; border-radius: 50%; background: #FFFFFF; border: 2px solid #141F1E; display: grid; place-items: center; flex-shrink: 0;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#141F1E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v17l-6-4-6 4V4Z"/></svg>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="height: 94px; flex-shrink: 0;"></div>
+  <div class="c-nav">
+    <div class="c-navi on"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#141F1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3-6-3Z"/><path d="M9 4v13M15 7v13"/></svg></div>
+    <div class="c-navi "><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#8D9C95" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg></div>
+    <div class="c-navi"><div style="width: 44px; height: 44px; border-radius: 50%; background: #F0A319; display: grid; place-items: center;"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#141F1E" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div></div>
+    <div class="c-navi "><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#8D9C95" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V11M12 21V4M19 21v-6"/></svg></div>
+    <div class="c-navi "><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#8D9C95" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/></svg></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

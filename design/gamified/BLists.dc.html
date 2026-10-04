@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; }
+    .b { font-family: "Space Grotesk", system-ui, sans-serif; color: #F1F5EF; -webkit-font-smoothing: antialiased; }
+    .b-d { font-family: "Archivo", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.035em; }
+    .b-num { font-variant-numeric: tabular-nums; font-family: "Archivo", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.04em; }
+    .b-lbl { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; color: #7E8C84; }
+    .b-screen { width: 390px; height: 844px; background: #0B100E; overflow: hidden; display: flex; flex-direction: column; }
+    .b-card { background: #161D19; border: 1px solid #262F2A; border-radius: 18px; }
+    .b-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; flex-shrink: 0; }
+    .b-icobtn { width: 44px; height: 44px; border-radius: 12px; background: #161D19; border: 1px solid #262F2A; display: grid; place-items: center; }
+    .b-cta { height: 54px; border-radius: 15px; background: #FFB347; color: #10170F; display: flex; align-items: center; justify-content: center; gap: 9px; font-family: "Archivo", sans-serif; font-size: 16px; font-weight: 800; letter-spacing: -0.02em; box-shadow: 0 0 28px #FFB34733; }
+    .b-tabbar { display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; background: #0E1412; border-top: 1px solid #212A25; padding: 10px 8px calc(11px + env(safe-area-inset-bottom, 0px)); flex-shrink: 0; }
+    .b-tab { display: flex; flex-direction: column; align-items: center; gap: 5px; min-height: 44px; justify-content: center; }
+    .b-tab span { font-size: 10px; font-weight: 600; color: #7E8C84; }
+    .b-tab.on span { color: #FFB347; font-weight: 700; }
+    a { color: #FFB347; text-decoration: none; }
+    a:hover { color: #FFC978; }
+  </style>
+</helmet>
+<div class="b b-screen">
+
+  <div class="b-top">
+    <div class="b-d" style="font-size: 26px;">Saved</div>
+    <div class="b-icobtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FFB347" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 2px 18px 0;">
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+      <div style="height: 120px; border-radius: 18px; padding: 14px 15px; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(150deg, #26351F, #131A16); border: 1px solid #2F4A2C;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9BE07C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>
+        <div>
+          <div class="b-d" style="font-size: 15px;">Want to try</div>
+          <div style="font-size: 11px; color: #8A978F; margin-top: 3px;"><span class="b-num" style="font-size: 11px;">14</span> places</div>
+        </div>
+      </div>
+      <div style="height: 120px; border-radius: 18px; padding: 14px 15px; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(150deg, #123026, #101815); border: 1px solid #1E4636;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#6FE3A5"><path d="M12 2.5 4.5 6v5.6c0 4.6 3.2 8.5 7.5 9.9 4.3-1.4 7.5-5.3 7.5-9.9V6Z"/><path d="m8.8 12.1 2.3 2.3 4.2-4.5" stroke="#0B100E" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div>
+          <div class="b-d" style="font-size: 15px; color: #6FE3A5;">Zabiha only</div>
+          <div style="font-size: 11px; color: #6C9D84; margin-top: 3px;"><span class="b-num" style="font-size: 11px;">22</span> places · auto</div>
+        </div>
+      </div>
+      <div style="height: 120px; border-radius: 18px; padding: 14px 15px; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(150deg, #33240F, #171C18); border: 1px solid #4A3316;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFB347" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a4 4 0 0 0 0 8 4 4 0 0 1 0 8"/><path d="M5 21h14"/></svg>
+        <div>
+          <div class="b-d" style="font-size: 15px; color: #FFB347;">Iftar 2027</div>
+          <div style="font-size: 11px; color: #C9A46B; margin-top: 3px;"><span class="b-num" style="font-size: 11px;">9</span> places · shared</div>
+        </div>
+      </div>
+      <div style="height: 120px; border-radius: 18px; border: 1px dashed #3A4A42; background: #10160F; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7E8C84" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <div style="font-size: 12.5px; font-weight: 700; color: #8A978F;">New list</div>
+      </div>
+    </div>
+
+    <!-- creator hook -->
+    <div class="b-card" style="margin-top: 14px; padding: 15px 16px; border-color: #3A3020; background: linear-gradient(120deg, #1E1810, #151C18);">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#FFB347" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M12 3a4 4 0 0 1 4 4v1h1a3 3 0 0 1 0 6h-1v3a3 3 0 0 1-3 3h-2a3 3 0 0 1-3-3v-3H7a3 3 0 0 1 0-6h1V7a4 4 0 0 1 4-4Z"/></svg>
+        <div style="flex: 1; min-width: 0;">
+          <div class="b-d" style="font-size: 15px;">Your list is catching on</div>
+          <div style="font-size: 11.5px; color: #8A978F; margin-top: 3px; line-height: 1.45;">“Iftar 2027” picked up <span class="b-num" style="color: #6FE3A5; font-size: 11.5px;">112</span> followers this week · <span class="b-num" style="color: #6FE3A5; font-size: 11.5px;">+90 XP</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="b-lbl" style="margin: 20px 0 11px;">Lists worth following</div>
+
+    <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 13px;">
+      <div style="width: 44px; height: 44px; border-radius: 13px; background: linear-gradient(150deg, #2A3A24, #141B18); border: 1px solid #2F4A2C; display: grid; place-items: center; flex-shrink: 0;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#9BE07C" stroke-width="1.9" stroke-linecap="round"><path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3-6-3Z"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 14px; font-weight: 700;">Every zabiha spot on Coventry Rd</div>
+        <div style="font-size: 11px; color: #7E8C84; margin-top: 3px;">Yusuf R. · Muhtasib · <span class="b-num" style="font-size: 11px;">31</span> places</div>
+      </div>
+      <div style="height: 32px; padding: 0 13px; border-radius: 999px; background: #FFB347; color: #10170F; font-size: 12.5px; font-weight: 700; display: flex; align-items: center;">Follow</div>
+    </div>
+
+    <div style="height: 1px; background: #1C2420;"></div>
+
+    <div style="display: flex; align-items: center; gap: 12px; padding: 13px 0;">
+      <div style="width: 44px; height: 44px; border-radius: 13px; background: linear-gradient(150deg, #33240F, #171C18); border: 1px solid #4A3316; display: grid; place-items: center; flex-shrink: 0;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#FFB347" stroke-width="1.9" stroke-linecap="round"><path d="M12 3a7 7 0 0 0 0 14 7 7 0 0 1 0 2"/><circle cx="12" cy="12" r="9"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 14px; font-weight: 700;">Late-night after Isha</div>
+        <div style="font-size: 11px; color: #7E8C84; margin-top: 3px;">Fatima N. · Guide · <span class="b-num" style="font-size: 11px;">18</span> places</div>
+      </div>
+      <div style="height: 32px; padding: 0 13px; border-radius: 999px; border: 1px solid #2B3530; background: #161D19; color: #B3BFB8; font-size: 12.5px; font-weight: 700; display: flex; align-items: center;">Follow</div>
+    </div>
+
+    <div style="height: 1px; background: #1C2420;"></div>
+
+    <div style="display: flex; align-items: center; gap: 12px; padding-top: 13px;">
+      <div style="width: 44px; height: 44px; border-radius: 13px; background: linear-gradient(150deg, #2A1A16, #171C18); border: 1px solid #4A241B; display: grid; place-items: center; flex-shrink: 0;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#FF6B4A" stroke-width="1.9" stroke-linecap="round"><path d="M5 20h14M7 20V9l5-4 5 4v11"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 14px; font-weight: 700;">Biryani, ranked properly</div>
+        <div style="font-size: 11px; color: #7E8C84; margin-top: 3px;">Omar D. · Guide · <span class="b-num" style="font-size: 11px;">26</span> places</div>
+      </div>
+      <div style="height: 32px; padding: 0 13px; border-radius: 999px; border: 1px solid #2B3530; background: #161D19; color: #B3BFB8; font-size: 12.5px; font-weight: 700; display: flex; align-items: center;">Follow</div>
+    </div>
+
+  </div>
+
+  <div class="b-tabbar">
+    <div class="b-tab"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#7E8C84" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3-6-3Z"/><path d="M9 4v13M15 7v13"/></svg><span>Tonight</span></div>
+    <div class="b-tab on"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#FFB347" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg><span>Saved</span></div>
+    <div class="b-tab"><div style="width: 40px; height: 32px; border-radius: 11px; background: #FFB347; display: grid; place-items: center; box-shadow: 0 0 22px #FFB34740;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10170F" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div><span>Add</span></div>
+    <div class="b-tab"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#7E8C84" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/><path d="M10 20h4M12 13v7"/></svg><span>League</span></div>
+    <div class="b-tab"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#7E8C84" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/></svg><span>You</span></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

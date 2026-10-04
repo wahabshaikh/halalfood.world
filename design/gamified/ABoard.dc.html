@@ -1,0 +1,156 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
+  <style>
+    body { margin: 0; }
+    .a { font-family: "DM Sans", system-ui, sans-serif; color: #1E2A22; -webkit-font-smoothing: antialiased; }
+    .a-serif { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: -0.01em; }
+    .a-eyebrow { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #7C8A76; }
+    .a-num { font-variant-numeric: tabular-nums; }
+    .a-screen { width: 390px; height: 844px; background: #F2F0E8; overflow: hidden; display: flex; flex-direction: column; }
+    .a-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 12px; flex-shrink: 0; }
+    .a-icobtn { width: 44px; height: 44px; border-radius: 10px; background: #FFFFFF; border: 1px solid #DDDCCF; display: grid; place-items: center; }
+    .a-card { background: #FFFFFF; border: 1px solid #DDDCCF; border-radius: 16px; }
+    .a-cta { height: 52px; border-radius: 13px; background: #31462F; color: #F4F2EA; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15.5px; font-weight: 700; }
+    a { color: #31462F; text-decoration: none; }
+    a:hover { color: #4A6B3F; }
+  </style>
+</helmet>
+<div class="a a-screen">
+
+  <div class="a-top" style="padding-bottom: 4px;">
+    <div>
+      <div class="a-eyebrow">Season 4 · ends in 3 days</div>
+      <div class="a-serif" style="font-size: 30px; margin-top: 2px;">Standing</div>
+    </div>
+    <div class="a-icobtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1E2A22" stroke-width="1.9" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg></div>
+  </div>
+
+  <div style="display: flex; gap: 20px; padding: 10px 20px 0; border-bottom: 1px solid #E5E3D7;">
+    <div style="font-size: 13.5px; font-weight: 700; padding-bottom: 9px; border-bottom: 2px solid #31462F; margin-bottom: -1px;">Birmingham</div>
+    <div style="font-size: 13.5px; font-weight: 600; color: #8A937F; padding-bottom: 9px;">United Kingdom</div>
+    <div style="font-size: 13.5px; font-weight: 600; color: #8A937F; padding-bottom: 9px;">All time</div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 0 20px;">
+
+    <!-- top three, ledger style -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 16px 0 6px;">
+      <div style="text-align: center; padding: 13px 6px 12px; border: 1px solid #DDDCCF; background: #FFFFFF; border-radius: 14px;">
+        <div style="width: 38px; height: 38px; border-radius: 50%; background: #4A6B3F; color: #FFF; font-size: 13px; font-weight: 700; display: grid; place-items: center; margin: 0 auto;">FN</div>
+        <div style="font-size: 12.5px; font-weight: 700; margin-top: 8px;">Fatima N.</div>
+        <div class="a-serif a-num" style="font-size: 21px; color: #31462F; margin-top: 3px;">2,140</div>
+        <div class="a-eyebrow" style="margin-top: 3px; font-size: 9px;">2nd</div>
+      </div>
+      <div style="text-align: center; padding: 13px 6px 12px; border: 1.5px solid #31462F; background: #31462F; border-radius: 14px;">
+        <div style="width: 44px; height: 44px; border-radius: 50%; background: #DCE9C2; color: #31462F; font-size: 15px; font-weight: 700; display: grid; place-items: center; margin: 0 auto;">YR</div>
+        <div style="font-size: 12.5px; font-weight: 700; margin-top: 8px; color: #F4F2EA;">Yusuf R.</div>
+        <div class="a-serif a-num" style="font-size: 25px; color: #DCE9C2; margin-top: 3px;">3,486</div>
+        <div class="a-eyebrow" style="margin-top: 3px; font-size: 9px; color: #A5B69B;">1st · Muhtasib</div>
+      </div>
+      <div style="text-align: center; padding: 13px 6px 12px; border: 1px solid #DDDCCF; background: #FFFFFF; border-radius: 14px;">
+        <div style="width: 38px; height: 38px; border-radius: 50%; background: #9A7B33; color: #FFF; font-size: 13px; font-weight: 700; display: grid; place-items: center; margin: 0 auto;">OD</div>
+        <div style="font-size: 12.5px; font-weight: 700; margin-top: 8px;">Omar D.</div>
+        <div class="a-serif a-num" style="font-size: 21px; color: #31462F; margin-top: 3px;">1,905</div>
+        <div class="a-eyebrow" style="margin-top: 3px; font-size: 9px;">3rd</div>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; padding: 12px 2px 6px;">
+      <div class="a-eyebrow">Member</div>
+      <div class="a-eyebrow">Barakah this season</div>
+    </div>
+
+    <div style="border-top: 1px solid #E5E3D7; padding: 11px 2px; display: flex; align-items: center; gap: 12px;">
+      <span class="a-num" style="width: 22px; font-size: 13px; font-weight: 700; color: #8A937F;">4</span>
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: #E9EFE0; color: #31462F; font-size: 11px; font-weight: 700; display: grid; place-items: center;">ZH</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 14px; font-weight: 700;">Zainab H.</div>
+        <div style="font-size: 11px; color: #6B7568; margin-top: 1px;">Guide · <span class="a-num">28</span> proofs accepted</div>
+      </div>
+      <span class="a-num" style="font-size: 15px; font-weight: 700;">1,744</span>
+    </div>
+    <div style="border-top: 1px solid #E5E3D7; padding: 11px 2px; display: flex; align-items: center; gap: 12px;">
+      <span class="a-num" style="width: 22px; font-size: 13px; font-weight: 700; color: #8A937F;">5</span>
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: #E9EFE0; color: #31462F; font-size: 11px; font-weight: 700; display: grid; place-items: center;">BM</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 14px; font-weight: 700;">Bilal M.</div>
+        <div style="font-size: 11px; color: #6B7568; margin-top: 1px;">Guide · <span class="a-num">61</span> reviews</div>
+      </div>
+      <span class="a-num" style="font-size: 15px; font-weight: 700;">1,512</span>
+    </div>
+    <div style="border-top: 1px solid #E5E3D7; padding: 11px 2px; display: flex; align-items: center; gap: 12px;">
+      <span class="a-num" style="width: 22px; font-size: 13px; font-weight: 700; color: #8A937F;">6</span>
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: #E9EFE0; color: #31462F; font-size: 11px; font-weight: 700; display: grid; place-items: center;">HS</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 14px; font-weight: 700;">Hamza S.</div>
+        <div style="font-size: 11px; color: #6B7568; margin-top: 1px;">Scout · <span class="a-num">14</span> places added</div>
+      </div>
+      <span class="a-num" style="font-size: 15px; font-weight: 700;">1,208</span>
+    </div>
+
+    <!-- you -->
+    <div style="border: 1.5px solid #31462F; background: #E9EFE0; border-radius: 13px; padding: 11px 13px; margin: 10px 0; display: flex; align-items: center; gap: 12px;">
+      <span class="a-num" style="width: 22px; font-size: 13px; font-weight: 700; color: #31462F;">7</span>
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: #31462F; color: #F2F0E8; font-size: 11px; font-weight: 700; display: grid; place-items: center;">AK</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 14px; font-weight: 700;">You</div>
+        <div style="font-size: 11px; color: #47573F; margin-top: 1px;"><span class="a-num">116</span> behind Hamza S.</div>
+      </div>
+      <span class="a-num" style="font-size: 15px; font-weight: 700;">1,092</span>
+    </div>
+
+    <div style="border-top: 1px solid #E5E3D7; padding: 11px 2px; display: flex; align-items: center; gap: 12px; opacity: .62;">
+      <span class="a-num" style="width: 22px; font-size: 13px; font-weight: 700; color: #8A937F;">8</span>
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: #EDEBE0; color: #6B7568; font-size: 11px; font-weight: 700; display: grid; place-items: center;">SA</div>
+      <div style="flex: 1; min-width: 0;"><div style="font-size: 14px; font-weight: 700;">Sana A.</div></div>
+      <span class="a-num" style="font-size: 15px; font-weight: 700;">1,031</span>
+    </div>
+
+    <div class="a-card" style="margin-top: 14px; padding: 13px 15px; display: flex; align-items: center; gap: 12px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9A7B33" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="m9.5 14 1.8 1.8 3.4-3.6"/></svg>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 13.5px; font-weight: 700;">Two proofs would pass Hamza</div>
+        <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;"><span class="a-num">11</span> places on Ladypool Rd still need one</div>
+      </div>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>
+    </div>
+
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; background: #FFFFFF; border-top: 1px solid #E5E3D7; padding: 9px 8px calc(10px + env(safe-area-inset-bottom, 0px)); flex-shrink: 0;">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center; color: #8A937F;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3-6-3Z"/><path d="M9 4v13M15 7v13"/></svg>
+      <span style="font-size: 10.5px; font-weight: 600;">Map</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center; color: #8A937F;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="1.9" stroke-linecap="round"><path d="M7 4h11M7 12h11M7 20h11M3.5 4h.01M3.5 12h.01M3.5 20h.01"/></svg>
+      <span style="font-size: 10.5px; font-weight: 600;">Lists</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center;">
+      <div style="width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid #31462F; display: grid; place-items: center;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+      <span style="font-size: 10.5px; font-weight: 600; color: #8A937F;">Add</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E2A22" stroke-width="1.9" stroke-linecap="round"><path d="M5 21V11M12 21V4M19 21v-6"/></svg>
+      <span style="font-size: 10.5px; font-weight: 700;">Board</span>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center; color: #8A937F;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A937F" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/></svg>
+      <span style="font-size: 10.5px; font-weight: 600;">You</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
