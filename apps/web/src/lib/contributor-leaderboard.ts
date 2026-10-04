@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { HANDLE_PATTERN } from "@halalfood/core/social";
 import { database } from "../db";
 import { cachedRead } from "./read-cache";
 
@@ -28,15 +29,31 @@ export type ContributorContributionCounts = {
 export type ContributorAggregate = {
   userId: string;
   name: string | null;
+  /** Public profile handle, when this person can be opened and followed. */
+  profileHandle?: string | null;
   contributions: ContributorContributionCounts;
 };
 
 export type RankedContributor = {
   rank: number;
   displayName: string;
+  /** `/u/{handle}` when the profile is public. Null is not a link. */
+  profileHandle: string | null;
   contributions: ContributorContributionCounts;
   score: number;
 };
+
+/** A handle the public profile route will accept. Anything else is not linked. */
+export function publicProfileHandle(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const handle = value.trim().toLowerCase();
+  return HANDLE_PATTERN.test(handle) ? handle : null;
+}
+
+export function contributorProfilePath(handle: string | null | undefined): string | null {
+  const profile = publicProfileHandle(handle);
+  return profile ? `/u/${profile}` : null;
+}
 
 function boundedLimit(value: number): number {
   if (!Number.isInteger(value) || value < 1) return CONTRIBUTOR_LEADERBOARD_LIMIT;
@@ -134,6 +151,7 @@ export function rankContributors(
     .map((row, index) => ({
       rank: index + 1,
       displayName: contributorDisplayName(row.name, row.userId),
+      profileHandle: publicProfileHandle(row.profileHandle),
       contributions: row.contributions,
       score: scoreContributor(row.contributions),
     }));
@@ -152,6 +170,9 @@ function mapContributorRow(
   return {
     userId: row.user_id,
     name: typeof row.user_name === "string" ? row.user_name : null,
+    profileHandle: publicProfileHandle(
+      typeof row.profile_handle === "string" ? row.profile_handle : null,
+    ),
     contributions: {
       placesAdded: countValue(row.places_added),
       verificationsSubmitted: countValue(row.verifications_submitted),
@@ -215,6 +236,16 @@ export function d1ContributorLeaderboardRepository(
               THEN trim(u.name)
             ELSE NULL
           END AS user_name,
+          CASE
+            WHEN pr.onboarded_at IS NOT NULL
+              AND COALESCE(pr.is_private, 0) = 0
+              AND COALESCE(pr.show_on_leaderboards, 1) = 1
+              AND pr.handle IS NOT NULL
+              AND length(trim(pr.handle)) > 0
+              AND instr(pr.handle, '@') = 0
+              THEN lower(trim(pr.handle))
+            ELSE NULL
+          END AS profile_handle,
           c.places_added,
           c.verifications_submitted,
           c.reviews,
@@ -260,7 +291,7 @@ export async function listContributors(
   repository?: ContributorLeaderboardRepository,
 ): Promise<RankedContributor[]> {
   if (repository) return getContributorLeaderboard(repository, limit);
-  return cachedRead(`leaderboard:contributors:v1:${limit}`, 10 * 60, () =>
+  return cachedRead(`leaderboard:contributors:v2:${limit}`, 10 * 60, () =>
     getContributorLeaderboard(d1ContributorLeaderboardRepository(), limit),
   );
 }

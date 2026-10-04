@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { validatePlaceSubmission } from "@halalfood/core/place-submission";
 import { splitSqlStatements } from "../scripts/apply-d1-migrations";
-import { findPlacesByCity, getCity, getPlaceById } from "../src/lib/places";
+import { findPlacesByCity, getCity, getPlaceById, loadCityRecord } from "../src/lib/places";
 import { submitPlaceLink } from "../src/lib/place-link-submissions";
 import { addUser, createTestDatabase } from "./support/sqlite-d1";
 
@@ -73,8 +73,8 @@ test("migration comments are not statement boundaries or wrangler flags", () => 
   assert.ok(listed.every((statement) => statement.startsWith("CREATE INDEX IF NOT EXISTS")));
 });
 
-test("the visibility migration hides non-halal names, pins Slam Burger, and clears the Halal cuisine label", () => {
-  const { sqlite } = createTestDatabase();
+test("the visibility migration hides non-halal names, pins Slam Burger, and clears the Halal cuisine label", async () => {
+  const { sqlite, db } = createTestDatabase();
   insertPlace(sqlite, TAVERN, "Valais-style Tavern", "geneva");
   insertPlace(sqlite, TAVERNA, "Lebanese Taverna", "baltimore");
   insertPlace(sqlite, SHIVAS, "Shivas Bar and Grill", "dallas");
@@ -106,6 +106,22 @@ test("the visibility migration hides non-halal names, pins Slam Burger, and clea
   assert.ok(Math.abs(slam.lat - 51.8868333) < 0.0001);
   assert.ok(Math.abs(slam.lng - -0.4312885) < 0.0001);
   assert.equal(slam.serves_cuisine, "[]");
+
+  // The place existed before 0020; the pin update is what makes Luton a real city page.
+  // A slug with no listed place is missing (the page turns that into HTTP 404).
+  const luton = await loadCityRecord("luton", db);
+  assert.equal(luton.status, "ok");
+  if (luton.status !== "ok") return;
+  assert.equal(luton.data.city_slug, "luton");
+  assert.equal(luton.data.place_count, 1);
+  assert.ok(luton.data.center_lat !== null && Math.abs(luton.data.center_lat - 51.8868333) < 0.0001);
+  const listing = await findPlacesByCity("luton", { limit: 10 }, db);
+  assert.equal(listing.places[0]?.name, "Slam Burger Luton");
+  assert.equal(listing.places[0]?.street_address, "180 Dunstable Rd");
+
+  assert.equal((await loadCityRecord("zzzz-nowhere", db)).status, "missing");
+  assert.equal((await findPlacesByCity("zzzz-nowhere", { limit: 10 }, db)).places.length, 0);
+  assert.equal((await loadCityRecord("Not A City!!!", db)).status, "missing");
 });
 
 test("a city whose only place has no pin still resolves, and a hidden place does not", async () => {

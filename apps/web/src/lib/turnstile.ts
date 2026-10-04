@@ -1,3 +1,5 @@
+import { readWorkerEnv } from "./worker-env";
+
 const TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
@@ -21,8 +23,8 @@ export async function verifyTurnstile(
   token: string | null,
   fetcher: typeof fetch = fetch,
 ): Promise<TurnstileVerification> {
-  const siteKey = process.env.TURNSTILE_SITE_KEY?.trim();
-  const secretKey = process.env.TURNSTILE_SECRET_KEY?.trim();
+  const siteKey = await readWorkerEnv("TURNSTILE_SITE_KEY");
+  const secretKey = await readWorkerEnv("TURNSTILE_SECRET_KEY");
   if (!siteKey || !secretKey) return { ok: false, reason: "missing-config" };
   if (!token || token.length > 2048) {
     return { ok: false, reason: "missing-token" };

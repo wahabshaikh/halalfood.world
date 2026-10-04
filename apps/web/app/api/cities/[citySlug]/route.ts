@@ -1,4 +1,4 @@
-import { getCity } from "../../../../src/lib/places";
+import { loadCityRecord } from "../../../../src/lib/places";
 import { citySlugParam } from "@halalfood/core/params";
 
 export async function GET(
@@ -7,16 +7,15 @@ export async function GET(
 ) {
   const slug = citySlugParam((await params).citySlug);
   if (!slug) return Response.json({ error: "Invalid city" }, { status: 400 });
-  try {
-    const city = await getCity(slug);
-    if (!city) return Response.json({ error: "Not found" }, { status: 404 });
-    return Response.json(city, {
-      headers: { "Cache-Control": "public, max-age=300" },
-    });
-  } catch {
+  const loaded = await loadCityRecord(slug);
+  if (loaded.status === "missing")
+    return Response.json({ error: "Not found" }, { status: 404 });
+  if (loaded.status === "error")
     return Response.json(
       { error: "Cities are temporarily unavailable. Please try again." },
       { status: 503 },
     );
-  }
+  return Response.json(loaded.data, {
+    headers: { "Cache-Control": "public, max-age=300" },
+  });
 }

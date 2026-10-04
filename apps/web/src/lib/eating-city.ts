@@ -32,6 +32,17 @@ export function eatingCityOptions<T extends { city_slug: string }>(cities: reado
   return [...cities].sort((a, b) => a.city_slug.localeCompare(b.city_slug));
 }
 
+/**
+ * Cities for the home picker. A failed listing load must not hide the control:
+ * the distance-ranked list is preferred, and the plain directory is the fallback.
+ */
+export function homePickerCities<T extends { city_slug: string }>(
+  preferred: readonly T[] | null,
+  fallback: readonly T[],
+): readonly T[] {
+  return preferred && preferred.length > 0 ? preferred : fallback;
+}
+
 /** Redirect target after the city form. Only same-site paths. */
 export function safeNextPath(value: string | null | undefined): string {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\"))

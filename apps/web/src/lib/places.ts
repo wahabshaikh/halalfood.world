@@ -2,7 +2,8 @@ import { sql } from "drizzle-orm";
 import { database } from "../db";
 import { cachedRead } from "./read-cache";
 
-import { bboxParam } from "@halalfood/core/params";
+import { bboxParam, citySlugParam } from "@halalfood/core/params";
+import { loadOrDegrade, type Loaded } from "./load";
 
 export type Place = {
   id: string;
@@ -340,6 +341,20 @@ export async function getCity(
   // A caller-supplied database skips the cache so tests see their own rows.
   if (client) return load();
   return cachedRead(`places:city-meta:v2:${citySlug}`, CITY_LISTING_TTL_SECONDS, load);
+}
+
+/**
+ * Resolve one city slug for a page or API.
+ * An unknown slug is `missing` (HTTP 404). A thrown read is `error`
+ * (listings unavailable), which must not be rendered as if the city existed.
+ */
+export async function loadCityRecord(
+  rawSlug: string,
+  client?: DatabaseClient | Promise<DatabaseClient>,
+): Promise<Loaded<City>> {
+  const slug = citySlugParam(rawSlug);
+  if (!slug) return { status: "missing" };
+  return loadOrDegrade(() => getCity(slug, client));
 }
 
 /** Places in one city, best rated first, paginated and capped. */
