@@ -7,6 +7,7 @@ import { Input } from "@halalfood/ui/components/input";
 import { EmptyState, FormCard, InlineCard, Loading } from "../../../src/components/blocks";
 import { FormMessage, SectionIntro } from "../../../src/components/section";
 import { getClientSession } from "../../../src/lib/client-session";
+import { signedOutLoginPath } from "../../../src/lib/signed-out";
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -182,7 +183,7 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
       );
       const value = await responseBody(response);
       if (response.status === 401) {
-        window.location.assign(loginUrl(placeId));
+        window.location.assign(signedOutLoginPath(`/place/${placeId}`));
         return;
       }
       if (!response.ok) {
@@ -217,7 +218,7 @@ export default function PlacePhotos({ placeId }: { placeId: string }) {
       );
       const value = await responseBody(response);
       if (response.status === 401) {
-        window.location.assign(loginUrl(placeId));
+        window.location.assign(signedOutLoginPath(`/place/${placeId}`));
         return;
       }
       if (!response.ok) {

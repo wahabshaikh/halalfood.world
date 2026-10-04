@@ -148,7 +148,7 @@ test("review mutations return a sign-in CTA before parsing an unauthenticated re
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), {
     error: "Sign in to share a halal review.",
-    loginUrl: `/login?returnTo=${encodeURIComponent(`/place/${PLACE_ID}`)}`,
+    loginUrl: `/login?reason=signed-out&returnTo=${encodeURIComponent(`/place/${PLACE_ID}`)}`,
   });
 });
 

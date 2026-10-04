@@ -7,6 +7,7 @@ import {
   SiteHeader,
 } from "../../src/components/site-chrome";
 import { readWorkerEnv } from "../../src/lib/worker-env";
+import { SIGNED_OUT_COPY } from "../../src/lib/signed-out";
 import LoginForm from "./login-form";
 
 // The site key is a Worker secret. Rendering this page per request is what
@@ -60,6 +61,7 @@ export default async function LoginPage({
           siteKey={await readWorkerEnv("TURNSTILE_SITE_KEY", host)}
           returnTo={returnTo}
           heading={heading}
+          notice={reason === "signed-out" ? SIGNED_OUT_COPY : undefined}
         />
       </PageMain>
       <SiteFooter />

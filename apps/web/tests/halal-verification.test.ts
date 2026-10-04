@@ -360,7 +360,7 @@ test("verification API returns a sign-in CTA before parsing an unauthenticated s
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), {
     error: "Sign in to submit halal verification evidence.",
-    loginUrl: `/login?returnTo=${encodeURIComponent(`/place/${PLACE_ID}`)}`,
+    loginUrl: `/login?reason=signed-out&returnTo=${encodeURIComponent(`/place/${PLACE_ID}`)}`,
   });
 });
 

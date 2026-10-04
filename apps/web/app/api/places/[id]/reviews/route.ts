@@ -13,6 +13,7 @@ import {
   validatePlaceReviewInput,
   type PlaceReviewRepository,
 } from "../../../../../src/lib/place-reviews";
+import { signedOutLoginPath } from "../../../../../src/lib/signed-out";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
@@ -22,7 +23,7 @@ function unauthorized(placeId: string) {
   return Response.json(
     {
       error: "Sign in to share a halal review.",
-      loginUrl: `/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`,
+      loginUrl: signedOutLoginPath(`/place/${placeId}`),
     },
     { status: 401, headers: noStore() },
   );

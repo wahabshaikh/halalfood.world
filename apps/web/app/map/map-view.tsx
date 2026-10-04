@@ -144,7 +144,7 @@ function SelectedCard({
 }) {
   return (
     <section
-      className="absolute bottom-5 left-1/2 z-4 grid w-[min(420px,calc(100%-32px))] -translate-x-1/2 grid-cols-[130px_minmax(0,1fr)] overflow-hidden rounded-2xl bg-background shadow-2xl min-[900px]:bottom-7"
+      className="absolute bottom-36 left-1/2 z-4 grid w-[min(420px,calc(100%-32px))] -translate-x-1/2 grid-cols-[130px_minmax(0,1fr)] overflow-hidden rounded-2xl bg-background shadow-2xl min-[900px]:bottom-7"
       aria-label="Selected place"
       aria-live="polite"
     >

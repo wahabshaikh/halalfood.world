@@ -14,6 +14,9 @@ import {
 } from "../../../src/components/blocks";
 import { FormMessage, SectionIntro } from "../../../src/components/section";
 import { getClientSession } from "../../../src/lib/client-session";
+import { clearFormDraft, draftRecord, readFormDraft, saveFormDraft } from "../../../src/lib/form-draft";
+import { presentHttpFailure, presentTransportFailure } from "../../../src/lib/failure-copy";
+import { currentReturnPath, signedOutLoginPath } from "../../../src/lib/signed-out";
 
 const TITLE_MAX_LENGTH = 120;
 const BODY_MAX_LENGTH = 5000;
@@ -103,6 +106,19 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
   const [busy, setBusy] = useState<BusyAction>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [publicIdentity, setPublicIdentity] = useState<string | null>(null);
+  const draftKey = `halalfood:review-draft:${placeId}`;
+
+  useEffect(() => {
+    const draft = draftRecord(readFormDraft(draftKey));
+    if (!draft) return;
+    if (typeof draft.title === "string") setTitle(draft.title);
+    if (typeof draft.body === "string") setBody(draft.body);
+    if (draft.editing === true) setEditing(true);
+  }, [draftKey]);
+
+  function saveReviewDraft() {
+    saveFormDraft(draftKey, { title, body, editing });
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -171,7 +187,8 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (authState === "signed-out") {
-      window.location.assign(loginUrl(placeId));
+      saveReviewDraft();
+      window.location.assign(signedOutLoginPath(currentReturnPath()));
       return;
     }
     if (busy) return;
@@ -198,20 +215,28 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
       );
       const responseValue = await responseBody(response);
       if (response.status === 401) {
-        window.location.assign(loginUrl(placeId));
+        saveReviewDraft();
+        window.location.assign(signedOutLoginPath(currentReturnPath()));
         return;
       }
       if (!response.ok) {
-        setFormError(errorFrom(responseValue, "Could not save your halal review."));
+        setFormError(
+          presentHttpFailure(
+            "your review",
+            response.status,
+            errorFrom(responseValue, "Could not save your halal review."),
+          ).message,
+        );
         return;
       }
+      clearFormDraft(draftKey);
       setEditing(false);
       setTitle("");
       setBody("");
       setSuccess(wasEditing ? "Your halal review was updated." : "Your halal review was posted.");
       setReloadToken((value) => value + 1);
-    } catch {
-      setFormError("Could not save your halal review. Please try again.");
+    } catch (caught) {
+      setFormError(presentTransportFailure("your review", caught).message);
     } finally {
       setBusy(null);
     }
@@ -230,18 +255,25 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
       );
       const responseValue = await responseBody(response);
       if (response.status === 401) {
-        window.location.assign(loginUrl(placeId));
+        saveReviewDraft();
+        window.location.assign(signedOutLoginPath(currentReturnPath()));
         return;
       }
       if (!response.ok) {
-        setFormError(errorFrom(responseValue, "Could not delete your halal review."));
+        setFormError(
+          presentHttpFailure(
+            "your review",
+            response.status,
+            errorFrom(responseValue, "Could not delete your halal review."),
+          ).message,
+        );
         return;
       }
       cancelEditing();
       setSuccess("Your halal review was deleted.");
       setReloadToken((value) => value + 1);
-    } catch {
-      setFormError("Could not delete your halal review. Please try again.");
+    } catch (caught) {
+      setFormError(presentTransportFailure("your review", caught).message);
     } finally {
       setBusy(null);
     }

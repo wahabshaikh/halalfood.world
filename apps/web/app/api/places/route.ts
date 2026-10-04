@@ -9,6 +9,7 @@ import {
   retryAfterSeconds,
 } from "../../../src/lib/otp-rate-limit";
 import { validatePlaceSubmission } from "@halalfood/core/place-submission";
+import { signedOutLoginPath } from "../../../src/lib/signed-out";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
@@ -18,7 +19,7 @@ function unauthorized() {
   return Response.json(
     {
       error: "Sign in to add a place.",
-      loginUrl: "/login?returnTo=%2Fadd",
+      loginUrl: signedOutLoginPath("/add"),
     },
     { status: 401, headers: noStore() },
   );

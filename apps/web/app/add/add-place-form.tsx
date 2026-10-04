@@ -24,7 +24,8 @@ import {
 import { Spinner } from "@halalfood/ui/components/spinner";
 import { GOOGLE_PLACE_QUERY_MIN_LENGTH } from "@halalfood/core/place-submission";
 import { getClientSession } from "../../src/lib/client-session";
-import { presentHttpFailure } from "../../src/lib/failure-copy";
+import { presentHttpFailure, presentTransportFailure } from "../../src/lib/failure-copy";
+import { currentReturnPath, signedOutLoginPath } from "../../src/lib/signed-out";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
 type GooglePlace = { id: string; name: string; address: string };
@@ -45,8 +46,9 @@ async function responseBody(response: Response) {
   }
 }
 
-function errorFrom(body: Record<string, unknown> | null, fallback: string) {
-  return typeof body?.error === "string" && body.error.trim() ? body.error : fallback;
+function errorFrom(body: Record<string, unknown> | null, status: number, fallback: string) {
+  const server = typeof body?.error === "string" && body.error.trim() ? body.error : fallback;
+  return presentHttpFailure("this place", status, server).message;
 }
 
 function listedFrom(value: unknown, addressKey = "address"): ListedPlace[] {
@@ -184,7 +186,8 @@ export default function AddPlaceForm({
       });
       const body = await responseBody(response);
       if (response.status === 401) {
-        setSearchMessage(errorFrom(body, "Search is unavailable right now. Try again in a moment."));
+        saveDraft();
+        window.location.assign(signedOutLoginPath(currentReturnPath()));
         return;
       }
       const embedded = listedFrom(body?.local);
@@ -211,7 +214,7 @@ export default function AddPlaceForm({
         return;
       }
       if (response.status === 400) {
-        setSearchMessage(errorFrom(body, "Type at least 3 letters."));
+        setSearchMessage(errorFrom(body, response.status, "Type at least 3 letters."));
         return;
       }
       if (!response.ok || body?.fallback === "link") {
@@ -220,6 +223,7 @@ export default function AddPlaceForm({
         setSearchMessage(
           errorFrom(
             body,
+            response.status,
             "Google search didn’t work. Add the place with a link instead. A moderator reviews it before it is listed.",
           ),
         );
@@ -240,12 +244,10 @@ export default function AddPlaceForm({
             : "Nothing on Google Maps matches that. Try the name and the area, or add it with a link.",
         );
       if (!places.length) setProviderDown(true);
-    } catch {
+    } catch (caught) {
       setProviderDown(true);
       setLinkDraft((current) => ({ ...current, name: current.name || term }));
-      setSearchMessage(
-        "Google search didn’t work. Add the place with a link instead. A moderator reviews it before it is listed.",
-      );
+      setSearchMessage(presentTransportFailure("this place", caught).message);
     } finally {
       setSearchBusy(false);
     }
@@ -290,16 +292,16 @@ export default function AddPlaceForm({
       if (response.status === 401) {
         setAuthState("signed-out");
         saveDraft();
-        window.location.assign(loginUrl);
+        window.location.assign(signedOutLoginPath(currentReturnPath()));
         return;
       }
       if (response.status === 409 && typeof body?.url === "string") {
         setDuplicateUrl(body.url);
-        setFormError(errorFrom(body, "That place is already listed."));
+        setFormError(errorFrom(body, response.status, "That place is already listed."));
         return;
       }
       if (!response.ok || typeof body?.id !== "string") {
-        setFormError(errorFrom(body, "We couldn’t add that place. Please try again."));
+        setFormError(errorFrom(body, response.status, "We couldn’t add that place. Please try again."));
         return;
       }
       clearDraft();
@@ -308,8 +310,8 @@ export default function AddPlaceForm({
         status: typeof body.status === "string" ? body.status : "pending",
         name: selected.name,
       });
-    } catch {
-      setFormError("We couldn’t add that place. Please try again.");
+    } catch (caught) {
+      setFormError(presentTransportFailure("this place", caught).message);
     } finally {
       setSubmitBusy(false);
     }
@@ -343,16 +345,16 @@ export default function AddPlaceForm({
       if (response.status === 401) {
         setAuthState("signed-out");
         saveDraft();
-        window.location.assign(loginUrl);
+        window.location.assign(signedOutLoginPath(currentReturnPath()));
         return;
       }
       if (response.status === 409 && typeof body?.url === "string") {
         setDuplicateUrl(body.url);
-        setFormError(errorFrom(body, "That place is already listed."));
+        setFormError(errorFrom(body, response.status, "That place is already listed."));
         return;
       }
       if (!response.ok || typeof body?.id !== "string") {
-        setFormError(errorFrom(body, "We couldn’t file that place. Please try again."));
+        setFormError(errorFrom(body, response.status, "We couldn’t file that place. Please try again."));
         return;
       }
       clearDraft();
@@ -361,8 +363,8 @@ export default function AddPlaceForm({
         status: typeof body.status === "string" ? body.status : "pending",
         name: linkDraft.name,
       });
-    } catch {
-      setFormError("We couldn’t file that place. Please try again.");
+    } catch (caught) {
+      setFormError(presentTransportFailure("this place", caught).message);
     } finally {
       setSubmitBusy(false);
     }
