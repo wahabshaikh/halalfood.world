@@ -127,7 +127,7 @@ export async function notifyStatusChange(
 export async function notifyFriendVisit(
   input: { visitId: string; actorId: string; placeId: string },
   client: Client = database(),
-): Promise<void> {
+): Promise<boolean> {
   try {
     const db = await client;
     await db.run(sql`
@@ -152,8 +152,10 @@ export async function notifyFriendVisit(
         )
       ON CONFLICT (user_id, dedupe_key) DO NOTHING
     `);
-  } catch {
-    // Best effort.
+    return true;
+  } catch (error) {
+    console.error("notify.friend-visit failed", input.visitId, error);
+    return false;
   }
 }
 

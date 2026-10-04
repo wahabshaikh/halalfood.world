@@ -138,6 +138,10 @@ test("empty names receive an anonymized contributor handle", () => {
   assert.match(handle, /^Contributor · [0-9a-f]{4}$/);
   assert.equal(contributorDisplayName("   ", "user-123"), handle);
   assert.equal(contributorDisplayName(" Amina ", "user-123"), "Amina");
+  assert.equal(
+    contributorDisplayName("z4blt7@mail.instinct.com", "user-123"),
+    handle,
+  );
   assert.doesNotMatch(handle, /user-123/);
 });
 

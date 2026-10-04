@@ -1,3 +1,4 @@
+import { PUBLIC_MEMBER_LABEL, safePublicIdentity } from "@halalfood/core/public-identity";
 import { sql } from "drizzle-orm";
 import { database } from "../db";
 
@@ -73,6 +74,8 @@ export function validatePlaceReviewInput(
 export interface PlaceReviewRepository {
   hasPlace(placeId: string): Promise<boolean>;
   list(placeId: string, userId: string | null): Promise<PlaceReview[]>;
+  /** The name a signed-in diner will be shown as, before they post. */
+  publicIdentity?(userId: string): Promise<string>;
   upsert(
     userId: string,
     placeId: string,
@@ -90,11 +93,36 @@ function isoDate(value: unknown): string {
   return new Date(0).toISOString();
 }
 
+/**
+ * Profile display name, then handle. Never the account name or email.
+ * Both columns exist on the original user_profiles table.
+ */
+const PUBLIC_AUTHOR_NAME = sql`
+  COALESCE(
+    (
+      SELECT CASE
+        WHEN pr.display_name IS NOT NULL
+          AND length(trim(pr.display_name)) > 0
+          AND instr(trim(pr.display_name), '@') = 0
+          THEN trim(pr.display_name)
+        WHEN pr.handle IS NOT NULL
+          AND length(trim(pr.handle)) > 0
+          AND instr(pr.handle, '@') = 0
+          THEN trim(pr.handle)
+        ELSE NULL
+      END
+      FROM user_profiles AS pr
+      WHERE pr.user_id = r.user_id
+    ),
+    ${PUBLIC_MEMBER_LABEL}
+  )
+`;
+
 function mapReview(row: Record<string, unknown>): PlaceReview {
-  const author =
-    typeof row.author_display_name === "string" && row.author_display_name.trim()
-      ? row.author_display_name.trim()
-      : "Halalfood member";
+  const author = safePublicIdentity(
+    [typeof row.author_display_name === "string" ? row.author_display_name : null],
+    PUBLIC_MEMBER_LABEL,
+  );
   return {
     authorDisplayName: author,
     title: typeof row.title === "string" && row.title.trim() ? row.title : null,
@@ -125,16 +153,27 @@ export function d1PlaceReviewRepository(
       return rows.length > 0;
     },
 
+    async publicIdentity(userId) {
+      const db = await client;
+      const rows = await db.all<Record<string, unknown>>(sql`
+        SELECT display_name, handle
+        FROM user_profiles
+        WHERE user_id = ${userId}
+        LIMIT 1
+      `);
+      const row = rows[0];
+      return safePublicIdentity([
+        typeof row?.display_name === "string" ? row.display_name : null,
+        typeof row?.handle === "string" ? row.handle : null,
+      ]);
+    },
+
     async list(placeId, userId) {
       const db = await client;
       const ownReview = userId ? sql`r.user_id = ${userId}` : sql`0`;
       const rows = await db.all<Record<string, unknown>>(sql`
         SELECT
-          COALESCE(
-            NULLIF(TRIM(u.name), ''),
-            NULLIF(TRIM(u.email), ''),
-            'Halalfood member'
-          ) AS author_display_name,
+          ${PUBLIC_AUTHOR_NAME} AS author_display_name,
           r.title,
           r.body,
           r.created_at,
@@ -142,7 +181,6 @@ export function d1PlaceReviewRepository(
           ${ownReview} AS is_own
         FROM place_reviews AS r
         INNER JOIN places AS p ON p.id = r.place_id
-        INNER JOIN "user" AS u ON u.id = r.user_id
         WHERE r.place_id = ${placeId}
           AND p.halal_confirmed = 1
         ORDER BY r.created_at DESC, r.updated_at DESC, r.user_id
@@ -151,11 +189,7 @@ export function d1PlaceReviewRepository(
       if (userId && !rows.some(isOwnReviewRow)) {
         const ownRows = await db.all<Record<string, unknown>>(sql`
           SELECT
-            COALESCE(
-              NULLIF(TRIM(u.name), ''),
-              NULLIF(TRIM(u.email), ''),
-              'Halalfood member'
-            ) AS author_display_name,
+            ${PUBLIC_AUTHOR_NAME} AS author_display_name,
             r.title,
             r.body,
             r.created_at,
@@ -163,7 +197,6 @@ export function d1PlaceReviewRepository(
             1 AS is_own
           FROM place_reviews AS r
           INNER JOIN places AS p ON p.id = r.place_id
-          INNER JOIN "user" AS u ON u.id = r.user_id
           WHERE r.place_id = ${placeId}
             AND r.user_id = ${userId}
             AND p.halal_confirmed = 1

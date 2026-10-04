@@ -1,6 +1,7 @@
 import { avatarUrl } from "@halalfood/core/social";
 import { searchPeople } from "../../../../src/lib/social-repository";
-import { json, optionalUser, unavailable } from "../../../../src/lib/api";
+import { json, optionalUser } from "../../../../src/lib/api";
+import { domainFailure } from "../../../../src/lib/domain-error";
 
 /** Find diners by handle or name. Needs at least two characters. */
 export async function GET(request: Request): Promise<Response> {
@@ -17,7 +18,7 @@ export async function GET(request: Request): Promise<Response> {
         avatarUrl: avatarUrl(person.handle, person.avatarKey),
       })),
     });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Finding people", error);
   }
 }

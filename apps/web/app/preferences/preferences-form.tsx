@@ -89,7 +89,9 @@ export default function PreferencesForm() {
           if (body?.preferences) setPreferences(body.preferences as UserPreferences);
         }
       } catch {
-        setError("Could not load your standards. They are unchanged.");
+        setError(
+          "Could not load your saved standards. This form is showing defaults and has not changed what is stored.",
+        );
       } finally {
         setState("ready");
       }
@@ -108,11 +110,15 @@ export default function PreferencesForm() {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setError(typeof body.error === "string" ? body.error : "Could not save.");
+        setError(
+          typeof body.error === "string"
+            ? `${body.error} Your changes are still in this form and have not been applied.`
+            : "Could not save. Your changes are still in this form and have not been applied.",
+        );
         return;
       }
       setPreferences(body.preferences as UserPreferences);
-      setMessage("Saved. These standards now apply on every place page.");
+      setMessage("Saved. These standards now apply when you browse places and the map.");
     } catch {
       setError("Could not reach the server.");
     } finally {
@@ -235,6 +241,10 @@ export default function PreferencesForm() {
 
       {error && <FormMessage tone="error">{error}</FormMessage>}
       {message && <FormMessage tone="success">{message}</FormMessage>}
+
+      <FieldDescription>
+        Nothing here changes which places you see until this save succeeds.
+      </FieldDescription>
 
       <Button
         size="xl"

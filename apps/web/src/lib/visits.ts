@@ -42,12 +42,15 @@ export type RecordVisitInput = {
   verification: VerificationResult;
   receiptR2Key: string | null;
   checkIn: ValidatedCheckIn;
+  /** When set, a repeat of this submission returns the visit already stored. */
+  idempotencyKey?: string | null;
 };
 
 export type RecordVisitResult = {
   visitId: string;
   verificationMethod: VerificationResult["method"];
   verificationConfidence: VerificationResult["confidence"];
+  deduped: boolean;
 };
 
 function num(value: unknown): number | null {
@@ -84,10 +87,22 @@ export async function recordVisit(
   const now = Date.now();
   const { checkIn, verification } = input;
 
+  if (input.idempotencyKey) {
+    const existing = await findVisitByIdempotencyKey(db, input.userId, input.idempotencyKey);
+    if (existing) return { ...existing, deduped: true };
+  }
+
   // D1 rejects SQL `BEGIN`, so `db.transaction()` fails at runtime (error
   // 7500). `db.batch()` is the D1-native equivalent: the statements run in one
   // implicit transaction and the whole batch rolls back if any of them fails,
   // which is what keeps a visit from existing without its check-in.
+  const stored: RecordVisitResult = {
+    visitId,
+    verificationMethod: verification.method,
+    verificationConfidence: verification.confidence,
+    deduped: false,
+  };
+  try {
   await db.batch([
     db.insert(placeVisits).values({
       id: visitId,
@@ -100,6 +115,7 @@ export async function recordVisit(
       receiptR2Key: input.receiptR2Key,
       context: checkIn.context,
       visibility: checkIn.visibility,
+      ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
       createdAt: new Date(now),
       updatedAt: new Date(now),
     }),
@@ -147,11 +163,38 @@ export async function recordVisit(
         ]
       : []),
   ] as unknown as Parameters<typeof db.batch>[0]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (input.idempotencyKey && /unique constraint failed/i.test(message)) {
+      const existing = await findVisitByIdempotencyKey(db, input.userId, input.idempotencyKey);
+      if (existing) return { ...existing, deduped: true };
+    }
+    throw error;
+  }
 
+  return stored;
+}
+
+async function findVisitByIdempotencyKey(
+  db: DatabaseClient,
+  userId: string,
+  idempotencyKey: string,
+): Promise<Omit<RecordVisitResult, "deduped"> | null> {
+  const rows = await db.all<Record<string, unknown>>(sql`
+    SELECT id, verification_method, verification_confidence
+    FROM place_visits
+    WHERE user_id = ${userId} AND idempotency_key = ${idempotencyKey}
+    LIMIT 1
+  `);
+  const row = rows[0];
+  if (!row) return null;
+  const method = row.verification_method;
+  const confidence = row.verification_confidence;
+  if (typeof method !== "string" || typeof confidence !== "string") return null;
   return {
-    visitId,
-    verificationMethod: verification.method,
-    verificationConfidence: verification.confidence,
+    visitId: String(row.id),
+    verificationMethod: method as VerificationResult["method"],
+    verificationConfidence: confidence as VerificationResult["confidence"],
   };
 }
 

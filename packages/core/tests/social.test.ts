@@ -37,6 +37,7 @@ test("display names are trimmed, collapsed and length limited", () => {
     displayName: "Ayesha Khan",
   });
   assert.equal(validateDisplayName("   ").ok, false);
+  assert.equal(validateDisplayName("qa@example.com").ok, false);
   assert.equal(validateDisplayName("x".repeat(61)).ok, false);
   assert.equal(validateDisplayName(42).ok, false);
 });

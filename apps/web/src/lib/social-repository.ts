@@ -428,7 +428,8 @@ export async function isHandleAvailable(
 
 export type OnboardingResult =
   | { ok: true; profile: DinerProfile; followed: FollowStatus | null }
-  | { ok: false; reason: "handle-taken" };
+  | { ok: false; reason: "handle-taken" }
+  | { ok: false; reason: "standard" | "picks" | "friends"; error: string };
 
 /**
  * Finish onboarding: claim the handle, save the name and home city, write the
@@ -449,6 +450,27 @@ export async function completeOnboarding(
     return { ok: false, reason: "handle-taken" };
 
   const now = Date.now();
+  const previousInvite = (
+    await db.all<{ invited_by_user_id?: unknown }>(sql`
+      SELECT invited_by_user_id FROM user_profiles WHERE user_id = ${userId} LIMIT 1
+    `)
+  )[0]?.invited_by_user_id;
+  const previousInvitedBy =
+    typeof previousInvite === "string" ? previousInvite : null;
+
+  const restore = async () => {
+    await db.run(sql`
+      UPDATE user_profiles SET
+        handle = ${current.handle},
+        display_name = ${current.displayName},
+        home_city_slug = ${current.homeCitySlug},
+        onboarded_at = ${current.onboardedAt},
+        invited_by_user_id = ${previousInvitedBy},
+        updated_at = ${Date.now()}
+      WHERE user_id = ${userId}
+    `);
+  };
+
   try {
     await db.run(sql`
       UPDATE user_profiles SET
@@ -459,45 +481,79 @@ export async function completeOnboarding(
         updated_at = ${now}
       WHERE user_id = ${userId}
     `);
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     // The unique index is the authority when two people claim a handle at once.
-    return { ok: false, reason: "handle-taken" };
+    if (/unique constraint failed/i.test(message))
+      return { ok: false, reason: "handle-taken" };
+    throw error;
   }
 
-  if (input.standard) {
-    const preferences = await getPreferences(userId, db);
-    await savePreferences(
-      userId,
-      {
-        ...applyOnboardingStandard(preferences, input.standard),
-        homeCitySlug: input.homeCitySlug ?? preferences.homeCitySlug,
-      },
-      db,
-    );
+  try {
+    if (input.standard) {
+      const preferences = await getPreferences(userId, db);
+      await savePreferences(
+        userId,
+        {
+          ...applyOnboardingStandard(preferences, input.standard),
+          homeCitySlug: input.homeCitySlug ?? preferences.homeCitySlug,
+        },
+        db,
+      );
+    }
+  } catch (error) {
+    console.error("onboarding.standard failed", error);
+    await restore().catch((restoreError) => console.error("onboarding.restore failed", restoreError));
+    return {
+      ok: false,
+      reason: "standard",
+      error:
+        "Saving your dietary standard failed. Your name, picks and friends are still here. Retry Finish.",
+    };
   }
 
-  for (const placeId of input.wantToTry)
-    await db.run(sql`
-      INSERT INTO saved_places (user_id, place_id, created_at)
-      SELECT ${userId}, id, ${now} FROM places WHERE id = ${placeId} AND halal_confirmed = 1
-      ON CONFLICT (user_id, place_id) DO NOTHING
-    `);
+  try {
+    for (const placeId of input.wantToTry)
+      await db.run(sql`
+        INSERT INTO saved_places (user_id, place_id, created_at)
+        SELECT ${userId}, id, ${now} FROM places WHERE id = ${placeId} AND halal_confirmed = 1
+        ON CONFLICT (user_id, place_id) DO NOTHING
+      `);
+  } catch (error) {
+    console.error("onboarding.picks failed", error);
+    await restore().catch((restoreError) => console.error("onboarding.restore failed", restoreError));
+    return {
+      ok: false,
+      reason: "picks",
+      error: "Saving your places to try failed. Your draft is still here. Retry Finish.",
+    };
+  }
 
   let followed: FollowStatus | null = null;
-  if (input.invitedByHandle && input.invitedByHandle !== input.handle) {
-    const inviterId = (
-      await db.all<{ user_id?: unknown }>(sql`
-        SELECT user_id FROM user_profiles WHERE handle = ${input.invitedByHandle} LIMIT 1
-      `)
-    )[0]?.user_id;
-    if (typeof inviterId === "string" && inviterId !== userId) {
-      await db.run(sql`
-        UPDATE user_profiles SET invited_by_user_id = ${inviterId}
-        WHERE user_id = ${userId} AND invited_by_user_id IS NULL
-      `);
-      const result = await followUser(userId, input.invitedByHandle, db);
-      if (result.ok) followed = result.status;
+  try {
+    if (input.invitedByHandle && input.invitedByHandle !== input.handle) {
+      const inviterId = (
+        await db.all<{ user_id?: unknown }>(sql`
+          SELECT user_id FROM user_profiles WHERE handle = ${input.invitedByHandle} LIMIT 1
+        `)
+      )[0]?.user_id;
+      if (typeof inviterId === "string" && inviterId !== userId) {
+        await db.run(sql`
+          UPDATE user_profiles SET invited_by_user_id = ${inviterId}
+          WHERE user_id = ${userId} AND invited_by_user_id IS NULL
+        `);
+        const result = await followUser(userId, input.invitedByHandle, db);
+        if (result.ok) followed = result.status;
+      }
     }
+  } catch (error) {
+    console.error("onboarding.friends failed", error);
+    await restore().catch((restoreError) => console.error("onboarding.restore failed", restoreError));
+    return {
+      ok: false,
+      reason: "friends",
+      error: "Following your inviter failed. Your draft is still here. Retry Finish.",
+    };
   }
 
   return { ok: true, profile: await getOrCreateProfile(userId, db), followed };

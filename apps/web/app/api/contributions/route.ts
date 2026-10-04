@@ -1,6 +1,7 @@
 import { listContributions } from "../../../src/lib/contributions-repository";
 import { CONTRIBUTION_STATUS_COPY } from "@halalfood/core/contributions";
-import { json, requireUser, unavailable } from "../../../src/lib/api";
+import { json, requireUser } from "../../../src/lib/api";
+import { domainFailure } from "../../../src/lib/domain-error";
 
 /** Every contribution this account has made, with status and reason. */
 export async function GET(request: Request): Promise<Response> {
@@ -17,7 +18,7 @@ export async function GET(request: Request): Promise<Response> {
           ] ?? row.status,
       })),
     });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Your contributions", error);
   }
 }

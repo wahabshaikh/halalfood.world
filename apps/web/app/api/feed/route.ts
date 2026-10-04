@@ -1,7 +1,8 @@
 import { FEED_PAGE_SIZE } from "@halalfood/core/feed";
 import { listFriendsFeed } from "../../../src/lib/feed-repository";
 import { getPreferences } from "../../../src/lib/preferences-repository";
-import { json, requireUser, unavailable } from "../../../src/lib/api";
+import { json, requireUser } from "../../../src/lib/api";
+import { domainFailure } from "../../../src/lib/domain-error";
 
 /**
  * The friends feed for the signed-in diner: their own shared visits and those
@@ -23,7 +24,7 @@ export async function GET(request: Request): Promise<Response> {
       limit: FEED_PAGE_SIZE,
     });
     return json(page);
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Your friends feed", error);
   }
 }

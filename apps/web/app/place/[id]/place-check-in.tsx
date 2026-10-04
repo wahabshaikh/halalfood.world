@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@halalfood/ui/components/button";
 import { Card } from "@halalfood/ui/components/card";
 import { FieldLegend, FieldSet } from "@halalfood/ui/components/field";
@@ -81,6 +81,8 @@ type DoneResult = {
   verified: boolean;
   note: string | null;
   sharedToFeed: boolean;
+  deduped: boolean;
+  notification: "sent" | "skipped" | "failed";
   halalCheck: "submitted" | "not-sent" | "failed";
 };
 
@@ -138,6 +140,7 @@ export default function PlaceCheckIn({
   });
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DoneResult | null>(null);
+  const idempotencyKey = useRef(crypto.randomUUID());
 
   const ready = verdict !== null && valueVerdict !== null;
 
@@ -195,6 +198,7 @@ export default function PlaceCheckIn({
           incentivized,
           visibility,
           shareToFeed: visibility === "public" && shareToFeed,
+          idempotencyKey: idempotencyKey.current,
           halalCheck: Object.values(check).some(Boolean) ? check : undefined,
           locationProof,
           utcOffsetMinutes: -new Date().getTimezoneOffset(),
@@ -226,6 +230,11 @@ export default function PlaceCheckIn({
       verified: payload.verificationMethod !== "none",
       note: typeof payload.verificationNote === "string" ? payload.verificationNote : null,
       sharedToFeed: payload.sharedToFeed === true,
+      deduped: payload.deduped === true,
+      notification:
+        payload.notification === "sent" || payload.notification === "failed"
+          ? payload.notification
+          : "skipped",
       halalCheck:
         payload.halalCheck === "submitted" || payload.halalCheck === "failed"
           ? payload.halalCheck
@@ -243,7 +252,7 @@ export default function PlaceCheckIn({
         >
           <HugeiconsIcon icon={Tick02Icon} size={22} />
         </span>
-        <h2 className="text-[22px]">Visit recorded</h2>
+        <h2 className="text-[22px]">{result?.deduped ? "Visit already recorded" : "Visit recorded"}</h2>
         <p className="text-muted-foreground">
           {result?.verified
             ? "Verified by your location at the venue. Verified visits weigh more in every aggregate."
@@ -261,6 +270,11 @@ export default function PlaceCheckIn({
           <Hint>
             Your visit is saved, but the halal check could not be filed. You can
             add it again from the place page.
+          </Hint>
+        )}
+        {result?.notification === "failed" && (
+          <Hint>
+            Your visit is saved, but friends who saved this place could not be notified.
           </Hint>
         )}
         <Hint>

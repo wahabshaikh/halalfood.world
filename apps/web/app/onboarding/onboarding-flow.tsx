@@ -243,8 +243,15 @@ export default function OnboardingFlow({
       };
       if (!response.ok || !body.profile) {
         setError(body.error ?? "Could not save your profile.");
-        // A taken handle or bad name lives on the profile step.
-        if (response.status === 409 || response.status === 400) setStep("profile");
+        const failedStep = (body as { failedStep?: string }).failedStep;
+        if (
+          failedStep === "profile" ||
+          failedStep === "standard" ||
+          failedStep === "picks" ||
+          failedStep === "friends"
+        )
+          setStep(failedStep);
+        else if (response.status === 409 || response.status === 400) setStep("profile");
         return;
       }
       setFinished({ handle: body.profile.handle, following: body.followed ? invitedBy : null });

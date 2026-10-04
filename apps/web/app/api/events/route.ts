@@ -1,6 +1,7 @@
 import { citySlugParam } from "@halalfood/core/params";
 import { listUpcomingEvents } from "../../../src/lib/events-repository";
 import { cachedRead } from "../../../src/lib/read-cache";
+import { domainFailure } from "../../../src/lib/domain-error";
 
 const CACHE_CONTROL = "public, max-age=60, s-maxage=60";
 
@@ -15,7 +16,7 @@ export async function GET(request: Request): Promise<Response> {
       listUpcomingEvents({ citySlug, limit }),
     );
     return Response.json({ events }, { headers: { "Cache-Control": CACHE_CONTROL } });
-  } catch {
-    return Response.json({ error: "Events are temporarily unavailable." }, { status: 503 });
+  } catch (error) {
+    return domainFailure("Events", error);
   }
 }

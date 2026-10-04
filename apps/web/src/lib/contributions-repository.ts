@@ -308,30 +308,39 @@ export async function listContributions(
   client: DatabaseClient | Promise<DatabaseClient> = database(),
 ): Promise<ContributionRow[]> {
   const db = await client;
+  // D1 rejects ORDER BY on a compound SELECT unless every arm exposes the
+  // same explicit aliases and the sort sits on the outer query.
   const rows = await db.all<Record<string, unknown>>(sql`
-    SELECT 'edit' AS kind, e.id, e.place_id, p.name AS place_name,
-      e.field AS summary, e.status, e.status_reason, e.created_at
-    FROM place_edit_suggestions AS e
-    INNER JOIN places AS p ON p.id = e.place_id
-    WHERE e.submitted_by_user_id = ${userId}
-    UNION ALL
-    SELECT 'evidence' AS kind, v.id, v.place_id, p.name AS place_name,
-      v.evidence_kind AS summary, v.status, v.review_reason AS status_reason, v.created_at
-    FROM place_halal_verifications AS v
-    INNER JOIN places AS p ON p.id = v.place_id
-    WHERE v.submitted_by_user_id = ${userId}
-    UNION ALL
-    SELECT 'dish' AS kind, d.id, d.place_id, p.name AS place_name,
-      d.name AS summary, d.status, NULL AS status_reason, d.created_at
-    FROM place_dishes AS d
-    INNER JOIN places AS p ON p.id = d.place_id
-    WHERE d.submitted_by_user_id = ${userId}
-    UNION ALL
-    SELECT 'duplicate' AS kind, r.id, r.place_id, p.name AS place_name,
-      'duplicate report' AS summary, r.status, r.status_reason, r.created_at
-    FROM place_duplicate_reports AS r
-    INNER JOIN places AS p ON p.id = r.place_id
-    WHERE r.submitted_by_user_id = ${userId}
+    SELECT kind, id, place_id, place_name, summary, status, status_reason, created_at
+    FROM (
+      SELECT 'edit' AS kind, e.id AS id, e.place_id AS place_id, p.name AS place_name,
+        e.field AS summary, e.status AS status, e.status_reason AS status_reason,
+        e.created_at AS created_at
+      FROM place_edit_suggestions AS e
+      INNER JOIN places AS p ON p.id = e.place_id
+      WHERE e.submitted_by_user_id = ${userId}
+      UNION ALL
+      SELECT 'evidence' AS kind, v.id AS id, v.place_id AS place_id, p.name AS place_name,
+        v.evidence_kind AS summary, v.status AS status, v.review_reason AS status_reason,
+        v.created_at AS created_at
+      FROM place_halal_verifications AS v
+      INNER JOIN places AS p ON p.id = v.place_id
+      WHERE v.submitted_by_user_id = ${userId}
+      UNION ALL
+      SELECT 'dish' AS kind, d.id AS id, d.place_id AS place_id, p.name AS place_name,
+        d.name AS summary, d.status AS status, NULL AS status_reason,
+        d.created_at AS created_at
+      FROM place_dishes AS d
+      INNER JOIN places AS p ON p.id = d.place_id
+      WHERE d.submitted_by_user_id = ${userId}
+      UNION ALL
+      SELECT 'duplicate' AS kind, r.id AS id, r.place_id AS place_id, p.name AS place_name,
+        'duplicate report' AS summary, r.status AS status, r.status_reason AS status_reason,
+        r.created_at AS created_at
+      FROM place_duplicate_reports AS r
+      INNER JOIN places AS p ON p.id = r.place_id
+      WHERE r.submitted_by_user_id = ${userId}
+    ) AS contributions
     ORDER BY created_at DESC
     LIMIT 200
   `);

@@ -13,6 +13,7 @@ import {
   unauthorized,
   unavailable,
 } from "../../../src/lib/api";
+import { domainFailure } from "../../../src/lib/domain-error";
 
 /**
  * Filtered discovery for the map, the list and every server-rendered listing.
@@ -79,8 +80,8 @@ export async function GET(request: Request): Promise<Response> {
           statuses: filters.statuses.length ? filters.statuses : derived.statuses,
           facts: [...new Set([...filters.facts, ...derived.facts])],
         };
-      } catch {
-        return unavailable();
+      } catch (error) {
+        return domainFailure("Applying your standards", error);
       }
     }
   }
