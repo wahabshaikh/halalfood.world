@@ -1,20 +1,14 @@
 import { findPlaces } from "../../../src/lib/places";
 import { submitPlaceLink } from "../../../src/lib/place-link-submissions";
+import { respondToGooglePlaceSubmission } from "../../../src/lib/google-place-submission";
 import { bboxParam, limitParam } from "@halalfood/core/params";
-import {
-  GOOGLE_PLACES_ADD_FIELD_MASK,
-  getGooglePlaceDetails,
-  getGooglePlacesApiKey,
-  googlePlaceLocality,
-  googlePlaceMapsUrl,
-} from "../../../src/lib/google-places";
 import { getRequestAuth } from "../../../src/lib/auth-session";
 import {
   consumePlaceSubmissionLimits,
   getClientIp,
   retryAfterSeconds,
 } from "../../../src/lib/otp-rate-limit";
-import { slugifyCity, validatePlaceSubmission } from "@halalfood/core/place-submission";
+import { validatePlaceSubmission } from "@halalfood/core/place-submission";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
@@ -49,25 +43,6 @@ function rateLimited(retryAfterMs: number) {
         "X-Retry-After": String(seconds),
       },
     },
-  );
-}
-
-function googleDetailsError(code: string) {
-  if (code === "NOT_CONFIGURED") {
-    return Response.json(
-      { error: "Adding places is paused right now. Please try again later." },
-      { status: 503, headers: noStore() },
-    );
-  }
-  if (code === "INVALID_RESPONSE") {
-    return Response.json(
-      { error: "Google didn’t return enough details for that place. Try another result." },
-      { status: 422, headers: noStore() },
-    );
-  }
-  return Response.json(
-    { error: "Google couldn’t confirm that place. Please try again." },
-    { status: 502, headers: noStore() },
   );
 }
 
@@ -151,73 +126,5 @@ export async function POST(request: Request) {
     }
   }
 
-  if (!getGooglePlacesApiKey()) {
-    return Response.json(
-      { error: "Adding places is paused right now. Please try again later." },
-      { status: 503, headers: noStore() },
-    );
-  }
-  let details;
-  try {
-    details = await getGooglePlaceDetails(input.googlePlaceId, {
-      fieldMask: GOOGLE_PLACES_ADD_FIELD_MASK,
-    });
-  } catch {
-    return googleDetailsError("NETWORK_ERROR");
-  }
-  if (!details.ok) return googleDetailsError(details.code);
-
-  const name = details.place.displayName?.text?.trim();
-  const address = details.place.formattedAddress?.trim();
-  if (!name || !address || !details.coordinates) {
-    return googleDetailsError("INVALID_RESPONSE");
-  }
-  const googlePlaceId = details.place.id?.trim() || input.googlePlaceId;
-  const city = googlePlaceLocality(details.place);
-  const citySlug = city ? slugifyCity(city) : "";
-  if (!city || !citySlug)
-    return Response.json(
-      { error: "Google doesn’t say which city this place is in, so we can’t list it yet." },
-      { status: 422, headers: noStore() },
-    );
-
-  const mapsUrl = googlePlaceMapsUrl(googlePlaceId);
-  try {
-    const result = await submitPlaceLink(
-      auth.userId,
-      {
-        mode: "link",
-        name,
-        city,
-        citySlug,
-        address,
-        sourceUrl: mapsUrl,
-        googlePlaceId,
-        halalConfirmed: true,
-      },
-      undefined,
-      "google",
-    );
-    if (!result.ok) {
-      return Response.json(
-        {
-          error: `${result.place.name} is already listed.`,
-          placeId: result.place.id,
-          url: `/place/${result.place.id}`,
-        },
-        { status: 409, headers: noStore() },
-      );
-    }
-    return Response.json(
-      {
-        id: result.id,
-        status: result.status,
-        deduped: result.deduped,
-        listed: false,
-      },
-      { status: result.deduped ? 200 : 201, headers: noStore() },
-    );
-  } catch {
-    return unavailable();
-  }
+  return respondToGooglePlaceSubmission(auth.userId, input);
 }

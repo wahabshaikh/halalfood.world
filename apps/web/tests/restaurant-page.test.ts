@@ -8,7 +8,9 @@ import type { PlaceDetail } from "../src/lib/places";
 import {
   COMMUNITY_LAYERS,
   GOOGLE_DETAILS_CACHE_TTL_SECONDS,
+  GOOGLE_DETAILS_NEGATIVE_TTL_MS,
   assembleRestaurantPage,
+  isPlaceDetailsFailureStatus,
   buildRestaurantPageModel,
   layeredGoogleDetailsCache,
   memoryGoogleDetailsCache,
@@ -241,6 +243,98 @@ test("a capped Place Details request makes no fetch and the page still renders",
   assert.equal(calls, 0);
   assert.equal(thrown.place.name, "Saved Halal Kitchen");
   assert.equal(thrown.google.cacheStatus, "unavailable");
+});
+
+test("a failed thin-listing lookup is remembered for an hour and does not retry", async () => {
+  assert.equal(GOOGLE_DETAILS_NEGATIVE_TTL_MS, 60 * 60 * 1000);
+  assert.equal(isPlaceDetailsFailureStatus(403), true);
+  assert.equal(isPlaceDetailsFailureStatus(404), true);
+  assert.equal(isPlaceDetailsFailureStatus(500), true);
+  assert.equal(isPlaceDetailsFailureStatus(429), false);
+  let current = NOW.valueOf();
+  const cache = memoryGoogleDetailsCache(() => current);
+  let calls = 0;
+  let reserved = 0;
+  const thin = place({ lat: null, lng: null });
+  const fail = async () => {
+    calls += 1;
+    return {
+      ok: false as const,
+      code: "HTTP_ERROR" as const,
+      message: "Google Places rejected the request",
+      status: 403,
+    };
+  };
+
+  const first = await assembleRestaurantPage(thin, {
+    now: () => new Date(current),
+    detailsCache: cache,
+    reserveGoogleDetailsCall: async () => {
+      reserved += 1;
+      return true;
+    },
+    fetchGoogleDetails: fail,
+  });
+  assert.equal(calls, 1);
+  assert.equal(reserved, 1);
+  assert.equal(first.place.name, "Saved Halal Kitchen");
+  assert.equal(first.google.cacheStatus, "unavailable");
+
+  current += 30 * 60 * 1000;
+  const second = await assembleRestaurantPage(thin, {
+    now: () => new Date(current),
+    detailsCache: cache,
+    reserveGoogleDetailsCall: async () => {
+      reserved += 1;
+      return true;
+    },
+    fetchGoogleDetails: fail,
+  });
+  assert.equal(calls, 1);
+  assert.equal(reserved, 1);
+  assert.equal(second.place.name, "Saved Halal Kitchen");
+  assert.equal(second.google.displayNameSource, "listing");
+
+  current += 31 * 60 * 1000;
+  await assembleRestaurantPage(thin, {
+    now: () => new Date(current),
+    detailsCache: cache,
+    reserveGoogleDetailsCall: async () => {
+      reserved += 1;
+      return true;
+    },
+    fetchGoogleDetails: fail,
+  });
+  assert.equal(calls, 2);
+  assert.equal(reserved, 2);
+});
+
+test("a non-retryable Google status is not remembered", async () => {
+  const cache = memoryGoogleDetailsCache(() => NOW.valueOf());
+  let calls = 0;
+  const thin = place({ lat: null, lng: null });
+  const fetchGoogleDetails = async () => {
+    calls += 1;
+    return {
+      ok: false as const,
+      code: "HTTP_ERROR" as const,
+      message: "Google Places rejected the request",
+      status: 400,
+    };
+  };
+  await assembleRestaurantPage(thin, {
+    now: () => NOW,
+    detailsCache: cache,
+    reserveGoogleDetailsCall: async () => true,
+    fetchGoogleDetails,
+  });
+  await assembleRestaurantPage(thin, {
+    now: () => NOW,
+    detailsCache: cache,
+    reserveGoogleDetailsCall: async () => true,
+    fetchGoogleDetails,
+  });
+  assert.equal(calls, 2);
 });
 
 test("Google failure keeps the database row and stale snapshot usable", async () => {
