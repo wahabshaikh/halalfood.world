@@ -637,9 +637,9 @@ The repository includes `.github/workflows/preview.yml` for Vercel-style preview
 
 - Each PR creates or reuses a Cloudflare D1 database named `halalfood-world-pr-<number>`.
 - Before upload, the deploy job applies every migration under `migrations/` to that database with `wrangler d1 migrations apply --remote`. A migration failure fails the preview.
-- The Cloudflare Worker is uploaded as a non-production version bound to that PR's D1 database, with a stable `pr-<number>` preview alias. The predicted URL is `https://pr-<number>-halalfood-world.wahabshaikh.workers.dev`.
+- The Cloudflare Worker is uploaded as a non-production version bound to that PR's D1 database and the shared R2 bucket `halalfood-world-evidence-preview`, with a stable `pr-<number>` preview alias. The predicted URL is `https://pr-<number>-halalfood-world.wahabshaikh.workers.dev`.
 - The workflow creates or updates one GitHub Deployment in the `preview` environment and adds or updates one preview URL comment in the PR.
-- When the PR closes, all Cloudflare preview versions with the upload message `PR #<number>` are deleted so the alias no longer has a retained version target. The PR's D1 database is also deleted.
+- When the PR closes, all Cloudflare preview versions with the upload message `PR #<number>` are deleted so the alias no longer has a retained version target. The PR's D1 database is also deleted. The shared preview R2 bucket is kept.
 
 Configure these GitHub Actions settings before opening a PR:
 
@@ -650,6 +650,10 @@ Configure these GitHub Actions settings before opening a PR:
 
 `CLOUDFLARE_API_TOKEN` needs Workers Scripts edit and D1 edit permissions. Fork pull requests are intentionally skipped because the preview deployment requires infrastructure credentials.
 
-The upload intentionally uses `--keep-vars`. It changes only the `BETTER_AUTH_URL` variable and the `DB` D1 binding; it reuses production Worker variables and secrets for Resend, Turnstile, Google Places, `BETTER_AUTH_SECRET`, and the R2 binding `halalfood-world-evidence`. Preview code can therefore send through production integrations and read or write the production R2 bucket. Future isolation could use a `preview/` key prefix or a separate bucket; that is not implemented here.
+The upload uses `--keep-vars` and rebinds `DB` and `HALAL_EVIDENCE_R2` before upload. It reuses production Worker variables and secrets for Resend, Turnstile, Google Places, and `BETTER_AUTH_SECRET`. Evidence uploads go to `halalfood-world-evidence-preview`, not `halalfood-world-evidence`.
+
+Workers Builds non-main branches do not run this workflow. `scripts/stage-cloudflare-build.ts` rewrites the staged Wrangler config for those builds to D1 `halalfood-world-preview` (`c5d8e0ff-c001-48b8-8545-49861227c16f`) and the same preview R2 bucket, then applies migrations to that preview database only. Production branch `main` keeps `halalfood-world` and `halalfood-world-evidence`.
+
+`TURNSTILE_SITE_KEY` is not in `wrangler.jsonc` because the public site key is not stored in git. Set it as a Workers Builds environment variable of the same name, and as a GitHub Actions secret of the same name, so the build can place it on the uploaded version. The live login page currently renders an empty site key, so the production Worker does not have that plain var either.
 
 Do not promote a preview version manually.

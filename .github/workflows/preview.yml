@@ -207,24 +207,12 @@ jobs:
           # Cloudflare's stable alias format is <alias>-<worker>-<workers.dev subdomain>.
           echo "preview_url=https://pr-${{ github.event.pull_request.number }}-halalfood-world.wahabshaikh.workers.dev" >> "$GITHUB_OUTPUT"
 
-      - name: Bind the preview D1 database
+      - name: Bind preview D1 and R2
         env:
           D1_DATABASE_NAME: halalfood-world-pr-${{ github.event.pull_request.number }}
           D1_DATABASE_ID: ${{ steps.d1.outputs.database_id }}
-        run: |
-          node --input-type=module <<'NODE'
-          import { readFileSync, writeFileSync } from "node:fs";
-
-          const path = "dist/server/wrangler.json";
-          const config = JSON.parse(readFileSync(path, "utf8"));
-          const binding = config.d1_databases?.find((db) => db.binding === "DB");
-          if (!binding) {
-            throw new Error("Generated wrangler config has no DB binding to rebind for preview");
-          }
-          binding.database_name = process.env.D1_DATABASE_NAME;
-          binding.database_id = process.env.D1_DATABASE_ID;
-          writeFileSync(path, JSON.stringify(config));
-          NODE
+          TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
+        run: npx tsx scripts/bind-github-preview.ts
 
       - name: Upload Cloudflare preview
         id: upload
@@ -321,6 +309,8 @@ jobs:
               "[Open the preview](" + previewUrl + ")",
               "",
               "D1 database: " + process.env.D1_DATABASE_NAME,
+              "",
+              "R2 bucket: halalfood-world-evidence-preview",
               "",
               "_This preview is refreshed on every push to the PR._",
             ].join("\n");
