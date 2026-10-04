@@ -503,9 +503,11 @@ export default function OnboardingFlow({
                 Pick {MAX_WANT_TO_TRY} places you want to try
               </h1>
               <p className="text-base text-muted-foreground">
-                {standardTouched
+                {standardTouched && !picksRelaxed
                   ? "Only places that meet your standard are shown, each with its halal status."
-                  : "Listed places you can try. Choose a standard on the previous step to narrow them."}
+                  : standardTouched
+                    ? "Listed places you can try, each with its halal status. None met your standard yet."
+                    : "Listed places you can try. Choose a standard on the previous step to narrow them."}
               </p>
             </div>
             {picks === null ? (
