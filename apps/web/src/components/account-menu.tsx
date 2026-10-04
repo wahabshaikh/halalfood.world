@@ -6,6 +6,7 @@ import {
   DropdownMenuSeparator,
 } from "@halalfood/ui/components/dropdown-menu";
 import { SignOutMenuItem } from "./sign-out-button";
+import { menuLoginHref } from "../lib/signed-out";
 
 type AccountState = "unknown" | "signed-out" | "signed-in" | "setup-unavailable" | "session-unavailable";
 
@@ -87,7 +88,16 @@ export function AccountMenu() {
   if (state === "signed-out") {
     return (
       <DropdownMenuItem asChild className="font-extrabold">
-        <a href="/login?reason=join">Log in or sign up</a>
+        <a
+          href={menuLoginHref()}
+          // Read the page again on the tap: the map and other views rewrite
+          // their URL (filters, the open place) without re-rendering the menu.
+          onClick={(event) => {
+            event.currentTarget.href = menuLoginHref();
+          }}
+        >
+          Log in or sign up
+        </a>
       </DropdownMenuItem>
     );
   }

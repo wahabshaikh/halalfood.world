@@ -124,3 +124,14 @@ export function signInAgainUrl(body?: unknown): string {
   if (reason !== "signed-out" && reason !== "sign-in") reason = wasSignedIn() ? "signed-out" : "sign-in";
   return loginHref(currentReturnPath(), reason);
 }
+
+/**
+ * "Log in or sign up" in the user menu: come back to the page the person is
+ * on, path and query. Login and onboarding themselves are not a place to
+ * return to, so those go home.
+ */
+export function menuLoginHref(): string {
+  const here = currentReturnPath();
+  const returnTo = /^\/(?:login|onboarding)(?:[/?#]|$)/.test(here) ? "/" : here;
+  return loginHref(returnTo, "join");
+}
