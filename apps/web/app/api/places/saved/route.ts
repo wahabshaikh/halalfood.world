@@ -2,6 +2,7 @@ import { getRequestAuth } from "../../../../src/lib/auth-session";
 import {
   d1SavedPlaceRepository,
 } from "../../../../src/lib/saved-places";
+import { signedOutLoginPath } from "../../../../src/lib/signed-out";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
@@ -11,7 +12,7 @@ function unauthorized() {
   return Response.json(
     {
       error: "Sign in to view saved places.",
-      loginUrl: "/login?returnTo=%2Fsaved",
+      loginUrl: signedOutLoginPath("/saved"),
     },
     { status: 401, headers: noStore() },
   );

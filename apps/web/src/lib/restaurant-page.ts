@@ -11,9 +11,24 @@ import {
   type GooglePlaceDetailsResult,
 } from "./google-places";
 import { formatAddress } from "./seo";
+import { reserveGoogleDetailsCall } from "./google-search-budget";
 
 /** Successful Google snapshots are deliberately long-lived to protect quota. */
 export const GOOGLE_DETAILS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Cache-Control max-age for a Place Details payload. Same window as the D1 snapshot. */
+export const GOOGLE_DETAILS_CACHE_TTL_SECONDS = GOOGLE_DETAILS_CACHE_TTL_MS / 1000;
+
+/** How long a failed thin-listing lookup stays remembered, so repeat views do not spend the daily cap. */
+export const GOOGLE_DETAILS_NEGATIVE_TTL_MS = 60 * 60 * 1000;
+
+export const GOOGLE_DETAILS_NEGATIVE_TTL_SECONDS = GOOGLE_DETAILS_NEGATIVE_TTL_MS / 1000;
+
+/**
+ * Google Maps Platform terms allow storing content for at most 30 days.
+ * Place IDs themselves may be stored indefinitely; this limit is only the payload.
+ */
+export const GOOGLE_DETAILS_CONTENT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const COMMUNITY_LAYERS = [
   "save",
@@ -79,6 +94,23 @@ export type GoogleDetailsCacheWrite = {
   snapshot: GoogleDetailsSnapshot;
 };
 
+export type GoogleDetailsCacheRecord = {
+  cachedAt: string;
+  snapshot: GoogleDetailsSnapshot | null;
+  /** HTTP status of a failed lookup. Set only for 403, 404, and 5xx. */
+  failureStatus?: number;
+};
+
+/** Per Google place id. A hit must not call Place Details. */
+export type GoogleDetailsCache = {
+  get(googlePlaceId: string): Promise<GoogleDetailsCacheRecord | null>;
+  set(
+    googlePlaceId: string,
+    record: GoogleDetailsCacheRecord,
+    ttlSeconds: number,
+  ): Promise<void>;
+};
+
 export type RestaurantPageDependencies = {
   now?: () => Date;
   fetchGoogleDetails?: (
@@ -86,6 +118,13 @@ export type RestaurantPageDependencies = {
     options?: { fieldMask?: string },
   ) => Promise<GooglePlaceDetailsResult>;
   saveGoogleDetails?: (input: GoogleDetailsCacheWrite) => Promise<void>;
+  /** Defaults to isolate memory plus the Workers Cache API. */
+  detailsCache?: GoogleDetailsCache;
+  /**
+   * Reserve one uncached Place Details call. False or a throw skips Google
+   * and the page still renders.
+   */
+  reserveGoogleDetailsCall?: (now: Date) => Promise<boolean>;
 };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -116,9 +155,7 @@ function coordinates(value: unknown): GooglePlaceCoordinates | null {
   return { lat, lng };
 }
 
-function isoTimestamp(
-  value: string | number | Date | null | undefined,
-): string | null {
+function isoTimestamp(value: unknown): string | null {
   if (value instanceof Date)
     return Number.isFinite(value.valueOf()) ? value.toISOString() : null;
   if (typeof value === "number") {
@@ -169,14 +206,43 @@ export function googleDetailsSnapshotFromPlace(
   };
 }
 
+function googleDetailsAgeMs(
+  cachedAt: string | Date | null | undefined,
+  snapshot: GoogleDetailsSnapshot | null,
+  now: Date,
+): number | null {
+  const timestamp = isoTimestamp(cachedAt);
+  if (!timestamp || !snapshot || !Number.isFinite(now.valueOf())) return null;
+  return now.valueOf() - new Date(timestamp).valueOf();
+}
+
 export function isGoogleDetailsCacheFresh(
   cachedAt: string | Date | null | undefined,
   snapshot: GoogleDetailsSnapshot | null,
   now = new Date(),
 ) {
-  const timestamp = isoTimestamp(cachedAt);
-  if (!timestamp || !snapshot || !Number.isFinite(now.valueOf())) return false;
-  return now.valueOf() - new Date(timestamp).valueOf() < GOOGLE_DETAILS_CACHE_TTL_MS;
+  const age = googleDetailsAgeMs(cachedAt, snapshot, now);
+  return age !== null && age < GOOGLE_DETAILS_CACHE_TTL_MS;
+}
+
+/** True when the stored Google payload is still inside the 30-day content window. */
+export function isGoogleDetailsContentAllowed(
+  cachedAt: string | Date | null | undefined,
+  snapshot: GoogleDetailsSnapshot | null,
+  now = new Date(),
+) {
+  const age = googleDetailsAgeMs(cachedAt, snapshot, now);
+  return age !== null && age < GOOGLE_DETAILS_CONTENT_MAX_AGE_MS;
+}
+
+/** Name, address, and coordinates are enough to render the page without Google. */
+export function listingHasRenderableFacts(place: PlaceDetail): boolean {
+  return Boolean(
+    place.name?.trim() &&
+      formatAddress(place) &&
+      Number.isFinite(place.lat) &&
+      Number.isFinite(place.lng),
+  );
 }
 
 export function googleCacheNote(status: GoogleCacheStatus): string {
@@ -266,6 +332,153 @@ function cachedGoogleDetails(place: PlaceDetail): CachedGoogleDetails {
   };
 }
 
+type WorkersCache = {
+  match(request: Request): Promise<Response | undefined>;
+  put(request: Request, response: Response): Promise<void>;
+};
+
+const DETAILS_CACHE_NAME = "halalfood-google-details";
+const DETAILS_CACHE_ORIGIN = "https://google-details.halalfood.internal/";
+
+function detailsEdgeRequest(googlePlaceId: string): Request {
+  return new Request(DETAILS_CACHE_ORIGIN + encodeURIComponent(googlePlaceId));
+}
+
+async function openGoogleDetailsEdgeCache(): Promise<WorkersCache | null> {
+  try {
+    const storage = (globalThis as { caches?: { open?: (name: string) => Promise<WorkersCache> } })
+      .caches;
+    return typeof storage?.open === "function" ? await storage.open(DETAILS_CACHE_NAME) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function memoryGoogleDetailsCache(now: () => number = Date.now): GoogleDetailsCache {
+  const store = new Map<string, { expiresAt: number; record: GoogleDetailsCacheRecord }>();
+  return {
+    async get(googlePlaceId) {
+      const entry = store.get(googlePlaceId);
+      if (!entry) return null;
+      if (entry.expiresAt <= now()) {
+        store.delete(googlePlaceId);
+        return null;
+      }
+      return entry.record;
+    },
+    async set(googlePlaceId, record, ttlSeconds) {
+      store.set(googlePlaceId, { expiresAt: now() + ttlSeconds * 1000, record });
+    },
+  };
+}
+
+/** 403, 404, and 5xx are remembered. Other failures can be tried again on the next view. */
+export function isPlaceDetailsFailureStatus(status: number): boolean {
+  return status === 403 || status === 404 || (status >= 500 && status <= 599);
+}
+
+export function isGoogleDetailsFailureCached(
+  record: GoogleDetailsCacheRecord | null,
+  now = new Date(),
+): boolean {
+  if (!record?.failureStatus || !isPlaceDetailsFailureStatus(record.failureStatus)) return false;
+  const cachedAt = isoTimestamp(record.cachedAt);
+  if (!cachedAt || !Number.isFinite(now.valueOf())) return false;
+  const age = now.valueOf() - new Date(cachedAt).valueOf();
+  return age >= 0 && age < GOOGLE_DETAILS_NEGATIVE_TTL_MS;
+}
+
+function parseDetailsCacheRecord(value: unknown): GoogleDetailsCacheRecord | null {
+  const item = record(value);
+  if (!item) return null;
+  const cachedAt = isoTimestamp(item.cachedAt);
+  if (!cachedAt) return null;
+  const failureStatus = typeof item.failureStatus === "number" ? item.failureStatus : undefined;
+  if (failureStatus !== undefined && isPlaceDetailsFailureStatus(failureStatus)) {
+    return { cachedAt, snapshot: null, failureStatus };
+  }
+  const snapshot = parseGoogleDetailsSnapshot(item.snapshot);
+  if (!snapshot) return null;
+  return { cachedAt, snapshot };
+}
+
+/**
+ * Isolate memory plus the Workers Cache API. The named cache is not the
+ * zone HTTP cache, so a public URL cannot read these Google payloads.
+ */
+export function layeredGoogleDetailsCache(
+  memory: GoogleDetailsCache,
+  openEdge: () => Promise<WorkersCache | null> = openGoogleDetailsEdgeCache,
+): GoogleDetailsCache {
+  return {
+    async get(googlePlaceId) {
+      const local = await memory.get(googlePlaceId);
+      if (local) return local;
+      const edge = await openEdge();
+      if (!edge) return null;
+      try {
+        const hit = await edge.match(detailsEdgeRequest(googlePlaceId));
+        if (!hit) return null;
+        const parsed = parseDetailsCacheRecord(await hit.json());
+        if (!parsed) return null;
+        await memory.set(googlePlaceId, parsed, GOOGLE_DETAILS_CACHE_TTL_SECONDS);
+        return parsed;
+      } catch {
+        return null;
+      }
+    },
+    async set(googlePlaceId, value, ttlSeconds) {
+      await memory.set(googlePlaceId, value, ttlSeconds);
+      const edge = await openEdge();
+      if (!edge) return;
+      try {
+        await edge.put(
+          detailsEdgeRequest(googlePlaceId),
+          Response.json(value, {
+            headers: { "Cache-Control": `public, max-age=${ttlSeconds}` },
+          }),
+        );
+      } catch {
+        // A cache write must never fail the page.
+      }
+    },
+  };
+}
+
+const sharedDetailsMemory = memoryGoogleDetailsCache();
+let productionDetailsCache: GoogleDetailsCache | null = null;
+
+export function productionGoogleDetailsCache(): GoogleDetailsCache {
+  if (!productionDetailsCache) {
+    productionDetailsCache = layeredGoogleDetailsCache(sharedDetailsMemory);
+  }
+  return productionDetailsCache;
+}
+
+async function readDetailsCache(
+  cache: GoogleDetailsCache,
+  googlePlaceId: string,
+): Promise<GoogleDetailsCacheRecord | null> {
+  try {
+    return await cache.get(googlePlaceId);
+  } catch {
+    return null;
+  }
+}
+
+async function writeDetailsCache(
+  cache: GoogleDetailsCache,
+  googlePlaceId: string,
+  value: GoogleDetailsCacheRecord,
+  ttlSeconds: number,
+) {
+  try {
+    await cache.set(googlePlaceId, value, ttlSeconds);
+  } catch {
+    // A cache write must never fail the page.
+  }
+}
+
 type DatabaseClient = Awaited<ReturnType<typeof database>>;
 
 /** Persist only normalized Google fields; the API key and raw response never enter D1. */
@@ -283,9 +496,57 @@ export async function saveGoogleDetailsCache(
   `);
 }
 
+async function persistGoogleDetails(
+  dependencies: RestaurantPageDependencies,
+  placeId: string,
+  googlePlaceId: string,
+  record: GoogleDetailsCacheRecord,
+) {
+  if (!dependencies.saveGoogleDetails || !record.snapshot) return;
+  try {
+    await dependencies.saveGoogleDetails({
+      placeId,
+      googlePlaceId,
+      cachedAt: record.cachedAt,
+      snapshot: record.snapshot,
+    });
+  } catch {
+    // Rendering the result is more important than a cache write.
+  }
+}
+
+async function finishRestaurantPage(
+  place: PlaceDetail,
+  snapshot: GoogleDetailsSnapshot | null,
+  cacheStatus: GoogleCacheStatus,
+  cachedAt: string | null,
+): Promise<RestaurantPageModel> {
+  const enriched = await enrichPlaceCoordinates(place, {
+    coordinates: snapshot?.coordinates ?? null,
+  });
+  return buildRestaurantPageModel(enriched, {
+    snapshot,
+    cacheStatus,
+    cachedAt,
+  });
+}
+
+function storedGoogleContent(
+  stored: CachedGoogleDetails,
+  now: Date,
+): CachedGoogleDetails {
+  if (!isGoogleDetailsContentAllowed(stored.cachedAt, stored.snapshot, now)) {
+    return { cachedAt: null, snapshot: null };
+  }
+  return stored;
+}
+
 /**
- * Assemble one canonical place model. Google is fetched only for an absent or
- * stale snapshot, and every provider failure falls back to database data.
+ * Assemble one place page. Google Place Details is optional enrichment:
+ * a warm cache, or a listing that already has a name, address, and location,
+ * never calls Google. An uncached call for a thin listing reserves the daily
+ * cap first. A 403, 404, or 5xx is remembered for an hour so the next view
+ * does not retry. A cap, a cache failure, or a provider failure still renders.
  */
 export async function assembleRestaurantPage(
   place: PlaceDetail,
@@ -296,16 +557,55 @@ export async function assembleRestaurantPage(
   if (!googlePlaceId)
     return buildRestaurantPageModel(place, { cacheStatus: "not-linked" });
 
-  const cache = cachedGoogleDetails(place);
-  if (isGoogleDetailsCacheFresh(cache.cachedAt, cache.snapshot, now)) {
-    const enriched = await enrichPlaceCoordinates(place, {
-      coordinates: cache.snapshot?.coordinates ?? null,
-    });
-    return buildRestaurantPageModel(enriched, {
-      snapshot: cache.snapshot,
-      cacheStatus: "cached",
-      cachedAt: cache.cachedAt,
-    });
+  const stored = cachedGoogleDetails(place);
+  if (isGoogleDetailsCacheFresh(stored.cachedAt, stored.snapshot, now)) {
+    return finishRestaurantPage(place, stored.snapshot, "cached", stored.cachedAt);
+  }
+
+  const detailsCache = dependencies.detailsCache ?? productionGoogleDetailsCache();
+  const cached = await readDetailsCache(detailsCache, googlePlaceId);
+  if (
+    cached &&
+    isGoogleDetailsCacheFresh(cached.cachedAt, cached.snapshot, now) &&
+    isGoogleDetailsContentAllowed(cached.cachedAt, cached.snapshot, now)
+  ) {
+    await persistGoogleDetails(dependencies, place.id, googlePlaceId, cached);
+    return finishRestaurantPage(place, cached.snapshot, "cached", cached.cachedAt);
+  }
+
+  const usable = storedGoogleContent(stored, now);
+  if (listingHasRenderableFacts(place)) {
+    return finishRestaurantPage(
+      place,
+      usable.snapshot,
+      usable.snapshot ? "stale-fallback" : "unavailable",
+      usable.cachedAt,
+    );
+  }
+
+  if (isGoogleDetailsFailureCached(cached, now)) {
+    return finishRestaurantPage(
+      place,
+      usable.snapshot,
+      usable.snapshot ? "stale-fallback" : "unavailable",
+      usable.cachedAt,
+    );
+  }
+
+  const reserve = dependencies.reserveGoogleDetailsCall ?? reserveGoogleDetailsCall;
+  let allowed = false;
+  try {
+    allowed = await reserve(now);
+  } catch {
+    allowed = false;
+  }
+  if (!allowed) {
+    return finishRestaurantPage(
+      place,
+      usable.snapshot,
+      usable.snapshot ? "stale-fallback" : "unavailable",
+      usable.cachedAt,
+    );
   }
 
   let result: GooglePlaceDetailsResult | null = null;
@@ -320,35 +620,25 @@ export async function assembleRestaurantPage(
 
   if (result?.ok) {
     const snapshot = googleDetailsSnapshotFromPlace(result.place, result.coordinates);
-    const cachedAt = now.toISOString();
-    if (dependencies.saveGoogleDetails) {
-      try {
-        await dependencies.saveGoogleDetails({
-          placeId: place.id,
-          googlePlaceId,
-          cachedAt,
-          snapshot,
-        });
-      } catch {
-        // Rendering the live result is more important than a cache write.
-      }
-    }
-    const enriched = await enrichPlaceCoordinates(place, {
-      coordinates: snapshot.coordinates,
-    });
-    return buildRestaurantPageModel(enriched, {
-      snapshot,
-      cacheStatus: "refreshed",
-      cachedAt,
-    });
+    const record = { cachedAt: now.toISOString(), snapshot };
+    await persistGoogleDetails(dependencies, place.id, googlePlaceId, record);
+    await writeDetailsCache(detailsCache, googlePlaceId, record, GOOGLE_DETAILS_CACHE_TTL_SECONDS);
+    return finishRestaurantPage(place, snapshot, "refreshed", record.cachedAt);
   }
 
-  const enriched = await enrichPlaceCoordinates(place, {
-    coordinates: cache.snapshot?.coordinates ?? null,
-  });
-  return buildRestaurantPageModel(enriched, {
-    snapshot: cache.snapshot,
-    cacheStatus: cache.snapshot ? "stale-fallback" : "unavailable",
-    cachedAt: cache.cachedAt,
-  });
+  if (result && typeof result.status === "number" && isPlaceDetailsFailureStatus(result.status)) {
+    await writeDetailsCache(
+      detailsCache,
+      googlePlaceId,
+      { cachedAt: now.toISOString(), snapshot: null, failureStatus: result.status },
+      GOOGLE_DETAILS_NEGATIVE_TTL_SECONDS,
+    );
+  }
+
+  return finishRestaurantPage(
+    place,
+    usable.snapshot,
+    usable.snapshot ? "stale-fallback" : "unavailable",
+    usable.cachedAt,
+  );
 }

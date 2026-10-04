@@ -10,6 +10,14 @@ export type ValidatedGoogleSubmission = {
   mode: "google";
   googlePlaceId: string;
   halalConfirmed: true;
+  /**
+   * Name, address, and city from the result the person picked.
+   * Place Details still wins when it can be called. These fields are only
+   * used when that call is skipped.
+   */
+  name: string | null;
+  address: string | null;
+  city: string | null;
 };
 
 /** A maps or website link held for review. It does not publish a listing. */
@@ -156,8 +164,23 @@ export function validatePlaceSubmission(body: unknown): ValidationResult {
 
   return {
     ok: true,
-    data: { mode: "google", googlePlaceId: googlePlaceId.value, halalConfirmed: true },
+    data: {
+      mode: "google",
+      googlePlaceId: googlePlaceId.value,
+      halalConfirmed: true,
+      name: optionalSubmissionText(input.name, 120),
+      address: optionalSubmissionText(input.address, 200),
+      city: optionalSubmissionText(input.city, 80),
+    },
   };
+}
+
+/** Keep a picker field when it is usable. Overlong text is clipped to the submission column. */
+function optionalSubmissionText(value: unknown, maxLength: number): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (!normalized || /[\u0000-\u001f\u007f]/.test(normalized)) return null;
+  return normalized.slice(0, maxLength);
 }
 
 /** Places Text Search is skipped until the trimmed query is at least this long. */

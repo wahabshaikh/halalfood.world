@@ -41,7 +41,7 @@ test("manual entry is rejected so every place comes from Google", () => {
   assert.equal(result.ok, false);
 });
 
-test("Google validation keeps only the place id and ignores typed fields", () => {
+test("Google validation keeps the place id and the picked name and address", () => {
   const result = validatePlaceSubmission({
     mode: "google",
     name: "Typed name",
@@ -52,7 +52,30 @@ test("Google validation keeps only the place id and ignores typed fields", () =>
   });
   assert.deepEqual(result, {
     ok: true,
-    data: { mode: "google", googlePlaceId: "ChIJexample", halalConfirmed: true },
+    data: {
+      mode: "google",
+      googlePlaceId: "ChIJexample",
+      halalConfirmed: true,
+      name: "Typed name",
+      address: "Typed address",
+      city: "Typed city",
+    },
+  });
+  const bare = validatePlaceSubmission({
+    mode: "google",
+    googlePlaceId: "ChIJexample",
+    halalConfirmed: true,
+  });
+  assert.deepEqual(bare, {
+    ok: true,
+    data: {
+      mode: "google",
+      googlePlaceId: "ChIJexample",
+      halalConfirmed: true,
+      name: null,
+      address: null,
+      city: null,
+    },
   });
 });
 

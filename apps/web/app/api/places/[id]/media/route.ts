@@ -13,6 +13,7 @@ import {
   type MediaMetadata,
   type ParsedMediaUrl,
 } from "../../../../../src/lib/media-links";
+import { signedOutLoginPath } from "../../../../../src/lib/signed-out";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
@@ -65,7 +66,7 @@ export async function handleMediaPost(
     return json(
       {
         error: "Sign in to share a video.",
-        loginUrl: `/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`,
+        loginUrl: signedOutLoginPath(`/place/${placeId}`),
       },
       401,
     );

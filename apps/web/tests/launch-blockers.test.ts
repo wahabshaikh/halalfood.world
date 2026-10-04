@@ -45,12 +45,13 @@ function insertPlace(sqlite: ReturnType<typeof createTestDatabase>["sqlite"]) {
     .run(PLACE);
 }
 
-function checkIn(visibility: "public" | "private") {
+function checkIn(visibility: "public" | "private", shareToFeed?: boolean) {
   const validated = validateCheckIn({
     verdict: "liked",
     valueVerdict: "fair",
     visibility,
     relationship: "none",
+    ...(shareToFeed === undefined ? {} : { shareToFeed }),
   });
   assert.equal(validated.ok, true);
   if (!validated.ok) throw new Error("check-in");
@@ -215,7 +216,7 @@ test("a private visit stays in the passport and off the public profile and feed"
       visitedAt: Date.now(),
       verification: proof,
       receiptR2Key: null,
-      checkIn: checkIn("public"),
+      checkIn: checkIn("public", true),
     },
     db,
   );

@@ -8,6 +8,7 @@
 
 import { getRequestAuth, type RequestAuth } from "./auth-session";
 import { getClientIp, retryAfterSeconds } from "./otp-rate-limit";
+import { SIGNED_OUT_COPY, signedOutLoginPath } from "./signed-out";
 
 export const NO_STORE = { "Cache-Control": "no-store" } as const;
 
@@ -36,11 +37,8 @@ export function unavailable(
   return json({ error }, { status: 503 });
 }
 
-export function unauthorized(returnTo: string, error = "Sign in to continue."): Response {
-  return json(
-    { error, loginUrl: `/login?returnTo=${encodeURIComponent(returnTo)}` },
-    { status: 401 },
-  );
+export function unauthorized(returnTo: string, error = SIGNED_OUT_COPY): Response {
+  return json({ error, loginUrl: signedOutLoginPath(returnTo) }, { status: 401 });
 }
 
 export function rateLimited(retryAfterMs: number, error = "Too many requests. Please try again later."): Response {

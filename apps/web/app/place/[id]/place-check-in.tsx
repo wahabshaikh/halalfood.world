@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@halalfood/ui/components/button";
 import { Card } from "@halalfood/ui/components/card";
 import { FieldLegend, FieldSet } from "@halalfood/ui/components/field";
@@ -42,6 +42,8 @@ import {
   type Verdict,
 } from "@halalfood/core/check-in";
 import { RELATIONSHIPS, RELATIONSHIP_COPY } from "@halalfood/core/halal-taxonomy";
+import { clearFormDraft, draftRecord, readFormDraft, saveFormDraft } from "../../../src/lib/form-draft";
+import { currentReturnPath, signedOutLoginPath } from "../../../src/lib/signed-out";
 
 /**
  * The ten-second check-in, and the "log a visit" sheet that feeds friends.
@@ -132,7 +134,7 @@ export default function PlaceCheckIn({
   const [incentivized, setIncentivized] = useState(false);
   const [shareLocation, setShareLocation] = useState(true);
   const [visibility, setVisibility] = useState<"public" | "private">("public");
-  const [shareToFeed, setShareToFeed] = useState(true);
+  const [shareToFeed, setShareToFeed] = useState(false);
   const [check, setCheck] = useState<CheckAnswers>({
     certificate: null,
     alcohol: null,
@@ -141,6 +143,74 @@ export default function PlaceCheckIn({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DoneResult | null>(null);
   const idempotencyKey = useRef(crypto.randomUUID());
+  const draftKey = `halalfood:check-in-draft:${placeId}`;
+
+  useEffect(() => {
+    const draft = draftRecord(readFormDraft(draftKey));
+    if (!draft) return;
+    if (draft.verdict === "disliked" || draft.verdict === "okay" || draft.verdict === "liked" || draft.verdict === "favourite")
+      setVerdict(draft.verdict);
+    if (draft.valueVerdict === "great" || draft.valueVerdict === "fair" || draft.valueVerdict === "overpriced")
+      setValueVerdict(draft.valueVerdict);
+    if (draft.serviceVerdict === "good" || draft.serviceVerdict === "fine" || draft.serviceVerdict === "poor")
+      setServiceVerdict(draft.serviceVerdict);
+    if (Array.isArray(draft.dishes)) {
+      const dishes = draft.dishes.flatMap((item): DishEntry[] => {
+        const dish = draftRecord(item);
+        if (!dish || typeof dish.name !== "string") return [];
+        if (dish.verdict !== "order-again" && dish.verdict !== "fine" && dish.verdict !== "avoid") return [];
+        return [{ name: dish.name, verdict: dish.verdict }];
+      });
+      setDishes(dishes);
+    }
+    if (typeof draft.dishDraft === "string") setDishDraft(draft.dishDraft);
+    if (typeof draft.note === "string") setNote(draft.note);
+    if (typeof draft.spend === "string") setSpend(draft.spend);
+    if (typeof draft.currency === "string") setCurrency(draft.currency);
+    if (draftRecord(draft.context)) {
+      const context: Record<string, string> = {};
+      for (const [key, value] of Object.entries(draftRecord(draft.context) ?? {})) {
+        if (typeof value === "string") context[key] = value;
+      }
+      setContext(context);
+    }
+    if (typeof draft.relationship === "string") setRelationship(draft.relationship);
+    if (typeof draft.incentivized === "boolean") setIncentivized(draft.incentivized);
+    if (typeof draft.shareLocation === "boolean") setShareLocation(draft.shareLocation);
+    if (draft.visibility === "public" || draft.visibility === "private") setVisibility(draft.visibility);
+    if (typeof draft.shareToFeed === "boolean") setShareToFeed(draft.shareToFeed);
+    const check = draftRecord(draft.check);
+    if (check) {
+      setCheck({
+        certificate: check.certificate === "seen" || check.certificate === "not-seen" || check.certificate === "unsure" ? check.certificate : null,
+        alcohol: check.alcohol === "none" || check.alcohol === "served" || check.alcohol === "unsure" ? check.alcohol : null,
+        meat: check.meat === "hand" || check.meat === "machine" || check.meat === "unsure" ? check.meat : null,
+      });
+    }
+    if (typeof draft.idempotencyKey === "string" && draft.idempotencyKey) idempotencyKey.current = draft.idempotencyKey;
+    setPhase("open");
+  }, [draftKey]);
+
+  function saveVisitDraft() {
+    saveFormDraft(draftKey, {
+      verdict,
+      valueVerdict,
+      serviceVerdict,
+      dishes,
+      dishDraft,
+      note,
+      spend,
+      currency,
+      context,
+      relationship,
+      incentivized,
+      shareLocation,
+      visibility,
+      shareToFeed,
+      check,
+      idempotencyKey: idempotencyKey.current,
+    });
+  }
 
   const ready = verdict !== null && valueVerdict !== null;
 
@@ -213,8 +283,9 @@ export default function PlaceCheckIn({
 
     const payload = await body(response);
     if (!response.ok) {
-      if (response.status === 401 && typeof payload.loginUrl === "string") {
-        window.location.href = payload.loginUrl;
+      if (response.status === 401) {
+        saveVisitDraft();
+        window.location.assign(signedOutLoginPath(currentReturnPath()));
         return;
       }
       setError(
@@ -226,6 +297,7 @@ export default function PlaceCheckIn({
       return;
     }
 
+    clearFormDraft(draftKey);
     setResult({
       verified: payload.verificationMethod !== "none",
       note: typeof payload.verificationNote === "string" ? payload.verificationNote : null,

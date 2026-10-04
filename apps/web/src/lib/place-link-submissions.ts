@@ -40,6 +40,7 @@ export async function submitPlaceLink(
   input: ValidatedLinkSubmission,
   client: DatabaseClient | Promise<DatabaseClient> = database(),
   source: "link" | "google" = "link",
+  statusReason?: string,
 ): Promise<LinkSubmissionResult> {
   const db = await client;
   const listed = await findListedPlace(
@@ -65,9 +66,10 @@ export async function submitPlaceLink(
       ${id}, ${userId}, ${input.name}, ${input.citySlug}, ${input.address},
       ${input.sourceUrl}, ${input.googlePlaceId}, 'pending',
       ${
-        source === "google"
+        statusReason ??
+        (source === "google"
           ? "Waiting for a person to review this Google place. Not listed and not a halal certification."
-          : "Waiting for a person to check the link. Not listed and not a halal certification."
+          : "Waiting for a person to check the link. Not listed and not a halal certification.")
       },
       ${now}, ${now}
     )
