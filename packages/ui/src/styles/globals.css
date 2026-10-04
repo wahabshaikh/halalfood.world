@@ -138,3 +138,16 @@
     cursor: pointer;
   }
 }
+
+/*
+  MapLibre's `.maplibregl-map { position: relative }` is unlayered, so it
+  overrides Tailwind's `absolute inset-0` and the canvas collapses to height 0.
+  This rule is unlayered too, and more specific, so the map keeps the size of
+  `.map-stage` at every viewport.
+*/
+.map-stage > .map-canvas.maplibregl-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}

@@ -2,6 +2,7 @@
  * Pure helpers shared by page metadata, JSON-LD and the sitemap routes.
  * Nothing here touches the database, so it stays unit-testable.
  */
+import type { HalalTaxonomyStatus } from "@halalfood/core/halal-taxonomy";
 import { displayCuisines } from "@halalfood/core/listing-visibility";
 
 export const SITE_URL = "https://halalfood.world";
@@ -75,12 +76,62 @@ export function cityTitle(slug: string, count: number) {
     : `Places listed in ${name}`;
 }
 
-export function cityDescription(slug: string, count: number) {
+export type CityEvidenceCounts = {
+  indexed: number;
+  enriched: number;
+  intelligent: number;
+  trusted: number;
+};
+
+const CERTIFICATION = "A listing is not a halal certification.";
+
+/**
+ * Short evidence line for share sheets and Open Graph text.
+ * `null` means the evidence read failed, so the line does not invent Unverified.
+ */
+export function evidenceSharePhrase(status: HalalTaxonomyStatus | null): string {
+  switch (status) {
+    case "verified":
+      return "Verified halal, checked by the community";
+    case "community-verified":
+      return "Community verified, checked by the community";
+    case "halal-options":
+      return "Halal options, checked by the community";
+    case "self-declared":
+      return "Self-declared, not independently checked by the community";
+    case "not-halal":
+      return "Not halal, checked by the community";
+    case "unverified":
+      return "Unverified, not yet checked by the community";
+    default:
+      return "Evidence status could not be loaded";
+  }
+}
+
+/** City-wide evidence line from the coverage counts, not a single place status. */
+export function cityEvidencePhrase(coverage: CityEvidenceCounts | null): string {
+  if (!coverage) return "Evidence status could not be loaded";
+  const checked = coverage.enriched + coverage.intelligent + coverage.trusted;
+  if (checked <= 0) return "Unverified, not yet checked by the community";
+  if (coverage.indexed <= 0) return "Checked by the community";
+  return `${formatCount(checked)} checked by the community; the rest are unverified`;
+}
+
+export function cityDescription(
+  slug: string,
+  count: number,
+  coverage?: CityEvidenceCounts | null,
+) {
   const name = cityName(slug);
-  return truncate(
+  const listed =
     count > 0
-      ? `${formatCount(count)} ${plural(count, "place")} listed in ${name}. A listing is not a halal certification. Addresses are approximate — confirm before visiting.`
-      : `Places listed in ${name}. A listing is not a halal certification. Addresses are approximate — confirm before visiting.`,
+      ? `${formatCount(count)} ${plural(count, "place")} listed in ${name}.`
+      : `Places listed in ${name}.`;
+  const approximate = "Addresses are approximate — confirm before visiting.";
+  return fitSentences(
+    coverage === undefined
+      ? [listed, CERTIFICATION, approximate]
+      : [listed, `${cityEvidencePhrase(coverage)}.`, CERTIFICATION, approximate],
   );
 }
 
@@ -97,13 +148,20 @@ export function placeTitle(place: PlaceLike) {
   return where ? `${place.name} in ${where}` : place.name;
 }
 
-/** Share and preview text. Indexing a place is not a certification. */
-export function placeShareText(name: string, where: string) {
-  return `${name} in ${where}. A listing is not a halal certification.`;
+/** Share sheet text. The evidence phrase follows the place's real status. */
+export function placeShareText(
+  name: string,
+  where: string,
+  status: HalalTaxonomyStatus | null,
+) {
+  const place = where ? `${name} in ${where}` : name;
+  return `${place}. ${evidenceSharePhrase(status)}. ${CERTIFICATION}`;
 }
 
 export type PlaceDescriptionOptions = {
   includeCommunity?: boolean;
+  /** Real taxonomy status. `null` means the evidence read failed. */
+  evidenceStatus?: HalalTaxonomyStatus | null;
 };
 
 /** Keep whole sentences. A trailing sentence is dropped before any sentence is cut mid-word. */
@@ -120,8 +178,12 @@ export function placeDescription(
 ) {
   const where = place.address_locality?.trim() || cityName(place.city_slug);
   const listed = `${place.name} is listed in ${where}.`;
-  const certification = "A listing is not a halal certification.";
+  const certification = CERTIFICATION;
   const approximate = "Map location is approximate.";
+  const evidence =
+    options.evidenceStatus !== undefined
+      ? `${evidenceSharePhrase(options.evidenceStatus)}.`
+      : "";
   const rating =
     place.rating_value && Number.isFinite(Number(place.rating_value))
       ? `Google rating ${place.rating_value}${
@@ -135,6 +197,7 @@ export function placeDescription(
     options.includeCommunity
       ? [
           listed,
+          evidence,
           certification,
           approximate,
           rating,
@@ -142,6 +205,7 @@ export function placeDescription(
         ]
       : [
           listed,
+          evidence,
           certification,
           approximate,
           rating,

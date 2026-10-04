@@ -96,6 +96,17 @@ import { cn } from "@halalfood/ui/lib/utils";
 import { TextLink } from "../../../src/components/blocks";
 import { MetaItem, Note, SectionIntro } from "../../../src/components/section";
 import { findPlacesNear } from "../../../src/lib/local-context-repository";
+import { annotateCardEvidence } from "../../../src/lib/discovery";
+import type { HalalTaxonomyStatus } from "@halalfood/core/halal-taxonomy";
+
+const loadEvidenceStatus = cache(async (placeId: string): Promise<HalalTaxonomyStatus | null> => {
+  try {
+    const [row] = await annotateCardEvidence([{ id: placeId }]);
+    return row?.evidence_loaded ? row.halal_status : null;
+  } catch {
+    return null;
+  }
+});
 
 const loadPlace = cache(async (raw: string) => {
   const id = placeIdParam(raw);
@@ -240,8 +251,12 @@ export async function generateMetadata({
       robots: { index: false, follow: true },
     };
   const place = loaded.data.place;
+  const evidenceStatus = await loadEvidenceStatus(place.id);
   const title = placeTitle(place);
-  const description = placeDescription(place, { includeCommunity: true });
+  const description = placeDescription(place, {
+    includeCommunity: true,
+    evidenceStatus,
+  });
   const url = canonical("/place/" + place.id);
   return {
     title,
@@ -292,6 +307,7 @@ export default async function PlacePage({
       : Promise.resolve([]),
   ]);
   const city = cityName(place.city_slug);
+  const evidenceStatus = await loadEvidenceStatus(place.id);
   const website = safeWebsite(google.website);
   const maps = safeWebsite(google.mapsUrl);
   const hasCoords = place.lat !== null && place.lng !== null;
@@ -331,7 +347,7 @@ export default async function PlacePage({
             <ShareButton
               url={"/place/" + place.id}
               title={place.name}
-              text={placeShareText(place.name, city)}
+              text={placeShareText(place.name, city, evidenceStatus)}
             />
             <SendRecLink place={place.id} />
             <SavePlaceButton placeId={place.id} />
