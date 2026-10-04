@@ -5,7 +5,8 @@
  * guide, or sitemap used to run the server render again. These responses do
  * not depend on a cookie or on the visitor's location, so one cached copy per
  * URL is safe to share. Workers Cache (`cache.enabled` in wrangler.jsonc)
- * stores them in front of the Worker for `s-maxage`.
+ * stores them in front of the Worker for the edge lifetime below; browsers
+ * always revalidate.
  *
  * Each document also carries `Cache-Tag` values, so a moderator action can
  * purge the place and city it changed (see `listing-cache.ts`) instead of
@@ -17,10 +18,23 @@
  * they vary by the eating-city cookie or by a signed-in viewer.
  */
 
+/**
+ * Edge lifetimes, sent as `Cloudflare-CDN-Cache-Control`. Workers Cache gives
+ * that header precedence and strips it before the response leaves Cloudflare.
+ * Workers Cache keys entries by Worker version (wrangler.jsonc does not set
+ * `cache.cross_version_cache`), so an edge copy never outlives a deploy.
+ */
 const DOCUMENT_CACHE_CONTROL =
-  "public, s-maxage=600, stale-while-revalidate=86400";
+  "public, max-age=600, s-maxage=600, stale-while-revalidate=86400";
 const SITEMAP_CACHE_CONTROL =
-  "public, s-maxage=21600, stale-while-revalidate=86400";
+  "public, max-age=21600, s-maxage=21600, stale-while-revalidate=86400";
+/**
+ * What browsers see. With only `s-maxage` and `stale-while-revalidate`, a
+ * browser may treat the page as stale-but-usable for a day and show HTML from
+ * before a deploy, whose hashed scripts the new version no longer serves.
+ * `must-revalidate` turns that off: every document load asks the edge.
+ */
+export const BROWSER_DOCUMENT_CACHE_CONTROL = "public, max-age=0, must-revalidate";
 
 const PLACE_PATH =
   /^\/place\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -91,7 +105,8 @@ export async function withPublicCache(
   }
 
   const headers = new Headers(response.headers);
-  headers.set("Cache-Control", control);
+  headers.set("Cloudflare-CDN-Cache-Control", control);
+  headers.set("Cache-Control", BROWSER_DOCUMENT_CACHE_CONTROL);
   const tags = documentCacheTags(request);
   if (tags.length) headers.set("Cache-Tag", tags.join(","));
   return new Response(response.body, {

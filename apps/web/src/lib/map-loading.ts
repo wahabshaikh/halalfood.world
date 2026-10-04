@@ -26,6 +26,19 @@ export function unauthorizedFallback(state: {
 export const SCOPE_FALLBACK_NOTICE = "Sign in to see your places and your friends’ places.";
 
 /**
+ * Whether the toast over the map shows. The all-fail error box sits in the
+ * same top strip of the map at narrow widths and carries its own Sign in, so
+ * while it is up the toast stays hidden and the two never overlap.
+ */
+export function mapNoticeVisible(state: {
+  notice: string;
+  error: unknown;
+  viewportTooWide: boolean;
+}): boolean {
+  return Boolean(state.notice) && !state.error && !state.viewportTooWide;
+}
+
+/**
  * The filters the address bar shows. After a 401 the map loads everyone's
  * places, but the URL keeps what the person asked for (whose=friends), so a
  * sign-in from any link on the page (the toast, the menu, the error box)
