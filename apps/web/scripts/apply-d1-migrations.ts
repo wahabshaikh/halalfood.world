@@ -1,27 +1,28 @@
 import { spawnSync } from "node:child_process";
-import { readdir, readFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const DATABASE_NAME = "halalfood-world";
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..");
-const MIGRATIONS_DIR = join(REPO_ROOT, "migrations");
 const WRANGLER_BINARY = process.platform === "win32" ? "wrangler.cmd" : "wrangler";
 
-type SqlRow = Record<string, unknown>;
-
-function record(value: unknown): SqlRow | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as SqlRow)
-    : null;
-}
-
-/** Split SQL without treating a semicolon inside a quoted value/identifier as a delimiter. */
+/**
+ * Split SQL on semicolons that end a statement.
+ *
+ * Semicolons inside quotes and inside `--` or block comments are not
+ * delimiters. Leading comments are removed so a statement cannot start with
+ * `--`, which `wrangler d1 execute --command` would parse as a flag.
+ */
 export function splitSqlStatements(sql: string): string[] {
   const statements: string[] = [];
   let start = 0;
   let quote: "'" | '"' | "`" | null = null;
+
+  const push = (end: number) => {
+    const statement = stripLeadingComments(sql.slice(start, end)).trim();
+    if (statement) statements.push(statement);
+  };
 
   for (let index = 0; index < sql.length; index += 1) {
     const character = sql[index];
@@ -36,17 +37,26 @@ export function splitSqlStatements(sql: string): string[] {
       continue;
     }
 
+    if (character === "-" && sql[index + 1] === "-") {
+      const lineEnd = sql.indexOf("\n", index);
+      index = lineEnd === -1 ? sql.length : lineEnd;
+      continue;
+    }
+    if (character === "/" && sql[index + 1] === "*") {
+      const commentEnd = sql.indexOf("*/", index + 2);
+      index = commentEnd === -1 ? sql.length : commentEnd + 1;
+      continue;
+    }
+
     if (character === "'" || character === '"' || character === "`") {
       quote = character;
     } else if (character === ";") {
-      const statement = sql.slice(start, index).trim();
-      if (statement) statements.push(statement);
+      push(index);
       start = index + 1;
     }
   }
 
-  const finalStatement = sql.slice(start).trim();
-  if (finalStatement) statements.push(finalStatement);
+  push(sql.length);
   return statements;
 }
 
@@ -171,146 +181,41 @@ export function planStatements(
   });
 }
 
-function executeWrangler(sql: string, json = false): string {
-  const args = [
-    "d1",
-    "execute",
-    DATABASE_NAME,
-    "--remote",
-    ...(json ? ["--json"] : []),
-    "--command",
-    sql,
-  ];
-  const result = spawnSync(WRANGLER_BINARY, args, {
-    cwd: REPO_ROOT,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  if (result.error || result.status !== 0) {
-    throw new Error(
-      `wrangler d1 execute failed${result.status === null ? " to start" : ` (exit ${result.status})`}`,
-    );
-  }
-  return result.stdout ?? "";
-}
-
-function parseJsonOutput(output: string): unknown {
-  try {
-    return JSON.parse(output.trim());
-  } catch {
-    throw new Error("wrangler d1 execute returned invalid JSON");
-  }
-}
-
-function rowsFromJsonOutput(output: string): SqlRow[] {
-  const payload = parseJsonOutput(output);
-  const rows: SqlRow[] = [];
-  const visit = (value: unknown) => {
-    if (Array.isArray(value)) {
-      for (const item of value) visit(item);
-      return;
-    }
-    const item = record(value);
-    if (!item) return;
-    if (Array.isArray(item.results)) {
-      for (const row of item.results) {
-        const parsedRow = record(row);
-        if (parsedRow) rows.push(parsedRow);
-      }
-      return;
-    }
-    if (Array.isArray(item.result)) {
-      for (const row of item.result) {
-        const parsedRow = record(row);
-        if (parsedRow) rows.push(parsedRow);
-      }
-      return;
-    }
-    if ("name" in item || "cid" in item || "sql" in item) rows.push(item);
-  };
-  visit(payload);
-  return rows;
-}
-
-function readAppliedMigrationNames(): Set<string> {
-  const rows = rowsFromJsonOutput(
-    executeWrangler("SELECT name FROM d1_migrations ORDER BY name", true),
-  );
-  return new Set(
-    rows
-      .map((row) => (typeof row.name === "string" ? row.name : null))
-      .filter((name): name is string => Boolean(name)),
-  );
-}
-
-function readPlacesColumns(): Set<string> {
-  return readTableColumns("places");
-}
-
-function readTableColumns(table: string): Set<string> {
-  const safe = table.replace(/'/g, "''");
-  const rows = rowsFromJsonOutput(executeWrangler(`PRAGMA table_info('${safe}')`, true));
-  return new Set(
-    rows
-      .map((row) => (typeof row.name === "string" ? row.name.toLowerCase() : null))
-      .filter((name): name is string => Boolean(name)),
-  );
-}
-
-async function migrationFiles(): Promise<string[]> {
-  const entries = await readdir(MIGRATIONS_DIR, { withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
-    .map((entry) => entry.name)
-    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
-}
-
-function migrationInsert(name: string): string {
-  const escapedName = name.replace(/'/g, "''");
-  return `INSERT INTO d1_migrations (name) VALUES ('${escapedName}')`;
-}
-
 function isMainModule(): boolean {
   const entry = process.argv[1];
   return Boolean(entry) && import.meta.url === pathToFileURL(resolve(entry)).href;
 }
 
-export async function runRemoteMigrations(): Promise<void> {
-  const applied = readAppliedMigrationNames();
-  const existingColumns = readPlacesColumns();
-
-  for (const name of await migrationFiles()) {
-    if (applied.has(name)) continue;
-
-    const sqlText = await readFile(join(MIGRATIONS_DIR, name), "utf8");
-    const planned = planStatements(sqlText, [...existingColumns]);
-    const columnsByTable = new Map<string, Set<string>>();
-    const executable = withoutExistingColumns(planned, columnsByTable);
-    // Fill the map lazily so a retry skips columns that already landed.
-    const statements: string[] = [];
-    for (const statement of executable) {
-      const target = addColumnTarget(statement);
-      if (target) {
-        const table = target.table.toLowerCase();
-        if (!columnsByTable.has(table)) columnsByTable.set(table, readTableColumns(target.table));
-        if (columnsByTable.get(table)?.has(target.column.toLowerCase())) continue;
-        columnsByTable.get(table)?.add(target.column.toLowerCase());
-        if (table === "places") existingColumns.add(target.column.toLowerCase());
-      }
-      statements.push(statement);
-    }
-    console.log(`Applying migration ${name}`);
-    for (const statement of statements) executeWrangler(statement);
-    executeWrangler(migrationInsert(name));
-    console.log(`Recorded migration ${name}`);
+/**
+ * Apply pending files with wrangler's own migration runner.
+ *
+ * The previous statement-at-a-time runner passed each chunk to
+ * `wrangler d1 execute --command`. A file that starts with a `--` comment was
+ * parsed as a CLI flag (0013), and a semicolon inside a later comment split
+ * the file (0015). `wrangler d1 migrations apply` sends each file to D1 as one
+ * script, which is what already applies cleanly. Recorded files, including
+ * 0008, are skipped.
+ */
+export function runRemoteMigrations(): void {
+  const result = spawnSync(
+    WRANGLER_BINARY,
+    ["d1", "migrations", "apply", DATABASE_NAME, "--remote"],
+    { cwd: REPO_ROOT, stdio: "inherit" },
+  );
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      `wrangler d1 migrations apply failed${result.status === null ? " to start" : ` (exit ${result.status})`}`,
+    );
   }
 }
 
 if (isMainModule()) {
-  runRemoteMigrations().catch((error: unknown) => {
+  try {
+    runRemoteMigrations();
+  } catch (error: unknown) {
     console.error(
       error instanceof Error ? error.message : "Remote D1 migration failed",
     );
     process.exitCode = 1;
-  });
+  }
 }

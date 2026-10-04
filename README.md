@@ -332,8 +332,9 @@ query parameter because the Places API (New) is blocked on this key. It waits
 about 250ms between Google calls, does not change `name` or `street_address`,
 and skips rows that already have a non-empty `google_place_payload`.
 
-Ops should apply `npm run db:migrate:remote` first; that migration path is
-idempotent when the two payload columns were already added. Set these environment
+Ops should apply `npm run db:migrate:remote` first. Wrangler skips
+`0008_place_google_payload.sql` once that file is recorded in `d1_migrations`.
+Set these environment
 variables with placeholders from the production secret store:
 
 ```sh
@@ -429,11 +430,12 @@ npm run db:migrate:local   # local development database
 npm run db:migrate:remote  # deployed halalfood-world D1 database
 ```
 
-Production must use `npm run db:migrate:remote`: its remote apply path skips an
-`ADD COLUMN` in `0008_place_google_payload.sql` when that column already exists.
-Do not hand-apply `0008_place_google_payload.sql` with raw wrangler on production
-if Ops has already altered either payload column. Local and preview databases
-remain on plain `wrangler d1 migrations apply` because they start empty.
+`npm run db:migrate:remote` is `wrangler d1 migrations apply halalfood-world --remote`
+from `apps/web`. Wrangler sends each migration file as one script and skips
+files already recorded in `d1_migrations`, including `0008_place_google_payload.sql`.
+Do not apply production migrations by splitting a file into statements:
+`wrangler d1 execute --command` treats a leading `--` comment as a flag, and a
+semicolon inside a comment is not a statement boundary.
 
 The Drizzle definitions in `src/db/schema.ts` must stay aligned with this SQL. If Better Auth is upgraded or plugins are added, regenerate/review the Drizzle schema with the Better Auth CLI and create a new migration rather than changing the existing table names silently.
 

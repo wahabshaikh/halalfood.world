@@ -23,7 +23,7 @@ export default async function sitemap() {
   return new Response(sitemapIndexXml(entries), {
     headers: {
       "Content-Type": "application/xml",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": "public, max-age=3600, s-maxage=21600, stale-while-revalidate=86400",
     },
   });
 }

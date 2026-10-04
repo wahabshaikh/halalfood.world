@@ -111,6 +111,17 @@ export async function findPlaces(options: {
       queryPlaces({ q, limit: options.limit }),
     );
   }
+  // A viewport still reads every matching row because of `count(*) OVER()`,
+  // and a world-sized box is the whole table. Nearby pans share a key.
+  if (options.bbox) {
+    const { west, south, east, north } = options.bbox;
+    const rounded = [west, south, east, north].map((value) => value.toFixed(2)).join(",");
+    return cachedRead(
+      `places:bbox:v1:${options.limit}:${rounded}:${options.q ?? ""}`,
+      60,
+      () => queryPlaces(options),
+    );
+  }
   return queryPlaces(options);
 }
 
@@ -310,19 +321,25 @@ export async function countCities() {
 /** Aggregate for one city, or `null` when the slug matches nothing. A city with only unpinned places still resolves. */
 export async function getCity(
   citySlug: string,
-  client: DatabaseClient | Promise<DatabaseClient> = database(),
+  client?: DatabaseClient | Promise<DatabaseClient>,
 ): Promise<City | null> {
-  const db = await client;
-  const rows = await db.all<City>(sql`
-    SELECT city_slug,
-      count(*) AS place_count,
-      min(address_country) AS address_country,
-      avg(lat) AS center_lat,
-      avg(lng) AS center_lng
-    FROM places WHERE ${LISTED} AND city_slug = ${citySlug}
-    GROUP BY city_slug
-  `);
-  return rows[0] ?? null;
+  const load = async () => {
+    const db = await (client ?? database());
+    const rows = await db.all<City>(sql`
+      SELECT city_slug,
+        count(*) AS place_count,
+        min(address_country) AS address_country,
+        avg(lat) AS center_lat,
+        avg(lng) AS center_lng
+      FROM places WHERE ${LISTED} AND city_slug = ${citySlug}
+      GROUP BY city_slug
+    `);
+    return rows[0] ?? null;
+  };
+  // City pages and their metadata both call this, and crawlers walk every city.
+  // A caller-supplied database skips the cache so tests see their own rows.
+  if (client) return load();
+  return cachedRead(`places:city-meta:v2:${citySlug}`, CITY_LISTING_TTL_SECONDS, load);
 }
 
 /** Places in one city, best rated first, paginated and capped. */
