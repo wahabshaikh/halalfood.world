@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Button } from "@halalfood/ui/components/button";
 import { Card } from "@halalfood/ui/components/card";
 import { FieldLegend, FieldSet } from "@halalfood/ui/components/field";
@@ -42,7 +42,13 @@ import {
   type Verdict,
 } from "@halalfood/core/check-in";
 import { RELATIONSHIPS, RELATIONSHIP_COPY } from "@halalfood/core/halal-taxonomy";
-import { checkInDraft, checkInSheetReducer, initialCheckInSheet } from "../../../src/lib/check-in-draft";
+import {
+  checkInDraft,
+  checkInSheetReducer,
+  initialCheckInSheet,
+  shareTicked,
+  type CheckInCloseVia,
+} from "../../../src/lib/check-in-draft";
 import {
   clearFormDraft,
   draftRecord,
@@ -126,7 +132,13 @@ export default function PlaceCheckIn({
   defaultOpen?: boolean;
 }) {
   const [sheet, dispatchSheet] = useReducer(checkInSheetReducer, defaultOpen, initialCheckInSheet);
-  const { phase, shareToFeed } = sheet;
+  const { phase, session } = sheet;
+  // Only a tick made in this open session counts (see checkInSheetReducer).
+  const shareToFeed = shareTicked(sheet);
+  // The one way the sheet closes. The X and Escape both come here, so no
+  // close path can skip the reset.
+  const closeSheet = useCallback((via: CheckInCloseVia) => dispatchSheet({ type: "close", via }), []);
+  const sheetRef = useRef<HTMLElement | null>(null);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [valueVerdict, setValueVerdict] = useState<ValueVerdict | null>(null);
   const [serviceVerdict, setServiceVerdict] = useState<ServiceVerdict | null>(null);
@@ -206,6 +218,21 @@ export default function PlaceCheckIn({
     window.addEventListener("pageshow", reset);
     return () => window.removeEventListener("pageshow", reset);
   }, []);
+
+  // Escape closes the open sheet. A native listener on the section only hears
+  // keys from inside it; Radix menus and selects render in portals and handle
+  // their own Escape first.
+  useEffect(() => {
+    const node = sheetRef.current;
+    if (!node || phase !== "open") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      closeSheet("escape");
+    };
+    node.addEventListener("keydown", onKeyDown);
+    return () => node.removeEventListener("keydown", onKeyDown);
+  }, [phase, closeSheet]);
 
   function saveVisitDraft() {
     saveFormDraft(draftKey, checkInDraft({
@@ -396,11 +423,11 @@ export default function PlaceCheckIn({
     );
 
   return (
-    <section className="my-6" aria-labelledby="check-in-title">
+    <section ref={sheetRef} className="my-6" aria-labelledby="check-in-title">
       {/* A form only so the browser never restores field state into it. The
           disabled first submit button stops Enter from submitting or pressing
           another button; sending is the "Record this visit" button below. */}
-      <form autoComplete="off" onSubmit={(event) => event.preventDefault()}>
+      <form key={session} autoComplete="off" onSubmit={(event) => event.preventDefault()}>
       <button type="submit" disabled hidden aria-hidden="true" tabIndex={-1} />
       <Card className="gap-5 px-5 py-5">
         <SectionHeading
@@ -412,7 +439,7 @@ export default function PlaceCheckIn({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => dispatchSheet({ type: "close" })}
+              onClick={() => closeSheet("button")}
               aria-label="Close the check-in"
             >
               <HugeiconsIcon icon={Cancel01Icon} size={18} />
@@ -697,6 +724,7 @@ export default function PlaceCheckIn({
 
         {/* Sharing is opt-in and always in view, never tucked in a disclosure. */}
         <CheckboxField
+          key={`share-${session}`}
           id="check-in-share"
           checked={visibility === "public" && shareToFeed}
           disabled={visibility === "private"}

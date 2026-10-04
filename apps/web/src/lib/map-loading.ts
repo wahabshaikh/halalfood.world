@@ -21,3 +21,19 @@ export function unauthorizedFallback(state: {
     state.filters.whose === "everyone" ? state.filters : { ...state.filters, whose: "everyone" as const };
   return { personal, filters, signedIn: false };
 }
+
+/** The toast after a Friends/Yours 401 fell back to everyone's places. */
+export const SCOPE_FALLBACK_NOTICE = "Sign in to see your places and your friends’ places.";
+
+/**
+ * The filters the address bar shows. After a 401 the map loads everyone's
+ * places, but the URL keeps what the person asked for (whose=friends), so a
+ * sign-in from any link on the page (the toast, the menu, the error box)
+ * returns to that scope. Null `requested` means no fallback is in effect.
+ */
+export function filtersForUrl(
+  filters: DiscoveryFilters,
+  requested: DiscoveryFilters | null,
+): DiscoveryFilters {
+  return requested ?? filters;
+}

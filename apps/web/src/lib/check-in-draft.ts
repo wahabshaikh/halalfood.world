@@ -34,13 +34,26 @@ export function checkInDraft(state: Record<string, unknown>): Partial<Record<Che
 
 export type CheckInPhase = "idle" | "open" | "saving" | "done";
 
-/** The sheet's phase and its Share tick, which only the open sheet may set. */
-export type CheckInSheet = { phase: CheckInPhase; shareToFeed: boolean };
+/**
+ * The sheet's phase, its open session and the Share tick. `session` goes up
+ * every time the sheet opens or closes, by any path, and the tick records the
+ * session it was made in. A tick from an earlier session is not a tick: it is
+ * unticked by construction, whatever closed the sheet, and the form is keyed
+ * by the session so its DOM (and anything a browser restores into it) is new.
+ */
+export type CheckInSheet = {
+  phase: CheckInPhase;
+  session: number;
+  share: { session: number; checked: boolean };
+};
+
+/** How the sheet was closed; every one of them goes through the same reset. */
+export type CheckInCloseVia = "button" | "escape";
 
 export type CheckInSheetAction =
   /** "Check in" pressed, a draft restored, or the sheet starting open. */
   | { type: "open" }
-  | { type: "close" }
+  | { type: "close"; via: CheckInCloseVia }
   | { type: "share"; checked: boolean }
   | { type: "saving" }
   /** A send that failed returns to the same open form, tick as it was. */
@@ -49,29 +62,41 @@ export type CheckInSheetAction =
   | { type: "pageshow"; persisted: boolean };
 
 export function initialCheckInSheet(defaultOpen: boolean): CheckInSheet {
-  return { phase: defaultOpen ? "open" : "idle", shareToFeed: false };
+  return { phase: defaultOpen ? "open" : "idle", session: 0, share: { session: -1, checked: false } };
+}
+
+/** Whether Share is ticked in the sheet as it is now. */
+export function shareTicked(state: CheckInSheet): boolean {
+  return state.share.checked && state.share.session === state.session && state.phase !== "idle";
+}
+
+function nextSession(state: CheckInSheet, phase: CheckInPhase): CheckInSheet {
+  return { ...state, phase, session: state.session + 1 };
 }
 
 /**
  * The check-in component stays mounted while the sheet is closed, so a tick
- * kept in plain state came back on the next open (QA AC-08a on 78c86c6).
- * Every open and close starts Share unticked; only a send that failed keeps it.
+ * kept in plain state came back on the next open (QA AC-08a on 78c86c6, and
+ * at 1280 on 4e59dc2). Every open, close, finish and back/forward restore
+ * starts a new session; only a send that failed stays in the same one.
  */
 export function checkInSheetReducer(state: CheckInSheet, action: CheckInSheetAction): CheckInSheet {
   switch (action.type) {
     case "open":
-      return { phase: "open", shareToFeed: false };
+      return nextSession(state, "open");
     case "close":
-      return { phase: "idle", shareToFeed: false };
+      return nextSession(state, "idle");
     case "share":
-      return state.phase === "open" ? { ...state, shareToFeed: action.checked } : state;
+      return state.phase === "open"
+        ? { ...state, share: { session: state.session, checked: action.checked } }
+        : state;
     case "saving":
-      return { ...state, phase: "saving" };
+      return state.phase === "open" ? { ...state, phase: "saving" } : state;
     case "failed":
-      return { ...state, phase: "open" };
+      return state.phase === "saving" ? { ...state, phase: "open" } : state;
     case "done":
-      return { phase: "done", shareToFeed: false };
+      return nextSession(state, "done");
     case "pageshow":
-      return action.persisted ? { ...state, shareToFeed: false } : state;
+      return action.persisted ? nextSession(state, state.phase === "saving" ? "open" : state.phase) : state;
   }
 }

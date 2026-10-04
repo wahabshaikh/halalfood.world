@@ -9,8 +9,8 @@ import type { DiscoveredPlace } from "../../src/lib/discovery";
 import type { PinSocial } from "../../src/lib/map-social-repository";
 import { getClientSession } from "../../src/lib/client-session";
 import { retryDecision } from "../../src/lib/fetch-retry";
-import { unauthorizedFallback } from "../../src/lib/map-loading";
-import { currentReturnPath, signedOutLoginPath, loginHref } from "../../src/lib/signed-out";
+import { currentReturnPath, signedOutLoginPath, loginHref, signInAgainUrl } from "../../src/lib/signed-out";
+import { filtersForUrl, SCOPE_FALLBACK_NOTICE, unauthorizedFallback } from "../../src/lib/map-loading";
 import {
   EMPTY_FILTERS,
   activeFilterCount,
@@ -228,6 +228,12 @@ export default function MapView({
   const [mapAttempt, setMapAttempt] = useState(0);
   const [retry, setRetry] = useState(0);
   const [signedIn, setSignedIn] = useState(false);
+  // What the person asked for before a 401 fell back to everyone's places.
+  // The address bar keeps it (whose=friends stays), so every sign-in link,
+  // read from the current URL, brings them back to the scope they wanted.
+  const [requestedFilters, setRequestedFilters] = useState<DiscoveryFilters | null>(null);
+  // The 401 answer behind the fallback toast, for its Sign in link.
+  const [fallback401, setFallback401] = useState<unknown>(null);
 
   const syncUrl = useCallback((placeId: string | null) => {
     const url = new URL(window.location.href);
@@ -273,6 +279,8 @@ export default function MapView({
         window.location.assign(loginHref(url.pathname + url.search, "save"));
         return;
       }
+      setRequestedFilters(null);
+      setFallback401(null);
       setFilters((current) =>
         next.whose === "friends" && current.whose !== "friends" && !next.applyMyStandards
           ? { ...next, applyMyStandards: true }
@@ -286,10 +294,12 @@ export default function MapView({
     if (!filtersHydrated) return;
     const url = new URL(window.location.href);
     for (const key of FILTER_PARAMS) url.searchParams.delete(key);
-    for (const [key, value] of new URLSearchParams(serializeDiscoveryFilters(filters)))
+    for (const [key, value] of new URLSearchParams(
+      serializeDiscoveryFilters(filtersForUrl(filters, requestedFilters)),
+    ))
       url.searchParams.set(key, value);
     window.history.replaceState(null, "", url.pathname + url.search);
-  }, [filters, filtersHydrated]);
+  }, [filters, filtersHydrated, requestedFilters]);
 
   const closeSelected = useCallback(() => {
     setSelected(null);
@@ -495,7 +505,10 @@ export default function MapView({
           if (fallback.personal) {
             // The session ended: fall back to everyone once rather than an
             // empty map. The next request is public, so this cannot repeat.
-            setNotice("Sign in to see your places and your friends’ places.");
+            // The URL keeps the scope that was asked for (AC-48).
+            setFallback401(await response.json().catch(() => null));
+            setRequestedFilters((current) => current ?? filters);
+            setNotice(SCOPE_FALLBACK_NOTICE);
             setSignedIn(false);
             setFilters(fallback.filters);
             return;
@@ -840,6 +853,20 @@ export default function MapView({
               role="status"
             >
               <span>{notice}</span>
+              {notice === SCOPE_FALLBACK_NOTICE && (
+                <Button variant="link" size="sm" className="h-auto px-0 font-extrabold" asChild>
+                  <a
+                    href={signInAgainUrl(fallback401)}
+                    // Read the address on the tap: the map rewrites it without re-rendering.
+                    onClick={(event) => {
+                      event.preventDefault();
+                      window.location.assign(signInAgainUrl(fallback401));
+                    }}
+                  >
+                    Sign in
+                  </a>
+                </Button>
+              )}
               <Button variant="ghost" size="icon-xs" aria-label="Dismiss" onClick={() => setNotice("")}>
                 <HugeiconsIcon icon={Cancel01Icon} size={15} aria-hidden="true" />
               </Button>
