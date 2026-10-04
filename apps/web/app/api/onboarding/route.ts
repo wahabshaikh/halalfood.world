@@ -9,8 +9,8 @@ import {
   readJson,
   requireUser,
   spendBudget,
-  unavailable,
 } from "../../../src/lib/api";
+import { domainFailure } from "../../../src/lib/domain-error";
 
 const RETURN_TO = "/onboarding";
 
@@ -35,8 +35,8 @@ export async function GET(request: Request): Promise<Response> {
       },
       preferences,
     });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Your profile setup", error);
   }
 }
 
@@ -55,8 +55,17 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const result = await completeOnboarding(outcome.auth.userId, validation.data);
-    if (!result.ok)
-      return json({ error: "That handle is taken." }, { status: 409 });
+    if (!result.ok) {
+      if (result.reason === "handle-taken")
+        return json(
+          { error: "That handle is taken.", failedStep: "profile" },
+          { status: 409 },
+        );
+      return json(
+        { error: result.error, failedStep: result.reason },
+        { status: 503 },
+      );
+    }
     return json({
       profile: {
         handle: result.profile.handle,
@@ -65,7 +74,7 @@ export async function POST(request: Request): Promise<Response> {
       },
       followed: result.followed,
     });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Finishing your profile", error);
   }
 }

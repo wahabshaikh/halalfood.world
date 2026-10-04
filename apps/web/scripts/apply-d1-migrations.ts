@@ -73,12 +73,41 @@ type AddColumnStatement = {
 };
 
 function addColumnStatement(statement: string): AddColumnStatement | null {
+  const target = addColumnTarget(statement);
+  if (!target || target.table.toLowerCase() !== "places") return null;
+  return { column: target.column };
+}
+
+export type ColumnTarget = { table: string; column: string };
+
+/** Any ALTER TABLE ... ADD COLUMN, not only places. */
+export function addColumnTarget(statement: string): ColumnTarget | null {
   const withoutComments = stripLeadingComments(statement);
   const match = withoutComments.match(
-    /^ALTER\s+TABLE\s+(?:"places"|places)\s+ADD\s+COLUMN\s+(?:"((?:[^"]|"")+)"|([A-Za-z_][A-Za-z0-9_$]*))(?=\s|$)/i,
+    /^ALTER\s+TABLE\s+(?:"([^"]+)"|`([^`]+)`|([A-Za-z_][A-Za-z0-9_$]*))\s+ADD\s+COLUMN\s+(?:"((?:[^"]|"")+)"|`([^`]+)`|([A-Za-z_][A-Za-z0-9_$]*))(?=\s|$)/i,
   );
   if (!match) return null;
-  return { column: (match[1] ?? match[2]).replace(/""/g, '"') };
+  return {
+    table: (match[1] ?? match[2] ?? match[3]).replace(/""/g, '"'),
+    column: (match[4] ?? match[5] ?? match[6]).replace(/""/g, '"'),
+  };
+}
+
+/**
+ * Drop ADD COLUMN statements whose column is already on that table.
+ * Other statements, including ADD COLUMN for an unknown table, stay.
+ */
+export function withoutExistingColumns(
+  statements: readonly string[],
+  columnsByTable: ReadonlyMap<string, ReadonlySet<string>>,
+): string[] {
+  return statements.filter((statement) => {
+    const target = addColumnTarget(statement);
+    if (!target) return true;
+    const columns = columnsByTable.get(target.table.toLowerCase());
+    if (!columns) return true;
+    return !columns.has(target.column.toLowerCase());
+  });
 }
 
 function placesTableName(value: string): boolean {
@@ -215,7 +244,12 @@ function readAppliedMigrationNames(): Set<string> {
 }
 
 function readPlacesColumns(): Set<string> {
-  const rows = rowsFromJsonOutput(executeWrangler("PRAGMA table_info('places')", true));
+  return readTableColumns("places");
+}
+
+function readTableColumns(table: string): Set<string> {
+  const safe = table.replace(/'/g, "''");
+  const rows = rowsFromJsonOutput(executeWrangler(`PRAGMA table_info('${safe}')`, true));
   return new Set(
     rows
       .map((row) => (typeof row.name === "string" ? row.name.toLowerCase() : null))
@@ -248,16 +282,25 @@ export async function runRemoteMigrations(): Promise<void> {
   for (const name of await migrationFiles()) {
     if (applied.has(name)) continue;
 
-    const sql = await readFile(join(MIGRATIONS_DIR, name), "utf8");
-    const planned = planStatements(sql, [...existingColumns]);
-    console.log(`Applying migration ${name}`);
-    if (planned.length) {
-      executeWrangler(planned.join(";\n"));
-      for (const statement of planned) {
-        const addColumn = addColumnStatement(statement);
-        if (addColumn) existingColumns.add(addColumn.column.toLowerCase());
+    const sqlText = await readFile(join(MIGRATIONS_DIR, name), "utf8");
+    const planned = planStatements(sqlText, [...existingColumns]);
+    const columnsByTable = new Map<string, Set<string>>();
+    const executable = withoutExistingColumns(planned, columnsByTable);
+    // Fill the map lazily so a retry skips columns that already landed.
+    const statements: string[] = [];
+    for (const statement of executable) {
+      const target = addColumnTarget(statement);
+      if (target) {
+        const table = target.table.toLowerCase();
+        if (!columnsByTable.has(table)) columnsByTable.set(table, readTableColumns(target.table));
+        if (columnsByTable.get(table)?.has(target.column.toLowerCase())) continue;
+        columnsByTable.get(table)?.add(target.column.toLowerCase());
+        if (table === "places") existingColumns.add(target.column.toLowerCase());
       }
+      statements.push(statement);
     }
+    console.log(`Applying migration ${name}`);
+    for (const statement of statements) executeWrangler(statement);
     executeWrangler(migrationInsert(name));
     console.log(`Recorded migration ${name}`);
   }

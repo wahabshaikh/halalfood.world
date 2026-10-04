@@ -39,8 +39,8 @@ import {
   readJson,
   requireUser,
   spendBudget,
-  unavailable,
 } from "../../../../../src/lib/api";
+import { domainFailure } from "../../../../../src/lib/domain-error";
 
 /**
  * The optional halal check that can ride along with a visit. Answers that only
@@ -118,8 +118,8 @@ export async function POST(
   let place;
   try {
     place = await getPlaceById(placeId);
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("This place", error);
   }
   if (!place) return notFound("That halal place could not be found.");
 
@@ -178,6 +178,13 @@ export async function POST(
     incentivized: checkIn.incentivized,
   });
 
+  let idempotencyKey: string | null = null;
+  if (input.idempotencyKey !== undefined && input.idempotencyKey !== null) {
+    if (typeof input.idempotencyKey !== "string" || !/^[0-9a-f-]{36}$/i.test(input.idempotencyKey))
+      return badRequest("The check-in retry key is not valid.");
+    idempotencyKey = input.idempotencyKey;
+  }
+
   const limited = await spendBudget(
     consumeCheckInLimits,
     outcome.auth,
@@ -206,24 +213,29 @@ export async function POST(
       verification,
       receiptR2Key,
       checkIn,
+      idempotencyKey,
     });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Recording this visit", error);
   }
 
-  // Friends who saved this place hear about a shared visit. Best effort.
-  if (checkIn.shareToFeed)
-    await notifyFriendVisit({
+  // Friends who saved this place hear about a shared visit. A failure here
+  // does not undo the visit.
+  let notification: "sent" | "skipped" | "failed" = "skipped";
+  if (checkIn.shareToFeed && !result.deduped) {
+    const notified = await notifyFriendVisit({
       visitId: result.visitId,
       actorId: outcome.auth.userId,
       placeId,
     });
+    notification = notified ? "sent" : "failed";
+  }
 
   // The visit is already saved, so nothing after this point may fail it. A halal
   // check that cannot be filed is reported back and the diner can resubmit it
   // from the place page.
   let halalCheckState: "submitted" | "not-sent" | "failed" = "not-sent";
-  if (halalCheck.kind === "check") {
+  if (halalCheck.kind === "check" && !result.deduped) {
     try {
       const submitted = await submitHalalVerification(
         d1HalalVerificationRepository(),
@@ -253,9 +265,11 @@ export async function POST(
       countsTowardsRanking: disclosure.countsTowardsRanking,
       disclosureLabel: disclosure.publicLabel,
       sharedToFeed: checkIn.shareToFeed,
-      halalCheck: halalCheckState,
+      deduped: result.deduped,
+      notification,
+      halalCheck: result.deduped ? "not-sent" : halalCheckState,
     },
-    { status: 201 },
+    { status: result.deduped ? 200 : 201 },
   );
 }
 
@@ -276,7 +290,7 @@ export async function GET(
       { summary, dishes, checkIns },
       { headers: { "Cache-Control": "public, max-age=60" } },
     );
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Check-ins for this place", error);
   }
 }

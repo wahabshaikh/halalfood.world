@@ -1,7 +1,8 @@
 import { buildFoodPassport, buildMilestones } from "@halalfood/core/food-passport";
 import { listPassportVisits, listVisitedPlaces } from "../../../src/lib/visits";
 import { listContributions } from "../../../src/lib/contributions-repository";
-import { json, requireUser, unavailable } from "../../../src/lib/api";
+import { json, requireUser } from "../../../src/lib/api";
+import { domainFailure } from "../../../src/lib/domain-error";
 
 /** The signed-in user's food passport: coverage, milestones and visited places. */
 export async function GET(request: Request): Promise<Response> {
@@ -25,7 +26,7 @@ export async function GET(request: Request): Promise<Response> {
       reverifiedStalePlaces: 0,
     });
     return json({ passport, milestones, places });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Your passport", error);
   }
 }

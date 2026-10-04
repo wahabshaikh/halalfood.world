@@ -580,6 +580,8 @@ export const placeVisits = sqliteTable(
       .notNull()
       .$type<Record<string, string>>(),
     visibility: text("visibility").notNull().default("public"),
+    /** Client retry token. The same key from one diner is one visit (migration 0018). */
+    idempotencyKey: text("idempotency_key"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },

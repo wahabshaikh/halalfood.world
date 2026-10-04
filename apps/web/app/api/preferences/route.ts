@@ -11,8 +11,8 @@ import {
   readJson,
   requireUser,
   spendBudget,
-  unavailable,
 } from "../../../src/lib/api";
+import { domainFailure } from "../../../src/lib/domain-error";
 
 const RETURN_TO = "/preferences";
 
@@ -21,8 +21,8 @@ export async function GET(request: Request): Promise<Response> {
   if (!outcome.ok) return outcome.response;
   try {
     return json({ preferences: await getPreferences(outcome.auth.userId) });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Your standards", error);
   }
 }
 
@@ -41,8 +41,8 @@ export async function PUT(request: Request): Promise<Response> {
   try {
     await savePreferences(outcome.auth.userId, validation.data);
     return json({ preferences: validation.data });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Saving your standards", error);
   }
 }
 

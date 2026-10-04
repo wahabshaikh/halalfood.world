@@ -7,6 +7,7 @@
  * standards page already edits.
  */
 
+import { looksLikeEmail } from "./public-identity";
 import type { MinimumStatus, UserPreferences } from "./user-preferences";
 
 /* --------------------------------------------------------------- handles -- */
@@ -67,6 +68,8 @@ export function validateDisplayName(value: unknown): DisplayNameValidation {
   // Collapse runs of whitespace and strip control characters.
   const name = value.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim();
   if (!name) return { ok: false, error: "Enter your name." };
+  if (looksLikeEmail(name))
+    return { ok: false, error: "Use a name, not an email address." };
   if (name.length > DISPLAY_NAME_MAX)
     return {
       ok: false,

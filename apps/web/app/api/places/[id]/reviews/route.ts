@@ -165,8 +165,17 @@ export async function handleReviewGet(
   try {
     const repository = dependencies.repository ?? d1PlaceReviewRepository();
     if (!(await repository.hasPlace(placeId))) return notFound();
+    const reviews = await repository.list(placeId, userId);
+    const publicIdentity =
+      userId && repository.publicIdentity
+        ? await repository.publicIdentity(userId)
+        : null;
     return Response.json(
-      { placeId, reviews: await repository.list(placeId, userId) },
+      {
+        placeId,
+        reviews,
+        ...(publicIdentity ? { publicIdentity } : {}),
+      },
       { headers: noStore() },
     );
   } catch {

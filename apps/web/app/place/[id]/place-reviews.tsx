@@ -102,6 +102,7 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState<BusyAction>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [publicIdentity, setPublicIdentity] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -132,6 +133,8 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
           return;
         }
         setReviews(next);
+        const identity = record(reviewsBody)?.publicIdentity;
+        setPublicIdentity(typeof identity === "string" && identity.trim() ? identity : null);
       } catch {
         if (mounted) {
           setAuthState("signed-out");
@@ -311,6 +314,11 @@ export default function PlaceReviews({ placeId }: { placeId: string }) {
           description="Mention what you ordered and anything a halal diner should know. Please keep staff and other guests out of it."
           onSubmit={(event) => void submit(event)}
         >
+          <p className="text-sm text-muted-foreground">
+            Your review will appear as{" "}
+            <strong className="text-foreground">{publicIdentity ?? "Halalfood member"}</strong>.
+            Your email is never shown.
+          </p>
           <Field>
             <FieldLabel htmlFor="review-title">Title (optional)</FieldLabel>
             <Input

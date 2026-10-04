@@ -89,7 +89,8 @@ export function contributorDisplayName(
   userId: string,
 ): string {
   const trimmed = name?.trim();
-  return trimmed || anonymizedContributorHandle(userId);
+  if (!trimmed || trimmed.includes("@")) return anonymizedContributorHandle(userId);
+  return trimmed;
 }
 
 function nameSortKey(row: ContributorAggregate): string {
@@ -199,7 +200,21 @@ export function d1ContributorLeaderboardRepository(
         )
         SELECT
           c.user_id,
-          NULLIF(TRIM(u.name), '') AS user_name,
+          CASE
+            WHEN pr.display_name IS NOT NULL
+              AND length(trim(pr.display_name)) > 0
+              AND instr(trim(pr.display_name), '@') = 0
+              THEN trim(pr.display_name)
+            WHEN pr.handle IS NOT NULL
+              AND length(trim(pr.handle)) > 0
+              AND instr(pr.handle, '@') = 0
+              THEN trim(pr.handle)
+            WHEN u.name IS NOT NULL
+              AND length(trim(u.name)) > 0
+              AND instr(trim(u.name), '@') = 0
+              THEN trim(u.name)
+            ELSE NULL
+          END AS user_name,
           c.places_added,
           c.verifications_submitted,
           c.reviews,
@@ -207,6 +222,7 @@ export function d1ContributorLeaderboardRepository(
           c.ratings
         FROM contribution_counts AS c
         LEFT JOIN "user" AS u ON u.id = c.user_id
+        LEFT JOIN user_profiles AS pr ON pr.user_id = c.user_id
         ORDER BY
           (
             c.places_added * ${CONTRIBUTOR_SCORE_WEIGHTS.placesAdded} +

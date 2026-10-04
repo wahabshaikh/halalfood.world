@@ -33,7 +33,9 @@ export default function SettingsView() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [requests, setRequests] = useState<Person[]>([]);
+  const [requestsUnavailable, setRequestsUnavailable] = useState(false);
   const [blocked, setBlocked] = useState<Person[]>([]);
+  const [blockedUnavailable, setBlockedUnavailable] = useState(false);
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [message, setMessage] = useState("");
@@ -54,18 +56,45 @@ export default function SettingsView() {
         window.location.assign(`/login?returnTo=${encodeURIComponent("/settings")}`);
         return;
       }
-      const profileBody = await readJson<{ profile?: Profile }>(profileRes);
-      if (profileBody.profile) {
-        setProfile(profileBody.profile);
-        setName(profileBody.profile.displayName ?? "");
-        setBio(profileBody.profile.bio ?? "");
+      const notes: string[] = [];
+      if (!profileRes.ok) {
+        const body = await readJson<{ error?: string }>(profileRes);
+        setProfile(null);
+        notes.push(body.error ?? "Your profile could not be loaded. You are still signed in.");
+      } else {
+        const profileBody = await readJson<{ profile?: Profile }>(profileRes);
+        if (profileBody.profile) {
+          setProfile(profileBody.profile);
+          setName(profileBody.profile.displayName ?? "");
+          setBio(profileBody.profile.bio ?? "");
+        } else {
+          setProfile(null);
+          notes.push("Your profile could not be loaded. You are still signed in.");
+        }
       }
-      const prefsBody = await readJson<{ preferences?: UserPreferences }>(prefsRes);
-      if (prefsBody.preferences) setPreferences(prefsBody.preferences);
-      setRequests((await readJson<{ requests?: Person[] }>(requestsRes)).requests ?? []);
-      setBlocked((await readJson<{ blocked?: Person[] }>(blocksRes)).blocked ?? []);
+      if (prefsRes.ok) {
+        const prefsBody = await readJson<{ preferences?: UserPreferences }>(prefsRes);
+        if (prefsBody.preferences) setPreferences(prefsBody.preferences);
+      } else notes.push("Your dietary standards could not be loaded.");
+      if (requestsRes.ok) {
+        setRequestsUnavailable(false);
+        setRequests((await readJson<{ requests?: Person[] }>(requestsRes)).requests ?? []);
+      } else {
+        setRequests([]);
+        setRequestsUnavailable(true);
+        notes.push("Follow requests could not be loaded.");
+      }
+      if (blocksRes.ok) {
+        setBlockedUnavailable(false);
+        setBlocked((await readJson<{ blocked?: Person[] }>(blocksRes)).blocked ?? []);
+      } else {
+        setBlocked([]);
+        setBlockedUnavailable(true);
+        notes.push("Blocked people could not be loaded.");
+      }
+      setError(notes.join(" "));
     } catch {
-      setError("Could not load your settings.");
+      setError("Could not load your settings. You are still signed in.");
     } finally {
       setReady(true);
     }
@@ -111,7 +140,26 @@ export default function SettingsView() {
     });
 
   if (!ready) return <Loading>Loading your settings…</Loading>;
-  if (!profile) return <FormMessage tone="error">{error || "Could not load your profile."}</FormMessage>;
+  if (!profile)
+    return (
+      <FieldGroup className="max-w-2xl gap-6">
+        <FormMessage tone="error">
+          {error || "Your profile could not be loaded. You are still signed in."}
+        </FormMessage>
+        <Button className="justify-self-start" onClick={() => void load()}>
+          Retry
+        </Button>
+        <FieldSet>
+          <FieldLegend>Halal standard</FieldLegend>
+          <p className="text-sm">
+            {preferences ? describeStandard(preferences) : "Not loaded"} ·{" "}
+            <a className="font-bold underline" href="/preferences">
+              Change
+            </a>
+          </p>
+        </FieldSet>
+      </FieldGroup>
+    );
 
   const display = profile.displayName ?? profile.handle;
 
@@ -235,7 +283,9 @@ export default function SettingsView() {
 
       <FieldSet>
         <FieldLegend>Follow requests</FieldLegend>
-        {requests.length === 0 ? (
+        {requestsUnavailable ? (
+          <FieldDescription>Follow requests could not be loaded. Retry to see who is waiting.</FieldDescription>
+        ) : requests.length === 0 ? (
           <FieldDescription>No requests waiting.</FieldDescription>
         ) : (
           <ul className="grid gap-2.5">
@@ -284,7 +334,9 @@ export default function SettingsView() {
 
       <FieldSet>
         <FieldLegend>Blocked people</FieldLegend>
-        {blocked.length === 0 ? (
+        {blockedUnavailable ? (
+          <FieldDescription>Blocked people could not be loaded. Retry before assuming the list is empty.</FieldDescription>
+        ) : blocked.length === 0 ? (
           <FieldDescription>
             You have not blocked anyone. Blocking hides you from each other and removes any
             follow between you.
@@ -356,6 +408,11 @@ export default function SettingsView() {
         </Button>
       </FieldSet>
 
+      {(requestsUnavailable || blockedUnavailable) && (
+        <Button variant="outline" className="justify-self-start" onClick={() => void load()}>
+          Retry
+        </Button>
+      )}
       {error && <FormMessage tone="error">{error}</FormMessage>}
       {message && <FormMessage tone="success">{message}</FormMessage>}
     </FieldGroup>

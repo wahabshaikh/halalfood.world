@@ -8,8 +8,8 @@ import {
   readJson,
   requireUser,
   spendBudget,
-  unavailable,
 } from "../../../src/lib/api";
+import { domainFailure } from "../../../src/lib/domain-error";
 
 export async function GET(request: Request): Promise<Response> {
   const outcome = await requireUser(request, "/lists");
@@ -18,8 +18,8 @@ export async function GET(request: Request): Promise<Response> {
     const hub = await listHub(outcome.auth.userId);
     // `lists` stays the diner's own, as before; the rest is what sharing added.
     return json({ lists: hub.mine, ...hub });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Your lists", error);
   }
 }
 
@@ -37,7 +37,7 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     return json({ list: await createList(outcome.auth.userId, validation.data) }, { status: 201 });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Creating a list", error);
   }
 }

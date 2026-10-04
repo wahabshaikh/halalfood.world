@@ -4,7 +4,7 @@ import {
   type DinerProfile,
 } from "../../../src/lib/preferences-repository";
 import { acceptAllPendingRequests, followCounts } from "../../../src/lib/social-repository";
-import { avatarUrl, validateHandle } from "@halalfood/core/social";
+import { avatarUrl, validateDisplayName, validateHandle } from "@halalfood/core/social";
 import { consumePersonalWriteLimits } from "../../../src/lib/otp-rate-limit";
 import { citySlugParam } from "@halalfood/core/params";
 import {
@@ -14,8 +14,8 @@ import {
   readJson,
   requireUser,
   spendBudget,
-  unavailable,
 } from "../../../src/lib/api";
+import { domainFailure, isUniqueConstraint } from "../../../src/lib/domain-error";
 
 const RETURN_TO = "/me";
 
@@ -38,8 +38,8 @@ export async function GET(request: Request): Promise<Response> {
   if (!outcome.ok) return outcome.response;
   try {
     return json({ profile: await present(await getOrCreateProfile(outcome.auth.userId)) });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Your profile", error);
   }
 }
 
@@ -61,9 +61,11 @@ export async function PUT(request: Request): Promise<Response> {
     if (input.displayName !== null && typeof input.displayName !== "string")
       return badRequest("The display name must be text.");
     const name = typeof input.displayName === "string" ? input.displayName.trim() : null;
-    if (name && name.length > 60)
-      return badRequest("The display name must be 60 characters or fewer.");
-    update.displayName = name || null;
+    if (name) {
+      const validated = validateDisplayName(name);
+      if (!validated.ok) return badRequest(validated.error);
+      update.displayName = validated.displayName;
+    } else update.displayName = null;
   }
   if (input.bio !== undefined) {
     if (input.bio !== null && typeof input.bio !== "string")
@@ -100,12 +102,13 @@ export async function PUT(request: Request): Promise<Response> {
     await updateProfile(outcome.auth.userId, update);
     // Going public settles every request that was waiting on approval.
     if (update.isPrivate === false) await acceptAllPendingRequests(outcome.auth.userId);
-  } catch {
-    return badRequest("That handle is already taken.");
+  } catch (error) {
+    if (isUniqueConstraint(error)) return badRequest("That handle is already taken.");
+    return domainFailure("Your profile", error);
   }
   try {
     return json({ profile: await present(await getOrCreateProfile(outcome.auth.userId)) });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Your profile", error);
   }
 }

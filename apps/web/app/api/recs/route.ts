@@ -10,8 +10,8 @@ import {
   readJson,
   requireUser,
   spendBudget,
-  unavailable,
 } from "../../../src/lib/api";
+import { domainFailure } from "../../../src/lib/domain-error";
 
 /** Recs sent to the signed-in diner, or `?box=sent` for the ones they sent. */
 export async function GET(request: Request): Promise<Response> {
@@ -21,8 +21,8 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const preferences = await getPreferences(outcome.auth.userId);
     return json({ box, ...(await listRecs(outcome.auth.userId, box, preferences)) });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Your recs", error);
   }
 }
 
@@ -54,7 +54,7 @@ export async function POST(request: Request): Promise<Response> {
         ? badRequest("Only a public list can be sent. Make it public first.")
         : notFound("That could not be found.");
     return json({ outcomes: result.outcomes }, { status: 201 });
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return domainFailure("Sending that rec", error);
   }
 }

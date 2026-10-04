@@ -14,7 +14,7 @@ import {
   LIST_MUMBAI_PLACES_SQL,
   UPDATE_MUMBAI_PLACE_DETAILS_SQL,
 } from "../scripts/backfill-mumbai-place-details";
-import { planStatements } from "../scripts/apply-d1-migrations";
+import { planStatements, withoutExistingColumns } from "../scripts/apply-d1-migrations";
 
 test("the backfill is Mumbai-only", () => {
   assert.equal(CITY_SLUG, "mumbai");
@@ -142,4 +142,19 @@ test("migration planner keeps other statements and never drops payload data", ()
   assert.equal(planned.length, 2);
   assert.doesNotMatch(planned.join("\n"), /DROP/i);
   assert.throws(() => planStatements("DROP TABLE places;", []));
+});
+
+test("a retry skips an ADD COLUMN that is already on that table", () => {
+  const statements = [
+    `ALTER TABLE "place_visits" ADD COLUMN "idempotency_key" text`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "place_visits_idempotency_idx" ON "place_visits" ("user_id", "idempotency_key")`,
+    `ALTER TABLE "user_profiles" ADD COLUMN "avatar_key" text`,
+  ];
+  const columns = new Map<string, ReadonlySet<string>>([
+    ["place_visits", new Set(["idempotency_key"])],
+  ]);
+  const planned = withoutExistingColumns(statements, columns);
+  assert.equal(planned.length, 2);
+  assert.match(planned[0], /CREATE UNIQUE INDEX/);
+  assert.match(planned[1], /user_profiles/);
 });
