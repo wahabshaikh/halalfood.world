@@ -126,7 +126,7 @@ export async function listItems(
     FROM place_list_items AS i
     INNER JOIN places AS p ON p.id = i.place_id
     LEFT JOIN user_profiles AS pr ON pr.user_id = i.added_by_user_id
-    WHERE i.list_id = ${listId} AND p.halal_confirmed = 1
+    WHERE i.list_id = ${listId} AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
     ORDER BY i.position ASC
     LIMIT ${MAX_LIST_ITEMS}
   `);
@@ -248,7 +248,7 @@ export async function replaceListItems(
   if (items.length) {
     const rows = await db.all<{ id: string }>(sql`
       SELECT id FROM places
-      WHERE halal_confirmed = 1
+      WHERE halal_confirmed = 1 AND listing_status = 'listed'
         AND id IN (${sql.join(items.map((item) => sql`${item.placeId}`), sql`, `)})
     `);
     for (const row of rows) valid.add(row.id);
@@ -297,7 +297,7 @@ export async function addListItem(
 ): Promise<AddItemResult> {
   const db = await client;
   const place = await db.all(sql`
-    SELECT 1 FROM places WHERE id = ${placeId} AND halal_confirmed = 1 LIMIT 1
+    SELECT 1 FROM places WHERE id = ${placeId} AND halal_confirmed = 1 AND listing_status = 'listed' LIMIT 1
   `);
   if (!place.length) return "not-found";
   const stats = (

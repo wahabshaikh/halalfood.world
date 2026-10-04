@@ -1,0 +1,130 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { validatePlaceSubmission } from "@halalfood/core/place-submission";
+import { splitSqlStatements } from "../scripts/apply-d1-migrations";
+import { findPlacesByCity, getCity, getPlaceById } from "../src/lib/places";
+import { submitPlaceLink } from "../src/lib/place-link-submissions";
+import { addUser, createTestDatabase } from "./support/sqlite-d1";
+
+const SLAM = "081ea610-a74f-4990-b8ca-3216aac6dfc8";
+const TAVERN = "be63903f-1a4e-4460-8dc4-e2a5aa13b509";
+const TAVERNA = "3d7f99f4-d769-4ffc-b19a-de72ca507868";
+const SHIVAS = "65992004-f61e-42b3-b4ea-2b7f9e8908ef";
+
+function insertPlace(
+  sqlite: ReturnType<typeof createTestDatabase>["sqlite"],
+  id: string,
+  name: string,
+  city: string,
+  extras: { lat?: number | null; lng?: number | null; address?: string; cuisine?: string } = {},
+) {
+  sqlite
+    .prepare(
+      `INSERT INTO places (
+        id, name, city_slug, city_url, street_address, serves_cuisine, source, source_url,
+        scraped_at, created_at, halal_confirmed, lat, lng
+      ) VALUES (?, ?, ?, 'u', ?, ?, 'user-submitted', 'u', 1, 1, 1, ?, ?)`,
+    )
+    .run(
+      id,
+      name,
+      city,
+      extras.address ?? "1 Street",
+      extras.cuisine ?? "[]",
+      extras.lat === undefined ? 1 : extras.lat,
+      extras.lng === undefined ? 1 : extras.lng,
+    );
+}
+
+test("the visibility migration hides non-halal names, pins Slam Burger, and clears the Halal cuisine label", () => {
+  const { sqlite } = createTestDatabase();
+  insertPlace(sqlite, TAVERN, "Valais-style Tavern", "geneva");
+  insertPlace(sqlite, TAVERNA, "Lebanese Taverna", "baltimore");
+  insertPlace(sqlite, SHIVAS, "Shivas Bar and Grill", "dallas");
+  insertPlace(sqlite, "estabulo", "Estabulo Rodizio Bar & Grill - Leeds", "leeds");
+  insertPlace(sqlite, SLAM, "Slam Burger Luton", "luton", {
+    lat: null,
+    lng: null,
+    address: "180 Dunstable Rd",
+    cuisine: '["Halal"]',
+  });
+  const file = readFileSync(
+    join(import.meta.dirname, "../migrations/0020_listing_visibility.sql"),
+    "utf8",
+  );
+  for (const statement of splitSqlStatements(file)) {
+    if (/^\s*UPDATE/i.test(statement)) sqlite.exec(statement);
+  }
+  const status = (id: string) =>
+    (sqlite.prepare(`SELECT listing_status AS status FROM places WHERE id = ?`).get(id) as { status: string })
+      .status;
+  assert.equal(status(TAVERN), "hidden");
+  assert.equal(status(SHIVAS), "hidden");
+  assert.equal(status(TAVERNA), "listed");
+  assert.equal(status("estabulo"), "listed");
+  const slam = sqlite
+    .prepare(`SELECT lat, lng, serves_cuisine, listing_status FROM places WHERE id = ?`)
+    .get(SLAM) as { lat: number; lng: number; serves_cuisine: string; listing_status: string };
+  assert.equal(slam.listing_status, "listed");
+  assert.ok(Math.abs(slam.lat - 51.8868333) < 0.0001);
+  assert.ok(Math.abs(slam.lng - -0.4312885) < 0.0001);
+  assert.equal(slam.serves_cuisine, "[]");
+});
+
+test("a city whose only place has no pin still resolves, and a hidden place does not", async () => {
+  const { sqlite, db } = createTestDatabase();
+  insertPlace(sqlite, SLAM, "Slam Burger Luton", "luton", { lat: null, lng: null });
+  insertPlace(sqlite, TAVERN, "Valais-style Tavern", "geneva");
+  sqlite.prepare(`UPDATE places SET listing_status = 'hidden' WHERE id = ?`).run(TAVERN);
+
+  const city = await getCity("luton", db);
+  assert.ok(city);
+  assert.equal(city?.place_count, 1);
+  const listing = await findPlacesByCity("luton", { limit: 10 }, db);
+  assert.equal(listing.places.length, 1);
+  assert.equal(listing.places[0]?.name, "Slam Burger Luton");
+  assert.equal(listing.places[0]?.lat, null);
+
+  assert.equal(await getPlaceById(TAVERN, db), null);
+  assert.equal(await getCity("geneva", db), null);
+});
+
+test("a Google add is filed pending and does not publish a place", async () => {
+  const { sqlite, db } = createTestDatabase();
+  addUser(sqlite, "diner");
+  const filed = await submitPlaceLink(
+    "diner",
+    {
+      mode: "link",
+      name: "New Kitchen",
+      city: "Luton",
+      citySlug: "luton",
+      address: "180 Dunstable Rd",
+      sourceUrl: "https://www.google.com/maps/search/?api=1&query_place_id=ChIJexample",
+      googlePlaceId: "ChIJexample",
+      halalConfirmed: true,
+    },
+    db,
+    "google",
+  );
+  assert.equal(filed.ok, true);
+  if (!filed.ok) return;
+  assert.equal(filed.status, "pending");
+  assert.equal(
+    (sqlite.prepare(`SELECT COUNT(*) AS n FROM places`).get() as { n: number }).n,
+    0,
+  );
+  const reason = sqlite
+    .prepare(`SELECT status_reason FROM place_link_submissions WHERE id = ?`)
+    .get(filed.id) as { status_reason: string };
+  assert.match(reason.status_reason, /Google place/);
+  assert.match(reason.status_reason, /not a halal certification/i);
+  const validation = validatePlaceSubmission({
+    mode: "google",
+    googlePlaceId: "ChIJexample",
+    halalConfirmed: true,
+  });
+  assert.equal(validation.ok, true);
+});

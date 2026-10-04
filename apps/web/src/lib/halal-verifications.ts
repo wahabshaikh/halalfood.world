@@ -166,7 +166,7 @@ export function d1HalalVerificationRepository(
       const rows = await db.all(sql`
         SELECT 1
         FROM places
-        WHERE id = ${placeId} AND halal_confirmed = 1
+        WHERE id = ${placeId} AND halal_confirmed = 1 AND listing_status = 'listed'
         LIMIT 1
       `);
       return rows.length > 0;
@@ -215,7 +215,7 @@ export function d1HalalVerificationRepository(
         INNER JOIN places AS p ON p.id = v.place_id
         LEFT JOIN place_halal_check_answers AS a ON a.verification_id = v.id
         WHERE v.place_id = ${placeId}
-          AND p.halal_confirmed = 1
+          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
           AND ${visibility}
         ORDER BY v.created_at DESC, v.id DESC
         LIMIT 25
@@ -352,7 +352,7 @@ export function d1HalalVerificationRepository(
         INNER JOIN places AS p ON p.id = v.place_id
         WHERE e.kind = 'upload'
           AND e.r2_key = ${key}
-          AND p.halal_confirmed = 1
+          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
           AND ${visibility}
         LIMIT 1
       `);
@@ -515,7 +515,7 @@ export async function listApprovedEvidenceRecords(
       AND v.status = 'approved'
       AND v.visibility = 'public'
       AND v.superseded_by_id IS NULL
-      AND p.halal_confirmed = 1
+      AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
     ORDER BY v.created_at DESC
     LIMIT 200
   `);
@@ -548,7 +548,7 @@ export async function listApprovedEvidenceByPlace(
       AND v.status = 'approved'
       AND v.visibility = 'public'
       AND v.superseded_by_id IS NULL
-      AND p.halal_confirmed = 1
+      AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
     ORDER BY v.created_at DESC
     LIMIT 2000
   `);

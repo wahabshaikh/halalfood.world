@@ -376,7 +376,7 @@ export async function submitDuplicateReport(
   const db = await client;
   const rows = await db.all<{ count: number }>(sql`
     SELECT COUNT(*) AS count FROM places
-    WHERE id IN (${placeId}, ${duplicateOfPlaceId}) AND halal_confirmed = 1
+    WHERE id IN (${placeId}, ${duplicateOfPlaceId}) AND halal_confirmed = 1 AND listing_status = 'listed'
   `);
   if (num(rows[0]?.count) !== 2) return { ok: false, reason: "not-found" };
 

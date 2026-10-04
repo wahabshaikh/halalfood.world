@@ -91,7 +91,7 @@ export function d1PlacePhotoRepository(
       const rows = await db.all(sql`
         SELECT 1
         FROM places
-        WHERE id = ${placeId} AND halal_confirmed = 1
+        WHERE id = ${placeId} AND halal_confirmed = 1 AND listing_status = 'listed'
         LIMIT 1
       `);
       return rows.length > 0;
@@ -112,7 +112,7 @@ export function d1PlacePhotoRepository(
         FROM place_photos AS ph
         INNER JOIN places AS p ON p.id = ph.place_id
         WHERE ph.place_id = ${placeId}
-          AND p.halal_confirmed = 1
+          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
         ORDER BY ph.created_at DESC, ph.id DESC
         LIMIT 100
       `);
@@ -138,7 +138,7 @@ export function d1PlacePhotoRepository(
           ${Date.now()}
         FROM places AS p
         WHERE p.id = ${placeId}
-          AND p.halal_confirmed = 1
+          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
         RETURNING
           id, r2_key, content_type, byte_size,
           original_file_name, created_at, 1 AS is_own
@@ -155,7 +155,7 @@ export function d1PlacePhotoRepository(
           AND user_id = ${userId}
           AND EXISTS (
             SELECT 1 FROM places
-            WHERE places.id = place_photos.place_id AND places.halal_confirmed = 1
+            WHERE places.id = place_photos.place_id AND places.halal_confirmed = 1 AND places.listing_status = 'listed'
           )
         RETURNING r2_key
       `);
@@ -170,7 +170,7 @@ export function d1PlacePhotoRepository(
         FROM place_photos AS ph
         INNER JOIN places AS p ON p.id = ph.place_id
         WHERE ph.r2_key = ${key}
-          AND p.halal_confirmed = 1
+          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
         LIMIT 1
       `);
       const row = rows[0];

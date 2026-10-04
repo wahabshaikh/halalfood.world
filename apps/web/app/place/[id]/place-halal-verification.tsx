@@ -288,11 +288,11 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
   return (
     <section aria-labelledby="community-verification-title">
       <h2 id="community-verification-title" className="mb-1.5 text-[22px]">
-        How we know it’s halal
+        Checks people have shared
       </h2>
       <SectionIntro>
-        Every check has a date. New checks show as “Awaiting review” until a moderator
-        approves them.
+        When someone files a check, it includes a date. New checks show as “Awaiting review”
+        until a moderator approves them. That is not a certification.
       </SectionIntro>
 
       {statusView && (

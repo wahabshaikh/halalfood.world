@@ -18,7 +18,7 @@ export async function findListedPlace(
   const db = await client;
   const rows = await db.all<ListedMatch>(sql`
     SELECT id, name FROM places
-    WHERE halal_confirmed = 1
+    WHERE halal_confirmed = 1 AND listing_status = 'listed'
       AND (
         (${input.googlePlaceId} IS NOT NULL AND google_place_id = ${input.googlePlaceId})
         OR (lower(name) = lower(${input.name}) AND city_slug = ${input.citySlug})
@@ -37,6 +37,7 @@ export async function submitPlaceLink(
   userId: string,
   input: ValidatedLinkSubmission,
   client: DatabaseClient | Promise<DatabaseClient> = database(),
+  source: "link" | "google" = "link",
 ): Promise<LinkSubmissionResult> {
   const db = await client;
   const listed = await findListedPlace(
@@ -61,7 +62,11 @@ export async function submitPlaceLink(
     ) VALUES (
       ${id}, ${userId}, ${input.name}, ${input.citySlug}, ${input.address},
       ${input.sourceUrl}, ${input.googlePlaceId}, 'pending',
-      'Waiting for a person to check the link. Not listed and not a halal certification.',
+      ${
+        source === "google"
+          ? "Waiting for a person to review this Google place. Not listed and not a halal certification."
+          : "Waiting for a person to check the link. Not listed and not a halal certification."
+      },
       ${now}, ${now}
     )
   `);

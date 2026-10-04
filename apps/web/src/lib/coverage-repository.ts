@@ -26,7 +26,7 @@ export async function getCityCoverage(
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT coverage_level, COUNT(*) AS count
     FROM places
-    WHERE city_slug = ${citySlug} AND halal_confirmed = 1
+    WHERE city_slug = ${citySlug} AND halal_confirmed = 1 AND listing_status = 'listed'
     GROUP BY coverage_level
   `);
   const counts: Partial<Record<CoverageLevel, number>> = {};
@@ -95,7 +95,7 @@ export async function listCityDemand(
       (SELECT COUNT(*) FROM city_coverage_requests AS r
         WHERE r.city_slug = p.city_slug AND r.wants_to_contribute = 1) AS contributors
     FROM places AS p
-    WHERE p.halal_confirmed = 1
+    WHERE p.halal_confirmed = 1 AND p.listing_status = 'listed'
     GROUP BY p.city_slug
     ORDER BY requests DESC, COUNT(*) DESC
     LIMIT ${Math.min(Math.max(limit, 1), 200)}

@@ -13,10 +13,10 @@ export function guideDescription(city: Pick<City, "city_slug" | "place_count">) 
   const name = cityName(city.city_slug);
   return truncate(
     city.place_count
-      ? `A practical starting point for halal food in ${name}: ${formatCount(
+      ? `A starting point for places listed in ${name}: ${formatCount(
           city.place_count,
-        )} listed ${plural(city.place_count, "place")}, with source details and community evidence to check before you go.`
-      : `A practical starting point for halal food in ${name}, with source details and community evidence to check before you go.`,
+        )} listed ${plural(city.place_count, "place")}. A listing is not a halal certification.`
+      : `A starting point for places listed in ${name}. A listing is not a halal certification.`,
   );
 }
 

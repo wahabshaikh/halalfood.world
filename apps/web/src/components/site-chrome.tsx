@@ -308,7 +308,7 @@ export function SiteFooter({ active }: { active?: TabKey } = {}) {
             <div>
               <h2 className="mb-3 text-sm">How it works</h2>
               <p className="max-w-80 py-1 text-sm text-muted-foreground">
-                Halal checks come from people who ate there, each with a name and a date.
+                When someone shares a check, it includes their name and the date. A listing on its own is not a certification.
               </p>
               <p className="max-w-80 py-1 text-sm text-muted-foreground">
                 No restaurant can pay to change a status or a ranking.

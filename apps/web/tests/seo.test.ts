@@ -80,6 +80,21 @@ test("titles and counts read naturally in both numbers", () => {
   );
   assert.equal(placeDescription(place).includes("not a halal certification"), true);
   assert.equal(placeDescription(place).includes("Google rating"), true);
+  assert.equal(placeDescription(place).includes("Map location is approximate."), true);
+  assert.equal(placeDescription(place).includes("a halal Halal"), false);
+  const longName = placeDescription(
+    {
+      ...place,
+      name: "Kirin Beer Garden in Urban Sapporo Building",
+      address_locality: "Sapporo",
+      serves_cuisine: ["Halal"],
+    },
+    { includeCommunity: true },
+  );
+  assert.equal(longName.includes("Map location is approximate."), true);
+  assert.equal(longName.includes("Map location is…"), false);
+  assert.equal(longName.includes("a halal Halal"), false);
+  assert.ok(longName.length <= 160);
 });
 
 test("addresses skip missing parts without leaving stray separators", () => {
@@ -103,6 +118,9 @@ test("JSON-LD marks the coordinates as approximate", () => {
   assert.equal(data.disambiguatingDescription, APPROXIMATE_NOTE);
   assert.equal(data.aggregateRating.ratingValue, 4.3);
   assert.equal(data.aggregateRating.reviewCount, 1240);
+  assert.deepEqual(data.servesCuisine, ["Indian", "Kebab"]);
+  const halalLabel = placeJsonLd({ ...place, serves_cuisine: ["Halal"] }) as Record<string, unknown>;
+  assert.equal(halalLabel.servesCuisine, undefined);
 });
 
 test("JSON-LD omits geo when the row has no coordinates", () => {

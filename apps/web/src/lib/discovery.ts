@@ -184,7 +184,7 @@ function whoseConditions(query: DiscoveryQuery): SQL[] {
  */
 function buildPlaceConditions(query: DiscoveryQuery): SQL[] {
   const conditions: SQL[] = [
-    sql`halal_confirmed = 1 AND lat IS NOT NULL AND lng IS NOT NULL`,
+    sql`halal_confirmed = 1 AND listing_status = 'listed' AND lat IS NOT NULL AND lng IS NOT NULL`,
   ];
 
   if (query.bbox) {

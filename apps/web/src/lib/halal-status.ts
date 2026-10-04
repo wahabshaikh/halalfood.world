@@ -93,7 +93,7 @@ export function d1HalalStatusRepository(
           ON v.place_id = p.id
           AND v.status = 'approved'
         WHERE p.id = ${placeId}
-          AND p.halal_confirmed = 1
+          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
       `);
       const row = rows[0];
       if (

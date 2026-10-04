@@ -430,18 +430,24 @@ export async function consumePlaceSubmissionLimits(
 }
 
 export async function consumeGooglePlaceSearchLimits(
-  userId: string,
+  userId: string | null,
   ip: string,
   store: OtpRateLimitStore = d1OtpRateLimitStore(),
   now = new Date(),
 ) {
   const [userKey, ipKey] = await Promise.all([
-    identifierKey("place:google-search:user", userId),
+    identifierKey(
+      userId ? "place:google-search:user" : "place:google-search:anon",
+      userId ?? ip,
+    ),
     identifierKey("place:google-search:ip", ip),
   ]);
   return consumePair(
     [
-      { key: userKey, rule: PLACE_RATE_LIMITS.googleSearchUser },
+      {
+        key: userKey,
+        rule: userId ? PLACE_RATE_LIMITS.googleSearchUser : PLACE_RATE_LIMITS.googleSearchIp,
+      },
       { key: ipKey, rule: PLACE_RATE_LIMITS.googleSearchIp },
     ],
     store,
