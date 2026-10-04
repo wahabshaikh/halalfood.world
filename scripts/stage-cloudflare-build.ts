@@ -3,11 +3,11 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import {
   applyPreviewEnvironment,
   applyPreviewResourceBindings,
-  applyTurnstileSiteKey,
   PREVIEW_D1_ID,
   PREVIEW_D1_NAME,
   PREVIEW_R2_BUCKET,
   previewIsolationDecision,
+  stripProductionSecretVars,
 } from "../apps/web/src/lib/preview-bindings.ts";
 import {
   MIGRATION_LIST_TIMEOUT_MS,
@@ -42,7 +42,9 @@ writeFileSync(
 
 const generatedConfigPath = "dist/server/wrangler.json";
 const generatedConfig = JSON.parse(readFileSync(generatedConfigPath, "utf8"));
-applyTurnstileSiteKey(generatedConfig, process.env.TURNSTILE_SITE_KEY);
+// A plain var named like a production secret replaces that secret on the
+// version chain. Staging must not copy TURNSTILE_SITE_KEY into this config.
+stripProductionSecretVars(generatedConfig);
 
 const isolation = previewIsolationDecision(process.env);
 if (isolation === "refuse") {
@@ -60,7 +62,7 @@ if (isolation === "preview") {
   );
   applyPreviewResourceBindings(rootCopy);
   applyPreviewEnvironment(rootCopy);
-  applyTurnstileSiteKey(rootCopy, process.env.TURNSTILE_SITE_KEY);
+  stripProductionSecretVars(rootCopy);
   writeFileSync("wrangler.jsonc", `${JSON.stringify(rootCopy, null, 2)}\n`);
   console.log(
     `Non-main branch ${process.env.WORKERS_CI_BRANCH}: DB ${PREVIEW_D1_NAME} (${PREVIEW_D1_ID}), R2 ${PREVIEW_R2_BUCKET}, ENVIRONMENT=preview`,

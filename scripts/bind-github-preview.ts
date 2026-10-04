@@ -1,11 +1,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import {
   applyPreviewEnvironment,
-  applyTurnstileSiteKey,
   PREVIEW_R2_BUCKET,
   PRODUCTION_D1_ID,
   PRODUCTION_R2_BUCKET,
   R2_BINDING,
+  stripProductionSecretVars,
 } from "../apps/web/src/lib/preview-bindings.ts";
 
 const path = "dist/server/wrangler.json";
@@ -33,8 +33,10 @@ if (bucket.bucket_name === PRODUCTION_R2_BUCKET) {
   throw new Error("Refusing to bind the preview upload to the production R2 bucket");
 }
 applyPreviewEnvironment(config);
-applyTurnstileSiteKey(config, process.env.TURNSTILE_SITE_KEY);
+// Never copy TURNSTILE_SITE_KEY, or any other production secret name, into
+// vars. A plain var replaces that secret on this version and every later one.
+stripProductionSecretVars(config);
 writeFileSync(path, JSON.stringify(config));
 console.log(
-  `Preview bindings: D1 ${binding.database_name} (${binding.database_id}), R2 ${bucket.bucket_name}, ENVIRONMENT=preview`,
+  `Preview bindings: D1 ${binding.database_name} (${binding.database_id}), R2 ${bucket.bucket_name}, ENVIRONMENT=preview. Production secret names were not set as vars.`,
 );

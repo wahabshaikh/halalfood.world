@@ -74,15 +74,35 @@ export function applyPreviewResourceBindings(config: PreviewWranglerConfig): Pre
 }
 
 /**
- * Copy a public Turnstile site key from the build environment into Worker vars.
- * An empty value is left untouched so a missing secret cannot blank the key.
+ * Secret names on the production Worker `halalfood-world`.
+ *
+ * A preview upload is a version of that same Worker. A plain text var whose
+ * name matches one of these replaces the secret on that version and on every
+ * later version, including main deploys. `TURNSTILE_SITE_KEY` is public to the
+ * browser and is still stored as a secret for that reason.
  */
-export function applyTurnstileSiteKey(
-  config: PreviewWranglerConfig,
-  siteKey: string | undefined,
-): PreviewWranglerConfig {
-  const value = siteKey?.trim();
-  if (!value) return config;
-  config.vars = { ...config.vars, TURNSTILE_SITE_KEY: value };
+export const PRODUCTION_SECRET_NAMES = [
+  "BETTER_AUTH_SECRET",
+  "EMAIL_HEALTHCHECK_TOKEN",
+  "GOOGLE_MAPS_API_KEY",
+  "GOOGLE_PLACES_API_KEY",
+  "RESEND_API_KEY",
+  "TURNSTILE_SECRET_KEY",
+  "TURNSTILE_SITE_KEY",
+] as const;
+
+/** Vars a preview upload may set. None of these are production secrets. */
+export const PREVIEW_UPLOAD_VAR_NAMES = ["BETTER_AUTH_URL", "ENVIRONMENT"] as const;
+
+const PRODUCTION_SECRET_NAME_SET = new Set<string>(PRODUCTION_SECRET_NAMES);
+
+export function previewVarReplacesProductionSecret(name: string): boolean {
+  return PRODUCTION_SECRET_NAME_SET.has(name);
+}
+
+/** Drop secret names from Wrangler vars before a version is uploaded. */
+export function stripProductionSecretVars(config: PreviewWranglerConfig): PreviewWranglerConfig {
+  if (!config.vars) return config;
+  for (const name of PRODUCTION_SECRET_NAMES) delete config.vars[name];
   return config;
 }
