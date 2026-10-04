@@ -16,6 +16,8 @@ export type ClientSessionUser = {
   name: string | null;
 };
 
+import { rememberSignedIn } from "./signed-out";
+
 let sessionLoad: Promise<ClientSessionUser | null> | null = null;
 
 function text(value: unknown): string | null {
@@ -34,7 +36,10 @@ async function fetchSessionUser(): Promise<ClientSessionUser | null> {
   } | null;
   const user = body?.user;
   const id = text(user?.id);
-  return id ? { id, email: text(user?.email), name: text(user?.name) } : null;
+  if (!id) return null;
+  // Lets a later 401 say "signed out" rather than "sign in to …".
+  rememberSignedIn();
+  return { id, email: text(user?.email), name: text(user?.name) };
 }
 
 /** The signed-in user, or `null` when signed out or the lookup failed. */

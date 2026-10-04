@@ -3,6 +3,7 @@ import type { ValidatedLinkSubmission } from "@halalfood/core/place-submission";
 import { isUniqueConstraint } from "./domain-error";
 import { writeAudit } from "./contributions-repository";
 import { database } from "../db";
+import { findExistingPlace, type ExistingPlaceMatch } from "./place-duplicates";
 
 type DatabaseClient = Awaited<ReturnType<typeof database>>;
 
@@ -10,7 +11,13 @@ export type ListedMatch = { id: string; name: string };
 
 export type LinkSubmissionResult =
   | { ok: true; id: string; status: string; deduped: boolean }
-  | { ok: false; reason: "duplicate"; place: ListedMatch };
+  | {
+      ok: false;
+      reason: "duplicate";
+      match: ExistingPlaceMatch;
+      /** The listed place, when the duplicate is public. */
+      place: ListedMatch | null;
+    };
 
 /** A listed place with the same Google id, or the same name in the same city. */
 export async function findListedPlace(
@@ -43,11 +50,27 @@ export async function submitPlaceLink(
   statusReason?: string,
 ): Promise<LinkSubmissionResult> {
   const db = await client;
-  const listed = await findListedPlace(
-    { googlePlaceId: input.googlePlaceId, name: input.name, citySlug: input.citySlug },
+  // A listed, hidden or unconfirmed place, or anyone's pending submission, with
+  // the same Google id; or a listed place with the same name, or the same venue
+  // name at the same street address, in the city. No unique index: these reads
+  // run before every insert, and a moderator approval also dedupes on the id.
+  const match = await findExistingPlace(
+    {
+      googlePlaceId: input.googlePlaceId,
+      name: input.name,
+      citySlug: input.citySlug,
+      address: input.address,
+    },
     db,
   );
-  if (listed) return { ok: false, reason: "duplicate", place: listed };
+  if (match) {
+    return {
+      ok: false,
+      reason: "duplicate",
+      match,
+      place: match.kind === "listed" ? { id: match.placeId, name: match.name } : null,
+    };
+  }
 
   const existing = await db.all<{ id: string; status: string }>(sql`
     SELECT id, status FROM place_link_submissions

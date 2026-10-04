@@ -16,6 +16,7 @@ import { TONE_BADGE } from "../../src/components/status-tone";
 import { cityName } from "../../src/lib/seo";
 import {
   clearOnboardingDraft,
+  onboardingResumeHref,
   readOnboardingDraft,
   saveOnboardingDraft,
 } from "../../src/lib/onboarding-draft";
@@ -334,6 +335,9 @@ export default function OnboardingFlow({
   if (homeCity) mapParams.set("city", homeCity);
   if (standardTouched) mapParams.set("mine", "1");
   const mapHref = `/map${mapParams.size ? `?${mapParams}` : ""}`;
+  // Onboarding that started from an action (a Save on a place page, say)
+  // ends back on that page, where the pending action finishes.
+  const resumeHref = onboardingResumeHref(returnTo);
 
   return (
     <section aria-labelledby="onboarding-title" className="mx-auto my-6 grid max-w-xl gap-5">
@@ -724,8 +728,13 @@ export default function OnboardingFlow({
               <FollowButton handle={finished.following} initialStatus="accepted" variant="outline" />
             )}
             <Button asChild size="xl">
-              <a href={mapHref}>Let me in</a>
+              <a href={resumeHref ?? mapHref}>Let me in</a>
             </Button>
+            {resumeHref && (
+              <Button asChild variant="outline" size="xl">
+                <a href={mapHref}>Open my map instead</a>
+              </Button>
+            )}
             <Button asChild variant="outline" size="xl">
               <a href={`/u/${finished.handle}`}>View my profile</a>
             </Button>

@@ -9,6 +9,13 @@ import {
 } from "./google-places";
 import { submitPlaceLink, type LinkSubmissionResult } from "./place-link-submissions";
 import { reserveGoogleDetailsCall } from "./google-search-budget";
+import {
+  citySlugFromAddress,
+  duplicateBody,
+  findExistingPlace,
+  type DuplicateCandidate,
+  type ExistingPlaceMatch,
+} from "./place-duplicates";
 
 const POSTCODE_AT_END =
   /(?:\s|^)(?:[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}|\d{5}(?:-\d{4})?)$/i;
@@ -58,6 +65,7 @@ export type GooglePlaceSubmissionDeps = {
   ) => Promise<GooglePlaceDetailsResult>;
   submit?: typeof submitPlaceLink;
   hasApiKey?: () => boolean;
+  findExisting?: (candidate: DuplicateCandidate) => Promise<ExistingPlaceMatch | null>;
 };
 
 function noStore() {
@@ -83,16 +91,12 @@ function googleDetailsError(code: string) {
   );
 }
 
-function filedResponse(result: LinkSubmissionResult) {
+function filedResponse(result: LinkSubmissionResult, userId: string) {
   if (!result.ok) {
-    return Response.json(
-      {
-        error: `${result.place.name} is already listed.`,
-        placeId: result.place.id,
-        url: `/place/${result.place.id}`,
-      },
-      { status: 409, headers: noStore() },
-    );
+    return Response.json(duplicateBody(result.match, userId), {
+      status: 409,
+      headers: noStore(),
+    });
   }
   return Response.json(
     {
@@ -117,6 +121,25 @@ export async function respondToGooglePlaceSubmission(
   input: ValidatedGoogleSubmission,
   deps: GooglePlaceSubmissionDeps = {},
 ): Promise<Response> {
+  // A place or submission we already have is refused before Place Details,
+  // so a duplicate costs no Google call. submitPlaceLink checks again with
+  // the name and city Google returns.
+  let early: ExistingPlaceMatch | null = null;
+  try {
+    const address = input.address?.trim() || "";
+    early = await (deps.findExisting ?? ((candidate) => findExistingPlace(candidate)))({
+      googlePlaceId: input.googlePlaceId,
+      name: input.name?.trim() || "",
+      citySlug: input.city?.trim() ? slugifyCity(input.city) : citySlugFromAddress(address),
+      address,
+    });
+  } catch {
+    early = null;
+  }
+  if (early) {
+    return Response.json(duplicateBody(early, userId), { status: 409, headers: noStore() });
+  }
+
   const now = deps.now?.() ?? new Date();
   const reserve = deps.reserve ?? reserveGoogleDetailsCall;
   let allowed = false;
@@ -136,7 +159,7 @@ export async function respondToGooglePlaceSubmission(
       );
     }
     try {
-      return filedResponse(await submit(userId, link, undefined, "google", CAPPED_REASON));
+      return filedResponse(await submit(userId, link, undefined, "google", CAPPED_REASON), userId);
     } catch {
       return Response.json(
         { error: "Place submissions are temporarily unavailable. Please try again." },
@@ -193,6 +216,7 @@ export async function respondToGooglePlaceSubmission(
         undefined,
         "google",
       ),
+      userId,
     );
   } catch {
     return Response.json(

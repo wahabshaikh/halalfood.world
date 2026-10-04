@@ -903,11 +903,7 @@ function MapFailureActions({
       {error.signIn && (
         <Button variant="link" asChild>
           <a
-            href={
-              signedIn
-                ? signedOutLoginPath(currentReturnPath())
-                : `/login?returnTo=${encodeURIComponent(currentReturnPath())}`
-            }
+            href={signedOutLoginPath(currentReturnPath(), signedIn)}
           >
             {signedIn ? "Sign in again" : "Sign in"}
           </a>

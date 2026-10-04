@@ -37,6 +37,7 @@ test("a full Place Details cap files the picked place and does not call Google",
     null;
   const response = await respondToGooglePlaceSubmission("user-1", submission(), {
     now: () => new Date("2026-10-04T12:00:00.000Z"),
+    findExisting: async () => null,
     reserve: async () => false,
     fetchDetails: async () => {
       fetches += 1;
@@ -77,6 +78,7 @@ test("a Place Details reservation still fetches Google and ignores the picked na
   let mask = "";
   let filedName = "";
   const response = await respondToGooglePlaceSubmission("user-1", submission({ name: "Typed name" }), {
+    findExisting: async () => null,
     reserve: async () => true,
     hasApiKey: () => true,
     fetchDetails: async (_placeId, options) => {

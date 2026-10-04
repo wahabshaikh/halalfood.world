@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { listRankedDiners } from "../src/lib/diner-leaderboard";
 import { getVisitCard } from "../src/lib/feed-repository";
-import { restoredShareToFeed } from "../src/lib/form-draft";
+import { checkInDraft } from "../src/lib/check-in-draft";
 import { listPassportVisits, listPublicCheckIns, listVisitedPlaces } from "../src/lib/visits";
 import { addUser, createTestDatabase } from "./support/sqlite-d1";
 
@@ -76,16 +77,46 @@ test("guests and other diners only see visits the owner shared", async () => {
   assert.equal(ownPassport.length, 2);
 });
 
-test("sharing to feeds is off unless the diner ticked it", () => {
-  assert.equal(restoredShareToFeed(null), false);
-  // Older drafts recorded the box without saying whether it was chosen.
-  assert.equal(restoredShareToFeed({ shareToFeed: true, visibility: "public" }), false);
-  assert.equal(
-    restoredShareToFeed({ shareToFeed: true, shareToFeedChosen: true, visibility: "public" }),
-    true,
-  );
-  assert.equal(
-    restoredShareToFeed({ shareToFeed: true, shareToFeedChosen: true, visibility: "private" }),
-    false,
-  );
+test("a check-in draft never keeps the share tick", () => {
+  const draft = checkInDraft({
+    note: "Good",
+    visibility: "public",
+    shareToFeed: true,
+    shareToFeedChosen: true,
+  });
+  assert.deepEqual(draft, { note: "Good", visibility: "public" });
+});
+
+test("visited places, their verdict and the passport use only shared visits to listed places", async () => {
+  const { sqlite, db } = setup();
+  // The newest visit is unshared and says "no"; nobody else may see that verdict.
+  sqlite.prepare(`UPDATE place_check_ins SET would_return = 'no' WHERE visit_id = ?`).run(UNSHARED);
+  const forOthers = await listVisitedPlaces("author", db, { sharedOnly: true });
+  assert.equal(forOthers.length, 1);
+  assert.equal(forOthers[0]!.visits, 1);
+  assert.equal(forOthers[0]!.wouldReturn, "definitely");
+
+  // An unpublished place drops out of everyone else's view of the diner.
+  sqlite.prepare(`UPDATE places SET listing_status = 'hidden' WHERE id = ?`).run(PLACE_ID);
+  assert.equal((await listVisitedPlaces("author", db, { sharedOnly: true })).length, 0);
+  assert.equal((await listPassportVisits("author", db, { sharedOnly: true })).length, 0);
+  // The owner still has their own history.
+  assert.equal((await listPassportVisits("author", db)).length, 2);
+});
+
+test("the public leaderboard counts only shared public visits", async () => {
+  const { sqlite, db } = setup();
+  sqlite
+    .prepare(
+      `UPDATE user_profiles SET onboarded_at = 1, is_private = 0, show_on_leaderboards = 1 WHERE user_id = 'author'`,
+    )
+    .run();
+  sqlite
+    .prepare(`UPDATE place_visits SET verification_method = 'location', verification_confidence = 'high'`)
+    .run();
+  const now = Date.now() + 10_000;
+  const shared = await listRankedDiners("all", null, now, db);
+  assert.equal(shared[0]?.verified, 1, "only the shared visit counts");
+  sqlite.prepare(`DELETE FROM feed_events`).run();
+  assert.equal((await listRankedDiners("all", null, now, db)).length, 0);
 });

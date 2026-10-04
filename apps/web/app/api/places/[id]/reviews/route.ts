@@ -13,17 +13,17 @@ import {
   validatePlaceReviewInput,
   type PlaceReviewRepository,
 } from "../../../../../src/lib/place-reviews";
-import { signedOutLoginPath } from "../../../../../src/lib/signed-out";
+import { signedOutLoginPath, hasSessionCookie } from "../../../../../src/lib/signed-out";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
 }
 
-function unauthorized(placeId: string) {
+function unauthorized(placeId: string, hadSession: boolean) {
   return Response.json(
     {
       error: "Sign in to share a halal review.",
-      loginUrl: signedOutLoginPath(`/place/${placeId}`),
+      loginUrl: signedOutLoginPath(`/place/${placeId}`, hadSession),
     },
     { status: 401, headers: noStore() },
   );
@@ -127,7 +127,7 @@ async function authenticate(
     return { response: unavailable() };
   }
   if (auth.status === "unavailable") return { response: unavailable() };
-  if (auth.status === "unauthenticated") return { response: unauthorized(placeId) };
+  if (auth.status === "unauthenticated") return { response: unauthorized(placeId, hasSessionCookie(request)) };
   return { auth };
 }
 

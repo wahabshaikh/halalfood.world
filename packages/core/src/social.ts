@@ -216,6 +216,9 @@ export function applyOnboardingStandard(
   };
 }
 
+/** What a person who never chose a standard has stored (DEFAULT_PREFERENCES). */
+const DEFAULT_MINIMUM_STATUS: MinimumStatus = "self-declared";
+
 /** Best label for preferences set elsewhere, for showing the current standard. */
 export function describeStandard(preferences: UserPreferences): string {
   const preset = STANDARD_PRESETS.find(
@@ -223,12 +226,26 @@ export function describeStandard(preferences: UserPreferences): string {
       STANDARD_PRESET_COPY[key].minimumStatus === preferences.minimumStatus &&
       STANDARD_PRESET_COPY[key].requireCertification === preferences.requireCertification,
   );
-  const parts: string[] = [
-    preset ? STANDARD_PRESET_COPY[preset].label : "Custom standard",
-  ];
-  if (preferences.avoidAlcohol) parts.push("No alcohol");
-  if (preferences.preferHandSlaughter) parts.push("Zabiha");
-  return parts.join(" · ");
+  // The stored defaults are what someone gets when onboarding skipped the
+  // standard step: nothing was chosen, so it is not a "custom" standard.
+  const defaultStatus =
+    preferences.minimumStatus === DEFAULT_MINIMUM_STATUS && preferences.requireCertification === false;
+  const extras: string[] = [];
+  if (preferences.avoidAlcohol) extras.push("No alcohol");
+  if (preferences.preferHandSlaughter) extras.push("Zabiha");
+  const otherRules =
+    preferences.avoidPork ||
+    preferences.requireDedicatedKitchen ||
+    preferences.requirePrayerSpace ||
+    preferences.vegetarianOnly ||
+    preferences.maxEvidenceAgeDays !== null;
+  if (!preset && defaultStatus && !extras.length && !otherRules) return "Not set";
+  const label = preset
+    ? STANDARD_PRESET_COPY[preset].label
+    : defaultStatus
+      ? "Any halal status"
+      : "Custom standard";
+  return [label, ...extras].join(" · ");
 }
 
 /* ------------------------------------------------------------ onboarding -- */

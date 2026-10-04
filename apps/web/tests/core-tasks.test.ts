@@ -55,7 +55,7 @@ test("a place link is pending, deduped, and never a public listing", async () =>
   const blocked = await submitPlaceLink("diner", duplicate.data, db);
   assert.equal(blocked.ok, false);
   if (blocked.ok) return;
-  assert.equal(blocked.place.id, PLACE);
+  assert.equal(blocked.place?.id, PLACE);
 
   const fresh = validatePlaceSubmission({
     mode: "link",

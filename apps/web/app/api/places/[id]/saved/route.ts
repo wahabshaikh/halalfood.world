@@ -10,17 +10,17 @@ import {
   savePlaceForUser,
   unsavePlaceForUser,
 } from "../../../../../src/lib/saved-places";
-import { signedOutLoginPath } from "../../../../../src/lib/signed-out";
+import { signedOutLoginPath, hasSessionCookie } from "../../../../../src/lib/signed-out";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
 }
 
-function unauthorized(placeId: string) {
+function unauthorized(placeId: string, hadSession: boolean) {
   return Response.json(
     {
       error: "Sign in to save places.",
-      loginUrl: signedOutLoginPath(`/place/${placeId}`),
+      loginUrl: signedOutLoginPath(`/place/${placeId}`, hadSession),
     },
     { status: 401, headers: noStore() },
   );
@@ -76,7 +76,7 @@ async function authenticateAndLimit(
     return {
       response:
         auth.status === "unauthenticated"
-          ? unauthorized(placeId)
+          ? unauthorized(placeId, hasSessionCookie(request))
           : unavailable(),
     };
   }

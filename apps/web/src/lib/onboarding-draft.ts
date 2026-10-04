@@ -81,3 +81,16 @@ export function saveOnboardingDraft(draft: OnboardingDraft): void {
 export function clearOnboardingDraft(): void {
   clearFormDraft(ONBOARDING_DRAFT_KEY);
 }
+
+/**
+ * Where "Let me in" goes when onboarding started from somewhere specific: a
+ * Save on a place page sends `/login?reason=save&returnTo=/place/…`, and the
+ * login form forwards that returnTo here. Null means "open the map".
+ * Only same-origin paths; never home, login or onboarding itself.
+ */
+export function onboardingResumeHref(returnTo: string | null | undefined): string | null {
+  const path = typeof returnTo === "string" ? returnTo.trim() : "";
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) return null;
+  if (path === "/" || /^\/(?:login|onboarding)(?:[/?#]|$)/.test(path)) return null;
+  return path;
+}

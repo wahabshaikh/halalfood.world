@@ -286,14 +286,25 @@ export type PublicCheckIn = {
  * and the owner's visits are public. Needs `v` (place_visits) and `up`
  * (the owner's user_preferences, LEFT JOINed). Uses feed_events_place_idx.
  */
-export const SHARED_PUBLIC_VISIT = sql`(
-  v.visibility = 'public'
+export function sharedPublicVisit(alias: "v" | "iv" | "sv" = "v") {
+  const v = sql.raw(alias);
+  return sql`(
+  ${v}.visibility = 'public'
   AND COALESCE(up.visibility_visits, 'public') = 'public'
   AND EXISTS (
     SELECT 1 FROM feed_events AS se
-    WHERE se.place_id = v.place_id AND se.actor_id = v.user_id AND se.visit_id = v.id
+    WHERE se.place_id = ${v}.place_id AND se.actor_id = ${v}.user_id AND se.visit_id = ${v}.id
   )
 )`;
+}
+
+export const SHARED_PUBLIC_VISIT = sharedPublicVisit("v");
+
+/**
+ * Someone else's view of a diner's places also leaves out places that are no
+ * longer listed (unpublished, or hidden by the listing rules). Needs `p`.
+ */
+export const LISTED_PLACE = sql`(p.listing_status = 'listed' AND p.halal_confirmed = 1)`;
 
 /** Newest shared public check-ins for one place, from public accounts. */
 export async function listPublicCheckIns(
@@ -375,7 +386,9 @@ export async function listPassportVisits(
   options: { sharedOnly?: boolean } = {},
 ): Promise<PassportVisit[]> {
   const db = await client;
-  const audience = options.sharedOnly ? SHARED_PUBLIC_VISIT : sql`1 = 1`;
+  const audience = options.sharedOnly
+    ? sql`${SHARED_PUBLIC_VISIT} AND ${LISTED_PLACE}`
+    : sql`1 = 1`;
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT
       v.place_id, v.visited_at, v.verification_method, v.verification_confidence,
@@ -421,7 +434,12 @@ export async function listVisitedPlaces(
   options: { sharedOnly?: boolean } = {},
 ): Promise<VisitedPlaceSummary[]> {
   const db = await client;
-  const audience = options.sharedOnly ? SHARED_PUBLIC_VISIT : sql`v.visibility = 'public'`;
+  const audience = options.sharedOnly
+    ? sql`${SHARED_PUBLIC_VISIT} AND ${LISTED_PLACE}`
+    : sql`v.visibility = 'public'`;
+  // The "would return" shown next to a place comes from the same visits the
+  // viewer may see, never from a newer unshared one.
+  const latestAudience = options.sharedOnly ? sharedPublicVisit("iv") : sql`1 = 1`;
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT
       v.place_id, p.name, p.city_slug, p.lat, p.lng,
@@ -430,7 +448,7 @@ export async function listVisitedPlaces(
       (
         SELECT c.would_return FROM place_check_ins AS c
         INNER JOIN place_visits AS iv ON iv.id = c.visit_id
-        WHERE iv.user_id = v.user_id AND c.place_id = v.place_id
+        WHERE iv.user_id = v.user_id AND c.place_id = v.place_id AND ${latestAudience}
         ORDER BY c.created_at DESC LIMIT 1
       ) AS would_return
     FROM place_visits AS v

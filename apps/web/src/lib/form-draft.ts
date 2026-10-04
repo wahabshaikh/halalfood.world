@@ -47,17 +47,3 @@ export function draftRecord(value: unknown): Record<string, unknown> | null {
     ? (value as Record<string, unknown>)
     : null;
 }
-
-/**
- * "Share this visit to my followers' feeds" is opt-in. A restored check-in
- * draft turns it on only when the draft says the diner ticked it, and the
- * visit was public. Older drafts without that record stay off.
- */
-export function restoredShareToFeed(draft: Record<string, unknown> | null): boolean {
-  if (!draft) return false;
-  return (
-    draft.shareToFeed === true &&
-    draft.shareToFeedChosen === true &&
-    draft.visibility !== "private"
-  );
-}

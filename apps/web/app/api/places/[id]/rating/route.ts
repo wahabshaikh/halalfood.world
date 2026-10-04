@@ -12,17 +12,17 @@ import {
   type PlaceRatingRepository,
   type PlaceRatingSnapshot,
 } from "../../../../../src/lib/place-ratings";
-import { signedOutLoginPath } from "../../../../../src/lib/signed-out";
+import { signedOutLoginPath, hasSessionCookie } from "../../../../../src/lib/signed-out";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
 }
 
-function unauthorized(placeId: string) {
+function unauthorized(placeId: string, hadSession: boolean) {
   return Response.json(
     {
       error: "Sign in to rate halal places.",
-      loginUrl: signedOutLoginPath(`/place/${placeId}`),
+      loginUrl: signedOutLoginPath(`/place/${placeId}`, hadSession),
     },
     { status: 401, headers: noStore() },
   );
@@ -113,7 +113,7 @@ export async function handleRatingPut(
 
   const auth = await (dependencies.getAuth ?? getRequestAuth)(request);
   if (auth.status === "unavailable") return unavailable();
-  if (auth.status === "unauthenticated") return unauthorized(placeId);
+  if (auth.status === "unauthenticated") return unauthorized(placeId, hasSessionCookie(request));
 
   let body: unknown;
   try {
