@@ -148,4 +148,12 @@ test("preview workflow and binders do not inject TURNSTILE_SITE_KEY", () => {
   assert.match(reader, /--format", "json"/);
   assert.equal(reader.includes("secret put"), false);
   assert.equal(reader.includes("secret delete"), false);
+  // The GitHub bind step lists production secret names, so it needs the token.
+  const bindStep = workflow.slice(
+    workflow.indexOf("- name: Bind preview D1 and R2"),
+    workflow.indexOf("- name: Upload Cloudflare preview"),
+  );
+  assert.match(bindStep, /CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}/);
+  assert.match(bindStep, /CLOUDFLARE_ACCOUNT_ID: \$\{\{ secrets\.CLOUDFLARE_ACCOUNT_ID \}\}/);
+  assert.match(bindStep, /scripts\/bind-github-preview\.ts/);
 });
