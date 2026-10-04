@@ -125,7 +125,14 @@ export function copyGoogleSearchWorkerConfig(
     }));
   }
   const cap = source.vars?.GOOGLE_SEARCH_DAILY_CAP;
-  if (cap) target.vars = { ...target.vars, GOOGLE_SEARCH_DAILY_CAP: cap };
+  const detailsCap = source.vars?.GOOGLE_DETAILS_DAILY_CAP;
+  if (cap || detailsCap) {
+    target.vars = {
+      ...target.vars,
+      ...(cap ? { GOOGLE_SEARCH_DAILY_CAP: cap } : {}),
+      ...(detailsCap ? { GOOGLE_DETAILS_DAILY_CAP: detailsCap } : {}),
+    };
+  }
   return target;
 }
 
