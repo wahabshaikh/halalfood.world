@@ -17,6 +17,7 @@ import { CheckboxField } from "../../src/components/form-fields";
 import { EmptyPanel } from "../../src/components/site-chrome";
 import { FormMessage, Note } from "../../src/components/section";
 import { goToLogin } from "../../src/components/visit-card";
+import { presentHttpFailure, presentTransportFailure, type PresentedFailure } from "../../src/lib/failure-copy";
 import { cityName } from "../../src/lib/seo";
 import type { RecipientChoice, SendOutcome } from "../../src/lib/recs-repository";
 
@@ -111,13 +112,13 @@ export default function SendView({
   const [chosen, setChosen] = useState<Set<string>>(new Set(to ? [to] : []));
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<PresentedFailure | null>(null);
   const [outcomes, setOutcomes] = useState<SendOutcome[] | null>(null);
   const [copied, setCopied] = useState(false);
 
   function loadFriends(signal?: AbortSignal) {
     setFriendsState("loading");
-    setError("");
+    setError(null);
     fetch("/api/recs/recipients", { signal, cache: "no-store" })
       .then(async (response) => {
         if (response.status === 401) {
@@ -135,7 +136,7 @@ export default function SendView({
         if ((caught as Error).name === "AbortError") return;
         setPeople([]);
         setFriendsState("error");
-        setError("Could not load your friends.");
+        setError({ message: "Could not load your friends.", retry: false });
       });
   }
 
@@ -167,15 +168,18 @@ export default function SendView({
   async function send() {
     if (!target || !chosen.size) return;
     if (!noteCheck.ok) {
-      setError(noteCheck.error);
+      setError({ message: noteCheck.error, retry: false });
       return;
     }
     if (chosen.size > MAX_REC_RECIPIENTS) {
-      setError(`Send to at most ${MAX_REC_RECIPIENTS} friends at a time.`);
+      setError({
+        message: `Send to at most ${MAX_REC_RECIPIENTS} friends at a time.`,
+        retry: false,
+      });
       return;
     }
     setBusy(true);
-    setError("");
+    setError(null);
     try {
       const response = await fetch("/api/recs", {
         method: "POST",
@@ -188,10 +192,14 @@ export default function SendView({
       });
       if (response.status === 401) return goToLogin("send");
       const body = (await response.json().catch(() => ({}))) as { outcomes?: SendOutcome[]; error?: string };
-      if (!response.ok) throw new Error(body.error ?? "That didn’t go through.");
+      if (!response.ok) {
+        // The note and the people you picked stay on the form.
+        setError(presentHttpFailure("this rec", response.status, body.error));
+        return;
+      }
       setOutcomes(body.outcomes ?? []);
     } catch (caught) {
-      setError((caught as Error).message || "That didn’t go through.");
+      setError(presentTransportFailure("this rec", caught));
     } finally {
       setBusy(false);
     }
@@ -202,7 +210,7 @@ export default function SendView({
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
     } catch {
-      setError("Copy is blocked here. Select the link instead.");
+      setError({ message: "Copy is blocked here. Select the link instead.", retry: false });
     }
   }
 
@@ -342,7 +350,16 @@ export default function SendView({
             {!noteCheck.ok && <FormMessage tone="error">{noteCheck.error}</FormMessage>}
           </Field>
 
-          {error && <FormMessage tone="error">{error}</FormMessage>}
+          {error && (
+            <FormMessage tone="error">
+              {error.message}
+              {error.retry && (
+                <Button variant="link" disabled={busy} onClick={() => void send()}>
+                  Try again
+                </Button>
+              )}
+            </FormMessage>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button size="xl" disabled={busy || !chosen.size} onClick={() => void send()}>
               {busy ? "Sending…" : chosen.size ? `Send to ${chosen.size}` : "Pick a friend"}

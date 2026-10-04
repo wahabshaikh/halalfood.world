@@ -23,26 +23,26 @@ export function failureCopy(kind: FailureKind, domain = "This page"): FailureCop
       };
     case 404:
       return {
-        title: `${domain} is not here.`,
+        title: `We couldn’t find ${domain}.`,
         detail: "The link does not match a page. Nothing else was cleared.",
         retry: false,
       };
     case 429:
       return {
-        title: `${domain} is rate limited.`,
+        title: `Requests for ${domain} are rate limited.`,
         detail: "Wait a moment, then try again. Nothing you typed was cleared.",
         retry: true,
       };
     case 503:
       return {
-        title: `${domain} is temporarily unavailable.`,
+        title: `We couldn’t load ${domain}.`,
         detail: "Try again. An empty list is not what this means, and nothing was cleared.",
         retry: true,
       };
     case "offline":
       return {
         title: `You appear to be offline.`,
-        detail: `${domain} could not be reached. Try again when you are back online. Nothing was cleared.`,
+        detail: `We couldn’t reach ${domain}. Try again when you are back online. Nothing was cleared.`,
         retry: true,
       };
   }

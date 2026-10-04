@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@halalfood/ui/components/button";
 import { Input } from "@halalfood/ui/components/input";
 import { Textarea } from "@halalfood/ui/components/textarea";
@@ -8,6 +8,7 @@ import { Field, FieldDescription, FieldLabel } from "@halalfood/ui/components/fi
 import { Block } from "../../src/components/blocks";
 import { FormMessage, SectionIntro } from "../../src/components/section";
 import type { EventSummary } from "../../src/lib/events-repository";
+import { presentHttpFailure, presentTransportFailure } from "../../src/lib/failure-copy";
 
 /** One vendor per line: `Name | what they sell | place id (optional)`. */
 function parseVendorLines(text: string) {
@@ -28,8 +29,11 @@ function parseVendorLines(text: string) {
  */
 export default function EventsAdmin() {
   const [events, setEvents] = useState<EventSummary[]>([]);
-  const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const [message, setMessage] = useState<{ tone: "error" | "success"; text: string; retry?: boolean } | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -72,12 +76,18 @@ export default function EventsAdmin() {
         }),
       });
       const body = (await response.json().catch(() => ({}))) as { error?: string; path?: string };
-      if (!response.ok) throw new Error(body.error ?? "Could not publish the event.");
+      if (!response.ok) {
+        // The form stays filled. Publishing again uses what is already typed.
+        const presented = presentHttpFailure("this event", response.status, body.error);
+        setMessage({ tone: "error", text: presented.message, retry: presented.retry });
+        return;
+      }
       setMessage({ tone: "success", text: `Published. ${body.path ?? ""}` });
       (event.target as HTMLFormElement).reset();
       void load();
     } catch (caught) {
-      setMessage({ tone: "error", text: (caught as Error).message });
+      const presented = presentTransportFailure("this event", caught);
+      setMessage({ tone: "error", text: presented.message, retry: presented.retry });
     } finally {
       setBusy(false);
     }
@@ -103,8 +113,17 @@ export default function EventsAdmin() {
         place with its place id to show that place&rsquo;s status; leave it off and the vendor shows
         &ldquo;Unverified&rdquo;.
       </SectionIntro>
-      {message && <FormMessage tone={message.tone}>{message.text}</FormMessage>}
-      <form className="mb-6 grid gap-3" onSubmit={(event) => void publish(event)}>
+      {message && (
+        <FormMessage tone={message.tone}>
+          {message.text}
+          {message.retry && (
+            <Button variant="link" type="button" disabled={busy} onClick={() => formRef.current?.requestSubmit()}>
+              Try again
+            </Button>
+          )}
+        </FormMessage>
+      )}
+      <form ref={formRef} className="mb-6 grid gap-3" onSubmit={(event) => void publish(event)}>
         <Field>
           <FieldLabel htmlFor="event-title">Title</FieldLabel>
           <Input id="event-title" name="title" required maxLength={80} />

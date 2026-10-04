@@ -101,9 +101,11 @@ export default function FeedView() {
     return (
       <FormMessage tone="error">
         {copy.title} {copy.detail}{" "}
-        <button type="button" className="font-bold underline" onClick={() => window.location.reload()}>
-          Try again
-        </button>
+        {copy.retry && (
+          <button type="button" className="font-bold underline" onClick={() => window.location.reload()}>
+            Try again
+          </button>
+        )}
       </FormMessage>
     );
   }
