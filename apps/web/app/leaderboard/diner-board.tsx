@@ -43,7 +43,9 @@ export function DinerBoard({
       <SectionTitle id="diners-title" className="mb-1">
         Leaderboard
       </SectionTitle>
-      <Note className="mb-4">Ranked by verified visits</Note>
+      <Note className="mb-4">
+        Ranked by verified visits. A higher rank does not make a person a halal authority, and it does not change a place’s evidence status.
+      </Note>
 
       <ChipRow className="mb-3" role="navigation" aria-label="Leaderboard period">
         {LEADERBOARD_WINDOWS.map((key) => (

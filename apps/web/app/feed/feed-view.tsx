@@ -5,6 +5,7 @@ import { Button } from "@halalfood/ui/components/button";
 import type { FeedCard } from "../../src/lib/feed-repository";
 import { Loading } from "../../src/components/blocks";
 import { EmptyPanel } from "../../src/components/site-chrome";
+import { failureCopy } from "../../src/lib/failure-copy";
 import { FormMessage, Note } from "../../src/components/section";
 import { VisitCard } from "../../src/components/visit-card";
 
@@ -95,12 +96,17 @@ export default function FeedView() {
       </EmptyPanel>
     );
 
-  if (state === "error")
+  if (state === "error") {
+    const copy = failureCopy(503, "Your feed");
     return (
       <FormMessage tone="error">
-        Your feed could not load. Please refresh and try again.
+        {copy.title} {copy.detail}{" "}
+        <button type="button" className="font-bold underline" onClick={() => window.location.reload()}>
+          Try again
+        </button>
       </FormMessage>
     );
+  }
 
   return (
     <div className="grid gap-4">

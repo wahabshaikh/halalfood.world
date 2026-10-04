@@ -15,6 +15,7 @@ import { DinerBoard } from "./diner-board";
 import {
   breadcrumbJsonLd,
   canonical,
+  cityName,
   formatCount,
   jsonLdScript,
   OG_IMAGE,
@@ -42,10 +43,11 @@ import {
 } from "../../src/components/blocks";
 import { SectionTitle } from "../../src/components/place-tile";
 import { loadOrDegrade } from "../../src/lib/load";
+import { readEatingCityCookie } from "../../src/lib/eating-city";
 
 const TITLE = "The halalfood.world community";
 const DESCRIPTION =
-  "Meet the people who add places, check them in person, share photos and write reviews so the next person can eat with confidence.";
+  "People who add places and log verified visits. The ranking is activity, not a halal authority.";
 
 const loadLeaderboard = cache(() =>
   loadOrDegrade(() => listContributors(CONTRIBUTOR_LEADERBOARD_LIMIT)),
@@ -124,7 +126,8 @@ export default async function LeaderboardPage({
 }) {
   const params = await searchParams;
   const period = parseLeaderboardWindow(params.window);
-  const city = citySlugParam(typeof params.city === "string" ? params.city : null);
+  const requested = citySlugParam(typeof params.city === "string" ? params.city : null);
+  const city = requested ?? (await readEatingCityCookie());
   const [loaded, creators, diners, cityChoices] = await Promise.all([
     loadLeaderboard(),
     loadCreators(),
@@ -136,7 +139,7 @@ export default async function LeaderboardPage({
       <Page>
         <SiteHeader />
         <PageMain>
-          <Unavailable retryPath="/leaderboard" />
+          <Unavailable retryPath="/leaderboard" domain="The community list" />
         </PageMain>
         <SiteFooter active="community" />
       </Page>
@@ -164,9 +167,26 @@ export default async function LeaderboardPage({
         <ExploreTabs active="community" />
         <PageIntro
           title="Community"
-          lead="The people who add places, check them in person and share what they saw, so the next person can decide."
+          lead="People here add places and log visits. This page ranks that activity. It does not decide whether food is halal."
         />
 
+        {diners.status === "error" && (
+          <Unavailable retryPath="/leaderboard" domain="The visit ranking" />
+        )}
+        {diners.status === "ok" && diners.data[0] && (
+          <p className="mb-4 text-sm">
+            {city ? `A person with verified visits in ${cityName(city)}: ` : "A person with verified visits: "}
+            <a className="font-bold underline" href={`/u/${diners.data[0].handle}`}>
+              @{diners.data[0].handle}
+            </a>
+            . {diners.data[0].verified} verified {period === "week" ? "this week" : "in total"}. This is a visit count, not a halal ruling.
+          </p>
+        )}
+        {diners.status === "ok" && !diners.data.length && (
+          <p className="mb-4 text-sm text-muted-foreground">
+            No verified visits are ranked{city ? ` in ${cityName(city)}` : ""}. Nothing here is filled in to look active.
+          </p>
+        )}
         {diners.status === "ok" && (
           <DinerBoard
             ranked={diners.data}
@@ -187,8 +207,8 @@ export default async function LeaderboardPage({
             </h2>
             <p>
               {contributors.length
-                ? `${formatCount(contributors.length)} ${plural(contributors.length, "person", "people")} ranked by how much they’ve helped.`
-                : "Be the first on the board."}
+                ? `${formatCount(contributors.length)} ${plural(contributors.length, "person", "people")} ranked by places, checks, reviews and photos they added. This is not a halal authority.`
+                : "No one is ranked yet. This list is not filled with sample people."}
             </p>
           </div>
         </section>

@@ -5,6 +5,7 @@ import {
   contributionReceipt,
   editModerationDecision,
   validateDish,
+  chooseDuplicateTarget,
   validateDuplicateReport,
   validateEditSuggestion,
 } from "../src/contributions";
@@ -106,6 +107,28 @@ test("a dish carries a normalized name and validated price", () => {
   assert.equal(validateDish({ name: "Biryani", priceMinor: 32000 }).ok, false);
   assert.equal(validateDish({ name: "  " }).ok, false);
   assert.equal(validateDish({ name: "Biryani", halalScope: "probably" }).ok, false);
+});
+
+test("duplicate search rejects this place, a failed lookup, and an uncertain match", () => {
+  const other = { id: OTHER_ID, name: "Other Kitchen" };
+  assert.equal(
+    chooseDuplicateTarget(PLACE_ID, null, { status: "idle", resultCount: 0 }).ok,
+    false,
+  );
+  const failed = chooseDuplicateTarget(PLACE_ID, null, { status: "error", resultCount: 0 });
+  assert.equal(failed.ok, false);
+  if (!failed.ok) assert.match(failed.error, /Nothing was filed/);
+  const uncertain = chooseDuplicateTarget(PLACE_ID, null, { status: "ready", resultCount: 3 });
+  assert.equal(uncertain.ok, false);
+  if (!uncertain.ok) assert.match(uncertain.error, /not merged/);
+  const self = chooseDuplicateTarget(
+    PLACE_ID,
+    { id: PLACE_ID, name: "This place" },
+    { status: "ready", resultCount: 1 },
+  );
+  assert.equal(self.ok, false);
+  const picked = chooseDuplicateTarget(PLACE_ID, other, { status: "ready", resultCount: 2 });
+  assert.deepEqual(picked, { ok: true, duplicateOfPlaceId: OTHER_ID });
 });
 
 test("a duplicate report must point at a different, valid place", () => {

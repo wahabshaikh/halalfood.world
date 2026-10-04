@@ -43,6 +43,8 @@ import {
 import { Separator } from "@halalfood/ui/components/separator";
 import { cn } from "@halalfood/ui/lib/utils";
 import { APPROXIMATE_NOTE } from "../lib/seo";
+import { failureCopy } from "../lib/failure-copy";
+import { AccountMenu } from "./account-menu";
 import { Logo } from "./brand";
 import { Eyebrow, Lead } from "./section";
 import { Illustration, type IllustrationName } from "./art";
@@ -179,8 +181,8 @@ export function SiteHeader({
           <Logo />
         </a>
         {!hideSearch ? <HeaderSearch defaultValue={searchValue} /> : <span className="hidden md:block" />}
-        <div className="hidden items-center gap-1 justify-self-end md:flex">
-          <Button asChild variant="ghost" size="lg" className="rounded-full px-4 font-bold">
+        <div className="flex items-center gap-1 justify-self-end">
+          <Button asChild variant="ghost" size="lg" className="hidden rounded-full px-4 font-bold md:inline-flex">
             <a href="/add">Add a place</a>
           </Button>
           <DropdownMenu>
@@ -197,9 +199,7 @@ export function SiteHeader({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-60">
-              <DropdownMenuItem asChild className="font-extrabold">
-                <a href="/login?reason=join">Log in or sign up</a>
-              </DropdownMenuItem>
+              <AccountMenu />
               {MENU_GROUPS.map((group, index) => (
                 <Fragment key={index}>
                   <DropdownMenuSeparator />
@@ -232,7 +232,7 @@ export function TabBar({ active }: { active?: TabKey }) {
       {/* Keeps the last content clear of the fixed bar on small screens. */}
       <div className="h-[calc(68px+env(safe-area-inset-bottom))] md:hidden" aria-hidden="true" />
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 flex justify-around border-t bg-background px-1 pt-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 flex justify-around overflow-x-auto border-t bg-background px-1 pt-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:hidden"
         aria-label="Main"
       >
         {tabs.map((tab) => (
@@ -240,7 +240,7 @@ export function TabBar({ active }: { active?: TabKey }) {
             key={tab.key}
             href={tab.href}
             className={cn(
-              "flex min-w-15 flex-col items-center gap-0.5 text-[11px] font-semibold text-muted-foreground",
+              "flex min-w-0 flex-1 flex-col items-center gap-0.5 px-0.5 text-[10px] font-semibold text-muted-foreground sm:text-[11px]",
               tab.key === active && "font-extrabold text-primary",
             )}
             aria-current={tab.key === active ? "page" : undefined}
@@ -408,14 +408,18 @@ export function EmptyPanel({
   );
 }
 
-export function Unavailable({ retryPath }: { retryPath: string }) {
+export function Unavailable({
+  retryPath,
+  domain = "This page",
+}: {
+  retryPath: string;
+  domain?: string;
+}) {
+  const copy = failureCopy(503, domain);
   return (
-    <EmptyPanel title="Listings are taking a moment" description="Please try again in a moment.">
+    <EmptyPanel title={copy.title} description={copy.detail}>
       <Button asChild size="xl">
         <a href={retryPath}>Try again</a>
-      </Button>
-      <Button asChild size="xl" variant="outline">
-        <a href="/map">Open the map</a>
       </Button>
     </EmptyPanel>
   );

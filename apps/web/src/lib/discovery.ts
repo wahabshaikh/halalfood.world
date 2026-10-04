@@ -67,6 +67,7 @@ const EVIDENCE_AGGREGATE = sql`
   FROM place_halal_verifications AS v
   WHERE v.place_id IN (SELECT id FROM candidates)
     AND v.status = 'approved'
+    AND v.visibility = 'public'
     AND v.superseded_by_id IS NULL
     AND COALESCE(v.expires_at, v.created_at + 15552000000) > unixepoch('subsec') * 1000
   GROUP BY v.place_id
