@@ -7,11 +7,17 @@ import { PersonAvatar } from "./person";
 import { SectionTitle } from "./place-tile";
 
 /** The "Coming up" rail on the For you tab: soonest events first. */
-export function ComingUpRow({ events }: { events: EventSummary[] }) {
+export function ComingUpRow({
+  events,
+  href = "/events",
+}: {
+  events: EventSummary[];
+  href?: string;
+}) {
   if (!events.length) return null;
   return (
     <section className="mb-9 grid gap-3.5" aria-label="Coming up">
-      <SectionTitle href="/events">Coming up</SectionTitle>
+      <SectionTitle href={href}>Coming up</SectionTitle>
       <ul className="grid snap-x snap-mandatory auto-cols-[78%] grid-flow-col gap-3 overflow-x-auto pb-1.5 [scrollbar-width:none] md:auto-cols-[calc((100%-2*1rem)/3)] md:gap-4 [&::-webkit-scrollbar]:hidden">
         {events.map((event) => (
           <li key={event.id} className="snap-start">

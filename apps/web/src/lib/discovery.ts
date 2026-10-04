@@ -402,3 +402,74 @@ export async function discoverPlaces(
     offset,
   };
 }
+
+export type CardEvidenceAnnotation = {
+  halal_status: HalalTaxonomyStatus;
+  latest_evidence_at: number | null;
+  /** False when the evidence tables could not be read. Do not render Unverified. */
+  evidence_loaded: boolean;
+};
+
+/**
+ * Attach the same derived status the map uses, for cards that otherwise only
+ * know a place was indexed. A failed read stays unloaded so the card can say
+ * the status is unavailable instead of inventing Unverified.
+ */
+export async function annotateCardEvidence<T extends { id: string }>(
+  places: T[],
+): Promise<(T & CardEvidenceAnnotation)[]> {
+  if (!places.length) return [];
+  const blank = (place: T, loaded: boolean): T & CardEvidenceAnnotation => ({
+    ...place,
+    halal_status: "unverified",
+    latest_evidence_at: null,
+    evidence_loaded: loaded,
+  });
+  try {
+    const db = await database();
+    const ids = [...new Set(places.map((place) => place.id))];
+    const rows = await db.all<Record<string, unknown>>(sql`
+      WITH candidates AS (
+        SELECT id FROM places WHERE id IN (${sql.join(
+          ids.map((id) => sql`${id}`),
+          sql`, `,
+        )})
+      )
+      SELECT
+        p.id AS id,
+        ${STATUS_EXPRESSION} AS halal_status,
+        e.latest_evidence_at AS latest_evidence_at
+      FROM candidates AS p
+      LEFT JOIN (${EVIDENCE_AGGREGATE}) AS e ON e.place_id = p.id
+    `);
+    const byId = new Map(rows.map((row) => [String(row.id), row]));
+    const asNumber = (value: unknown): number | null =>
+      typeof value === "number" && Number.isFinite(value)
+        ? value
+        : typeof value === "string" && value !== "" && Number.isFinite(Number(value))
+          ? Number(value)
+          : null;
+    return places.map((place) => {
+      const row = byId.get(place.id);
+      if (!row) return blank(place, true);
+      const status = row.halal_status;
+      return {
+        ...place,
+        halal_status:
+          status === "verified" ||
+          status === "community-verified" ||
+          status === "halal-options" ||
+          status === "self-declared" ||
+          status === "unverified" ||
+          status === "not-halal"
+            ? status
+            : "unverified",
+        latest_evidence_at: asNumber(row.latest_evidence_at),
+        evidence_loaded: true,
+      };
+    });
+  } catch (error) {
+    console.error("card.evidence failed", error);
+    return places.map((place) => blank(place, false));
+  }
+}

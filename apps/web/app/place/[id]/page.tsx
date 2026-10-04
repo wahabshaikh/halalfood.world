@@ -2,7 +2,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Call02Icon, CheckmarkBadge01Icon, DrinkIcon, File01Icon, LinkSquare02Icon, MapsIcon, Navigation03Icon, SteakIcon } from "@hugeicons/core-free-icons";
+import { Call02Icon, DrinkIcon, File01Icon, LinkSquare02Icon, MapsIcon, Navigation03Icon, SteakIcon } from "@hugeicons/core-free-icons";
 import { getPlaceById } from "../../../src/lib/places";
 import {
   assembleRestaurantPage,
@@ -18,6 +18,7 @@ import {
   OG_IMAGE,
   placeDescription,
   placeJsonLd,
+  placeShareText,
   placeTitle,
   plural,
 } from "../../../src/lib/seo";
@@ -89,13 +90,6 @@ import PlaceVideos from "./place-videos";
 import { PlaceRow } from "../../../src/components/place-tile";
 import { Button } from "@halalfood/ui/components/button";
 import { Card } from "@halalfood/ui/components/card";
-import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemMedia,
-  ItemTitle,
-} from "@halalfood/ui/components/item";
 import { Separator } from "@halalfood/ui/components/separator";
 import { cn } from "@halalfood/ui/lib/utils";
 import { TextLink } from "../../../src/components/blocks";
@@ -300,7 +294,6 @@ export default async function PlacePage({
   const website = safeWebsite(google.website);
   const maps = safeWebsite(google.mapsUrl);
   const hasCoords = place.lat !== null && place.lng !== null;
-  const cuisine = place.serves_cuisine?.filter(Boolean).slice(0, 2).join(" · ");
   const approvedChecks = status.status === "evidence-backed" ? status.approvedCount : 0;
   const latestCheck =
     status.status === "evidence-backed" ? formatCheckDate(status.latestReviewedAt) : null;
@@ -312,7 +305,10 @@ export default async function PlacePage({
     { name: city, path: "/city/" + place.city_slug },
     { name: place.name, path: "/place/" + place.id },
   ];
-  const galleryPhotos = photos.slice(0, 5);
+  const galleryPhotos = photos.slice(0, 1);
+  const orderable = (decisionBundle?.dishes ?? []).filter((dish) => dish.status === "accepted");
+  const knownGlance = lines.filter((line) => line.known);
+  const unknownGlance = lines.filter((line) => !line.known);
 
   return (
     <Page>
@@ -334,132 +330,185 @@ export default async function PlacePage({
             <ShareButton
               url={"/place/" + place.id}
               title={place.name}
-              text={place.name + " — halal food in " + city}
+              text={placeShareText(place.name, city)}
             />
             <SendRecLink place={place.id} />
             <SavePlaceButton placeId={place.id} />
           </div>
         </div>
 
-        <div className="relative -mx-4.5 grid h-65 grid-cols-1 gap-2 overflow-hidden md:mx-0 md:h-100 md:grid-cols-[2fr_1fr_1fr] md:grid-rows-2 md:rounded-2xl [&>*:first-child]:md:row-span-2 [&>*:not(:first-child)]:hidden [&>*:not(:first-child)]:md:block">
-          {galleryPhotos.length ? (
-            galleryPhotos.map((photo, index) => (
-              // Community photos are served through the R2 proxy route.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={photo.id}
-                src={"/api/uploads/r2?key=" + encodeURIComponent(photo.r2Key)}
-                alt={index === 0 ? "Community photo of " + place.name : ""}
-                loading={index === 0 ? "eager" : "lazy"}
-                className="size-full object-cover"
-              />
-            ))
+        <div className="relative -mx-4.5 h-40 overflow-hidden md:mx-0 md:h-52 md:rounded-2xl">
+          {galleryPhotos[0] ? (
+            // Community photos are served through the R2 proxy route.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={"/api/uploads/r2?key=" + encodeURIComponent(galleryPhotos[0].r2Key)}
+              alt={"Community photo of " + place.name}
+              className="size-full object-cover"
+            />
           ) : (
             <PlacePhotoArt seed={place.id} name={place.name} className="aspect-auto! h-full rounded-none" />
           )}
-          {galleryPhotos.length < 5 &&
-            Array.from({ length: galleryPhotos.length ? 5 - galleryPhotos.length : 4 }, (_, index) => (
-              <PlacePhotoArt key={"art-" + index} seed={place.id + index} name={place.name} className="aspect-auto! h-full rounded-none" />
-            ))}
           <Button
             asChild
             variant="outline"
-            className="absolute! right-4 bottom-4 block! border-foreground font-extrabold"
+            className="absolute! right-4 bottom-4 border-foreground font-extrabold"
           >
             <a href="#photos">
-              {photos.length ? `Show all ${photos.length} ${plural(photos.length, "photo")}` : "Add a photo"}
+              {photos.length ? `Photos (${photos.length})` : "Add a photo"}
             </a>
           </Button>
         </div>
 
+        <section className="mt-6 grid gap-5" aria-label="What to know first">
+          <div>
+            <h2 className="text-[22px]">Where</h2>
+            <p className="mt-1">{google.address}</p>
+            <div className="mt-2.5 flex flex-wrap gap-2.5">
+              {hasCoords && (
+                <Button asChild size="lg" variant="outline">
+                  <a href={"/map?place=" + encodeURIComponent(place.id)}>
+                    <HugeiconsIcon icon={MapsIcon} size={18} aria-hidden="true" />
+                    Show on map
+                  </a>
+                </Button>
+              )}
+              {maps && (
+                <Button asChild size="lg" variant="outline">
+                  <a href={maps} target="_blank" rel="noopener noreferrer nofollow">
+                    <HugeiconsIcon icon={Navigation03Icon} size={18} aria-hidden="true" />
+                    Directions
+                  </a>
+                </Button>
+              )}
+            </div>
+            <ApproximateNote compact />
+          </div>
+          <div>
+            <h2 className="text-[22px]">What to order</h2>
+            {decisionBundle ? (
+              orderable.length ? (
+                <ul className="mt-2 grid gap-1.5">
+                  {orderable.slice(0, 3).map((dish) => (
+                    <li key={dish.id} className="flex justify-between gap-3 text-sm">
+                      <span className="font-semibold">{dish.name}</span>
+                      <span className="text-muted-foreground">
+                        {dish.halalScope === "halal"
+                          ? "Listed as halal"
+                          : dish.halalScope === "not-halal"
+                            ? "Listed as not halal"
+                            : "Halal scope unknown"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-sm text-muted-foreground">No accepted dish is listed yet.</p>
+              )
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">The dish list could not be loaded.</p>
+            )}
+          </div>
+          <div>
+            <h2 className="text-[22px]">Evidence</h2>
+            {decisionBundle ? (
+              <DecisionHeadline
+                assessment={decisionBundle.decision.assessment}
+                headline={decisionBundle.decision.headline}
+                evidenceLine={decisionBundle.decision.evidenceLine}
+                suitability={null}
+              />
+            ) : (
+              <p className="mt-1">
+                {approvedChecks
+                  ? `Checked by the community. Latest check ${latestCheck ?? "recently"}.`
+                  : "Not checked yet. Unverified does not mean not halal."}
+              </p>
+            )}
+            <p className="mt-1 text-sm text-muted-foreground">
+              Community evidence. A listing is not a halal certification.
+              {google.ratingValue
+                ? ` Google rating ${google.ratingValue}${
+                    google.reviewCount
+                      ? ` from ${formatCount(google.reviewCount)} Google ${plural(google.reviewCount, "review")}`
+                      : ""
+                  }.`
+                : ""}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2.5">
+            <SavePlaceButton placeId={place.id} />
+            <SendRecLink place={place.id} />
+            <Button asChild size="lg">
+              <a href={checkHref}>I’ve been here, let me check</a>
+            </Button>
+          </div>
+        </section>
+
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-20">
           <div>
-            <div>
-              <h2 className="text-[22px]">
-                {cuisine ? cuisine + " in " + city : "Halal food in " + city}
-              </h2>
-              <p className="mt-1">
-                {google.ratingValue
-                  ? `★ ${google.ratingValue}${
-                      google.reviewCount
-                        ? ` · ${formatCount(google.reviewCount)} Google ${plural(google.reviewCount, "review")}`
-                        : " on Google"
-                    } · `
-                  : ""}
-                {google.address}
-              </p>
-            </div>
-
             {decisionBundle ? (
-              <div>
-                <DecisionHeadline
-                  assessment={decisionBundle.decision.assessment}
-                  headline={decisionBundle.decision.headline}
-                  evidenceLine={decisionBundle.decision.evidenceLine}
-                  suitability={null}
-                />
+              <div className="grid gap-3">
                 <PersonalSuitability placeId={place.id} />
                 <ScopeNote assessment={decisionBundle.decision.assessment} />
                 <CoverageBadge level={decisionBundle.coverage} />
               </div>
-            ) : (
-              <Item variant="outline" className="mt-6 rounded-2xl px-6 py-4.5">
-                <ItemMedia>
-                  <HugeiconsIcon icon={CheckmarkBadge01Icon} size={26} aria-hidden="true" />
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle className="text-base font-extrabold">
-                    {approvedChecks ? "Checked by the community" : "Not checked yet"}
-                  </ItemTitle>
-                </ItemContent>
-                <ItemDescription className="hidden sm:block">
-                  {approvedChecks
-                    ? `Latest check ${latestCheck ?? "recently"}.`
-                    : "Be the first to share what you saw here."}
-                </ItemDescription>
-              </Item>
-            )}
+            ) : null}
 
-            <Separator className="my-8" />
-            <section className="scroll-mt-24" aria-labelledby="glance-title">
+            <section className="mt-8 scroll-mt-24" aria-labelledby="glance-title">
               <h2 id="glance-title" className="mb-1.5 text-[22px]">
                 Halal at a glance
               </h2>
               <SectionIntro>
                 From approved checks by people who visited. We don’t certify places.
               </SectionIntro>
-              <ul className="mt-4.5 grid grid-cols-1 gap-x-6 gap-y-4.5 sm:grid-cols-2">
-                {lines.map((line) => (
-                  <li
-                    key={line.question}
-                    className={cn(
-                      "flex items-center gap-3.5 text-base",
-                      !line.known && "text-muted-foreground [&_svg]:opacity-50",
-                    )}
-                  >
-                    {GLANCE_ICONS[line.question]}
-                    <span>
-                      {line.label}
-                      <br />
-                      <small className="text-muted-foreground">{line.detail}</small>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-5.5 flex flex-wrap gap-2.5">
-                <Button asChild size="xl">
-                  <a href={checkHref}>I’ve been here, let me check</a>
-                </Button>
-                <Button asChild size="xl" variant="secondary">
-                  <a href="#checks">How we know</a>
-                </Button>
-              </div>
+              {knownGlance.length ? (
+                <ul className="mt-4.5 grid grid-cols-1 gap-x-6 gap-y-4.5 sm:grid-cols-2">
+                  {knownGlance.map((line) => (
+                    <li key={line.question} className="flex items-center gap-3.5 text-base">
+                      {GLANCE_ICONS[line.question]}
+                      <span>
+                        {line.label}
+                        <br />
+                        <small className="text-muted-foreground">{line.detail}</small>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Certificate, alcohol, and meat are not checked yet.
+                </p>
+              )}
+              {unknownGlance.length > 0 && (
+                <details className="mt-4">
+                  <summary className="cursor-pointer text-sm font-bold">
+                    Facts not checked yet
+                  </summary>
+                  <ul className="mt-3 grid gap-3">
+                    {unknownGlance.map((line) => (
+                      <li key={line.question} className="flex items-center gap-3.5 text-sm text-muted-foreground">
+                        {GLANCE_ICONS[line.question]}
+                        <span>
+                          {line.label}
+                          <br />
+                          {line.detail}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </section>
 
             {decisionBundle && (
               <>
                 <Separator className="my-8" />
-                <div className="grid gap-4">
+                <details className="grid gap-4">
+                  <summary className="cursor-pointer text-[22px] font-extrabold">
+                    How this was recorded
+                  </summary>
+                  <div className="mt-4 grid gap-4">
                   <EvidencePanel
                     assessment={decisionBundle.decision.assessment}
                     verifications={decisionBundle.verifications}
@@ -501,7 +550,8 @@ export default async function PlacePage({
                       </ul>
                     </section>
                   )}
-                </div>
+                  </div>
+                </details>
                 <Separator className="my-8" />
                 <div id="visit" className="grid scroll-mt-24 gap-4">
                   <PlaceCheckIn placeId={place.id} placeName={place.name} />
@@ -512,33 +562,6 @@ export default async function PlacePage({
 
             <Separator className="my-8" />
             <PlaceVideos placeId={place.id} />
-
-            <Separator className="my-8" />
-            <section className="scroll-mt-24" aria-labelledby="where-title">
-              <h2 id="where-title" className="mb-1.5 text-[22px]">
-                Where you’ll be
-              </h2>
-              <SectionIntro>{google.address}</SectionIntro>
-              <div className="flex flex-wrap gap-2.5">
-                {hasCoords && (
-                  <Button asChild size="xl" variant="outline">
-                    <a href={"/map?place=" + encodeURIComponent(place.id)}>
-                      <HugeiconsIcon icon={MapsIcon} size={18} aria-hidden="true" />
-                      Show on map
-                    </a>
-                  </Button>
-                )}
-                {maps && (
-                  <Button asChild size="xl" variant="outline">
-                    <a href={maps} target="_blank" rel="noopener noreferrer nofollow">
-                      <HugeiconsIcon icon={Navigation03Icon} size={18} aria-hidden="true" />
-                      Directions
-                    </a>
-                  </Button>
-                )}
-              </div>
-              <ApproximateNote compact />
-            </section>
 
             <Separator className="my-8" />
             <div id="checks" className="scroll-mt-24">
@@ -559,13 +582,13 @@ export default async function PlacePage({
             <Separator className="my-8" />
             {nearby.length ? (
               <PlaceRow
-                title={"More halal food nearby"}
+                title={"More places listed nearby"}
                 href={"/city/" + place.city_slug}
                 places={nearby}
               />
             ) : (
               <p className="text-muted-foreground">
-                <TextLink href={"/city/" + place.city_slug}>See every halal place in {city}</TextLink>
+                <TextLink href={"/city/" + place.city_slug}>See places listed in {city}</TextLink>
               </p>
             )}
           </div>
@@ -628,7 +651,7 @@ export default async function PlacePage({
         <div className="min-w-0">
           <strong className="block truncate underline">{place.name}</strong>
           <span className="text-[13px] text-muted-foreground">
-            {approvedChecks ? `${formatCount(approvedChecks)} halal ${plural(approvedChecks, "check")}` : "Not checked yet"}
+            {approvedChecks ? `${formatCount(approvedChecks)} approved ${plural(approvedChecks, "check")}` : "Not checked yet"}
           </span>
         </div>
         <Button asChild size="xl">
