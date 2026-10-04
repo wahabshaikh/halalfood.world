@@ -127,8 +127,9 @@ export const authOtpRateLimit = sqliteTable("auth_otp_rate_limit", {
 });
 
 /**
- * Global daily count of paid Places Text Search calls. Written only from
- * google-search-budget.ts. One row per UTC day.
+ * Global daily count of paid Google Places calls. Written only from
+ * google-search-budget.ts. Text Search rows use `YYYY-MM-DD`. Place Details
+ * rows use `details:YYYY-MM-DD` so the two caps stay separate.
  */
 export const googleSearchDaily = sqliteTable("google_search_daily", {
   day: text("day").primaryKey(),

@@ -7,8 +7,11 @@ import {
 import type { PlaceDetail } from "../src/lib/places";
 import {
   COMMUNITY_LAYERS,
+  GOOGLE_DETAILS_CACHE_TTL_SECONDS,
   assembleRestaurantPage,
   buildRestaurantPageModel,
+  layeredGoogleDetailsCache,
+  memoryGoogleDetailsCache,
   type GoogleDetailsCacheWrite,
   type GoogleDetailsSnapshot,
 } from "../src/lib/restaurant-page";
@@ -79,6 +82,7 @@ test("fresh Google cache wins without a live fetch", async () => {
     }),
     {
       now: () => NOW,
+      detailsCache: memoryGoogleDetailsCache(),
       fetchGoogleDetails: async () => {
         fetchCalled = true;
         return successfulGoogleResult();
@@ -110,6 +114,8 @@ test("stale Google cache triggers one Essentials fetch and writes the new snapsh
     }),
     {
       now: () => NOW,
+      detailsCache: memoryGoogleDetailsCache(),
+      reserveGoogleDetailsCall: async () => true,
       fetchGoogleDetails: async (placeId, options) => {
         requestedPlaceId = placeId;
         requestedMask = options?.fieldMask ?? "";
@@ -134,23 +140,112 @@ test("stale Google cache triggers one Essentials fetch and writes the new snapsh
   });
 });
 
-test("a missing cache triggers the same injected fetch path", async () => {
+test("a complete listing renders without calling Google", async () => {
   let calls = 0;
   const model = await assembleRestaurantPage(place(), {
     now: () => NOW,
+    detailsCache: memoryGoogleDetailsCache(),
+    reserveGoogleDetailsCall: async () => {
+      throw new Error("a complete listing must not reserve a Place Details call");
+    },
     fetchGoogleDetails: async () => {
       calls += 1;
       return successfulGoogleResult();
     },
   });
 
-  assert.equal(calls, 1);
-  assert.equal(model.google.cacheStatus, "refreshed");
-  assert.equal(model.place.name, "Live Halal Kitchen");
+  assert.equal(calls, 0);
+  assert.equal(model.google.cacheStatus, "unavailable");
+  assert.equal(model.place.name, "Saved Halal Kitchen");
+  assert.equal(model.google.displayNameSource, "listing");
+  assert.equal(model.google.address, "1 Example Street, London, England, United Kingdom");
+});
+
+test("a warm Place Details cache makes no fetch", async () => {
+  const stored = new Map<string, string>();
+  const edge = {
+    async match(request: Request) {
+      const body = stored.get(request.url);
+      return body ? new Response(body) : undefined;
+    },
+    async put(request: Request, response: Response) {
+      stored.set(request.url, await response.text());
+    },
+  };
+  const record = {
+    cachedAt: new Date(NOW.valueOf() - 60 * 60 * 1000).toISOString(),
+    snapshot: snapshot(),
+  };
+  await layeredGoogleDetailsCache(memoryGoogleDetailsCache(), async () => edge).set(
+    GOOGLE_ID,
+    record,
+    GOOGLE_DETAILS_CACHE_TTL_SECONDS,
+  );
+  const cold = layeredGoogleDetailsCache(memoryGoogleDetailsCache(), async () => edge);
+  let calls = 0;
+  const model = await assembleRestaurantPage(
+    place({ lat: null, lng: null, google_details_snapshot: null }),
+    {
+      now: () => NOW,
+      detailsCache: cold,
+      reserveGoogleDetailsCall: async () => {
+        throw new Error("a cache hit must not reserve a Place Details call");
+      },
+      fetchGoogleDetails: async () => {
+        calls += 1;
+        return successfulGoogleResult();
+      },
+    },
+  );
+
+  assert.equal(calls, 0);
+  assert.equal(model.google.cacheStatus, "cached");
+  assert.equal(model.place.name, "Cached Halal Kitchen");
+  assert.equal(model.google.formattedAddress, "Cached Google address");
+  assert.equal(model.place.lat, 51.501);
+});
+
+test("a capped Place Details request makes no fetch and the page still renders", async () => {
+  let calls = 0;
+  const model = await assembleRestaurantPage(
+    place({ lat: null, lng: null }),
+    {
+      now: () => NOW,
+      detailsCache: memoryGoogleDetailsCache(),
+      reserveGoogleDetailsCall: async () => false,
+      fetchGoogleDetails: async () => {
+        calls += 1;
+        return successfulGoogleResult();
+      },
+    },
+  );
+
+  assert.equal(calls, 0);
+  assert.equal(model.google.cacheStatus, "unavailable");
+  assert.equal(model.place.name, "Saved Halal Kitchen");
+  assert.equal(model.google.displayNameSource, "listing");
+  assert.equal(model.google.formattedAddress, null);
+  assert.match(model.google.address, /London/);
+
+  const thrown = await assembleRestaurantPage(place({ lat: null, lng: null }), {
+    now: () => NOW,
+    detailsCache: memoryGoogleDetailsCache(),
+    reserveGoogleDetailsCall: async () => {
+      throw new Error("google_search_daily is missing");
+    },
+    fetchGoogleDetails: async () => {
+      calls += 1;
+      return successfulGoogleResult();
+    },
+  });
+  assert.equal(calls, 0);
+  assert.equal(thrown.place.name, "Saved Halal Kitchen");
+  assert.equal(thrown.google.cacheStatus, "unavailable");
 });
 
 test("Google failure keeps the database row and stale snapshot usable", async () => {
   let saveCalled = false;
+  let calls = 0;
   const model = await assembleRestaurantPage(
     place({
       google_details_cached_at: new Date(NOW.valueOf() - 8 * 24 * 60 * 60 * 1000),
@@ -158,17 +253,22 @@ test("Google failure keeps the database row and stale snapshot usable", async ()
     }),
     {
       now: () => NOW,
-      fetchGoogleDetails: async () => ({
-        ok: false,
-        code: "NOT_CONFIGURED",
-        message: "Google Places is not configured",
-      }),
+      detailsCache: memoryGoogleDetailsCache(),
+      fetchGoogleDetails: async () => {
+        calls += 1;
+        return {
+          ok: false,
+          code: "NOT_CONFIGURED",
+          message: "Google Places is not configured",
+        };
+      },
       saveGoogleDetails: async () => {
         saveCalled = true;
       },
     },
   );
 
+  assert.equal(calls, 0);
   assert.equal(saveCalled, false);
   assert.equal(model.google.cacheStatus, "stale-fallback");
   assert.equal(model.place.name, "Cached Halal Kitchen");
@@ -176,14 +276,42 @@ test("Google failure keeps the database row and stale snapshot usable", async ()
 
   const unavailable = await assembleRestaurantPage(place(), {
     now: () => NOW,
-    fetchGoogleDetails: async () => ({
-      ok: false,
-      code: "NOT_CONFIGURED",
-      message: "Google Places is not configured",
-    }),
+    detailsCache: memoryGoogleDetailsCache(),
+    fetchGoogleDetails: async () => {
+      calls += 1;
+      return {
+        ok: false,
+        code: "NOT_CONFIGURED",
+        message: "Google Places is not configured",
+      };
+    },
   });
+  assert.equal(calls, 0);
   assert.equal(unavailable.google.cacheStatus, "unavailable");
   assert.equal(unavailable.place.name, "Saved Halal Kitchen");
+});
+
+test("Google content older than 30 days is not served", async () => {
+  let calls = 0;
+  const model = await assembleRestaurantPage(
+    place({
+      google_details_cached_at: new Date(NOW.valueOf() - 31 * 24 * 60 * 60 * 1000),
+      google_details_snapshot: JSON.stringify(snapshot()),
+    }),
+    {
+      now: () => NOW,
+      detailsCache: memoryGoogleDetailsCache(),
+      fetchGoogleDetails: async () => {
+        calls += 1;
+        return successfulGoogleResult();
+      },
+    },
+  );
+
+  assert.equal(calls, 0);
+  assert.equal(model.google.cacheStatus, "unavailable");
+  assert.equal(model.place.name, "Saved Halal Kitchen");
+  assert.equal(model.google.formattedAddress, null);
 });
 
 test("the model keeps Google listing facts and community layers distinct", () => {

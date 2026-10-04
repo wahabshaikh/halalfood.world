@@ -399,6 +399,9 @@ test("the D1 daily counter stops at the cap and resets the next UTC day", async 
   assert.equal(await budget.tryConsume(2, day), false);
   assert.equal(await budget.tryConsume(2, new Date("2026-10-05T00:00:00Z")), true);
   assert.equal(await budget.tryConsume(0, day), false);
+  assert.equal(await budget.tryConsume(1, day, "details"), true);
+  assert.equal(await budget.tryConsume(1, day, "details"), false);
+  assert.equal(await budget.tryConsume(1, new Date("2026-10-05T00:00:00Z"), "details"), true);
   assert.equal(parseGoogleSearchDailyCap(""), 1000);
   assert.equal(parseGoogleSearchDailyCap("250"), 250);
   assert.equal(parseGoogleSearchDailyCap("nope"), 1000);
@@ -416,6 +419,7 @@ test("wrangler declares a lower anonymous rate limit and the daily cap var", () 
   assert.equal(user?.simple?.period, 60);
   assert.ok((user?.simple?.limit ?? 0) > (anon?.simple?.limit ?? 0));
   assert.equal(config.vars?.GOOGLE_SEARCH_DAILY_CAP, "1000");
+  assert.equal(config.vars?.GOOGLE_DETAILS_DAILY_CAP, "1000");
 });
 
 test("429 Google search copy comes from presentHttpFailure", () => {
