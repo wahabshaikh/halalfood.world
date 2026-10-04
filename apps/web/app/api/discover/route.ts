@@ -2,7 +2,11 @@ import {
   parseDiscoveryFilters,
   filtersFromStandards,
 } from "@halalfood/core/discovery-filters";
-import { discoverPlaces } from "../../../src/lib/discovery";
+import {
+  DiscoveryBboxTooLargeError,
+  discoverPlaces,
+  discoveryBboxExceedsCap,
+} from "../../../src/lib/discovery";
 import { mapSocialFor } from "../../../src/lib/map-social-repository";
 import { getPreferences } from "../../../src/lib/preferences-repository";
 import { bboxParam, citySlugParam, limitParam } from "@halalfood/core/params";
@@ -14,6 +18,7 @@ import {
   unavailable,
 } from "../../../src/lib/api";
 import { domainFailure } from "../../../src/lib/domain-error";
+import { discoverResponseCacheHeaders } from "../../../src/lib/discover-response";
 
 /**
  * Filtered discovery for the map, the list and every server-rendered listing.
@@ -32,6 +37,9 @@ export async function GET(request: Request): Promise<Response> {
     limit = limitParam(params.get("limit"));
   } catch (error) {
     return badRequest((error as Error).message);
+  }
+  if (bbox && discoveryBboxExceedsCap(bbox)) {
+    return badRequest("Zoom in to search a smaller area.");
   }
 
   const citySlug = citySlugParam(params.get("city")) ?? undefined;
@@ -98,15 +106,11 @@ export async function GET(request: Request): Promise<Response> {
     return json(
       { ...result, filters, ...(social ? { social } : {}) },
       {
-        headers: {
-          "Cache-Control":
-            filters.applyMyStandards || wantsSocial
-              ? "no-store"
-              : "public, max-age=30, s-maxage=60",
-        },
+        headers: discoverResponseCacheHeaders(!filters.applyMyStandards && !wantsSocial),
       },
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof DiscoveryBboxTooLargeError) return badRequest(error.message);
     return unavailable("Places are temporarily unavailable. Please try again.");
   }
 }

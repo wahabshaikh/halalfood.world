@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { bakedSentryEnvironment } from "../src/lib/sentry-options";
 import { DataFastAnalytics } from "../src/components/datafast-analytics";
 import { SITE_NAME, SITE_URL, OG_IMAGE, TWITTER_SITE } from "../src/lib/seo";
 import { CrispChat } from "../src/components/crisp-chat";
@@ -82,7 +83,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      data-sentry-environment={process.env.ENVIRONMENT?.trim() || undefined}
+      data-sentry-environment={
+        bakedSentryEnvironment({
+          ENVIRONMENT: process.env.ENVIRONMENT,
+          WORKERS_CI: process.env.WORKERS_CI,
+          WORKERS_CI_BRANCH: process.env.WORKERS_CI_BRANCH,
+        }) || undefined
+      }
     >
       <body>
         {children}

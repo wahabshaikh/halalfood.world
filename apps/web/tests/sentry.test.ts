@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  bakedSentryEnvironment,
   browserSentryOptions,
   readWranglerStringVar,
   resolveBrowserSentryDsn,
@@ -35,6 +36,27 @@ test("worker options prefer ENVIRONMENT over the Node fallback", () => {
   });
   assert.equal(options.dsn, DSN);
   assert.equal(options.environment, "preview");
+});
+
+test("preview builds bake the Sentry environment as preview", () => {
+  assert.equal(bakedSentryEnvironment({ ENVIRONMENT: "preview" }), "preview");
+  assert.equal(
+    bakedSentryEnvironment({ WORKERS_CI: "1", WORKERS_CI_BRANCH: "cursor/example" }),
+    "preview",
+  );
+  assert.equal(
+    bakedSentryEnvironment({ WORKERS_CI: "1", WORKERS_CI_BRANCH: "main" }),
+    "",
+  );
+  assert.equal(bakedSentryEnvironment({}), "");
+  assert.equal(
+    bakedSentryEnvironment({
+      ENVIRONMENT: "production",
+      WORKERS_CI: "1",
+      WORKERS_CI_BRANCH: "cursor/example",
+    }),
+    "production",
+  );
 });
 
 test("resolveSentryEnvironment keeps an explicit value and ignores blanks", () => {

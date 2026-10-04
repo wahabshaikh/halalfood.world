@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import {
+  applyPreviewEnvironment,
   applyTurnstileSiteKey,
   PREVIEW_R2_BUCKET,
   PRODUCTION_D1_ID,
@@ -31,8 +32,9 @@ bucket.bucket_name = PREVIEW_R2_BUCKET;
 if (bucket.bucket_name === PRODUCTION_R2_BUCKET) {
   throw new Error("Refusing to bind the preview upload to the production R2 bucket");
 }
+applyPreviewEnvironment(config);
 applyTurnstileSiteKey(config, process.env.TURNSTILE_SITE_KEY);
 writeFileSync(path, JSON.stringify(config));
 console.log(
-  `Preview bindings: D1 ${binding.database_name} (${binding.database_id}), R2 ${bucket.bucket_name}`,
+  `Preview bindings: D1 ${binding.database_name} (${binding.database_id}), R2 ${bucket.bucket_name}, ENVIRONMENT=preview`,
 );

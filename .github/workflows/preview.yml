@@ -45,7 +45,8 @@ jobs:
         run: |
           npm run typecheck
           npm test
-          npm run build
+          # Bake Sentry environment preview into this preview-only build.
+          ENVIRONMENT=preview npm run build
 
       - name: Pack Cloudflare build
         # The worker lives in apps/web; pack it so dist/ and migrations/ sit at the
@@ -229,6 +230,7 @@ jobs:
             --preview-alias "$PREVIEW_ALIAS" \
             --keep-vars \
             --var "BETTER_AUTH_URL:$PREVIEW_URL" \
+            --var "ENVIRONMENT:preview" \
             --message "PR #${{ github.event.pull_request.number }}" \
             2>&1 | tee wrangler-upload.log
 
