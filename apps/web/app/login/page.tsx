@@ -5,7 +5,12 @@ import {
   SiteFooter,
   SiteHeader,
 } from "../../src/components/site-chrome";
+import { readWorkerEnv } from "../../src/lib/worker-env";
 import LoginForm from "./login-form";
+
+// The site key is a Worker secret. Rendering this page per request is what
+// lets that secret reach the widget; a build-time inline would be empty.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -50,7 +55,7 @@ export default async function LoginPage({
       <SiteHeader />
       <PageMain>
         <LoginForm
-          siteKey={process.env.TURNSTILE_SITE_KEY?.trim() || ""}
+          siteKey={await readWorkerEnv("TURNSTILE_SITE_KEY")}
           returnTo={returnTo}
           heading={heading}
         />

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import {
   CONTRIBUTOR_LEADERBOARD_LIMIT,
   CONTRIBUTOR_SCORE_WEIGHTS,
+  contributorProfilePath,
   listContributors,
   type RankedContributor,
 } from "../../src/lib/contributor-leaderboard";
@@ -89,6 +90,23 @@ function initials(name: string) {
       .slice(0, 2)
       .map((word) => word[0]?.toUpperCase() ?? "")
       .join("") || "H"
+  );
+}
+
+function ContributorName({
+  contributor,
+  className,
+}: {
+  contributor: RankedContributor;
+  className?: string;
+}) {
+  const href = contributorProfilePath(contributor.profileHandle);
+  const classes = ["font-bold", className, href ? "underline" : ""].filter(Boolean).join(" ");
+  if (!href) return <strong className={classes}>{contributor.displayName}</strong>;
+  return (
+    <a href={href} className={classes}>
+      {contributor.displayName}
+    </a>
   );
 }
 
@@ -223,7 +241,7 @@ export default async function LeaderboardPage({
                   tint={AVATAR_TINTS[contributor.rank % AVATAR_TINTS.length]}
                   size={contributor.rank === 1 ? 64 : 52}
                 />
-                <strong>{contributor.displayName}</strong>
+                <ContributorName contributor={contributor} />
                 <div
                   className={cn(
                     "grid w-full content-start justify-items-center rounded-t-2xl pt-3 font-extrabold",
@@ -252,7 +270,7 @@ export default async function LeaderboardPage({
                   tint={AVATAR_TINTS[contributor.rank % AVATAR_TINTS.length]}
                 />
                 <div>
-                  <strong className="block text-[15px]">{contributor.displayName}</strong>
+                  <ContributorName contributor={contributor} className="block text-[15px]" />
                   <small className="text-[13px] text-muted-foreground">{summary(contributor)}</small>
                 </div>
                 <span className="text-right font-extrabold">{formatCount(contributor.score)}</span>

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   eatingCityOptions,
+  homePickerCities,
   resolveEatingCity,
   safeNextPath,
 } from "../src/lib/eating-city";
@@ -28,6 +29,18 @@ test("the visitor's city wins over the cookie and must be a listed city", () => 
     resolveEatingCity({ cookie: "mumbai", cities }),
     { slug: "mumbai", source: "choice" },
   );
+});
+
+test("the home city picker stays available when listings fail to load", () => {
+  assert.deepEqual(
+    homePickerCities(null, cities).map((city) => city.city_slug),
+    ["delhi", "mumbai", "bhopal"],
+  );
+  assert.deepEqual(
+    homePickerCities([{ city_slug: "delhi" }], cities).map((city) => city.city_slug),
+    ["delhi"],
+  );
+  assert.deepEqual(homePickerCities([], cities), cities);
 });
 
 test("city options are alphabetical and the redirect stays on this site", () => {

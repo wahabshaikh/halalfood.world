@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { MapsIcon } from "@hugeicons/core-free-icons";
-import { findPlacesByCity } from "../src/lib/places";
+import { findPlacesByCity, listCities } from "../src/lib/places";
 import { annotateCardEvidence } from "../src/lib/discovery";
 import { loadOrDegrade } from "../src/lib/load";
 import {
@@ -39,7 +39,7 @@ import {
 import { loadLocalContext } from "../src/lib/local-context-repository";
 import { looksSignedIn } from "../src/lib/auth-session";
 import { formatDistance } from "../src/lib/visitor-location";
-import { readEatingCityCookie, resolveEatingCity } from "../src/lib/eating-city";
+import { homePickerCities, readEatingCityCookie, resolveEatingCity } from "../src/lib/eating-city";
 import { EatingCityForm } from "../src/components/eating-city-form";
 
 const ROW_CITIES = 3;
@@ -124,8 +124,18 @@ export default async function Home({
   if ([...legacy.keys()].length) redirect("/map?" + legacy.toString());
 
   const eatingCookie = await readEatingCityCookie();
-  const loaded = await loadExplore(eatingCookie);
-  const eatingSlug = loaded.status === "ok" ? loaded.data.eating.slug : null;
+  const [loaded, directory] = await Promise.all([
+    loadExplore(eatingCookie),
+    listCities({ limit: 500 }).catch(() => []),
+  ]);
+  const pickerCities = homePickerCities(
+    loaded.status === "ok" ? loaded.data.context.cities : null,
+    directory,
+  );
+  const eatingSlug =
+    loaded.status === "ok"
+      ? loaded.data.eating.slug
+      : resolveEatingCity({ cookie: eatingCookie, cities: directory }).slug;
   const [signedIn, rails] = await Promise.all([
     looksSignedIn(),
     loadCommunityRails(eatingSlug),
@@ -185,13 +195,15 @@ export default async function Home({
           <h1 className="text-[clamp(28px,4vw,42px)] leading-tight">{hero.title}</h1>
           <Lead>{hero.lead}</Lead>
         </header>
-        {loaded.status === "ok" && (
-          <EatingCityForm
-            cities={loaded.data.context.cities}
-            selected={eatingSlug}
-            networkLabel={context?.location?.city ?? context?.areaName ?? null}
-          />
-        )}
+        <EatingCityForm
+          cities={pickerCities}
+          selected={eatingSlug}
+          networkLabel={
+            loaded.status === "ok"
+              ? (context?.location?.city ?? context?.areaName ?? null)
+              : null
+          }
+        />
         {recommendation && loaded.status === "ok" && loaded.data.focusSlug && (
           <section className="mb-8 grid gap-3" aria-label="A place you can open now">
             <h2 className="text-[22px] font-extrabold tracking-tight">

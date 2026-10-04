@@ -1,9 +1,9 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { findPlacesByCity, getCity } from "../../../src/lib/places";
+import { findPlacesByCity, loadCityRecord } from "../../../src/lib/places";
 import { annotateCardEvidence } from "../../../src/lib/discovery";
-import { citySlugParam, pageParam } from "@halalfood/core/params";
+import { pageParam } from "@halalfood/core/params";
 import {
   breadcrumbJsonLd,
   canonical,
@@ -49,12 +49,7 @@ import { coverageHeadline } from "@halalfood/core/coverage";
 
 const PAGE_SIZE = 60;
 
-const loadCity = cache(async (raw: string) => {
-  const slug = citySlugParam(raw);
-  // An unparseable slug can never match a row, so do not spend a query on it.
-  if (!slug) return { status: "missing" as const };
-  return await loadOrDegrade(() => getCity(slug));
-});
+const loadCity = cache((raw: string) => loadCityRecord(raw));
 
 export async function generateMetadata({
   params,

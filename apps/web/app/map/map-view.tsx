@@ -29,6 +29,11 @@ import {
   shouldLoadViewport,
 } from "@halalfood/core/map-viewport";
 import { cn } from "@halalfood/ui/lib/utils";
+import {
+  presentHttpFailure,
+  presentTransportFailure,
+  type PresentedFailure,
+} from "../../src/lib/failure-copy";
 import "maplibre-gl/dist/maplibre-gl.css";
 import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
@@ -201,7 +206,7 @@ export default function MapView({
   const [ready, setReady] = useState(false);
   const [results, setResults] = useState<Results>({ places: [], total: 0, limit: VIEWPORT_LIMIT });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<PresentedFailure | null>(null);
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<Place | null>(null);
   // Filters start empty so the server HTML matches the first client render.
@@ -436,7 +441,7 @@ export default function MapView({
     function holdWideViewport() {
       setViewportTooWide(true);
       setAreaMoved(false);
-      setError("");
+      setError(null);
       setLoading(false);
     }
     async function loadPlaces() {
@@ -450,7 +455,7 @@ export default function MapView({
       }
       setViewportTooWide(false);
       setLoading(true);
-      setError("");
+      setError(null);
       setAreaMoved(false);
       try {
         const query = serializeDiscoveryFilters(filters);
@@ -472,19 +477,22 @@ export default function MapView({
         }
         if (!response.ok) {
           const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
-          const message =
-            typeof body?.error === "string" && body.error ? body.error : "Places couldn’t load.";
+          const message = typeof body?.error === "string" ? body.error : "";
           if (response.status === 400 && (discoveryBboxExceedsCap(bbox) || message === BBOX_TOO_WIDE_ERROR)) {
             holdWideViewport();
             return;
           }
-          throw new Error(message);
+          // Filters and the search box stay as they were. An error is not an empty list.
+          setError(presentHttpFailure("Places", response.status, message));
+          setResults({ places: [], total: 0, limit: VIEWPORT_LIMIT });
+          setLoading(false);
+          return;
         }
         setResults(await response.json());
         setLoading(false);
       } catch (caught) {
         if ((caught as Error).name !== "AbortError") {
-          setError((caught as Error).message);
+          setError(presentTransportFailure("Places", caught));
           setResults({ places: [], total: 0, limit: VIEWPORT_LIMIT });
           setLoading(false);
         }
@@ -516,23 +524,24 @@ export default function MapView({
       DEFAULT_MAP_VIEW;
     const path = fallbackDiscoverPath(new URLSearchParams(window.location.search), view);
     setLoading(true);
-    setError("");
+    setError(null);
     fetch(path, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) {
           const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
-          throw new Error(
-            typeof body?.error === "string" && body.error
-              ? body.error
-              : "Places couldn’t load.",
-          );
+          const message = typeof body?.error === "string" ? body.error : "";
+          setError(presentHttpFailure("Places", response.status, message));
+          setLoading(false);
+          return;
         }
         setResults(await response.json());
         setLoading(false);
       })
       .catch((caught) => {
         if ((caught as Error).name === "AbortError") return;
-        setError((caught as Error).message || "Places couldn’t load.");
+        // This catch is a fetch that never returned. HTTP errors are handled
+        // above so a server message is not replaced by "Failed to fetch".
+        setError(presentTransportFailure("Places", caught));
         setLoading(false);
       });
     return () => controller.abort();
@@ -651,10 +660,12 @@ export default function MapView({
         )}
         {error && (
           <MapStatus>
-            {error}
-            <Button variant="link" onClick={() => setRetry((value) => value + 1)}>
-              Try again
-            </Button>
+            {error.message}
+            {error.retry && (
+              <Button variant="link" onClick={() => setRetry((value) => value + 1)}>
+                Try again
+              </Button>
+            )}
           </MapStatus>
         )}
         {viewportTooWide && !error && (

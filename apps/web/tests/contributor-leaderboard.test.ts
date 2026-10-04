@@ -4,7 +4,10 @@ import {
   anonymizedContributorHandle,
   CONTRIBUTOR_SCORE_WEIGHTS,
   contributorDisplayName,
+  contributorProfilePath,
+  d1ContributorLeaderboardRepository,
   getContributorLeaderboard,
+  publicProfileHandle,
   rankContributors,
   scoreContributor,
   type ContributorAggregate,
@@ -143,6 +146,64 @@ test("empty names receive an anonymized contributor handle", () => {
     handle,
   );
   assert.doesNotMatch(handle, /user-123/);
+});
+
+test("a public profile handle links to /u and a private or invalid one does not", () => {
+  assert.equal(publicProfileHandle("Amina_Eats"), "amina_eats");
+  assert.equal(publicProfileHandle("not a handle"), null);
+  assert.equal(publicProfileHandle("a@b.com"), null);
+  assert.equal(contributorProfilePath("amina_eats"), "/u/amina_eats");
+  assert.equal(contributorProfilePath(null), null);
+
+  const ranked = rankContributors([
+    {
+      userId: "public-user",
+      name: "Amina",
+      profileHandle: "Amina_Eats",
+      contributions: counts({ placesAdded: 1 }),
+    },
+    {
+      userId: "anon-user",
+      name: null,
+      profileHandle: null,
+      contributions: counts({ reviews: 1 }),
+    },
+  ]);
+  assert.equal(ranked[0].profileHandle, "amina_eats");
+  assert.equal(contributorProfilePath(ranked[0].profileHandle), "/u/amina_eats");
+  assert.equal(ranked[1].profileHandle, null);
+  assert.equal(contributorProfilePath(ranked[1].profileHandle), null);
+});
+
+test("the contributor query exposes a public handle and hides a private one", async () => {
+  const { createTestDatabase, addUser } = await import("./support/sqlite-d1");
+  const { sqlite, db } = createTestDatabase();
+  const now = Date.now();
+  addUser(sqlite, "public-user", "public@example.com");
+  addUser(sqlite, "private-user", "private@example.com");
+  const profile = sqlite.prepare(
+    `INSERT INTO user_profiles (
+      user_id, handle, display_name, created_at, updated_at, is_private, onboarded_at, show_on_leaderboards
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+  );
+  profile.run("public-user", "amina_eats", "Amina", now, now, 0, now);
+  profile.run("private-user", "hidden_diner", "Hidden", now, now, 1, now);
+  const place = sqlite.prepare(
+    `INSERT INTO places (
+      id, name, city_slug, city_url, street_address, serves_cuisine, source, source_url,
+      scraped_at, created_at, halal_confirmed, submitted_by_user_id, lat, lng
+    ) VALUES (?, ?, 'mumbai', 'u', '1 Street', '[]', 'user-submitted', 'u', ?, ?, 1, ?, 1, 1)`,
+  );
+  place.run("place-public", "Public Kitchen", now, now, "public-user");
+  place.run("place-private", "Private Kitchen", now, now, "private-user");
+
+  const ranked = await getContributorLeaderboard(d1ContributorLeaderboardRepository(db), 10);
+  const visible = ranked.find((row) => row.profileHandle === "amina_eats");
+  const hidden = ranked.find((row) => row.displayName === "Hidden");
+  assert.ok(visible);
+  assert.equal(contributorProfilePath(visible?.profileHandle), "/u/amina_eats");
+  assert.ok(hidden);
+  assert.equal(hidden?.profileHandle, null);
 });
 
 test("leaderboard ranking uses an injectable repository", async () => {

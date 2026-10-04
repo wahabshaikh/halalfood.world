@@ -47,3 +47,107 @@ export function failureCopy(kind: FailureKind, domain = "This page"): FailureCop
       };
   }
 }
+
+const NAMED_STATUS: readonly FailureKind[] = [401, 403, 404, 429, 503];
+
+/** Map an HTTP status onto a failure kind. Unknown statuses are not a kind. */
+export function failureKindFromStatus(status: number): FailureKind | null {
+  return NAMED_STATUS.find((kind) => kind === status) ?? null;
+}
+
+/**
+ * A fetch that never produced a response. Browsers throw `TypeError` with
+ * "Failed to fetch" (or "Load failed") when the device is offline.
+ */
+export function failureKindFromError(error: unknown): FailureKind {
+  const name = error instanceof Error ? error.name : "";
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (
+    name === "TypeError" ||
+    /failed to fetch|networkerror|load failed|network request failed|offline/i.test(message)
+  )
+    return "offline";
+  return 503;
+}
+
+/** Short support reference. The raw error text is never part of it. */
+export function supportReference(): string {
+  return crypto.randomUUID().slice(0, 8);
+}
+
+export function formatFailure(kind: FailureKind, domain: string, reference?: string): string {
+  const copy = failureCopy(kind, domain);
+  return reference ? `${copy.title} ${copy.detail} Reference ${reference}.` : `${copy.title} ${copy.detail}`;
+}
+
+export type PresentedFailure = {
+  message: string;
+  retry: boolean;
+};
+
+/** Browser fetch failures. These strings must never be shown to a diner. */
+const RAW_FETCH_MESSAGE = /failed to fetch|load failed/i;
+
+export function isRawFetchMessage(message: string): boolean {
+  return RAW_FETCH_MESSAGE.test(message);
+}
+
+/**
+ * Copy for an HTTP error from a route that already returned JSON.
+ * A server `error` string is shown with a support reference. A missing or raw
+ * fetch string falls back to the status copy, so "Failed to fetch" never
+ * reaches the UI.
+ */
+export function presentHttpFailure(
+  domain: string,
+  status: number,
+  serverMessage: string | null | undefined,
+): PresentedFailure {
+  const server = serverMessage?.trim() ?? "";
+  const kind = failureKindFromStatus(status) ?? 503;
+  const copy = failureCopy(kind, domain);
+  if (server && !isRawFetchMessage(server)) {
+    const sentence = /[.!?]$/.test(server) ? server : `${server}.`;
+    return { message: `${sentence} Reference ${supportReference()}.`, retry: copy.retry };
+  }
+  return { message: formatFailure(kind, domain, supportReference()), retry: copy.retry };
+}
+
+/**
+ * Copy for a fetch that never produced a response. The exception text
+ * ("Failed to fetch", "Load failed") is not part of the message.
+ */
+export function presentTransportFailure(domain: string, error: unknown): PresentedFailure {
+  const kind = failureKindFromError(error);
+  const copy = failureCopy(kind, domain);
+  return { message: formatFailure(kind, domain, supportReference()), retry: copy.retry };
+}
+
+/**
+ * Copy for a failed client read. `response` null means the request never
+ * completed (offline). The message never repeats the raw exception text.
+ */
+export async function presentFetchFailure(
+  domain: string,
+  response: Response | null,
+  error: unknown,
+): Promise<PresentedFailure> {
+  let reference: string | undefined;
+  if (response) {
+    try {
+      const body = (await response.clone().json()) as { reference?: unknown };
+      if (typeof body.reference === "string" && /^[A-Za-z0-9-]{4,40}$/.test(body.reference))
+        reference = body.reference.slice(0, 16);
+    } catch {
+      // A non-JSON body still gets a client reference below.
+    }
+  }
+  const kind = response
+    ? (failureKindFromStatus(response.status) ?? 503)
+    : failureKindFromError(error);
+  const copy = failureCopy(kind, domain);
+  return {
+    message: formatFailure(kind, domain, reference ?? supportReference()),
+    retry: copy.retry,
+  };
+}
