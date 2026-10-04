@@ -14,13 +14,19 @@ export const PREVIEW_R2_BUCKET = "halalfood-world-evidence-preview";
 export const D1_BINDING = "DB";
 export const R2_BINDING = "HALAL_EVIDENCE_R2";
 
-if (PREVIEW_D1_ID === PRODUCTION_D1_ID || PREVIEW_R2_BUCKET === PRODUCTION_R2_BUCKET) {
-  throw new Error("Preview resource ids must be different from production");
+function assertDistinct(left: string, right: string, label: string): void {
+  if (left === right) throw new Error(`${label} must differ from production`);
 }
+
+assertDistinct(PREVIEW_D1_ID, PRODUCTION_D1_ID, "Preview D1 id");
+assertDistinct(PREVIEW_R2_BUCKET, PRODUCTION_R2_BUCKET, "Preview R2 bucket");
 
 export type PreviewIsolation = "production" | "preview" | "refuse";
 
-export function previewIsolationDecision(env: NodeJS.ProcessEnv): PreviewIsolation {
+export function previewIsolationDecision(env: {
+  WORKERS_CI?: string;
+  WORKERS_CI_BRANCH?: string;
+}): PreviewIsolation {
   if (env.WORKERS_CI !== "1") return "production";
   const branch = (env.WORKERS_CI_BRANCH ?? "").trim();
   if (branch === PRODUCTION_BRANCH) return "production";
