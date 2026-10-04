@@ -25,6 +25,7 @@ import {
   type R2BucketLike,
 } from "../../../../../src/lib/r2";
 import type { RequestAuth } from "../../../../../src/lib/auth-session";
+import { signedOutLoginPath } from "../../../../../src/lib/signed-out";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
@@ -34,7 +35,7 @@ function unauthorized(placeId: string) {
   return Response.json(
     {
       error: "Sign in to submit halal verification evidence.",
-      loginUrl: `/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`,
+      loginUrl: signedOutLoginPath(`/place/${placeId}`),
     },
     { status: 401, headers: noStore() },
   );

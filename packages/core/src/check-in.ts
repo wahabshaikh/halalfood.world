@@ -233,7 +233,8 @@ export function validateCheckIn(input: unknown): CheckInValidation {
 
   if (body.shareToFeed !== undefined && typeof body.shareToFeed !== "boolean")
     return { ok: false, error: "Share to feed must be true or false." };
-  const shareToFeed = visibility === "public" && body.shareToFeed !== false;
+  // Omitted means do not share. An explicit true or false is kept.
+  const shareToFeed = visibility === "public" && body.shareToFeed === true;
 
   const dishes: CheckInDishInput[] = [];
   if (body.dishes !== undefined && body.dishes !== null) {

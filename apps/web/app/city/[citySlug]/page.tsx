@@ -40,8 +40,7 @@ import { MapsIcon } from "@hugeicons/core-free-icons";
 import ShareButton from "../../../src/components/share-button";
 import { guidePath } from "../../../src/lib/guides";
 import CityCoverageCard from "../../../src/components/city-coverage";
-import { getCityCoverage } from "../../../src/lib/coverage-repository";
-import { cachedRead } from "../../../src/lib/read-cache";
+import { loadCachedCityCoverage } from "../../../src/lib/city-coverage-read";
 import { coverageHeadline } from "@halalfood/core/coverage";
 
 const PAGE_SIZE = 60;
@@ -50,7 +49,9 @@ const loadCity = cache((raw: string) => loadCityRecord(raw));
 
 const loadCoverage = cache(async (citySlug: string) => {
   try {
-    return await getCityCoverage(citySlug);
+    // The error has to leave the cache. A caught null would be stored for the
+    // TTL and the city would keep saying the evidence could not be loaded.
+    return await loadCachedCityCoverage(citySlug);
   } catch {
     return null;
   }
@@ -130,11 +131,7 @@ export default async function CityPage({
 
   // Coverage is informational: if it cannot be read, the listing still renders
   // rather than the whole city page failing over one panel.
-  const coverage = await cachedRead(
-    `places:coverage:v1:${city.city_slug}`,
-    10 * 60,
-    () => loadCoverage(city.city_slug),
-  );
+  const coverage = await loadCoverage(city.city_slug);
 
   const name = cityName(city.city_slug);
   const lastPage = Math.max(Math.ceil(total / PAGE_SIZE) - 1, 0);

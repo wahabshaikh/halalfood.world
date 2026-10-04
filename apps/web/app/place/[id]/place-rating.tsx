@@ -9,6 +9,7 @@ import { cn } from "@halalfood/ui/lib/utils";
 import { TextLink } from "../../../src/components/blocks";
 import { Note, SectionHeading, SectionIntro } from "../../../src/components/section";
 import { getClientSession } from "../../../src/lib/client-session";
+import { signedOutLoginPath } from "../../../src/lib/signed-out";
 
 const RATING_VALUES = [
   "mashallah",
@@ -170,7 +171,7 @@ export default function PlaceRating({ placeId }: { placeId: string }) {
       );
       const body = await responseBody(response);
       if (response.status === 401) {
-        window.location.assign(loginUrl(placeId));
+        window.location.assign(signedOutLoginPath(`/place/${placeId}`));
         return;
       }
       if (!response.ok) {

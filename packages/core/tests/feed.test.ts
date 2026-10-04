@@ -112,8 +112,14 @@ test("a verdict stands in for the return answer and maps onto return intent", ()
     if (!result.ok) continue;
     assert.equal(result.data.verdict, verdict);
     assert.equal(result.data.valueVerdict, "fair");
-    assert.equal(result.data.shareToFeed, true);
+    assert.equal(result.data.shareToFeed, false);
   }
+  const shared = validateCheckIn({
+    verdict: "liked",
+    valueVerdict: "fair",
+    shareToFeed: true,
+  });
+  assert.equal(shared.ok && shared.data.shareToFeed, true);
   assert.equal(validateCheckIn({ verdict: "meh" }).ok, false);
   assert.equal(validateCheckIn({}).ok, false);
   assert.equal(validateCheckIn({ verdict: "liked" }).ok, false, "value is still required");

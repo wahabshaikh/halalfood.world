@@ -6,7 +6,7 @@ import {
   requestLoginOtp,
   verifyLoginOtp,
 } from "../../src/lib/auth-client";
-import { Alert, AlertDescription } from "@halalfood/ui/components/alert";
+import { Alert, AlertDescription, AlertTitle } from "@halalfood/ui/components/alert";
 import { Button } from "@halalfood/ui/components/button";
 import {
   Card,
@@ -129,10 +129,12 @@ export default function LoginForm({
   siteKey,
   returnTo = "/",
   heading = "Log in or sign up",
+  notice,
 }: {
   siteKey: string;
   returnTo?: string;
   heading?: string;
+  notice?: string;
 }) {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -228,6 +230,12 @@ export default function LoginForm({
     <section aria-labelledby="login-title" className="mx-auto my-10 w-full max-w-xl">
       <Card className="w-full max-w-full gap-5 rounded-3xl px-6 py-8 shadow-lg ring-border sm:px-9">
         <CardHeader className="gap-2 px-0">
+          {notice && (
+            <Alert>
+              <AlertTitle>{notice}</AlertTitle>
+              <AlertDescription>Your place on this site is kept, and what you typed is still here after you sign in.</AlertDescription>
+            </Alert>
+          )}
           <h1 id="login-title" className="text-[26px]">
             {heading}
           </h1>

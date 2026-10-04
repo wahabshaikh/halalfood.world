@@ -23,6 +23,9 @@ import { cn } from "@halalfood/ui/lib/utils";
 import { Illustration } from "../../../../src/components/art";
 import { EmptyPanel, Eyebrow } from "../../../../src/components/site-chrome";
 import { getClientSession } from "../../../../src/lib/client-session";
+import { clearFormDraft, draftRecord, readFormDraft, saveFormDraft } from "../../../../src/lib/form-draft";
+import { presentHttpFailure, presentTransportFailure } from "../../../../src/lib/failure-copy";
+import { signedOutLoginPath } from "../../../../src/lib/signed-out";
 
 type Question = "certificate" | "alcohol" | "meat";
 type Answers = Record<Question, string | null>;
@@ -96,6 +99,36 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
   const fileInput = useRef<HTMLInputElement>(null);
   const placeHref = `/place/${encodeURIComponent(placeId)}`;
   const selfHref = `${placeHref}/check`;
+  const draftKey = `halalfood:place-check-draft:${placeId}`;
+
+  useEffect(() => {
+    const draft = draftRecord(readFormDraft(draftKey));
+    if (!draft) return;
+    const answers = draftRecord(draft.answers);
+    if (answers) {
+      setAnswers({
+        certificate:
+          answers.certificate === "seen" || answers.certificate === "not-seen" || answers.certificate === "unsure"
+            ? answers.certificate
+            : null,
+        alcohol:
+          answers.alcohol === "none" || answers.alcohol === "served" || answers.alcohol === "unsure"
+            ? answers.alcohol
+            : null,
+        meat:
+          answers.meat === "hand" || answers.meat === "machine" || answers.meat === "unsure"
+            ? answers.meat
+            : null,
+      });
+    }
+    if (typeof draft.note === "string") setNote(draft.note);
+    if (typeof draft.step === "number" && Number.isInteger(draft.step) && draft.step >= 0 && draft.step <= DONE_STEP)
+      setStep(draft.step);
+  }, [draftKey]);
+
+  function saveCheckDraft() {
+    saveFormDraft(draftKey, { answers, note, step });
+  }
 
   useEffect(() => {
     let active = true;
@@ -136,7 +169,8 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
         });
         const uploaded = await body(upload);
         if (upload.status === 401) {
-          setAuth("signed-out");
+          saveCheckDraft();
+          window.location.assign(signedOutLoginPath(selfHref));
           return;
         }
         if (
@@ -146,7 +180,13 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
           typeof uploaded.sizeBytes !== "number" ||
           typeof uploaded.fileName !== "string"
         ) {
-          setError(errorFrom(uploaded, "That photo couldn’t be uploaded. Try another, or skip it."));
+          setError(
+            presentHttpFailure(
+              "your check",
+              upload.status,
+              errorFrom(uploaded, "That photo couldn’t be uploaded. Try another, or skip it."),
+            ).message,
+          );
           return;
         }
         evidence.push({
@@ -165,16 +205,24 @@ export default function CheckFlow({ placeId, placeName }: { placeId: string; pla
       });
       const payload = await body(response);
       if (response.status === 401) {
-        setAuth("signed-out");
+        saveCheckDraft();
+        window.location.assign(signedOutLoginPath(selfHref));
         return;
       }
       if (!response.ok) {
-        setError(errorFrom(payload, "We couldn’t send your check. Please try again."));
+        setError(
+          presentHttpFailure(
+            "your check",
+            response.status,
+            errorFrom(payload, "We couldn’t send your check. Please try again."),
+          ).message,
+        );
         return;
       }
+      clearFormDraft(draftKey);
       setStep(DONE_STEP);
-    } catch {
-      setError("We couldn’t send your check. Please try again.");
+    } catch (caught) {
+      setError(presentTransportFailure("your check", caught).message);
     } finally {
       setBusy(false);
     }

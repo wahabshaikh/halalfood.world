@@ -6,6 +6,7 @@ import { Button } from "@halalfood/ui/components/button";
 import { Input } from "@halalfood/ui/components/input";
 import { EmptyState, Loading } from "../../../src/components/blocks";
 import { FormMessage, Note, SectionIntro } from "../../../src/components/section";
+import { signedOutLoginPath } from "../../../src/lib/signed-out";
 
 import { HugeiconsIcon } from "@hugeicons/react";
 import { LinkSquare02Icon, PlayIcon } from "@hugeicons/core-free-icons";
@@ -111,7 +112,7 @@ export default function PlaceVideos({ placeId }: { placeId: string }) {
       });
       const payload = await body(response);
       if (response.status === 401) {
-        window.location.assign(`/login?returnTo=${encodeURIComponent(`/place/${placeId}`)}`);
+        window.location.assign(signedOutLoginPath(`/place/${placeId}`));
         return;
       }
       if (!response.ok) {

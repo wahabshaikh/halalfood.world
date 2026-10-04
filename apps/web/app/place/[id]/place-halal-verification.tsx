@@ -21,6 +21,9 @@ import {
 } from "@halalfood/core/halal-status-view";
 import { answerLabel, type GlanceQuestion } from "@halalfood/core/halal-glance-view";
 import { getClientSession } from "../../../src/lib/client-session";
+import { clearFormDraft, draftRecord, readFormDraft, saveFormDraft } from "../../../src/lib/form-draft";
+import { presentHttpFailure, presentTransportFailure } from "../../../src/lib/failure-copy";
+import { signedOutLoginPath } from "../../../src/lib/signed-out";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
 type Evidence =
@@ -142,6 +145,18 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
   const [loadError, setLoadError] = useState("");
   const [links, setLinks] = useState("");
   const [note, setNote] = useState("");
+  const draftKey = `halalfood:halal-check-draft:${placeId}`;
+
+  useEffect(() => {
+    const draft = draftRecord(readFormDraft(draftKey));
+    if (!draft) return;
+    if (typeof draft.links === "string") setLinks(draft.links);
+    if (typeof draft.note === "string") setNote(draft.note);
+  }, [draftKey]);
+
+  function saveCheckDraft() {
+    saveFormDraft(draftKey, { links, note });
+  }
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
@@ -163,14 +178,20 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
       setAuthState(sessionUser ? "signed-in" : "signed-out");
       if (!verificationResponse.ok) {
         setStatusSummary({ status: "unavailable" });
-        setLoadError(errorFrom(verificationBody, "Verifications could not be loaded."));
+        setLoadError(
+          presentHttpFailure(
+            "checks",
+            verificationResponse.status,
+            errorFrom(verificationBody, "Verifications could not be loaded."),
+          ).message,
+        );
         return;
       }
       setStatusSummary(parseHalalStatus(verificationBody?.summary));
       setVerifications(readVerifications(verificationBody));
-    } catch {
+    } catch (caught) {
       setStatusSummary({ status: "unavailable" });
-      setLoadError("Verifications could not be loaded. Please try again.");
+      setLoadError(presentTransportFailure("checks", caught).message);
     } finally {
       setLoading(false);
     }
@@ -213,12 +234,18 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
         );
         const uploadBody = await responseBody(uploadResponse);
         if (uploadResponse.status === 401) {
-          setAuthState("signed-out");
-          setFormError(errorFrom(uploadBody, "Sign in to upload evidence."));
+          saveCheckDraft();
+          window.location.assign(signedOutLoginPath(`/place/${encodeURIComponent(placeId)}`));
           return;
         }
         if (!uploadResponse.ok) {
-          setFormError(errorFrom(uploadBody, "This file could not be uploaded."));
+          setFormError(
+            presentHttpFailure(
+              "your check",
+              uploadResponse.status,
+              errorFrom(uploadBody, "This file could not be uploaded."),
+            ).message,
+          );
           return;
         }
         if (
@@ -262,22 +289,29 @@ export default function PlaceHalalVerification({ placeId }: { placeId: string })
       );
       const verificationBody = await responseBody(verificationResponse);
       if (verificationResponse.status === 401) {
-        setAuthState("signed-out");
-        setFormError(errorFrom(verificationBody, "Sign in to submit evidence."));
+        saveCheckDraft();
+        window.location.assign(signedOutLoginPath(`/place/${encodeURIComponent(placeId)}`));
         return;
       }
       if (!verificationResponse.ok) {
-        setFormError(errorFrom(verificationBody, "We could not submit this verification."));
+        setFormError(
+          presentHttpFailure(
+            "your check",
+            verificationResponse.status,
+            errorFrom(verificationBody, "We could not submit this verification."),
+          ).message,
+        );
         return;
       }
+      clearFormDraft(draftKey);
       setLinks("");
       setNote("");
       setFiles([]);
       if (fileInput.current) fileInput.current.value = "";
       setSuccess(true);
       await load();
-    } catch {
-      setFormError("We could not submit this verification. Please try again.");
+    } catch (caught) {
+      setFormError(presentTransportFailure("your check", caught).message);
     } finally {
       setBusy(false);
     }
