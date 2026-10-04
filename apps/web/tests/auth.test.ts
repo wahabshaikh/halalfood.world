@@ -1,5 +1,6 @@
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   consumeOtpRequestLimits,
   evaluateOtpRateLimit,
@@ -171,9 +172,10 @@ test("Turnstile validation fails closed when either key is missing", async () =>
   assert.equal(called, false);
 });
 
-test("preview Turnstile validation posts the always-pass test secret", async () => {
+test("workers.dev Turnstile validation posts the always-pass test secret", async () => {
   setEnvironment({
-    ENVIRONMENT: "preview",
+    ENVIRONMENT: "production",
+    BETTER_AUTH_URL: "https://halalfood.world",
     TURNSTILE_SITE_KEY: "production-site-secret",
     TURNSTILE_SECRET_KEY: "production-server-secret",
   });
@@ -189,6 +191,26 @@ test("preview Turnstile validation posts the always-pass test secret", async () 
   assert.deepEqual(result, { ok: true });
   assert.equal(requestBody?.get("secret"), "1x0000000000000000000000000000000AA");
   assert.equal(requestBody?.get("secret")?.includes("production-server-secret"), false);
+});
+
+test("halalfood.world Turnstile validation keeps the production secret when ENVIRONMENT is preview", async () => {
+  setEnvironment({
+    ENVIRONMENT: "preview",
+    BETTER_AUTH_URL: "https://halalfood.world",
+    TURNSTILE_SITE_KEY: "production-site-secret",
+    TURNSTILE_SECRET_KEY: "production-server-secret",
+  });
+  let requestBody: URLSearchParams | undefined;
+  const result = await verifyTurnstile(
+    new Request("https://halalfood.world/login"),
+    "turnstile-token",
+    async (_input, init) => {
+      requestBody = new URLSearchParams(String(init?.body));
+      return new Response(JSON.stringify({ success: true }));
+    },
+  );
+  assert.deepEqual(result, { ok: true });
+  assert.equal(requestBody?.get("secret"), "production-server-secret");
 });
 
 test("Turnstile validation posts the server secret and accepts success", async () => {
@@ -212,6 +234,13 @@ test("Turnstile validation posts the server secret and accepts success", async (
   assert.equal(requestBody?.get("secret"), "server-secret");
   assert.equal(requestBody?.get("response"), "turnstile-token");
   assert.equal(requestBody?.get("remoteip"), "203.0.113.8");
+});
+
+test("sign-in OTP mail is addressed from the request host", () => {
+  const source = readFileSync(new URL("../src/lib/auth.ts", import.meta.url), "utf8");
+  assert.match(source, /hostFromRequest\(ctx\.request\)/);
+  assert.match(source, /sendEmail\(\{ to: email, \.\.\.otpEmail\(otp\) \}, \{ host \}\)/);
+  assert.equal(source.includes("RESEND_API_KEY"), false);
 });
 
 test("auth OTP requests reject missing Turnstile configuration before Better Auth", async () => {

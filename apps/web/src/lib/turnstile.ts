@@ -1,3 +1,4 @@
+import { hostFromRequest } from "./request-host";
 import { readWorkerEnv } from "./worker-env";
 
 const TURNSTILE_VERIFY_URL =
@@ -23,8 +24,9 @@ export async function verifyTurnstile(
   token: string | null,
   fetcher: typeof fetch = fetch,
 ): Promise<TurnstileVerification> {
-  const siteKey = await readWorkerEnv("TURNSTILE_SITE_KEY");
-  const secretKey = await readWorkerEnv("TURNSTILE_SECRET_KEY");
+  const host = hostFromRequest(request);
+  const siteKey = await readWorkerEnv("TURNSTILE_SITE_KEY", host);
+  const secretKey = await readWorkerEnv("TURNSTILE_SECRET_KEY", host);
   if (!siteKey || !secretKey) return { ok: false, reason: "missing-config" };
   if (!token || token.length > 2048) {
     return { ok: false, reason: "missing-token" };

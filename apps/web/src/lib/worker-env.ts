@@ -1,8 +1,11 @@
+import { isPreviewHost } from "./request-host";
+
 /**
  * Cloudflare Turnstile dummy keys. They always pass and are not account secrets.
- * Preview requests use them so a preview upload never writes `TURNSTILE_SITE_KEY`
- * (or `TURNSTILE_SECRET_KEY`) as a plain var on the production Worker.
- * Production secret keys reject tokens from the dummy site key.
+ * Requests whose host is `*.workers.dev` use them so a preview upload never
+ * writes `TURNSTILE_SITE_KEY` (or `TURNSTILE_SECRET_KEY`) as a plain var on the
+ * production Worker. Production secret keys reject tokens from the dummy site
+ * key. `halalfood.world` never receives these keys.
  */
 export const TURNSTILE_PREVIEW_SITE_KEY = "1x00000000000000000000AA";
 export const TURNSTILE_PREVIEW_SECRET_KEY = "1x0000000000000000000000000000000AA";
@@ -34,12 +37,14 @@ async function readWorkerBinding(name: string): Promise<string> {
  * the Worker env instead. A dynamic `process.env` lookup remains for Node
  * tests and local scripts, where there is no Workers runtime.
  *
- * When `ENVIRONMENT` is `preview`, Turnstile keys resolve to Cloudflare's
- * always-pass test keys. That lookup does not read or write the production
- * secret names.
+ * Turnstile keys resolve to Cloudflare's always-pass test keys only when
+ * `host` is a `*.workers.dev` preview host. `halalfood.world` always reads
+ * the Worker secret. The choice does not look at `ENVIRONMENT` or
+ * `BETTER_AUTH_URL`: Workers Builds previews set that URL to the production
+ * origin while the public host is still `*.workers.dev`.
  */
-export async function readWorkerEnv(name: string): Promise<string> {
+export async function readWorkerEnv(name: string, host?: string | null): Promise<string> {
   const previewValue = PREVIEW_TURNSTILE_KEYS[name];
-  if (previewValue && (await readWorkerBinding("ENVIRONMENT")) === "preview") return previewValue;
+  if (previewValue && isPreviewHost(host)) return previewValue;
   return readWorkerBinding(name);
 }
