@@ -10,6 +10,10 @@ const browserSentryDsn = resolveBrowserSentryDsn(
   readFileSync(new URL("./wrangler.jsonc", import.meta.url), "utf8"),
 );
 
+// Verification sets this to its own directory. Unset, local D1 stays in
+// apps/web/.wrangler/state, which is the developer's database.
+const persistPath = process.env.HALALFOOD_PERSIST_PATH?.trim();
+
 export default defineConfig({
   define: {
     __HALALFOOD_SENTRY_DSN__: JSON.stringify(browserSentryDsn),
@@ -21,6 +25,7 @@ export default defineConfig({
       cache: { cdn: cdnAdapter() },
     }),
     cloudflare({
+      persistState: persistPath ? { path: persistPath } : true,
       viteEnvironment: {
         name: "rsc",
         childEnvironments: ["ssr"],

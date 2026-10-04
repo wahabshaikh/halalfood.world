@@ -12,7 +12,8 @@
     "test": {},
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": ["HALALFOOD_PERSIST_PATH"]
     }
   }
 }
