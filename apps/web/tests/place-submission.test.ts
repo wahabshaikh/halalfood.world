@@ -6,6 +6,7 @@ import {
   type OtpRateLimitStore,
 } from "../src/lib/otp-rate-limit";
 import {
+  googlePlaceIdFromUrl,
   slugifyCity,
   validateGooglePlaceQuery,
   validatePlaceSubmission,
@@ -72,6 +73,23 @@ test("Google validation requires a selected place and bounds search input", () =
     ok: true,
     query: "halal kitchen",
   });
+});
+
+test("a place link is filed for review and keeps a Google id when the URL has one", () => {
+  const result = validatePlaceSubmission({
+    mode: "link",
+    name: "Dishoom",
+    city: "London",
+    address: "5 Stable Street",
+    sourceUrl: "https://maps.google.com/?q=place_id:ChIJdishoom",
+    halalConfirmed: true,
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok || result.data.mode !== "link") return;
+  assert.equal(result.data.citySlug, "london");
+  assert.equal(result.data.googlePlaceId, "ChIJdishoom");
+  assert.equal(googlePlaceIdFromUrl("https://example.com/menu"), null);
+  assert.equal(validatePlaceSubmission({ mode: "link", halalConfirmed: true }).ok, false);
 });
 
 test("place submission limiter hashes separate user and IP buckets", async () => {

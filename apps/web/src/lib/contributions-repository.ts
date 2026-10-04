@@ -293,7 +293,7 @@ export async function resolveEdit(
 
 export type ContributionRow = {
   id: string;
-  kind: "edit" | "evidence" | "dish" | "duplicate";
+  kind: "edit" | "evidence" | "dish" | "duplicate" | "link";
   placeId: string;
   placeName: string;
   summary: string;
@@ -340,6 +340,12 @@ export async function listContributions(
       FROM place_duplicate_reports AS r
       INNER JOIN places AS p ON p.id = r.place_id
       WHERE r.submitted_by_user_id = ${userId}
+      UNION ALL
+      SELECT 'link' AS kind, s.id AS id, COALESCE(s.matched_place_id, '') AS place_id,
+        s.name AS place_name, 'place link' AS summary, s.status AS status,
+        s.status_reason AS status_reason, s.created_at AS created_at
+      FROM place_link_submissions AS s
+      WHERE s.submitted_by_user_id = ${userId}
     ) AS contributions
     ORDER BY created_at DESC
     LIMIT 200

@@ -84,7 +84,10 @@ export async function GET(request: Request) {
           { status: 400, headers: noStore() },
         );
       return Response.json(
-        { error: "Google search didn’t work. Please try again." },
+        {
+          error: "Google search didn’t work. Add the place with a link instead. A moderator reviews it before it is listed.",
+          fallback: "link",
+        },
         { status: 502, headers: noStore() },
       );
     }

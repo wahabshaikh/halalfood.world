@@ -9,9 +9,11 @@ import { SelectField } from "../../../src/components/form-fields";
 import { FormMessage, SectionHeading } from "../../../src/components/section";
 
 import {
+  contributionReceipt,
   EDITABLE_FIELDS,
   EDITABLE_FIELD_COPY,
   SENSITIVE_FIELDS,
+  type ContributionReceipt,
   type EditableField,
 } from "@halalfood/core/contributions";
 import {
@@ -51,7 +53,7 @@ async function post(url: string, payload: unknown) {
 export default function PlaceContribute({ placeId }: { placeId: string }) {
   const [tab, setTab] = useState<Tab>("edit");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<ContributionReceipt | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [field, setField] = useState<EditableField>("telephone");
@@ -71,10 +73,14 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
   >("factual-error");
   const [reportDetail, setReportDetail] = useState("");
 
-  async function send(url: string, payload: unknown, success: (body: Record<string, unknown>) => string) {
+  async function send(
+    url: string,
+    payload: unknown,
+    summary: (body: Record<string, unknown>) => string,
+  ) {
     setBusy(true);
     setError(null);
-    setMessage(null);
+    setReceipt(null);
     try {
       const { response, parsed } = await post(url, payload);
       if (response.status === 401 && typeof parsed.loginUrl === "string") {
@@ -85,7 +91,15 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
         setError(typeof parsed.error === "string" ? parsed.error : "That did not work.");
         return;
       }
-      setMessage(success(parsed));
+      const id = typeof parsed.id === "string" ? parsed.id : "";
+      const status = typeof parsed.status === "string" ? parsed.status : "pending";
+      setReceipt(
+        contributionReceipt({
+          id,
+          status,
+          summary: summary(parsed),
+        }),
+      );
     } catch {
       setError("Could not reach the server. Please try again.");
     } finally {
@@ -106,7 +120,7 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
         value={tab}
         onValueChange={(next) => {
           setTab(next as Tab);
-          setMessage(null);
+          setReceipt(null);
           setError(null);
         }}
       >
@@ -178,7 +192,7 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
                   relationship,
                 },
                 (parsed) =>
-                  `${parsed.statusLabel ?? "Submitted"} — ${parsed.reason ?? "Thank you."}`,
+                  `${parsed.statusLabel ?? "Submitted"}. ${parsed.reason ?? "Thank you."}`,
               )
             }
           >
@@ -240,7 +254,7 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
                 (parsed) =>
                   parsed.status === "accepted"
                     ? "Added to the menu."
-                    : "Submitted — it will appear once a moderator reviews it.",
+                    : "Submitted for review. It is not on the menu yet.",
               )
             }
           >
@@ -274,7 +288,7 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
               send(
                 `/api/places/${placeId}/duplicates`,
                 { duplicateOfPlaceId: duplicateId, note: note.trim() || undefined },
-                () => "Reported. A moderator will review the merge.",
+                () => "Duplicate report received. Nothing is merged until a moderator decides.",
               )
             }
           >
@@ -317,7 +331,7 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
                   reason: reportReason,
                   detail: reportDetail.trim() || undefined,
                 },
-                () => "Reported. You can track and appeal this from your contributions.",
+                () => "Report received. Appeal with the reference below if the decision needs another look.",
               )
             }
           >
@@ -326,9 +340,19 @@ export default function PlaceContribute({ placeId }: { placeId: string }) {
         </TabsContent>
       </Tabs>
 
-      {message && (
+      {receipt && (
         <FormMessage tone="success" className="mt-3">
-          {message}
+          <span className="grid gap-1">
+            <span>
+              {receipt.summary} Status: {receipt.statusLabel}.
+            </span>
+            {receipt.reference && (
+              <span>
+                Reference <strong>{receipt.reference}</strong>
+              </span>
+            )}
+            <span>{receipt.next}</span>
+          </span>
         </FormMessage>
       )}
       {error && (

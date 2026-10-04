@@ -6,6 +6,7 @@ import { Textarea } from "@halalfood/ui/components/textarea";
 import { Input } from "@halalfood/ui/components/input";
 import { Field, FieldDescription, FieldLabel } from "@halalfood/ui/components/field";
 import {
+  cleanRecNote,
   MAX_REC_NOTE_LENGTH,
   MAX_REC_RECIPIENTS,
   recShareUrl,
@@ -105,6 +106,7 @@ export default function SendView({
 }) {
   const [target, setTarget] = useState<Target | null>(initial);
   const [people, setPeople] = useState<RecipientChoice[] | null>(null);
+  const [friendsState, setFriendsState] = useState<"loading" | "ready" | "error">("loading");
   const [signedOut, setSignedOut] = useState(false);
   const [chosen, setChosen] = useState<Set<string>>(new Set(to ? [to] : []));
   const [note, setNote] = useState("");
@@ -113,18 +115,33 @@ export default function SendView({
   const [outcomes, setOutcomes] = useState<SendOutcome[] | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/recs/recipients", { signal: controller.signal, cache: "no-store" })
+  function loadFriends(signal?: AbortSignal) {
+    setFriendsState("loading");
+    setError("");
+    fetch("/api/recs/recipients", { signal, cache: "no-store" })
       .then(async (response) => {
-        if (response.status === 401) return setSignedOut(true);
+        if (response.status === 401) {
+          setSignedOut(true);
+          setFriendsState("ready");
+          setPeople([]);
+          return;
+        }
         if (!response.ok) throw new Error();
         const body = (await response.json()) as { people?: RecipientChoice[] };
         setPeople(Array.isArray(body.people) ? body.people : []);
+        setFriendsState("ready");
       })
       .catch((caught) => {
-        if ((caught as Error).name !== "AbortError") setError("Could not load your friends.");
+        if ((caught as Error).name === "AbortError") return;
+        setPeople([]);
+        setFriendsState("error");
+        setError("Could not load your friends.");
       });
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadFriends(controller.signal);
     return () => controller.abort();
   }, []);
 
@@ -145,8 +162,18 @@ export default function SendView({
     });
   }
 
+  const noteCheck = cleanRecNote(note);
+
   async function send() {
     if (!target || !chosen.size) return;
+    if (!noteCheck.ok) {
+      setError(noteCheck.error);
+      return;
+    }
+    if (chosen.size > MAX_REC_RECIPIENTS) {
+      setError(`Send to at most ${MAX_REC_RECIPIENTS} friends at a time.`);
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -156,7 +183,7 @@ export default function SendView({
         body: JSON.stringify({
           [target.kind === "place" ? "placeId" : "listId"]: target.id,
           recipients: [...chosen],
-          note: note.trim() || undefined,
+          note: noteCheck.ok ? noteCheck.note ?? undefined : undefined,
         }),
       });
       if (response.status === 401) return goToLogin("send");
@@ -261,11 +288,25 @@ export default function SendView({
             <legend className="mb-1 font-bold">
               Send to <span className="text-[13px] font-normal text-muted-foreground">(up to {MAX_REC_RECIPIENTS})</span>
             </legend>
-            {people === null && <Loading>Finding your friends…</Loading>}
-            {people?.length === 0 && (
+            {friendsState === "loading" && <Loading>Finding your friends…</Loading>}
+            {friendsState === "error" && (
               <Note>
-                You can send to people you follow and people who follow you. <a className="underline" href="/leaderboard">Find people to follow</a>.
+                Friend lookup failed.{" "}
+                <button type="button" className="underline" onClick={() => loadFriends()}>
+                  Try again
+                </button>
+                , or copy the link and send it on WhatsApp.
               </Note>
+            )}
+            {friendsState === "ready" && people?.length === 0 && (
+              <Note>
+                You can send to people you follow and people who follow you.{" "}
+                <a className="underline" href="/leaderboard">Find people to follow</a>.
+                Copy the link if they are not here yet.
+              </Note>
+            )}
+            {chosen.size >= MAX_REC_RECIPIENTS && (
+              <Note>That’s the limit of {MAX_REC_RECIPIENTS} people for one rec.</Note>
             )}
             {people?.map((person) => {
               const name = person.displayName ?? `@${person.handle}`;
@@ -298,6 +339,7 @@ export default function SendView({
             <FieldDescription>
               One short line, {note.length}/{MAX_REC_NOTE_LENGTH}. Friends can answer &ldquo;I&rsquo;m in&rdquo; or &ldquo;Want to try&rdquo;.
             </FieldDescription>
+            {!noteCheck.ok && <FormMessage tone="error">{noteCheck.error}</FormMessage>}
           </Field>
 
           {error && <FormMessage tone="error">{error}</FormMessage>}

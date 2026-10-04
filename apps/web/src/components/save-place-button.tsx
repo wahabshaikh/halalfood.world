@@ -6,6 +6,7 @@ import { FavouriteIcon } from "@hugeicons/core-free-icons";
 import { Button } from "@halalfood/ui/components/button";
 import { cn } from "@halalfood/ui/lib/utils";
 import { getClientSession } from "../lib/client-session";
+import { nextSaveState } from "../lib/save-toggle";
 
 type SavedPlacesPayload = {
   places?: Array<{ id?: unknown }>;
@@ -13,6 +14,7 @@ type SavedPlacesPayload = {
 
 let savedPlaceIds: Set<string> | null = null;
 let savedPlacesLoad: Promise<Set<string>> | null = null;
+let savedRevision = 0;
 let savedPlacesAuth: "unknown" | "authenticated" | "unauthenticated" =
   "unknown";
 
@@ -49,6 +51,7 @@ async function loadSavedPlaceIds() {
   if (savedPlaceIds) return savedPlaceIds;
   if (savedPlacesLoad) return savedPlacesLoad;
 
+  const revision = savedRevision;
   savedPlacesLoad = getClientSession()
     .then(async (user) => {
       // Signed-out visitors have nothing saved; skip the Worker round trip.
@@ -69,6 +72,7 @@ async function loadSavedPlaceIds() {
       }
       if (!response.ok) throw new Error("Saved places could not load");
       const payload = (await response.json()) as SavedPlacesPayload;
+      if (revision !== savedRevision && savedPlaceIds) return savedPlaceIds;
       savedPlacesAuth = "authenticated";
       savedPlaceIds = new Set(
         (Array.isArray(payload.places) ? payload.places : [])
@@ -86,21 +90,11 @@ async function loadSavedPlaceIds() {
 }
 
 function updateSavedPlace(placeId: string, saved: boolean) {
+  savedRevision += 1;
   if (!savedPlaceIds) savedPlaceIds = new Set();
   if (saved) savedPlaceIds.add(placeId);
   else savedPlaceIds.delete(placeId);
   savedPlacesAuth = "authenticated";
-}
-
-async function responseError(response: Response, fallback: string) {
-  try {
-    const payload = (await response.json()) as { error?: unknown };
-    return typeof payload.error === "string" && payload.error
-      ? payload.error
-      : fallback;
-  } catch {
-    return fallback;
-  }
 }
 
 export default function SavePlaceButton({
@@ -156,6 +150,7 @@ export default function SavePlaceButton({
     }
 
     setBusy(true);
+    const previous = saved;
     const nextSaved = force ?? !saved;
     try {
       const response = await fetch(
@@ -166,24 +161,29 @@ export default function SavePlaceButton({
         goToLogin(placeId);
         return;
       }
-      if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as {
+        saved?: unknown;
+        error?: unknown;
+      };
+      const outcome = nextSaveState(previous, nextSaved, {
+        ok: response.ok,
+        saved: typeof payload.saved === "boolean" ? payload.saved : undefined,
+      });
+      setSaved(outcome.saved);
+      if (outcome.error) {
         setError(
-          await responseError(
-            response,
-            response.status === 429
+          typeof payload.error === "string" && payload.error
+            ? payload.error
+            : response.status === 429
               ? "Too many save actions. Please try again later."
-              : "Could not update saved places.",
-          ),
+              : outcome.error,
         );
         return;
       }
-      const payload = (await response.json()) as { saved?: unknown };
-      const savedResult =
-        typeof payload.saved === "boolean" ? payload.saved : nextSaved;
-      setSaved(savedResult);
-      updateSavedPlace(placeId, savedResult);
-      onSavedChange?.(savedResult);
+      updateSavedPlace(placeId, outcome.saved);
+      onSavedChange?.(outcome.saved);
     } catch {
+      setSaved(previous);
       setError("Could not update saved places. Please try again.");
     } finally {
       setBusy(false);

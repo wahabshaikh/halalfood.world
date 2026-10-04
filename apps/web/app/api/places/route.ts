@@ -1,4 +1,8 @@
 import { createPlace, findPlaces } from "../../../src/lib/places";
+import {
+  findListedPlace,
+  submitPlaceLink,
+} from "../../../src/lib/place-link-submissions";
 import { bboxParam, limitParam } from "@halalfood/core/params";
 import {
   GOOGLE_PLACES_ADD_FIELD_MASK,
@@ -134,6 +138,33 @@ export async function POST(request: Request) {
   }
 
   const input = validation.data;
+  if (input.mode === "link") {
+    try {
+      const result = await submitPlaceLink(auth.userId, input);
+      if (!result.ok) {
+        return Response.json(
+          {
+            error: `${result.place.name} is already listed.`,
+            placeId: result.place.id,
+            url: `/place/${result.place.id}`,
+          },
+          { status: 409, headers: noStore() },
+        );
+      }
+      return Response.json(
+        {
+          id: result.id,
+          status: result.status,
+          deduped: result.deduped,
+          listed: false,
+        },
+        { status: result.deduped ? 200 : 201, headers: noStore() },
+      );
+    } catch {
+      return unavailable();
+    }
+  }
+
   if (!getGooglePlacesApiKey()) {
     return Response.json(
       { error: "Adding places is paused right now. Please try again later." },
@@ -187,8 +218,16 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     if (isUniqueViolation(error)) {
+      const existing = await findListedPlace({
+        googlePlaceId,
+        name,
+        citySlug,
+      }).catch(() => null);
       return Response.json(
-        { error: "That place is already listed." },
+        {
+          error: existing ? `${existing.name} is already listed.` : "That place is already listed.",
+          ...(existing ? { placeId: existing.id, url: `/place/${existing.id}` } : {}),
+        },
         { status: 409, headers: noStore() },
       );
     }

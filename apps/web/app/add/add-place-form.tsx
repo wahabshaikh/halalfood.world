@@ -28,6 +28,8 @@ import { getClientSession } from "../../src/lib/client-session";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
 type GooglePlace = { id: string; name: string; address: string };
+type ListedPlace = { id: string; name: string; address: string };
+type LinkDraft = { name: string; city: string; address: string; sourceUrl: string };
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -67,6 +69,16 @@ export default function AddPlaceForm({
   // Set when a signed-out search was interrupted by login, to finish it on return.
   const [resumeSearch, setResumeSearch] = useState(false);
   const [results, setResults] = useState<GooglePlace[]>([]);
+  const [listed, setListed] = useState<ListedPlace[]>([]);
+  const [providerDown, setProviderDown] = useState(false);
+  const [linkDraft, setLinkDraft] = useState<LinkDraft>({
+    name: "",
+    city: "",
+    address: "",
+    sourceUrl: "",
+  });
+  const [linkReceipt, setLinkReceipt] = useState<{ id: string; status: string } | null>(null);
+  const [duplicateUrl, setDuplicateUrl] = useState("");
   const [selected, setSelected] = useState<GooglePlace | null>(null);
   const [searchBusy, setSearchBusy] = useState(false);
   const [searchMessage, setSearchMessage] = useState("");
@@ -96,6 +108,22 @@ export default function AddPlaceForm({
       if (typeof saved?.id === "string" && typeof saved.name === "string" && typeof saved.address === "string")
         setSelected({ id: saved.id, name: saved.name, address: saved.address });
       if (typeof draft.query === "string") setQuery(draft.query);
+      const link = record(draft.link);
+      if (
+        link &&
+        typeof link.name === "string" &&
+        typeof link.city === "string" &&
+        typeof link.address === "string" &&
+        typeof link.sourceUrl === "string"
+      ) {
+        setLinkDraft({
+          name: link.name,
+          city: link.city,
+          address: link.address,
+          sourceUrl: link.sourceUrl,
+        });
+        if (draft.providerDown === true) setProviderDown(true);
+      }
       if (!saved && typeof draft.query === "string" && draft.query.trim().length >= 2)
         setResumeSearch(true);
     } catch {
@@ -105,7 +133,10 @@ export default function AddPlaceForm({
 
   function saveDraft() {
     try {
-      sessionStorage.setItem(draftKey, JSON.stringify({ query, selected }));
+      sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({ query, selected, providerDown, link: linkDraft }),
+      );
     } catch {
       // The form still works without storage.
     }
@@ -145,8 +176,36 @@ export default function AddPlaceForm({
         window.location.assign(loginUrl);
         return;
       }
-      if (!response.ok) {
-        setSearchMessage(errorFrom(body, "Google search didn’t work. Please try again."));
+      const localResponse = await fetch(
+        "/api/places/search?q=" + encodeURIComponent(term) + "&limit=5",
+        { cache: "no-store" },
+      );
+      const localBody = await responseBody(localResponse);
+      const already = (Array.isArray(localBody?.places) ? localBody.places : []).flatMap(
+        (value): ListedPlace[] => {
+          const place = record(value);
+          return typeof place?.id === "string" && typeof place.name === "string"
+            ? [
+                {
+                  id: place.id,
+                  name: place.name,
+                  address:
+                    typeof place.street_address === "string" ? place.street_address : "",
+                },
+              ]
+            : [];
+        },
+      );
+      setListed(already);
+      if (!response.ok || body?.fallback === "link") {
+        setProviderDown(true);
+        setLinkDraft((current) => ({ ...current, name: current.name || term }));
+        setSearchMessage(
+          errorFrom(
+            body,
+            "Google search didn’t work. Add the place with a link instead. A moderator reviews it before it is listed.",
+          ),
+        );
         return;
       }
       const places = (Array.isArray(body?.places) ? body.places : []).flatMap((value): GooglePlace[] => {
@@ -155,10 +214,21 @@ export default function AddPlaceForm({
           ? [{ id: place.id, name: place.name, address: place.address }]
           : [];
       });
+      setProviderDown(false);
       setResults(places);
-      if (!places.length) setSearchMessage("Nothing on Google Maps matches that. Try the name and the area.");
+      if (!places.length)
+        setSearchMessage(
+          already.length
+            ? "Nothing else on Google Maps matches that."
+            : "Nothing on Google Maps matches that. Try the name and the area, or add it with a link.",
+        );
+      if (!places.length) setProviderDown(true);
     } catch {
-      setSearchMessage("Google search didn’t work. Please try again.");
+      setProviderDown(true);
+      setLinkDraft((current) => ({ ...current, name: current.name || term }));
+      setSearchMessage(
+        "Google search didn’t work. Add the place with a link instead. A moderator reviews it before it is listed.",
+      );
     } finally {
       setSearchBusy(false);
     }
@@ -200,6 +270,11 @@ export default function AddPlaceForm({
         window.location.assign(loginUrl);
         return;
       }
+      if (response.status === 409 && typeof body?.url === "string") {
+        setDuplicateUrl(body.url);
+        setFormError(errorFrom(body, "That place is already listed."));
+        return;
+      }
       if (!response.ok || typeof body?.id !== "string") {
         setFormError(errorFrom(body, "We couldn’t add that place. Please try again."));
         return;
@@ -212,6 +287,77 @@ export default function AddPlaceForm({
       setSubmitBusy(false);
     }
   }
+
+  async function submitLink(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError("");
+    setDuplicateUrl("");
+    if (authState === "signed-out") {
+      saveDraft();
+      window.location.assign(loginUrl);
+      return;
+    }
+    setSubmitBusy(true);
+    try {
+      const response = await fetch("/api/places", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          mode: "link",
+          name: linkDraft.name,
+          city: linkDraft.city,
+          address: linkDraft.address,
+          sourceUrl: linkDraft.sourceUrl,
+          halalConfirmed: true,
+        }),
+      });
+      const body = await responseBody(response);
+      if (response.status === 401) {
+        setAuthState("signed-out");
+        saveDraft();
+        window.location.assign(loginUrl);
+        return;
+      }
+      if (response.status === 409 && typeof body?.url === "string") {
+        setDuplicateUrl(body.url);
+        setFormError(errorFrom(body, "That place is already listed."));
+        return;
+      }
+      if (!response.ok || typeof body?.id !== "string") {
+        setFormError(errorFrom(body, "We couldn’t file that place. Please try again."));
+        return;
+      }
+      clearDraft();
+      setLinkReceipt({
+        id: body.id,
+        status: typeof body.status === "string" ? body.status : "pending",
+      });
+    } catch {
+      setFormError("We couldn’t file that place. Please try again.");
+    } finally {
+      setSubmitBusy(false);
+    }
+  }
+
+  if (linkReceipt)
+    return (
+      <section aria-labelledby="add-link-title" className="mx-auto my-10 max-w-xl">
+        <Card className="items-start gap-3.5 rounded-3xl px-9 py-9 shadow-lg ring-border">
+          <h1 id="add-link-title" className="text-[26px]">
+            Filed for review
+          </h1>
+          <p className="text-muted-foreground">
+            Status: {linkReceipt.status}. Reference {linkReceipt.id}. A moderator checks the
+            link before the place is listed. This is not a halal certification, and it is
+            not on the map yet.
+          </p>
+          <Button asChild size="xl" variant="outline">
+            <a href="/contributions">History is optional</a>
+          </Button>
+        </Card>
+      </section>
+    );
 
   if (success)
     return (
@@ -342,7 +488,32 @@ export default function AddPlaceForm({
           </div>
         </Card>
       )}
+      {listed.length > 0 && (
+        <div className="grid gap-2">
+          <p className="text-sm font-bold">Already listed</p>
+          <ul className="grid gap-2">
+            {listed.map((place) => (
+              <li key={place.id}>
+                <a className="font-bold underline" href={`/place/${place.id}`}>
+                  {place.name}
+                </a>
+                {place.address ? (
+                  <span className="text-sm text-muted-foreground"> · {place.address}</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {searchMessage && <FieldDescription role="status">{searchMessage}</FieldDescription>}
+      {formError && !selected && <FieldError>{formError}</FieldError>}
+      {duplicateUrl && (
+        <FieldDescription>
+          <a className="font-bold underline" href={duplicateUrl}>
+            Open the place that is already listed
+          </a>
+        </FieldDescription>
+      )}
 
       {selected && (
         <form className="grid gap-3" onSubmit={(event) => void submit(event)}>
@@ -358,8 +529,61 @@ export default function AddPlaceForm({
         <FieldDescription>
           {authState === "signed-out"
             ? "You’ll confirm your email with a quick code, then we’ll run your search."
-            : "Only places on Google Maps can be added, so the details stay accurate."}
+            : "Google fills in the pin. If search fails, send a link and a moderator reviews it before it is listed."}
         </FieldDescription>
+      )}
+      {!selected && (providerDown || linkDraft.sourceUrl) && (
+        <form className="grid gap-3" onSubmit={(event) => void submitLink(event)}>
+          <h2 className="text-lg">Add it with a link</h2>
+          <p className="text-sm text-muted-foreground">
+            This stays pending until someone checks the link. It does not publish a listing
+            and it does not certify the food.
+          </p>
+          <InputGroup>
+            <InputGroupInput
+              aria-label="Place name"
+              value={linkDraft.name}
+              maxLength={120}
+              placeholder="Place name"
+              onChange={(event) => setLinkDraft((current) => ({ ...current, name: event.target.value }))}
+            />
+          </InputGroup>
+          <InputGroup>
+            <InputGroupInput
+              aria-label="City"
+              value={linkDraft.city}
+              maxLength={80}
+              placeholder="City"
+              onChange={(event) => setLinkDraft((current) => ({ ...current, city: event.target.value }))}
+            />
+          </InputGroup>
+          <InputGroup>
+            <InputGroupInput
+              aria-label="Street address"
+              value={linkDraft.address}
+              maxLength={200}
+              placeholder="Street address"
+              onChange={(event) =>
+                setLinkDraft((current) => ({ ...current, address: event.target.value }))
+              }
+            />
+          </InputGroup>
+          <InputGroup>
+            <InputGroupInput
+              aria-label="Link to the place"
+              type="url"
+              value={linkDraft.sourceUrl}
+              maxLength={500}
+              placeholder="https://maps.google.com/…"
+              onChange={(event) =>
+                setLinkDraft((current) => ({ ...current, sourceUrl: event.target.value }))
+              }
+            />
+          </InputGroup>
+          <Button size="xl" type="submit" disabled={submitBusy}>
+            {submitBusy ? "Filing…" : "Submit for review"}
+          </Button>
+        </form>
       )}
     </section>
   );

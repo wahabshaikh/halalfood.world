@@ -29,6 +29,7 @@ async function present(profile: DinerProfile) {
     isPrivate: profile.isPrivate,
     showOnLeaderboards: profile.showOnLeaderboards,
     avatarUrl: avatarUrl(profile.handle, profile.avatarKey),
+    onboarded: profile.onboardedAt !== null,
     ...counts,
   };
 }

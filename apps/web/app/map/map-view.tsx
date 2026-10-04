@@ -24,6 +24,7 @@ import SavePlaceButton from "../../src/components/save-place-button";
 import {
   DEFAULT_MAP_VIEW,
   deepLinkKind,
+  fallbackDiscoverPath,
   shouldLoadViewport,
 } from "@halalfood/core/map-viewport";
 import { cn } from "@halalfood/ui/lib/utils";
@@ -195,6 +196,8 @@ export default function MapView({
   const [areaMoved, setAreaMoved] = useState(false);
   const [searchArea, setSearchArea] = useState(0);
   const [showList, setShowList] = useState(false);
+  const [mapBroken, setMapBroken] = useState(false);
+  const [mapAttempt, setMapAttempt] = useState(0);
   const [retry, setRetry] = useState(0);
   const [signedIn, setSignedIn] = useState(false);
 
@@ -267,27 +270,54 @@ export default function MapView({
     syncUrl(null);
   }, [syncUrl]);
 
+  function failMap(message: string) {
+    setMapBroken(true);
+    setShowList(true);
+    setReady(false);
+    setNotice(message);
+    setLoading(false);
+  }
+
   useEffect(() => {
     let cancelled = false;
     const view =
       viewFromParams(new URLSearchParams(window.location.search)) ||
       initialView ||
       DEFAULT_MAP_VIEW;
+    let webgl = false;
+    try {
+      const probe = document.createElement("canvas");
+      webgl = Boolean(probe.getContext("webgl2") || probe.getContext("webgl"));
+    } catch {
+      webgl = false;
+    }
+    if (!webgl) {
+      failMap("This browser can’t draw the map. The list has the same places.");
+      return;
+    }
+    setMapBroken(false);
     import("maplibre-gl")
       .then((lib) => {
         if (cancelled || !container.current) return;
         lib.setWorkerUrl(mapWorkerUrl);
         library.current = lib;
-        const instance = new lib.Map({
-          container: container.current,
-          style: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
-          center: view.center,
-          zoom: view.zoom,
-          attributionControl: { compact: true },
-        });
+        let instance: MapInstance;
+        try {
+          instance = new lib.Map({
+            container: container.current,
+            style: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+            center: view.center,
+            zoom: view.zoom,
+            attributionControl: { compact: true },
+          });
+        } catch {
+          if (!cancelled) failMap("This browser can’t draw the map. The list has the same places.");
+          return;
+        }
         map.current = instance;
         instance.on("load", () => {
           styleReady.current = true;
+          setMapBroken(false);
           setReady(true);
         });
         // A single tile or sprite can fail while the map still loads, so only
@@ -297,13 +327,12 @@ export default function MapView({
           if (styleReady.current || errorTimer) return;
           errorTimer = setTimeout(() => {
             if (!styleReady.current && !cancelled)
-              setNotice("The map couldn’t load. Please reload the page.");
+              failMap("The map didn’t load. The list has the same places.");
           }, 8000);
         });
       })
       .catch(() => {
-        setNotice("The map could not start. Please reload the page.");
-        setLoading(false);
+        if (!cancelled) failMap("The map could not start. The list has the same places.");
       });
     return () => {
       cancelled = true;
@@ -312,7 +341,7 @@ export default function MapView({
       library.current = null;
       styleReady.current = false;
     };
-  }, []);
+  }, [mapAttempt]);
 
   const moveMap = useCallback((center: [number, number], zoom: number) => {
     const instance = map.current;
@@ -440,6 +469,30 @@ export default function MapView({
     };
   }, [ready, deepLinkSettled, retry, filters, searchArea, signedIn]);
 
+  useEffect(() => {
+    if (!mapBroken) return;
+    const controller = new AbortController();
+    const view =
+      viewFromParams(new URLSearchParams(window.location.search)) ||
+      initialView ||
+      DEFAULT_MAP_VIEW;
+    const path = fallbackDiscoverPath(new URLSearchParams(window.location.search), view);
+    setLoading(true);
+    setError("");
+    fetch(path, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Places couldn’t load.");
+        setResults(await response.json());
+        setLoading(false);
+      })
+      .catch((caught) => {
+        if ((caught as Error).name === "AbortError") return;
+        setError("Places couldn’t load.");
+        setLoading(false);
+      });
+    return () => controller.abort();
+  }, [mapBroken, retry, initialView]);
+
   const visible = results.places;
 
   useEffect(() => {
@@ -546,6 +599,11 @@ export default function MapView({
         <div className="mb-4.5">
           <MapFilters filters={filters} onChange={changeFilters} />
         </div>
+        {mapBroken && (
+          <MapStatus>
+            {notice || "The map can’t be drawn in this browser. This list is the fallback."}
+          </MapStatus>
+        )}
         {error && (
           <MapStatus>
             {error}
@@ -602,6 +660,25 @@ export default function MapView({
         )}
       >
         <div ref={container} className="absolute inset-0 bg-map" aria-label="Map of halal places" />
+        {mapBroken && (
+          <div className="absolute inset-0 z-4 flex items-center justify-center bg-background/95 p-6 text-center">
+            <div className="grid max-w-sm gap-3">
+              <p className="text-base font-bold">The map can’t be drawn here.</p>
+              <p className="text-sm text-muted-foreground">
+                {notice || "The list has the same places."} This is not a certification of those places.
+              </p>
+              <Button
+                onClick={() => {
+                  setMapBroken(false);
+                  setNotice("");
+                  setMapAttempt((value) => value + 1);
+                }}
+              >
+                Try the map again
+              </Button>
+            </div>
+          </div>
+        )}
         <div className="absolute top-4 right-4 z-3 grid gap-2.5" aria-label="Map controls">
           <ButtonGroupVertical>
             <Button variant="ghost" size="icon-lg" className="rounded-none" aria-label="Zoom in" onClick={() => map.current?.zoomIn()}>

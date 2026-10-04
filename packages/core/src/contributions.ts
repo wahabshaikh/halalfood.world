@@ -26,6 +26,49 @@ export const CONTRIBUTION_STATUS_COPY: Record<ContributionStatus, string> = {
   superseded: "Superseded by a newer submission",
 };
 
+export type ContributionReceipt = {
+  reference: string;
+  statusLabel: string;
+  summary: string;
+  next: string;
+};
+
+/**
+ * What the submitter can keep even when the history page is down.
+ * The reference is the row id. Appeal copy points at that id, not at the page.
+ */
+export function contributionReceipt(input: {
+  id: string;
+  status: string;
+  summary?: string | null;
+}): ContributionReceipt {
+  const known = (CONTRIBUTION_STATUSES as readonly string[]).includes(input.status)
+    ? (input.status as ContributionStatus)
+    : null;
+  const statusLabel =
+    input.status === "open"
+      ? "Reported"
+      : known
+        ? CONTRIBUTION_STATUS_COPY[known]
+        : "Pending review";
+  const next =
+    known === "accepted"
+      ? "This is already on the place. Keep the reference if a later decision needs an appeal."
+      : known === "rejected"
+        ? "A moderator turned this down. Appeal with this reference. The history page is optional."
+        : known === "needs-evidence"
+          ? "Add a source or a photo and mention this reference. It is not published yet."
+          : known === "superseded"
+            ? "A newer submission replaced this one. The reference still identifies it."
+            : "A moderator reviews this before it changes what diners see. Keep this reference. It counts even if history is unavailable.";
+  return {
+    reference: input.id,
+    statusLabel,
+    summary: input.summary?.trim() || statusLabel,
+    next,
+  };
+}
+
 /** Fields a visitor may propose a correction to. */
 export const EDITABLE_FIELDS = [
   "name",

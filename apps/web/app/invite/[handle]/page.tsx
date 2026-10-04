@@ -13,6 +13,7 @@ import { PersonAvatar } from "../../../src/components/person";
 import { getProfileByHandle } from "../../../src/lib/preferences-repository";
 import { loadOrDegrade } from "../../../src/lib/load";
 import { avatarUrl, HANDLE_PATTERN, normalizeHandle } from "@halalfood/core/social";
+import { cityName } from "../../../src/lib/seo";
 
 /**
  * An invite link names only the diner who shared it: no token, no contact data.
@@ -61,7 +62,28 @@ export default async function InvitePage({
       </Page>
     );
   const profile = loaded.data;
-  if (!profile) notFound();
+  if (!profile || profile.onboardedAt === null) {
+    return (
+      <Page>
+        <SiteHeader hideSearch />
+        <PageMain narrow>
+          <section className="mx-auto my-10 max-w-xl">
+            <Card className="items-center gap-4 rounded-3xl px-6 py-9 text-center shadow-lg ring-border sm:px-9">
+              <h1 className="text-[26px]">This invite is not active yet</h1>
+              <p className="text-base text-muted-foreground">
+                The person who shared it still needs to finish their profile. You can look
+                through the directory in the meantime.
+              </p>
+              <Button asChild size="xl">
+                <a href="/">Browse places</a>
+              </Button>
+            </Card>
+          </section>
+        </PageMain>
+        <SiteFooter />
+      </Page>
+    );
+  }
   const name = profile.displayName ?? profile.handle;
 
   return (
@@ -81,6 +103,19 @@ export default async function InvitePage({
             <p className="text-base text-muted-foreground">
               Follow friends, see where they eat and keep your own list. Halal status comes only
               from dated, moderated evidence, never from likes or followers.
+            </p>
+            {profile.homeCitySlug && (
+              <p className="text-sm">
+                {name} is eating in{" "}
+                <a className="font-bold underline" href={`/city/${profile.homeCitySlug}`}>
+                  {cityName(profile.homeCitySlug)}
+                </a>
+                .
+              </p>
+            )}
+            <p className="text-sm text-muted-foreground">
+              Join and follow @{profile.handle}. If that follow does not stick, Finish on the
+              setup page retries it without creating a second profile.
             </p>
             <Button asChild size="xl" className="w-full">
               <a href={`/onboarding?ref=${encodeURIComponent(profile.handle)}`}>

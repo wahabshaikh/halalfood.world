@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   DEFAULT_MAP_VIEW,
   deepLinkKind,
+  fallbackDiscoverPath,
   shouldLoadViewport,
 } from "../src/map-viewport";
 
@@ -19,6 +20,17 @@ test("a deep link defers the viewport query until the camera has moved", () => {
   assert.equal(shouldLoadViewport("place", false), false);
   assert.equal(shouldLoadViewport("city", true), true);
   assert.equal(shouldLoadViewport("place", true), true);
+});
+
+test("a broken map still has a city list or a box around the camera", () => {
+  assert.equal(
+    fallbackDiscoverPath(new URLSearchParams("city=delhi"), DEFAULT_MAP_VIEW),
+    "/api/discover?city=delhi&limit=40",
+  );
+  assert.match(
+    fallbackDiscoverPath(new URLSearchParams("place=abc"), DEFAULT_MAP_VIEW),
+    /^\/api\/discover\?bbox=72\.67770,18\.85500,73\.07770,19\.25500&limit=40$/,
+  );
 });
 
 test("the opening zoom is wide enough to include a city, not one empty block", () => {

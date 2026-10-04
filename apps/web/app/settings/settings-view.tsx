@@ -21,6 +21,7 @@ type Profile = {
   avatarUrl: string | null;
   followers: number;
   following: number;
+  onboarded?: boolean;
 };
 
 type Person = { handle: string; displayName: string | null; avatarUrl: string | null };
@@ -389,13 +390,16 @@ export default function SettingsView() {
       <FieldSet>
         <FieldLegend>Invite friends</FieldLegend>
         <FieldDescription>
-          Your link opens a short setup and follows you when they join. It carries no contact
-          data.
+          {profile.onboarded
+            ? "Your link opens a short setup and follows you when they join. It carries no contact data."
+            : "Finish your profile before copying an invite. The link has to open a profile that exists."}
         </FieldDescription>
         <Button
           variant="outline"
           className="justify-self-start"
+          disabled={!profile.onboarded}
           onClick={async () => {
+            if (!profile.onboarded) return;
             try {
               await navigator.clipboard.writeText(inviteLink(profile.handle, window.location.origin));
               setCopied(true);

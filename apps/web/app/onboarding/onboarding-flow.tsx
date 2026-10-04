@@ -273,7 +273,6 @@ export default function OnboardingFlow({
   if (homeCity) mapParams.set("city", homeCity);
   if (standardTouched) mapParams.set("mine", "1");
   const mapHref = `/map${mapParams.size ? `?${mapParams}` : ""}`;
-  const link = inviteLink(handle || "you", typeof window === "undefined" ? undefined : window.location.origin);
 
   return (
     <section aria-labelledby="onboarding-title" className="mx-auto my-6 grid max-w-xl gap-5">
@@ -574,8 +573,8 @@ export default function OnboardingFlow({
                 See which friends are here
               </h1>
               <p className="text-base text-muted-foreground">
-                Search by handle, or share your invite link. We never upload, read or store your
-                contacts.
+                Search by handle. The invite link is available after you finish. We never upload,
+                read or store your contacts.
               </p>
             </div>
             <Field>
@@ -616,20 +615,11 @@ export default function OnboardingFlow({
             <div className="grid gap-2 rounded-2xl bg-secondary p-4">
               <strong>Invite friends</strong>
               <p className="text-sm text-muted-foreground">
-                Your link opens your public profile setup and follows you when they join.
+                The invite link turns on after Finish, once this profile can be opened.
+                Sharing it earlier would send people to a page that does not exist yet.
               </p>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(link);
-                    setCopied(true);
-                  } catch {
-                    setCopied(false);
-                  }
-                }}
-              >
-                {copied ? "Link copied" : "Copy invite link"}
+              <Button variant="outline" disabled>
+                Copy invite link
               </Button>
             </div>
             {error && <FormMessage tone="error">{error}</FormMessage>}
@@ -665,6 +655,28 @@ export default function OnboardingFlow({
             <Button asChild variant="outline" size="xl">
               <a href={`/u/${finished.handle}`}>View my profile</a>
             </Button>
+            <div className="grid gap-2 rounded-2xl bg-secondary p-4">
+              <strong>Invite friends</strong>
+              <p className="text-sm text-muted-foreground">
+                This link opens your profile. When someone joins from it, we follow you
+                and tell them so.
+              </p>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(
+                      inviteLink(finished.handle, window.location.origin),
+                    );
+                    setCopied(true);
+                  } catch {
+                    setCopied(false);
+                  }
+                }}
+              >
+                {copied ? "Link copied" : "Copy invite link"}
+              </Button>
+            </div>
           </>
         )}
       </Card>
