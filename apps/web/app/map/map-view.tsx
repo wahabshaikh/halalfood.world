@@ -8,6 +8,9 @@ import type { Place } from "../../src/lib/places";
 import type { DiscoveredPlace } from "../../src/lib/discovery";
 import type { PinSocial } from "../../src/lib/map-social-repository";
 import { getClientSession } from "../../src/lib/client-session";
+import { retryDecision } from "../../src/lib/fetch-retry";
+import { unauthorizedFallback } from "../../src/lib/map-loading";
+import { currentReturnPath, signedOutLoginPath } from "../../src/lib/signed-out";
 import {
   EMPTY_FILTERS,
   activeFilterCount,
@@ -206,7 +209,7 @@ export default function MapView({
   const [ready, setReady] = useState(false);
   const [results, setResults] = useState<Results>({ places: [], total: 0, limit: VIEWPORT_LIMIT });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<PresentedFailure | null>(null);
+  const [error, setError] = useState<MapFailure | null>(null);
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<Place | null>(null);
   // Filters start empty so the server HTML matches the first client render.
@@ -445,7 +448,10 @@ export default function MapView({
       setError(null);
       setLoading(false);
     }
-    async function loadPlaces() {
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    // `attempt` counts automatic retries of this one request. A new filter,
+    // area or Try again starts a new effect, so it starts again at 0.
+    async function loadPlaces(attempt = 0) {
       controller?.abort();
       controller = new AbortController();
       const bbox = viewportBbox(instance.getBounds());
@@ -456,8 +462,19 @@ export default function MapView({
       }
       setViewportTooWide(false);
       setLoading(true);
-      setError(null);
+      if (attempt === 0) setError(null);
       setAreaMoved(false);
+      const retryLater = (status: number | "network", failure: PresentedFailure, retryAfter?: string | null) => {
+        const decision = retryDecision(status, attempt, { retryAfter });
+        setResults({ places: [], total: 0, limit: VIEWPORT_LIMIT });
+        setLoading(false);
+        if (decision.auto) {
+          setError({ ...failure, retrying: true });
+          retryTimer = setTimeout(() => void loadPlaces(attempt + 1), decision.delayMs);
+        } else {
+          setError(failure);
+        }
+      };
       try {
         const query = serializeDiscoveryFilters(filters);
         const response = await fetch(
@@ -470,10 +487,24 @@ export default function MapView({
           { signal: controller.signal },
         );
         if (response.status === 401) {
-          // The session ended: fall back to everyone rather than an empty map.
-          setNotice("Sign in to see your places and your friends’ places.");
-          setFilters((current) => ({ ...current, whose: "everyone" }));
-          setSignedIn(false);
+          const fallback = unauthorizedFallback({ filters, signedIn });
+          if (fallback.personal) {
+            // The session ended: fall back to everyone once rather than an
+            // empty map. The next request is public, so this cannot repeat.
+            setNotice("Sign in to see your places and your friends’ places.");
+            setSignedIn(false);
+            setFilters(fallback.filters);
+            return;
+          }
+          // Even the public read was refused. Nothing changes until the
+          // person signs in, so say so and do not fetch again.
+          setResults({ places: [], total: 0, limit: VIEWPORT_LIMIT });
+          setLoading(false);
+          setError({
+            ...presentHttpFailure("places on the map", 401, ""),
+            retry: true,
+            signIn: true,
+          });
           return;
         }
         if (!response.ok) {
@@ -484,19 +515,19 @@ export default function MapView({
             return;
           }
           // Filters and the search box stay as they were. An error is not an empty list.
-          setError(presentHttpFailure("places", response.status, message));
-          setResults({ places: [], total: 0, limit: VIEWPORT_LIMIT });
-          setLoading(false);
+          retryLater(
+            response.status,
+            presentHttpFailure("places", response.status, message),
+            response.headers.get("retry-after"),
+          );
           return;
         }
         setResults(await response.json());
+        setError(null);
         setLoading(false);
       } catch (caught) {
-        if ((caught as Error).name !== "AbortError") {
-          setError(presentTransportFailure("places", caught));
-          setResults({ places: [], total: 0, limit: VIEWPORT_LIMIT });
-          setLoading(false);
-        }
+        if ((caught as Error).name !== "AbortError")
+          retryLater("network", presentTransportFailure("places", caught));
       }
     }
     const markMoved = () => {
@@ -512,6 +543,7 @@ export default function MapView({
     void loadPlaces();
     return () => {
       controller?.abort();
+      if (retryTimer) clearTimeout(retryTimer);
       instance.off("moveend", markMoved);
     };
   }, [ready, deepLinkSettled, retry, filters, searchArea, signedIn]);
@@ -519,6 +551,7 @@ export default function MapView({
   useEffect(() => {
     if (!mapBroken) return;
     const controller = new AbortController();
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const view =
       viewFromParams(new URLSearchParams(window.location.search)) ||
       initialView ||
@@ -526,26 +559,47 @@ export default function MapView({
     const path = fallbackDiscoverPath(new URLSearchParams(window.location.search), view);
     setLoading(true);
     setError(null);
-    fetch(path, { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) {
-          const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
-          const message = typeof body?.error === "string" ? body.error : "";
-          setError(presentHttpFailure("places", response.status, message));
-          setLoading(false);
+    const load = (attempt: number) => {
+      const fail = (status: number | "network", failure: PresentedFailure, retryAfter?: string | null) => {
+        setLoading(false);
+        if (status === 401) {
+          setError({ ...failure, retry: true, signIn: true });
           return;
         }
-        setResults(await response.json());
-        setLoading(false);
-      })
-      .catch((caught) => {
-        if ((caught as Error).name === "AbortError") return;
-        // This catch is a fetch that never returned. HTTP errors are handled
-        // above so a server message is not replaced by the browser offline error.
-        setError(presentTransportFailure("places", caught));
-        setLoading(false);
-      });
-    return () => controller.abort();
+        const decision = retryDecision(status, attempt, { retryAfter });
+        if (decision.auto) {
+          setError({ ...failure, retrying: true });
+          retryTimer = setTimeout(() => load(attempt + 1), decision.delayMs);
+        } else setError(failure);
+      };
+      fetch(path, { signal: controller.signal })
+        .then(async (response) => {
+          if (!response.ok) {
+            const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+            const message = typeof body?.error === "string" ? body.error : "";
+            fail(
+              response.status,
+              presentHttpFailure("places", response.status, message),
+              response.headers.get("retry-after"),
+            );
+            return;
+          }
+          setResults(await response.json());
+          setError(null);
+          setLoading(false);
+        })
+        .catch((caught) => {
+          if ((caught as Error).name === "AbortError") return;
+          // This catch is a fetch that never returned. HTTP errors are handled
+          // above so a server message is not replaced by the browser offline error.
+          fail("network", presentTransportFailure("places", caught));
+        });
+    };
+    load(0);
+    return () => {
+      controller.abort();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [mapBroken, retry, initialView]);
 
   const visible = results.places;
@@ -666,12 +720,7 @@ export default function MapView({
         )}
         {error && (
           <MapStatus>
-            {error.message}
-            {error.retry && (
-              <Button variant="link" onClick={() => setRetry((value) => value + 1)}>
-                Try again
-              </Button>
-            )}
+            <MapFailureActions error={error} signedIn={signedIn} onRetry={() => setRetry((value) => value + 1)} />
           </MapStatus>
         )}
         {viewportTooWide && !error && (
@@ -764,6 +813,15 @@ export default function MapView({
             </Button>
           </ButtonGroupVertical>
         </div>
+        {error && !showList && (
+          // The list is hidden on small screens, so the failure shows on the map too.
+          <div
+            className="absolute top-4 right-16 left-4 z-5 rounded-2xl bg-background px-4 py-3 text-sm shadow-lg min-[900px]:hidden [&_button]:h-auto [&_button]:px-1.5 [&_button]:py-0 [&_button]:font-extrabold [&_button]:underline"
+            role="alert"
+          >
+            <MapFailureActions error={error} signedIn={signedIn} onRetry={() => setRetry((value) => value + 1)} />
+          </div>
+        )}
         {viewportTooWide ? (
           <div
             className="absolute top-4 left-1/2 z-5 flex -translate-x-1/2 items-center rounded-full bg-background px-4 py-2.5 text-sm font-bold shadow-lg"
@@ -819,6 +877,48 @@ export default function MapView({
         )}
       </button>
     </div>
+  );
+}
+
+type MapFailure = PresentedFailure & {
+  /** An automatic retry is scheduled; the person can still press Try again. */
+  retrying?: boolean;
+  /** Only signing in changes the answer. */
+  signIn?: boolean;
+};
+
+function MapFailureActions({
+  error,
+  signedIn,
+  onRetry,
+}: {
+  error: MapFailure;
+  signedIn: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <>
+      {error.message}
+      {error.retrying && " Trying again shortly."}
+      {error.signIn && (
+        <Button variant="link" asChild>
+          <a
+            href={
+              signedIn
+                ? signedOutLoginPath(currentReturnPath())
+                : `/login?returnTo=${encodeURIComponent(currentReturnPath())}`
+            }
+          >
+            {signedIn ? "Sign in again" : "Sign in"}
+          </a>
+        </Button>
+      )}
+      {(error.retry || error.retrying) && (
+        <Button variant="link" onClick={onRetry}>
+          Try again
+        </Button>
+      )}
+    </>
   );
 }
 
