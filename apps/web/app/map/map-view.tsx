@@ -10,7 +10,7 @@ import type { PinSocial } from "../../src/lib/map-social-repository";
 import { getClientSession } from "../../src/lib/client-session";
 import { retryDecision } from "../../src/lib/fetch-retry";
 import { currentReturnPath, signedOutLoginPath, loginHref, signInAgainUrl } from "../../src/lib/signed-out";
-import { filtersForUrl, mapNoticeVisible, SCOPE_FALLBACK_NOTICE, unauthorizedFallback } from "../../src/lib/map-loading";
+import { filtersForUrl, mapNoticeVisible, SCOPE_FALLBACK_NOTICE, TOAST_LINK_TAP_TARGET, unauthorizedFallback } from "../../src/lib/map-loading";
 import {
   EMPTY_FILTERS,
   activeFilterCount,
@@ -854,7 +854,7 @@ export default function MapView({
             >
               <span>{notice}</span>
               {notice === SCOPE_FALLBACK_NOTICE && (
-                <Button variant="link" size="sm" className="h-auto px-0 font-extrabold" asChild>
+                <Button variant="link" size="sm" className={TOAST_LINK_TAP_TARGET} asChild>
                   <a
                     href={signInAgainUrl(fallback401)}
                     // Read the address on the tap: the map rewrites it without re-rendering.

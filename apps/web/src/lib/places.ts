@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { database } from "../db";
 import { listingCachedRead } from "./listing-cache";
+import { containsText, normalizeSearchQuery } from "./text-search";
 
 import { bboxParam, citySlugParam } from "@halalfood/core/params";
 import { loadOrDegrade, type Loaded } from "./load";
@@ -106,13 +107,14 @@ export async function findPlaces(
   },
   client?: DatabaseClient | Promise<DatabaseClient>,
 ) {
-  // A text search is a `LIKE '%term%'` scan of every listed place, and the
+  // A text search is a substring scan of every listed place, and the
   // same few city and dish names are searched over and over.
   if (options.q && !options.bbox) {
-    // Keep the casing: SQLite LIKE only folds ASCII case.
-    const q = options.q.trim().replace(/\s+/g, " ");
+    // Keep the casing: SQLite lower() only folds ASCII case. Capped, so any
+    // length of input is a normal search (see text-search.ts).
+    const q = normalizeSearchQuery(options.q);
     return listingCachedRead(
-      `places:search:v2:${options.limit}:${q}`,
+      `places:search:v3:${options.limit}:${q}`,
       SEARCH_TTL_SECONDS,
       () => queryPlaces({ q, limit: options.limit }, client),
       client,
@@ -155,9 +157,17 @@ async function queryPlaces(
     );
   }
   if (options.q) {
-    const term = "%" + options.q.replace(/[\\%_]/g, "\\$&") + "%";
+    const q = normalizeSearchQuery(options.q);
     conditions.push(
-      sql`(name LIKE ${term} ESCAPE '\\' OR replace(city_slug, '-', ' ') LIKE ${term} ESCAPE '\\' OR street_address LIKE ${term} ESCAPE '\\' OR address_locality LIKE ${term} ESCAPE '\\')`,
+      sql`(${sql.join(
+        [
+          containsText(sql`name`, q),
+          containsText(sql`replace(city_slug, '-', ' ')`, q),
+          containsText(sql`street_address`, q),
+          containsText(sql`address_locality`, q),
+        ],
+        sql` OR `,
+      )})`,
     );
   }
   const db = await (client ?? database());

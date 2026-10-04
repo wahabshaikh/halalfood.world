@@ -97,3 +97,11 @@ test("the fallback toast hides while the all-fail error box is up (no overlap at
   assert.match(view, /mapNoticeVisible\(\{ notice, error, viewportTooWide \}\) && \(/);
   assert.doesNotMatch(view, /\) : \(\s*notice && \(/);
 });
+
+test("the toast's Sign in link is at least a 44x44 px tap target", async () => {
+  const { TOAST_LINK_TAP_TARGET } = await import("../src/lib/map-loading");
+  assert.match(TOAST_LINK_TAP_TARGET, /\bmin-h-11\b/);
+  assert.match(TOAST_LINK_TAP_TARGET, /\bmin-w-11\b/);
+  const view = readFileSync(new URL("../app/map/map-view.tsx", import.meta.url), "utf8");
+  assert.match(view, /className=\{TOAST_LINK_TAP_TARGET\}/);
+});

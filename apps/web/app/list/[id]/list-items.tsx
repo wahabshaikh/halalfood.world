@@ -11,6 +11,7 @@ import { FormMessage } from "../../../src/components/section";
 import { canEditItems, type ListStanding } from "@halalfood/core/place-lists";
 import type { ListPlace } from "../../../src/lib/lists-repository";
 import { call } from "./call";
+import { SEARCH_FAILED_INLINE } from "../../../src/lib/search-copy";
 
 type Found = { id: string; name: string; street_address: string; city_slug: string };
 
@@ -60,7 +61,7 @@ export default function ListItems({
       const body = (await response.json()) as { places?: Found[] };
       setFound(Array.isArray(body.places) ? body.places : []);
     } catch {
-      setError("Search is taking a moment. Please try again.");
+      setError(SEARCH_FAILED_INLINE);
     }
   }
 

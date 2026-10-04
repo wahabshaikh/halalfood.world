@@ -8,6 +8,7 @@
  */
 
 import { and, eq, or } from "drizzle-orm";
+import { containsText, normalizeSearchQuery, startsWithText } from "./text-search";
 import { sql } from "drizzle-orm";
 import { database } from "../db";
 import {
@@ -373,9 +374,6 @@ export async function relationTo(
 
 /* --------------------------------------------------------------- search -- */
 
-function escapeLike(value: string): string {
-  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
-}
 
 /**
  * Find diners by handle or name. Only people who finished onboarding are
@@ -387,18 +385,16 @@ export async function searchPeople(
   limit = 20,
   client: Client = database(),
 ): Promise<PersonSummary[]> {
-  const term = query.trim().replace(/^@/, "").toLowerCase();
+  const term = normalizeSearchQuery(query.trim().replace(/^@/, "")).toLowerCase();
   if (term.length < 2) return [];
   const db = await client;
-  const prefix = `${escapeLike(term)}%`;
-  const contains = `%${escapeLike(term)}%`;
   const viewer = viewerId ?? "";
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT p.user_id, p.handle, p.display_name, p.avatar_key, p.is_private
     FROM user_profiles AS p
     WHERE p.onboarded_at IS NOT NULL
       AND p.user_id <> ${viewer}
-      AND (p.handle LIKE ${prefix} ESCAPE '\\' OR lower(p.display_name) LIKE ${contains} ESCAPE '\\')
+      AND (${startsWithText(sql`p.handle`, term)} OR ${containsText(sql`p.display_name`, term)})
       AND NOT EXISTS (
         SELECT 1 FROM user_blocks AS b
         WHERE (b.blocker_id = ${viewer} AND b.blocked_id = p.user_id)

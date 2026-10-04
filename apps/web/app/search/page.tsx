@@ -27,6 +27,8 @@ import {
   SiteHeader,
 } from "../../src/components/site-chrome";
 import { PlaceGrid, PlaceRow } from "../../src/components/place-tile";
+import { SEARCH_FAILED_DESCRIPTION, SEARCH_FAILED_TITLE } from "../../src/lib/search-copy";
+import { normalizeSearchQuery } from "../../src/lib/text-search";
 
 const RESULT_LIMIT = 48;
 const SUGGESTION_LIMIT = 12;
@@ -68,8 +70,8 @@ function tabParam(value: string | string[] | undefined): Tab {
 }
 
 function queryParam(value: string | string[] | undefined) {
-  const raw = typeof value === "string" ? value : "";
-  return raw.trim().replace(/\s+/g, " ").slice(0, 120);
+  // Trimmed and capped at 64 characters, the same as the search API.
+  return normalizeSearchQuery(typeof value === "string" ? value : "");
 }
 
 function normalize(value: string) {
@@ -103,8 +105,8 @@ export default async function SearchPage({
           {social.status !== "ok" ? (
             <EmptyPanel
               art={null}
-              title="Search is taking a moment"
-              description="Please try again shortly."
+              title={SEARCH_FAILED_TITLE}
+              description={SEARCH_FAILED_DESCRIPTION}
             >
               <Button asChild size="xl">
                 <a href={`/search?tab=${tab}&q=${encodeURIComponent(q)}`}>Try again</a>
@@ -160,8 +162,8 @@ export default async function SearchPage({
         {searchable && loaded.status !== "ok" && (
           <EmptyPanel
             art={null}
-            title="Search is taking a moment"
-            description="Please try again shortly."
+            title={SEARCH_FAILED_TITLE}
+            description={SEARCH_FAILED_DESCRIPTION}
           >
             <Button asChild size="xl">
               <a href={"/search?q=" + encodeURIComponent(q)}>Try again</a>

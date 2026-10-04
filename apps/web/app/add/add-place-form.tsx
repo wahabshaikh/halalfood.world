@@ -27,6 +27,7 @@ import { getClientSession } from "../../src/lib/client-session";
 import { presentHttpFailure, presentTransportFailure } from "../../src/lib/failure-copy";
 import { currentReturnPath, signedOutLoginPath, loginHref } from "../../src/lib/signed-out";
 import { matchListedPlace } from "../../src/lib/place-match";
+import { normalizeSearchQuery } from "../../src/lib/search-query";
 
 type AuthState = "checking" | "signed-in" | "signed-out";
 /** A Google result we already have, from the search route or the listed matches. */
@@ -230,7 +231,8 @@ export default function AddPlaceForm({
         setListed(embedded);
       } else {
         const localResponse = await fetch(
-          "/api/places/search?q=" + encodeURIComponent(term) + "&limit=5",
+          // Capped like the API (64 characters), so a long Google name is a normal lookup.
+          "/api/places/search?q=" + encodeURIComponent(normalizeSearchQuery(term)) + "&limit=5",
           { cache: "no-store" },
         );
         const localBody = await responseBody(localResponse);
