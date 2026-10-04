@@ -38,6 +38,41 @@ function insertPlace(
     );
 }
 
+test("migration comments are not statement boundaries or wrangler flags", () => {
+  const feed = splitSqlStatements(
+    readFileSync(join(import.meta.dirname, "../migrations/0015_social_feed.sql"), "utf8"),
+  );
+  assert.ok(feed.length >= 2);
+  assert.ok(feed.every((statement) => !statement.startsWith("--")));
+  assert.ok(feed.every((statement) => !statement.startsWith("this column")));
+  assert.ok(
+    feed.some(
+      (statement) =>
+        statement.startsWith("ALTER TABLE") && statement.includes('"verdict"'),
+    ),
+  );
+
+  const indexes = splitSqlStatements(
+    readFileSync(
+      join(import.meta.dirname, "../migrations/0013_read_budget_indexes.sql"),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(
+    indexes.map((statement) => statement.startsWith("CREATE INDEX")),
+    [true, true],
+  );
+
+  const listed = splitSqlStatements(
+    readFileSync(
+      join(import.meta.dirname, "../migrations/0021_public_listing_indexes.sql"),
+      "utf8",
+    ),
+  );
+  assert.equal(listed.length, 3);
+  assert.ok(listed.every((statement) => statement.startsWith("CREATE INDEX IF NOT EXISTS")));
+});
+
 test("the visibility migration hides non-halal names, pins Slam Burger, and clears the Halal cuisine label", () => {
   const { sqlite } = createTestDatabase();
   insertPlace(sqlite, TAVERN, "Valais-style Tavern", "geneva");

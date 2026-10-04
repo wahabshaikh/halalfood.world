@@ -44,6 +44,7 @@ import ShareButton from "../../../src/components/share-button";
 import { guidePath } from "../../../src/lib/guides";
 import CityCoverageCard from "../../../src/components/city-coverage";
 import { getCityCoverage } from "../../../src/lib/coverage-repository";
+import { cachedRead } from "../../../src/lib/read-cache";
 import { coverageHeadline } from "@halalfood/core/coverage";
 
 const PAGE_SIZE = 60;
@@ -128,7 +129,11 @@ export default async function CityPage({
 
   // Coverage is informational: if it cannot be read, the listing still renders
   // rather than the whole city page failing over one panel.
-  const coverage = await getCityCoverage(city.city_slug).catch(() => null);
+  const coverage = await cachedRead(
+    `places:coverage:v1:${city.city_slug}`,
+    10 * 60,
+    () => getCityCoverage(city.city_slug),
+  ).catch(() => null);
 
   const name = cityName(city.city_slug);
   const lastPage = Math.max(Math.ceil(total / PAGE_SIZE) - 1, 0);

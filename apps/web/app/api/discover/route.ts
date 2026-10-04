@@ -100,7 +100,9 @@ export async function GET(request: Request): Promise<Response> {
       {
         headers: {
           "Cache-Control":
-            filters.applyMyStandards || wantsSocial ? "no-store" : "public, max-age=30",
+            filters.applyMyStandards || wantsSocial
+              ? "no-store"
+              : "public, max-age=30, s-maxage=60",
         },
       },
     );

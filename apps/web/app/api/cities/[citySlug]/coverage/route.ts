@@ -5,6 +5,7 @@ import {
 } from "../../../../../src/lib/coverage-repository";
 import { coverageHeadline } from "@halalfood/core/coverage";
 import { consumeContributionLimits, getClientIp } from "../../../../../src/lib/otp-rate-limit";
+import { cachedRead } from "../../../../../src/lib/read-cache";
 import {
   INVALID_JSON,
   badRequest,
@@ -22,10 +23,12 @@ export async function GET(
   const citySlug = citySlugParam((await context.params).citySlug);
   if (!citySlug) return badRequest("Invalid city.");
   try {
-    const coverage = await getCityCoverage(citySlug);
+    const coverage = await cachedRead(`places:coverage:v1:${citySlug}`, 10 * 60, () =>
+      getCityCoverage(citySlug),
+    );
     return json(
       { coverage, headline: coverageHeadline(coverage) },
-      { headers: { "Cache-Control": "public, max-age=300" } },
+      { headers: { "Cache-Control": "public, max-age=300, s-maxage=600" } },
     );
   } catch {
     return unavailable();

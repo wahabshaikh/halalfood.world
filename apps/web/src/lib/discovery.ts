@@ -10,6 +10,7 @@
 
 import { sql, type SQL } from "drizzle-orm";
 import { database } from "../db";
+import { cachedRead } from "./read-cache";
 import {
   FACT_FILTER_SQL,
   type DiscoveryFilters,
@@ -324,11 +325,40 @@ export type DiscoveryResult = {
   offset: number;
 };
 
+function roundCoord(value: number): string {
+  return value.toFixed(2);
+}
+
+/** Visitor-independent discovery. Signed-in "mine" / "friends" views stay fresh. */
+function sharedDiscovery(query: DiscoveryQuery): boolean {
+  return !query.viewerId && query.filters.whose === "everyone" && !query.filters.applyMyStandards;
+}
+
+function discoveryCacheKey(query: DiscoveryQuery): string {
+  const bbox = query.bbox
+    ? [query.bbox.west, query.bbox.south, query.bbox.east, query.bbox.north]
+        .map(roundCoord)
+        .join(",")
+    : "";
+  const origin = query.origin
+    ? `${roundCoord(query.origin.lat)},${roundCoord(query.origin.lng)}`
+    : "";
+  return `places:discover:v1:${query.limit}:${query.offset ?? 0}:${query.citySlug ?? ""}:${bbox}:${origin}:${JSON.stringify(query.filters)}`;
+}
+
 export async function discoverPlaces(
   query: DiscoveryQuery,
-  client: DatabaseClient | Promise<DatabaseClient> = database(),
+  client?: DatabaseClient | Promise<DatabaseClient>,
 ): Promise<DiscoveryResult> {
-  const db = await client;
+  // Place pages ask for "nearby" once each. Places in one neighbourhood share
+  // a rounded box, and `count(*) OVER()` would otherwise read that whole box
+  // on every crawl of every listing.
+  if (!client && sharedDiscovery(query)) {
+    return cachedRead(discoveryCacheKey(query), 10 * 60, () =>
+      discoverPlaces(query, database()),
+    );
+  }
+  const db = await (client ?? database());
   const limit = Math.min(Math.max(Math.trunc(query.limit) || 60, 1), 600);
   const offset = Math.min(Math.max(Math.trunc(query.offset ?? 0), 0), 100000);
   const conditions = buildConditions(query);

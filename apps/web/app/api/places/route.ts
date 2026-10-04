@@ -82,7 +82,7 @@ export async function GET(request: Request) {
   }
   try {
     return Response.json(await findPlaces({ bbox, limit }), {
-      headers: { "Cache-Control": "public, max-age=30" },
+      headers: { "Cache-Control": "public, max-age=30, s-maxage=60" },
     });
   } catch {
     return Response.json(
