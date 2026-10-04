@@ -376,6 +376,10 @@ cap is reached the route returns listed D1 places and the add-with-a-link
 fallback instead of an error. If the rate-limit binding is missing, the older
 D1 buckets still apply: 30 requests per signed-in user per hour and 120 per
 IP per hour.
+Production uses rate-limit namespaces 81001 (anonymous) and 81002
+(signed-in). Workers Builds and GitHub preview uploads rewrite them to 81101
+and 81102, and refuse to upload if any rate limit still uses a production
+namespace.
 
 Save and unsave mutations reuse the same durable table with their own hashed
 key namespace: one user may perform at most 120 save actions per hour with a

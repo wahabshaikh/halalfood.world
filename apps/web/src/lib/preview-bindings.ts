@@ -87,11 +87,30 @@ export function applyPreviewResourceBindings(config: PreviewWranglerConfig): Pre
  */
 export function applyPreviewRateLimitNamespaces(config: PreviewWranglerConfig): PreviewWranglerConfig {
   for (const entry of config.ratelimits ?? []) {
-    if (entry.name === "GOOGLE_SEARCH_ANON") entry.namespace_id = "81101";
-    if (entry.name === "GOOGLE_SEARCH_USER") entry.namespace_id = "81102";
+    const preview = entry.name ? PREVIEW_RATE_LIMIT_NAMESPACES[entry.name] : undefined;
+    if (preview) entry.namespace_id = preview;
+  }
+  const shared = (config.ratelimits ?? []).filter((entry) =>
+    PRODUCTION_RATE_LIMIT_NAMESPACE_IDS.has(String(entry.namespace_id ?? "")),
+  );
+  if (shared.length > 0) {
+    throw new Error(
+      `Refusing preview upload: rate limits share production namespaces (${shared
+        .map((entry) => `${entry.name}=${entry.namespace_id}`)
+        .join(", ")}).`,
+    );
   }
   return config;
 }
+
+/** Production rate-limit namespace ids, from wrangler.jsonc. */
+export const PRODUCTION_RATE_LIMIT_NAMESPACE_IDS: ReadonlySet<string> = new Set(["81001", "81002"]);
+
+/** Preview namespace id for each rate-limit binding. */
+export const PREVIEW_RATE_LIMIT_NAMESPACES: Readonly<Record<string, string>> = {
+  GOOGLE_SEARCH_ANON: "81101",
+  GOOGLE_SEARCH_USER: "81102",
+};
 
 /** Copy the Google search bindings from the source wrangler config onto a generated one. */
 export function copyGoogleSearchWorkerConfig(

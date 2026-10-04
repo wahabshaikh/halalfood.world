@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   applyPreviewEnvironment,
+  applyPreviewRateLimitNamespaces,
   applyPreviewResourceBindings,
   copyGoogleSearchWorkerConfig,
   PREVIEW_D1_ID,
@@ -158,6 +159,7 @@ test("preview workflow and binders do not inject TURNSTILE_SITE_KEY", () => {
   assert.match(bindStep, /CLOUDFLARE_ACCOUNT_ID: \$\{\{ secrets\.CLOUDFLARE_ACCOUNT_ID \}\}/);
   assert.match(bindStep, /scripts\/bind-github-preview\.ts/);
   assert.match(stage, /copyGoogleSearchWorkerConfig/);
+  assert.match(binder, /applyPreviewRateLimitNamespaces\(config\)/);
 });
 
 test("preview uploads do not share the production Google search rate-limit namespaces", () => {
@@ -181,4 +183,25 @@ test("preview uploads do not share the production Google search rate-limit names
   assert.equal(config.ratelimits?.[1]?.namespace_id, "81102");
   assert.equal(config.ratelimits?.[1]?.simple?.limit, 20);
   assert.ok((config.ratelimits?.[1]?.simple?.limit ?? 0) > (config.ratelimits?.[0]?.simple?.limit ?? 0));
+});
+
+test("a preview rate limit left on a production namespace refuses the upload", () => {
+  assert.throws(
+    () =>
+      applyPreviewRateLimitNamespaces({
+        ratelimits: [{ name: "SOME_NEW_LIMIT", namespace_id: "81001", simple: { limit: 1, period: 60 } }],
+      }),
+    /share production namespaces/,
+  );
+  const config: PreviewWranglerConfig = {
+    ratelimits: [
+      { name: "GOOGLE_SEARCH_ANON", namespace_id: "81001" },
+      { name: "GOOGLE_SEARCH_USER", namespace_id: "81002" },
+    ],
+  };
+  applyPreviewRateLimitNamespaces(config);
+  assert.deepEqual(
+    config.ratelimits?.map((entry) => entry.namespace_id),
+    ["81101", "81102"],
+  );
 });
