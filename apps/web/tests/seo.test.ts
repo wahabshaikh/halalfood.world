@@ -79,7 +79,7 @@ test("titles, share text and descriptions state the community status", () => {
     "Bademiya in Mumbai. 2 of 3 community checks so far.",
   );
   const description = placeDescription(place, verified, facts);
-  assert.match(description, /Community verified/);
+  assert.match(description, /Verified/);
   assert.match(description, /Muslim-owned: Yes/);
   assert.equal(placeDescription({ ...place, serves_cuisine: ["Halal"] }, verified, facts).includes("Halal,"), false);
 });

@@ -67,8 +67,8 @@ export function activityText(row: Record<string, unknown>): { text: string; href
     case "status-changed": {
       if (row.change_fact && (FACTS as readonly unknown[]).includes(row.change_fact))
         return { text: `${place} changed: it now ${factPhrase(row.change_fact as Fact, (row.change_to_value as string) ?? null)}, from 3 recent checks.`, href: placeHref };
-      if (row.change_to_status === "verified") return { text: `${place} is now Community verified. You saved it.`, href: placeHref };
-      return { text: `${place} is no longer Community verified. You saved it.`, href: placeHref };
+      if (row.change_to_status === "verified") return { text: `${place} is now Verified. You saved it.`, href: placeHref };
+      return { text: `${place} is no longer Verified. You saved it.`, href: placeHref };
     }
     case "follow":
       return { text: `${name} followed you`, href: profileHref };

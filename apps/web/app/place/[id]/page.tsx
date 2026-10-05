@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowRight01Icon, Call02Icon, Globe02Icon, Navigation03Icon } from "@hugeicons/core-free-icons";
-import { FACTS } from "@halalfood/core/halal";
+import { FACTS, type ListingClaim } from "@halalfood/core/halal";
 import { placeIdParam } from "@halalfood/core/params";
 import { AppShell } from "../../../src/components/app-shell";
 import { AddToListButton } from "../../../src/components/list-sheets";
@@ -14,9 +14,16 @@ import { d1PlacePhotoRepository } from "../../../src/lib/place-photos";
 import { cityName, photoUrl } from "../../../src/lib/place-view";
 import { getPlaceById, nearbyPlaces } from "../../../src/lib/places";
 import { breadcrumbJsonLd, jsonLdScript, placeDescription, placeJsonLd, placeShareText, placeTitle } from "../../../src/lib/seo";
-import { AddPhoto, HeroActions, HowItWorks, Notes, ReportPlace } from "./place-client";
+import { AddEvidence, AddPhoto, HeroActions, HowItWorks, Notes, ReportPlace } from "./place-client";
 
 export const dynamic = "force-dynamic";
+
+/** Map listings are context, never a verdict. */
+const LISTING_NOTE: Record<ListingClaim, string> = {
+  only: "Map listings say everything here is halal.",
+  yes: "Map listings say it has halal options.",
+  no: "Map listings say it isn’t halal.",
+};
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -131,15 +138,19 @@ export default async function PlacePage({ params }: Props) {
               <p className="text-[15px] font-semibold text-muted-foreground">{where}</p>
             </div>
 
-            <StatusCard status={status} latest={shortDate(place.last_checked_at)} how={<HowItWorks />} />
+            <StatusCard status={status} latest={shortDate(place.last_checked_at)} people={place.eligible_checks} how={<HowItWorks />} />
 
             <section aria-labelledby="facts" className="grid gap-3">
               <SectionTitle id="facts">Halal facts</SectionTitle>
               <div className="grid grid-cols-2 gap-2.5">
                 {FACTS.map((fact) => (
-                  <FactTile key={fact} fact={fact} value={place.card.facts[fact]} />
+                  <FactTile key={fact} fact={fact} value={place.card.facts[fact]} evidence={place.evidence[fact]} />
                 ))}
               </div>
+              {place.listing_claim && (
+                <p className="text-[13px] leading-relaxed font-semibold text-muted-foreground">{LISTING_NOTE[place.listing_claim]}</p>
+              )}
+              <AddEvidence placeId={place.id} signedIn={signedIn} />
             </section>
 
             {actions.length > 0 && (

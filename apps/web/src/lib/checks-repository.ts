@@ -1,17 +1,23 @@
 /**
- * Checks are the only input to halal status. Writing one stores it with its
- * dishes and photos, recomputes the place's `place_status` projection, records
- * any change, and awards points (spec §2, §10).
+ * Checks are the main input to halal status; reviewed certificates and menus
+ * and map listings (`place_signals`) are the others. Writing a check stores it
+ * with its dishes and photos, recomputes the place's `place_status`
+ * projection from every source, records any change, and awards points
+ * (spec §2, §10; docs/product/halal-model.md).
  */
 import { sql, type SQL } from "drizzle-orm";
 import {
   FACTS,
   deriveStatus,
+  formatSources,
+  parseListingClaim,
   statusProgress,
   type Answer,
   type CheckForStatus,
   type DerivedStatus,
+  type ListingClaim,
   type PlaceStatus,
+  type Signal,
 } from "@halalfood/core/halal";
 import type { CheckInput, Verdict } from "@halalfood/core/check";
 import { POINTS, pointDay } from "@halalfood/core/points";
@@ -101,8 +107,40 @@ async function loadChecksForStatus(db: DatabaseClient, placeId: string): Promise
   }));
 }
 
+export type SignalsForStatus = { signals: Signal[]; listingClaim: ListingClaim | null };
+
 /**
- * Rebuild one place's status projection from its checks. Writes the row, any
+ * Approved evidence besides checks, one `Signal` per fact each row answers.
+ * Pending and rejected documents never count.
+ */
+export async function loadSignalsForStatus(db: DatabaseClient, placeId: string): Promise<SignalsForStatus> {
+  const rows = await db.all<Record<string, unknown>>(sql`
+    SELECT source, owned, certified, pork, alcohol, listing_claim, expires_at, reviewed_at, updated_at
+    FROM place_signals
+    WHERE place_id = ${placeId} AND review_status = 'approved'
+  `);
+  const signals: Signal[] = [];
+  let listingClaim: ListingClaim | null = null;
+  let listingAt = -Infinity;
+  for (const row of rows) {
+    const source = row.source as Signal["source"];
+    const at = Number(row.reviewed_at ?? row.updated_at);
+    const expiresAt = row.expires_at === null || row.expires_at === undefined ? null : Number(row.expires_at);
+    for (const fact of FACTS) {
+      const value = row[fact];
+      if (value === "yes" || value === "no") signals.push({ source, fact, value, at, expiresAt });
+    }
+    const claim = source === "listing" ? parseListingClaim(row.listing_claim) : null;
+    if (claim && at > listingAt) {
+      listingClaim = claim;
+      listingAt = at;
+    }
+  }
+  return { signals, listingClaim };
+}
+
+/**
+ * Rebuild one place's status projection from its checks and other signals. Writes the row, any
  * status changes, and helped-verify points the first time the place verifies.
  */
 export async function recomputePlaceStatus(
@@ -112,7 +150,9 @@ export async function recomputePlaceStatus(
 ): Promise<Recompute> {
   const db = await client;
   const [current] = await db.all<StatusRow>(sql`SELECT * FROM place_status WHERE place_id = ${placeId}`);
-  const derived = deriveStatus(await loadChecksForStatus(db, placeId));
+  const { signals, listingClaim } = await loadSignalsForStatus(db, placeId);
+  const derived = deriveStatus(await loadChecksForStatus(db, placeId), signals, now);
+  const disputed = FACTS.filter((fact) => derived.facts[fact].disputed).join(",");
   const before = asStatus(current);
   const after = derived.status;
   const changes: StatusChange[] = [];
@@ -136,14 +176,17 @@ export async function recomputePlaceStatus(
     sql`INSERT INTO place_status (
       place_id, status, progress, owned_value, owned_streak, owned_settled, certified_value,
       certified_streak, certified_settled, pork_value, pork_streak, pork_settled, alcohol_value,
-      alcohol_streak, alcohol_settled, eligible_checks, last_checked_at, verified_at, updated_at
+      alcohol_streak, alcohol_settled, owned_sources, certified_sources, pork_sources, alcohol_sources,
+      disputed_facts, listing_claim, eligible_checks, last_checked_at, verified_at, updated_at
     ) VALUES (
       ${placeId}, ${after.kind}, ${statusProgress(after)},
       ${derived.facts.owned.value}, ${derived.facts.owned.streak}, ${settled.owned},
       ${derived.facts.certified.value}, ${derived.facts.certified.streak}, ${settled.certified},
       ${derived.facts.pork.value}, ${derived.facts.pork.streak}, ${settled.pork},
       ${derived.facts.alcohol.value}, ${derived.facts.alcohol.streak}, ${settled.alcohol},
-      ${derived.eligibleChecks}, ${derived.lastCheckedAt}, ${verifiedAt}, ${now}
+      ${formatSources(derived.facts.owned.sources)}, ${formatSources(derived.facts.certified.sources)},
+      ${formatSources(derived.facts.pork.sources)}, ${formatSources(derived.facts.alcohol.sources)},
+      ${disputed}, ${listingClaim}, ${derived.eligibleChecks}, ${derived.lastCheckedAt}, ${verifiedAt}, ${now}
     )
     ON CONFLICT (place_id) DO UPDATE SET
       status = excluded.status, progress = excluded.progress,
@@ -151,6 +194,9 @@ export async function recomputePlaceStatus(
       certified_value = excluded.certified_value, certified_streak = excluded.certified_streak, certified_settled = excluded.certified_settled,
       pork_value = excluded.pork_value, pork_streak = excluded.pork_streak, pork_settled = excluded.pork_settled,
       alcohol_value = excluded.alcohol_value, alcohol_streak = excluded.alcohol_streak, alcohol_settled = excluded.alcohol_settled,
+      owned_sources = excluded.owned_sources, certified_sources = excluded.certified_sources,
+      pork_sources = excluded.pork_sources, alcohol_sources = excluded.alcohol_sources,
+      disputed_facts = excluded.disputed_facts, listing_claim = excluded.listing_claim,
       eligible_checks = excluded.eligible_checks, last_checked_at = excluded.last_checked_at,
       verified_at = excluded.verified_at, updated_at = excluded.updated_at`,
     ...changes.map(

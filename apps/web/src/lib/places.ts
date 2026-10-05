@@ -1,6 +1,15 @@
 import { sql, type SQL } from "drizzle-orm";
 import { citySlugParam } from "@halalfood/core/params";
-import { parseFilters, type Filter } from "@halalfood/core/halal";
+import {
+  FACTS,
+  factEvidence,
+  parseFilters,
+  parseListingClaim,
+  parseSources,
+  type Fact,
+  type Filter,
+  type ListingClaim,
+} from "@halalfood/core/halal";
 import { database } from "../db";
 import { listingCachedRead } from "./listing-cache";
 import { loadOrDegrade, type Loaded } from "./load";
@@ -43,6 +52,12 @@ export type PlaceDetail = {
   card: PlaceCard;
   verified_at: number | null;
   last_checked_at: number | null;
+  /** People whose latest check counts. Not capped at three. */
+  eligible_checks: number;
+  /** How each fact is known: "7 people · Halal certificate", or "" when unknown. */
+  evidence: Record<Fact, string>;
+  /** What map listings say about halal food here, as context. */
+  listing_claim: ListingClaim | null;
 };
 
 export type City = {
@@ -73,7 +88,9 @@ export async function getPlaceById(id: string, client: Client = database()): Pro
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT ${PLACE_CARD_COLUMNS}, p.address_region, p.postal_code, p.address_country,
       p.telephone, p.website, p.maps_url, p.google_place_id, p.google_details_snapshot,
-      p.google_details_cached_at, p.updated_at, s.verified_at, s.last_checked_at
+      p.google_details_cached_at, p.updated_at, s.verified_at, s.last_checked_at, s.eligible_checks,
+      s.owned_streak, s.certified_streak, s.pork_streak, s.alcohol_streak,
+      s.owned_sources, s.certified_sources, s.pork_sources, s.alcohol_sources, s.disputed_facts, s.listing_claim
     FROM ${PLACE_CARD_FROM}
     WHERE p.id = ${id} AND ${LISTED}
     LIMIT 1
@@ -110,7 +127,24 @@ export async function getPlaceById(id: string, client: Client = database()): Pro
     card,
     verified_at: num(row.verified_at),
     last_checked_at: num(row.last_checked_at),
+    eligible_checks: num(row.eligible_checks) ?? 0,
+    evidence: placeEvidence(row),
+    listing_claim: parseListingClaim(row.listing_claim),
   };
+}
+
+function placeEvidence(row: Record<string, unknown>): Record<Fact, string> {
+  const disputed = new Set(String(row.disputed_facts ?? "").split(","));
+  return Object.fromEntries(
+    FACTS.map((fact) => [
+      fact,
+      factEvidence({
+        streak: num(row[`${fact}_streak`]) ?? 0,
+        sources: parseSources(row[`${fact}_sources`]),
+        disputed: disputed.has(fact),
+      }),
+    ]),
+  ) as Record<Fact, string>;
 }
 
 export type CreatePlaceInput = {
