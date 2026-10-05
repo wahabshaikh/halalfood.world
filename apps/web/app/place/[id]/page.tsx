@@ -4,6 +4,7 @@ import { ArrowRight01Icon, Call02Icon, Globe02Icon, Navigation03Icon } from "@hu
 import { FACTS } from "@halalfood/core/halal";
 import { placeIdParam } from "@halalfood/core/params";
 import { AppShell } from "../../../src/components/app-shell";
+import { AddToListButton } from "../../../src/components/list-sheets";
 import { AvatarStack, FactTile, Icon, LinkButton, PlaceArt, SectionTitle, StatusCard, StatusPill, buttonClass } from "../../../src/components/kit";
 import { getViewerId } from "../../../src/lib/auth-session";
 import { listPlaceNotes, topDishes } from "../../../src/lib/checks-repository";
@@ -258,7 +259,16 @@ export default async function PlacePage({ params }: Props) {
             </section>
           )}
 
-          <ReportPlace placeId={place.id} placeName={place.name} signedIn={signedIn} />
+          <div className="grid gap-1">
+            {signedIn && (
+              <AddToListButton
+                placeId={place.id}
+                placeName={place.name}
+                className="inline-flex min-h-11 w-fit items-center gap-2 text-sm font-extrabold text-subtle-foreground"
+              />
+            )}
+            <ReportPlace placeId={place.id} placeName={place.name} signedIn={signedIn} />
+          </div>
         </div>
       </div>
     </AppShell>
