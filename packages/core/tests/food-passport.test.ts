@@ -1,99 +1,36 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  buildFoodPassport,
-  buildMilestones,
-  type PassportVisit,
-} from "../src/food-passport";
+import test from "node:test";
+import { buildFoodPassport, buildMilestones, type PassportCheck } from "../src/food-passport";
 
-const NOW = Date.parse("2026-09-17T12:00:00.000Z");
-const DAY = 86_400_000;
+const check = (placeId: string, citySlug: string, cuisines: string[], country: string | null = "India"): PassportCheck => ({
+  placeId,
+  citySlug,
+  cuisines,
+  country,
+  createdAt: 1,
+});
 
-function visit(overrides: Partial<PassportVisit> = {}): PassportVisit {
-  return {
-    placeId: "place-1",
-    citySlug: "mumbai",
-    neighbourhood: "Bandra",
-    country: "India",
-    cuisines: ["Mughlai"],
-    verified: true,
-    visitedAt: NOW - DAY,
-    ...overrides,
-  };
-}
-
-test("verified and self-reported visits are counted separately", () => {
+test("the passport counts places, cities, cuisines, countries and went-back", () => {
   const passport = buildFoodPassport([
-    visit({ placeId: "a" }),
-    visit({ placeId: "b", verified: false }),
+    check("a", "mumbai", ["Mughlai", "biryani"]),
+    check("a", "mumbai", ["Mughlai"]),
+    check("b", "delhi", ["Mughlai"]),
+    check("c", "london", ["Turkish"], "United Kingdom"),
   ]);
-  assert.equal(passport.verifiedVisits, 1);
-  assert.equal(passport.unverifiedVisits, 1);
-  assert.equal(passport.distinctPlaces, 2);
+  assert.deepEqual(passport, { checks: 4, places: 3, cities: 3, cuisines: 3, countries: 2, wentBack: 1 });
 });
 
-test("coverage counts distinct places, not repeat visits", () => {
-  const passport = buildFoodPassport([
-    visit({ placeId: "a", neighbourhood: "Bandra" }),
-    visit({ placeId: "a", neighbourhood: "Bandra" }),
-    visit({ placeId: "b", neighbourhood: "Colaba" }),
-  ]);
-  assert.equal(passport.cities[0].places, 2);
-  assert.equal(passport.neighbourhoods.length, 2);
-  assert.equal(passport.revisits, 1);
-});
-
-test("cuisine coverage folds case and handles multiple cuisines per place", () => {
-  const passport = buildFoodPassport([
-    visit({ placeId: "a", cuisines: ["Mughlai", "North Indian"] }),
-    visit({ placeId: "b", cuisines: ["mughlai"] }),
-  ]);
-  assert.equal(passport.cuisines.length, 2);
-  assert.equal(passport.cuisines[0].places, 2);
-});
-
-test("a place with no neighbourhood recorded does not create an empty bucket", () => {
-  const passport = buildFoodPassport([visit({ neighbourhood: null })]);
-  assert.deepEqual(passport.neighbourhoods, []);
-});
-
-test("an empty passport is a valid, zeroed passport", () => {
-  const passport = buildFoodPassport([]);
-  assert.equal(passport.distinctPlaces, 0);
-  assert.equal(passport.firstVisitAt, null);
-  assert.deepEqual(passport.cities, []);
-});
-
-test("milestones reward diversity, revisits and evidence, never review volume", () => {
-  const passport = buildFoodPassport([
-    visit({ placeId: "a", neighbourhood: "Bandra", cuisines: ["Mughlai"] }),
-    visit({ placeId: "b", neighbourhood: "Colaba", cuisines: ["Levantine"] }),
-  ]);
-  const milestones = buildMilestones({
-    passport,
-    acceptedEvidence: 5,
-    acceptedCorrections: 1,
-    reverifiedStalePlaces: 0,
-  });
-  const byKey = new Map(milestones.map((milestone) => [milestone.key, milestone]));
-  assert.equal(byKey.get("evidence")?.achieved, true);
-  assert.equal(byKey.get("neighbourhoods")?.progress, 2);
-  assert.equal(byKey.get("neighbourhoods")?.achieved, false);
-  assert.ok(!milestones.some((milestone) => /review/i.test(milestone.description)));
-});
-
-test("milestone progress never exceeds its target", () => {
-  const passport = buildFoodPassport(
-    Array.from({ length: 40 }, (_, index) =>
-      visit({ placeId: `place-${index}`, verified: true }),
-    ),
+test("milestones show progress capped at the target", () => {
+  const passport = buildFoodPassport([check("a", "mumbai", ["Mughlai"]), check("b", "pune", ["Irani"])]);
+  const milestones = buildMilestones(passport, 0);
+  assert.deepEqual(
+    milestones.map((m) => [m.key, m.progress, m.target, m.achieved]),
+    [
+      ["first-check", 1, 1, true],
+      ["first-verify", 0, 1, false],
+      ["10-cuisines", 2, 10, false],
+      ["regular", 0, 3, false],
+      ["5-cities", 2, 5, false],
+    ],
   );
-  const milestones = buildMilestones({
-    passport,
-    acceptedEvidence: 100,
-    acceptedCorrections: 100,
-    reverifiedStalePlaces: 100,
-  });
-  for (const milestone of milestones)
-    assert.ok(milestone.progress <= milestone.target, milestone.key);
 });

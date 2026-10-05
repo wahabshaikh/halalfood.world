@@ -1,251 +1,181 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import {
-  Breadcrumbs,
-  Page,
-  Lead,
-  PageIntro,
-  PageMain,
-  SiteFooter,
-  SiteHeader,
-  Unavailable,
-} from "../../../src/components/site-chrome";
-import { Block, ListIndex, RowList, StatGrid, StatTile } from "../../../src/components/blocks";
-import { InsufficientData, Note } from "../../../src/components/section";
-import ShareButton from "../../../src/components/share-button";
-import { getProfileByHandle } from "../../../src/lib/preferences-repository";
-import { getPreferences } from "../../../src/lib/preferences-repository";
+import { LockIcon } from "@hugeicons/core-free-icons";
+import { normalizeHandle } from "@halalfood/core/people";
+import { AppShell } from "../../../src/components/app-shell";
+import { Avatar, Icon, PlaceArt, TopBar } from "../../../src/components/kit";
+import { VisitCard } from "../../../src/components/visit-card";
 import { getViewerId } from "../../../src/lib/auth-session";
-import { followCounts, getFollowStatus, relationTo } from "../../../src/lib/social-repository";
-import FollowButton from "../../../src/components/follow-button";
-import BlockButton from "../../../src/components/block-button";
-import { SendRecLink } from "../../../src/components/send-rec-link";
-import { PersonAvatar } from "../../../src/components/person";
-import { avatarUrl, profileAccess } from "@halalfood/core/social";
-import { Badge } from "@halalfood/ui/components/badge";
-import { Button } from "@halalfood/ui/components/button";
-import { listPublicListsForUser } from "../../../src/lib/lists-repository";
-import { listPassportVisits, listVisitedPlaces } from "../../../src/lib/visits";
-import { buildFoodPassport } from "@halalfood/core/food-passport";
-import { loadOrDegrade } from "../../../src/lib/load";
-import { cityName } from "../../../src/lib/seo";
+import { KIND_LABEL } from "../../../src/lib/lists";
+import { listConnections } from "../../../src/lib/people";
+import { cityName, photoUrl } from "../../../src/lib/place-view";
+import { avatarUrl } from "../../../src/lib/profiles";
+import { loadPublicProfile } from "../../../src/lib/public-profile";
+import { loginHref } from "../../../src/lib/signed-out";
+import { canonical, jsonLdScript } from "../../../src/lib/seo";
+import { visitJson } from "../../../src/lib/visit-json";
+import { ProfileActions, ProfileMenu } from "./profile-client";
 
-/**
- * A public diner profile, addressed by pseudonym.
- *
- * Contribution history is shown as context — cities explored, cuisines,
- * verified visits, lists — and deliberately not as a single reputation score.
- * A number like that can be farmed, and would be read as religious authority
- * it does not have.
- */
-async function load(handle: string) {
-  if (!/^[a-z0-9][a-z0-9_-]{1,30}[a-z0-9]$/.test(handle))
-    return { status: "missing" as const };
-  return loadOrDegrade(async () => {
-    const profile = await getProfileByHandle(handle);
-    if (!profile) return null;
+export const dynamic = "force-dynamic";
 
-    const viewerId = await getViewerId();
-    const relation = await relationTo(viewerId, profile.userId);
-    const access = profileAccess(relation, profile.isPrivate);
-    // A blocked viewer gets the same page as a missing account.
-    if (!access.showsIdentity) return null;
+type Props = { params: Promise<{ handle: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-    const [preferences, counts, follow] = await Promise.all([
-      getPreferences(profile.userId),
-      followCounts(profile.userId),
-      viewerId && relation !== "self"
-        ? getFollowStatus(viewerId, profile.userId)
-        : Promise.resolve(null),
-    ]);
-    const showVisits = access.showsActivity && preferences.visibilityVisits === "public";
-    const showLists = access.showsActivity && preferences.visibilityLists === "public";
-    const [visits, places, lists] = await Promise.all([
-      // Someone else's profile shows only visits the owner chose to share.
-      showVisits
-        ? listPassportVisits(profile.userId, undefined, { sharedOnly: relation !== "self" })
-        : Promise.resolve([]),
-      showVisits
-        ? listVisitedPlaces(profile.userId, undefined, { sharedOnly: relation !== "self" })
-        : Promise.resolve([]),
-      showLists ? listPublicListsForUser(profile.userId) : Promise.resolve([]),
-    ]);
-
-    return {
-      profile,
-      relation,
-      follow,
-      counts,
-      passport: buildFoodPassport(visits),
-      places: places.slice(0, 40),
-      lists,
-      // Private account: nothing about activity is shown until the viewer follows.
-      locked: !access.showsActivity,
-      visitsPrivate: access.showsActivity && preferences.visibilityVisits !== "public",
-      listsPrivate: access.showsActivity && preferences.visibilityLists !== "public",
-    };
-  });
+async function load(raw: string, viewerId: string | null) {
+  const handle = normalizeHandle(decodeURIComponent(raw));
+  return handle ? loadPublicProfile(handle, viewerId) : null;
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ handle: string }>;
-}): Promise<Metadata> {
-  const { handle } = await params;
-  const loaded = await load(handle);
-  if (loaded.status !== "ok")
-    return { title: "Diner not found", robots: { index: false, follow: true } };
-  const name = loaded.data.profile.displayName ?? loaded.data.profile.handle;
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const data = await load((await params).handle, null).catch(() => null);
+  if (!data) return { title: "Not found", robots: { index: false } };
   return {
-    title: `${name} on Halalfood`,
-    description: loaded.data.locked
-      ? `${name} is on Halalfood.`
-      : `${loaded.data.passport.distinctPlaces} halal places across ${loaded.data.passport.cities.length} cities.`,
-    alternates: { canonical: `/u/${loaded.data.profile.handle}` },
-    // Private accounts, and any page whose content depends on who is looking,
-    // stay out of search results.
-    robots: loaded.data.profile.isPrivate ? { index: false, follow: false } : undefined,
+    title: `${data.profile.displayName} (@${data.profile.handle})`,
+    description: data.profile.bio ?? `Where ${data.profile.displayName} eats, on halalfood.world.`,
+    alternates: { canonical: `/u/${data.profile.handle}` },
+    robots: data.profile.isPrivate ? { index: false } : undefined,
   };
 }
 
-export default async function DinerProfilePage({
-  params,
-}: {
-  params: Promise<{ handle: string }>;
-}) {
-  const { handle } = await params;
-  const loaded = await load(handle);
-  if (loaded.status === "missing") notFound();
-  if (loaded.status === "error")
-    return (
-      <Page>
-        <SiteHeader />
-        <PageMain>
-          <Unavailable retryPath={`/u/${encodeURIComponent(handle)}`} />
-        </PageMain>
-        <SiteFooter />
-      </Page>
-    );
-
-  const { profile, relation, follow, counts, passport, places, lists, locked, visitsPrivate, listsPrivate } =
-    loaded.data;
-  const name = profile.displayName ?? profile.handle;
+export default async function ProfilePage({ params, searchParams }: Props) {
+  const viewerId = await getViewerId();
+  const data = await load((await params).handle, viewerId);
+  if (!data) notFound();
+  const tab = (await searchParams).tab;
+  const { profile, relation } = data;
+  const city = profile.homeCitySlug ? cityName(profile.homeCitySlug) : null;
+  const connections =
+    data.canView && (tab === "followers" || tab === "following") ? await listConnections(profile.userId, tab) : null;
 
   return (
-    <Page>
-      <SiteHeader />
-      <PageMain>
-        <Breadcrumbs
-          trail={[
-            { name: "Halalfood", path: "/" },
-            { name: name, path: `/u/${profile.handle}` },
-          ]}
+    <AppShell active={relation === "self" ? "you" : "friends"}>
+      {!profile.isPrivate && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLdScript([
+              {
+                "@context": "https://schema.org",
+                "@type": "ProfilePage",
+                url: canonical(`/u/${profile.handle}`),
+                mainEntity: {
+                  "@type": "Person",
+                  name: profile.displayName,
+                  alternateName: `@${profile.handle}`,
+                  ...(profile.bio ? { description: profile.bio } : {}),
+                },
+              },
+            ]),
+          }}
         />
-        <PageIntro eyebrow="DINER PROFILE" title={name}>
-          <div className="flex items-center gap-4">
-            <PersonAvatar
-              name={name}
-              avatarUrl={avatarUrl(profile.handle, profile.avatarKey)}
-              size={72}
-            />
-            <div className="grid gap-1">
-              <p className="font-semibold text-muted-foreground">
-                @{profile.handle}
-                {profile.isPrivate && (
-                  <Badge variant="muted" className="ml-2 align-middle">
-                    Private account
-                  </Badge>
-                )}
-              </p>
-              <p className="text-sm">
-                <strong>{counts.followers}</strong> {counts.followers === 1 ? "follower" : "followers"}
-                {" · "}
-                <strong>{counts.following}</strong> following
-              </p>
-            </div>
+      )}
+      <TopBar back={relation === "self" ? "/me" : "/friends"}>
+        {relation !== "self" && viewerId && <ProfileMenu handle={profile.handle} userId={profile.userId} name={profile.displayName} blocked={relation === "blocked"} />}
+      </TopBar>
+      <section className="grid gap-4 px-5">
+        <div className="flex items-center gap-4">
+          <Avatar name={profile.displayName} seed={profile.userId} src={avatarUrl(profile.avatarKey, profile.handle)} size={76} />
+          <div className="grid min-w-0 gap-0.5">
+            <h1 className="truncate text-[24px] leading-tight font-black">{profile.displayName}</h1>
+            <p className="truncate text-sm font-semibold text-muted-foreground">
+              @{profile.handle}
+              {city ? ` · ${city}` : ""}
+            </p>
           </div>
-          {profile.bio && <Lead>{profile.bio}</Lead>}
-          {profile.homeCitySlug && (
-            <p className="text-sm">Home city: {cityName(profile.homeCitySlug)}</p>
+        </div>
+        {profile.bio && data.canView && <p className="text-[15px] leading-relaxed">{profile.bio}</p>}
+        <div className="flex gap-5 text-sm">
+          <a href={`/u/${profile.handle}?tab=followers`} className="text-foreground">
+            <strong className="font-black">{data.followers}</strong> <span className="font-semibold text-muted-foreground">followers</span>
+          </a>
+          <a href={`/u/${profile.handle}?tab=following`} className="text-foreground">
+            <strong className="font-black">{data.following}</strong> <span className="font-semibold text-muted-foreground">following</span>
+          </a>
+          {data.rank && city && (
+            <a href={`/community?city=${profile.homeCitySlug}`} className="text-foreground">
+              <strong className="font-black">#{data.rank}</strong> <span className="font-semibold text-muted-foreground">in {city}</span>
+            </a>
           )}
-          <div className="flex flex-wrap items-start gap-2.5">
-            {relation === "self" ? (
-              <Button asChild variant="outline" size="lg">
-                <a href="/settings">Edit profile</a>
-              </Button>
-            ) : (
-              <>
-                <FollowButton handle={profile.handle} initialStatus={follow} />
-                {relation === "following" && (
-                  <SendRecLink to={profile.handle} label="Send a rec" variant="outline" className="h-11 rounded-full" />
-                )}
-                <BlockButton handle={profile.handle} />
-              </>
-            )}
-            <ShareButton
-              url={`/u/${profile.handle}`}
-              title={`${name} on Halalfood`}
-              text={`${name} on Halalfood`}
-              variant="outline"
-            />
-          </div>
-        </PageIntro>
-
-        {locked && (
-          <InsufficientData>
-            This account is private. Follow {name} to see their visits and lists once they
-            approve.
-          </InsufficientData>
-        )}
-
-        {locked ? null : visitsPrivate ? (
-          <InsufficientData>This diner keeps their visits private.</InsufficientData>
+        </div>
+        {relation === "self" ? (
+          <a href="/me/settings" className="inline-flex min-h-11 items-center justify-center rounded-full border border-input text-[15px] font-extrabold text-foreground">
+            Edit profile
+          </a>
+        ) : viewerId ? (
+          relation !== "blocked" && <ProfileActions handle={profile.handle} relation={relation} />
         ) : (
-          <>
-            <StatGrid>
-              <StatTile value={passport.verifiedVisits} label="Verified visits" />
-              <StatTile value={passport.unverifiedVisits} label="Self-reported" />
-              <StatTile value={passport.distinctPlaces} label="Places" />
-              <StatTile value={passport.cities.length} label="Cities" />
-              <StatTile value={passport.cuisines.length} label="Cuisines" />
-            </StatGrid>
-            <Note>
-              There is no single reviewer score here on purpose. Credibility on
-              Halalfood is contextual — it depends on the cuisine, the city and
-              the quality of the evidence, not on one farmable number.
-            </Note>
-          </>
+          <a href={loginHref(`/u/${profile.handle}`)} className="inline-flex min-h-11 items-center justify-center rounded-full bg-primary text-[15px] font-extrabold text-primary-foreground">
+            Sign in to follow
+          </a>
         )}
+      </section>
 
-        {!visitsPrivate && places.length > 0 && (
-          <Block title="Visited places">
-            <RowList>
-              {places.map((place) => (
-                <li key={place.placeId}>
-                  <a href={`/place/${place.placeId}`} className="font-semibold hover:underline">
-                    {place.name}
+      {relation === "blocked" ? (
+        <p className="px-5 py-10 text-center text-sm font-semibold text-muted-foreground">You blocked @{profile.handle}.</p>
+      ) : !data.canView ? (
+        <div className="flex flex-col items-center gap-2 px-5 py-12 text-center">
+          <Icon icon={LockIcon} size={28} />
+          <p className="text-[17px] font-extrabold">This account is private</p>
+          <p className="text-sm font-semibold text-muted-foreground">Follow to see their checks and lists.</p>
+        </div>
+      ) : connections ? (
+        <section className="grid gap-2 px-5 pt-6 pb-10">
+          <h2 className="text-[17px] font-black">{tab === "followers" ? "Followers" : "Following"}</h2>
+          <ul className="grid">
+            {connections.map((person) => (
+              <li key={person.userId}>
+                <a href={`/u/${person.handle}`} className="flex items-center gap-3 border-b border-border/70 py-3 text-foreground">
+                  <Avatar name={person.name} seed={person.userId} src={avatarUrl(person.avatarKey, person.handle)} size={40} />
+                  <span className="grid min-w-0">
+                    <strong className="truncate text-[15px] font-extrabold">{person.name}</strong>
+                    <span className="truncate text-[13px] font-semibold text-muted-foreground">@{person.handle}</span>
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+          {connections.length === 0 && <p className="text-sm font-semibold text-muted-foreground">No one yet.</p>}
+        </section>
+      ) : (
+        <div className="grid gap-7 px-5 pt-6 pb-10">
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              [data.stats.places, "Places"],
+              [data.stats.checks, "Checks"],
+              [data.stats.cities, "Cities"],
+              [data.stats.cuisines, "Cuisines"],
+            ].map(([value, label]) => (
+              <div key={label} className="grid gap-0.5 rounded-2xl bg-muted px-2 py-3 text-center">
+                <strong className="text-xl font-black">{value}</strong>
+                <span className="text-xs font-bold text-muted-foreground">{label}</span>
+              </div>
+            ))}
+          </div>
+          {data.lists.length > 0 && (
+            <section className="grid gap-2.5">
+              <h2 className="text-[17px] font-black">Lists</h2>
+              <div className="flex gap-3 overflow-x-auto [scrollbar-width:none]">
+                {data.lists.map((list) => (
+                  <a key={list.id} href={`/list/${list.id}`} className="grid w-40 shrink-0 gap-1.5 text-foreground">
+                    <PlaceArt name={list.coverName ?? list.title} seed={list.coverPlaceId ?? list.id} src={photoUrl(list.coverKey)} className="h-24 w-full" rounded="rounded-[14px]" />
+                    <strong className="truncate text-[15px] font-extrabold">{list.title}</strong>
+                    <span className="text-xs font-bold text-muted-foreground">
+                      {KIND_LABEL[list.kind]} · {list.items}
+                    </span>
                   </a>
-                  <span className="text-xs text-muted-foreground">{cityName(place.citySlug)}</span>
-                </li>
-              ))}
-            </RowList>
-          </Block>
-        )}
-
-        {!locked && (
-        <Block title="Lists">
-          {listsPrivate ? (
-            <InsufficientData>This diner keeps their lists private.</InsufficientData>
-          ) : lists.length === 0 ? (
-            <InsufficientData>No public lists yet.</InsufficientData>
-          ) : (
-            <ListIndex lists={lists} />
+                ))}
+              </div>
+            </section>
           )}
-        </Block>
-        )}
-      </PageMain>
-      <SiteFooter />
-    </Page>
+          <section className="grid gap-1">
+            <h2 className="text-[17px] font-black">Recent visits</h2>
+            {data.visits.length ? (
+              data.visits.map((visit) => <VisitCard key={visit.checkId} visit={visitJson(visit)} />)
+            ) : (
+              <p className="py-4 text-sm font-semibold text-muted-foreground">No visits yet.</p>
+            )}
+          </section>
+        </div>
+      )}
+    </AppShell>
   );
 }

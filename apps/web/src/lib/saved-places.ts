@@ -1,14 +1,10 @@
 import { sql } from "drizzle-orm";
 import { database } from "../db";
-import type { Place } from "./places";
+import { LISTED, PLACE_CARD_COLUMNS, toPlaceCard, type PlaceCard } from "./place-view";
 
 export const SAVED_PLACES_LIMIT = 200;
 
-export type SavedPlace = Omit<Place, "lat" | "lng"> & {
-  lat: number | null;
-  lng: number | null;
-  saved_at: string | number | Date | null;
-};
+export type SavedPlace = PlaceCard & { savedAt: number };
 
 export type SavedPlaceList = {
   places: SavedPlace[];
@@ -26,6 +22,7 @@ export interface SavedPlaceRepository {
   add(userId: string, placeId: string): Promise<void>;
   remove(userId: string, placeId: string): Promise<void>;
   list(userId: string): Promise<SavedPlaceList>;
+  savedIds(userId: string, placeIds: string[]): Promise<Set<string>>;
 }
 
 type DatabaseClient = Awaited<ReturnType<typeof database>>;
@@ -40,7 +37,7 @@ export function d1SavedPlaceRepository(
       const rows = await db.all(sql`
         SELECT 1
         FROM places
-        WHERE id = ${placeId} AND halal_confirmed = 1 AND listing_status = 'listed'
+        WHERE id = ${placeId} AND listing_status = 'listed'
         LIMIT 1
       `);
       return rows.length > 0;
@@ -65,34 +62,30 @@ export function d1SavedPlaceRepository(
 
     async list(userId) {
       const db = await client;
-      const rows = await db.all<SavedPlace & { total: number }>(sql`
-        SELECT
-          p.id AS id,
-          p.name,
-          p.city_slug,
-          p.street_address,
-          p.address_locality,
-          p.address_country,
-          p.telephone,
-          p.website,
-          p.rating_value,
-          p.review_count,
-          p.lat,
-          p.lng,
-          saved.created_at AS saved_at,
-          count(*) OVER() AS total
+      const rows = await db.all<Record<string, unknown>>(sql`
+        SELECT ${PLACE_CARD_COLUMNS}, saved.created_at AS saved_at, count(*) OVER() AS total
         FROM saved_places AS saved
-        INNER JOIN places AS p ON p.id = saved.place_id
-        WHERE saved.user_id = ${userId}
-          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
+        JOIN places p ON p.id = saved.place_id
+        JOIN place_status s ON s.place_id = p.id
+        WHERE saved.user_id = ${userId} AND ${LISTED}
         ORDER BY saved.created_at DESC, p.name, p.id
         LIMIT ${SAVED_PLACES_LIMIT}
       `);
       return {
-        places: rows.map(({ total: _total, ...place }) => place),
-        total: rows[0]?.total ?? 0,
+        places: rows.map((row) => ({ ...toPlaceCard(row), savedAt: Number(row.saved_at) })),
+        total: Number(rows[0]?.total ?? 0),
         limit: SAVED_PLACES_LIMIT,
       };
+    },
+
+    async savedIds(userId, placeIds) {
+      if (!placeIds.length) return new Set<string>();
+      const db = await client;
+      const rows = await db.all<{ place_id: string }>(sql`
+        SELECT place_id FROM saved_places
+        WHERE user_id = ${userId} AND place_id IN (${sql.join(placeIds.map((id) => sql`${id}`), sql`, `)})
+      `);
+      return new Set(rows.map((row) => row.place_id));
     },
   };
 }

@@ -1,30 +1,16 @@
-import { FEED_PAGE_SIZE } from "@halalfood/core/feed";
-import { listFriendsFeed } from "../../../src/lib/feed-repository";
-import { getPreferences } from "../../../src/lib/preferences-repository";
-import { json, requireUser } from "../../../src/lib/api";
-import { domainFailure } from "../../../src/lib/domain-error";
+import { json, requireUser, unavailable } from "../../../src/lib/api";
+import { feedPage } from "../../../src/lib/feed";
+import { visitJson } from "../../../src/lib/visit-json";
 
-/**
- * The friends feed for the signed-in diner: their own shared visits and those
- * of the people they follow, filtered by their own dietary standard. It is
- * personal, so it is never cached.
- */
+/** Shared checks from people you follow, newest first, 20 per page. `cursor` is the last item's time. */
 export async function GET(request: Request): Promise<Response> {
-  const outcome = await requireUser(request, "/feed");
+  const outcome = await requireUser(request, "/friends");
   if (!outcome.ok) return outcome.response;
-
-  const url = new URL(request.url);
-  const cursor = url.searchParams.get("cursor");
+  const cursor = Number(new URL(request.url).searchParams.get("cursor"));
   try {
-    const preferences = await getPreferences(outcome.auth.userId);
-    const page = await listFriendsFeed({
-      viewerId: outcome.auth.userId,
-      preferences,
-      cursor,
-      limit: FEED_PAGE_SIZE,
-    });
-    return json(page);
-  } catch (error) {
-    return domainFailure("Your friends feed", error);
+    const page = await feedPage(outcome.auth.userId, Number.isFinite(cursor) && cursor > 0 ? cursor : null);
+    return json({ items: page.items.map(visitJson), next: page.next });
+  } catch {
+    return unavailable();
   }
 }

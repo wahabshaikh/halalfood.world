@@ -1,38 +1,19 @@
 import { validateRecReply } from "@halalfood/core/recs";
-import { uuidParam } from "@halalfood/core/params";
-import { replyToRec } from "../../../../../src/lib/recs-repository";
-import { consumePersonalWriteLimits } from "../../../../../src/lib/otp-rate-limit";
-import {
-  INVALID_JSON,
-  badRequest,
-  json,
-  notFound,
-  readJson,
-  requireUser,
-  spendBudget,
-  unavailable,
-} from "../../../../../src/lib/api";
+import { INVALID_JSON, badRequest, json, notFound, readJson, requireUser, unavailable } from "../../../../../src/lib/api";
+import { replyRec } from "../../../../../src/lib/inbox";
 
-/** Answer a rec with `{ "reply": "in" | "want-to-try" }`. There is no free text. */
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-): Promise<Response> {
-  const recId = uuidParam((await context.params).id);
-  if (!recId) return badRequest("Invalid rec id.");
+/** Body `{reply: "in" | "want-to-try"}`. */
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
+  const outcome = await requireUser(request, "/inbox?tab=recs");
+  if (!outcome.ok) return outcome.response;
   const body = await readJson(request);
   if (body === INVALID_JSON) return badRequest("Send a valid JSON object.");
   const validation = validateRecReply(body);
   if (!validation.ok) return badRequest(validation.error);
-
-  const outcome = await requireUser(request, "/recs");
-  if (!outcome.ok) return outcome.response;
-  const limited = await spendBudget(consumePersonalWriteLimits, outcome.auth);
-  if (limited) return limited;
-
   try {
-    const result = await replyToRec(recId, outcome.auth.userId, validation.reply);
-    return result.ok ? json({ reply: result.reply }) : notFound("That rec could not be found.");
+    return (await replyRec(outcome.auth.userId, (await params).id, validation.reply))
+      ? json({ reply: validation.reply })
+      : notFound("That rec is gone.");
   } catch {
     return unavailable();
   }

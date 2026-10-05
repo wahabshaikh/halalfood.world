@@ -17,7 +17,7 @@ async function listPlacesNeedingCoordinateBackfill(options: {
   return queryD1<PlaceCoordinateCandidate>(
     `SELECT id, google_place_id, lat, lng
      FROM places
-     WHERE halal_confirmed = 1 AND listing_status = 'listed'
+     WHERE listing_status = 'listed'
        AND google_place_id IS NOT NULL AND (lat IS NULL OR lng IS NULL)
      ORDER BY id
      LIMIT ?`,
@@ -50,7 +50,7 @@ async function updatePlaceCoordinatesIfMissing(
      SET lat = ?, lng = ?
      WHERE id = ?
        AND google_place_id = ?
-       AND halal_confirmed = 1 AND listing_status = 'listed'
+       AND listing_status = 'listed'
        AND (lat IS NULL OR lng IS NULL)
      RETURNING id`,
     [coordinates.lat, coordinates.lng, id, googlePlaceId],

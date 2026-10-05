@@ -4,9 +4,7 @@ import {
   sqliteTable,
   text,
   index,
-  uniqueIndex,
   primaryKey,
-  check,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
@@ -128,27 +126,43 @@ export const authOtpRateLimit = sqliteTable("auth_otp_rate_limit", {
 });
 
 /**
- * Global daily count of paid Google Places calls. Written only from
- * google-search-budget.ts. Text Search rows use `YYYY-MM-DD`. Place Details
- * rows use `details:YYYY-MM-DD` so the two caps stay separate.
+ * Everything below mirrors migrations/0001_baseline.sql, which is the source of
+ * truth. Repositories read and write these tables through raw SQL (`db.all(sql…)`),
+ * so these definitions document shape and give typed column names; indexes and
+ * CHECK constraints live only in the migration.
  */
+
 export const googleSearchDaily = sqliteTable("google_search_daily", {
   day: text("day").primaryKey(),
   callCount: integer("call_count").notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
 
-/**
- * `servesCuisine`, timestamps, and booleans below are read and written
- * exclusively through raw SQL in src/lib/*.ts, not drizzle's query builder,
- * so these column definitions document shape rather than drive (de)serialization.
- */
+const ms = (name: string) => integer(name, { mode: "number" });
+const userRef = (name: string) => text(name).references(() => authUser.id, { onDelete: "cascade" });
+
+export const moderators = sqliteTable("moderators", {
+  userId: userRef("user_id").primaryKey(),
+  role: text("role", { enum: ["moderator", "admin"] }).notNull().default("moderator"),
+  createdAt: ms("created_at").notNull(),
+});
+
+export const auditLog = sqliteTable("audit_log", {
+  id: text("id").primaryKey(),
+  actorUserId: text("actor_user_id"),
+  action: text("action").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  reason: text("reason"),
+  beforeValue: text("before_value"),
+  afterValue: text("after_value"),
+  createdAt: ms("created_at").notNull(),
+});
+
 export const places = sqliteTable("places", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   citySlug: text("city_slug").notNull(),
-  cityUrl: text("city_url").notNull(),
-  listPosition: integer("list_position"),
   streetAddress: text("street_address").notNull(),
   addressLocality: text("address_locality"),
   addressRegion: text("address_region"),
@@ -158,1209 +172,318 @@ export const places = sqliteTable("places", {
   website: text("website"),
   mapsUrl: text("maps_url"),
   googlePlaceId: text("google_place_id"),
-  servesCuisine: text("serves_cuisine", { mode: "json" })
-    .notNull()
-    .$type<string[]>(),
-  ratingValue: text("rating_value"),
-  reviewCount: integer("review_count"),
-  source: text("source").notNull(),
-  sourceUrl: text("source_url").notNull(),
-  scrapedAt: integer("scraped_at", { mode: "timestamp_ms" }).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  servesCuisine: text("serves_cuisine", { mode: "json" }).notNull().$type<string[]>(),
   lat: real("lat"),
   lng: real("lng"),
   submittedByUserId: text("submitted_by_user_id"),
-  halalConfirmed: integer("halal_confirmed", { mode: "boolean" })
-    .notNull()
-    .default(true),
-  /** listed is public. hidden keeps the row so the hide can be reversed. */
-  listingStatus: text("listing_status").notNull().default("listed"),
-  googleDetailsCachedAt: integer("google_details_cached_at", {
-    mode: "timestamp_ms",
-  }),
+  listingStatus: text("listing_status", { enum: ["listed", "hidden", "closed"] }).notNull().default("listed"),
   googleDetailsSnapshot: text("google_details_snapshot"),
-  /** Full legacy Place Details `result` JSON, retained for backfill provenance. */
-  googlePlacePayload: text("google_place_payload"),
-  /** Unix epoch milliseconds when the legacy Place Details payload was fetched. */
-  googlePlaceFetchedAt: integer("google_place_fetched_at", {
-    mode: "timestamp_ms",
-  }),
+  googleDetailsCachedAt: ms("google_details_cached_at"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});
+
+const factValue = (name: string) => text(name, { enum: ["yes", "no"] });
+
+export const placeStatus = sqliteTable("place_status", {
+  placeId: text("place_id").primaryKey().references(() => places.id, { onDelete: "cascade" }),
+  status: text("status", { enum: ["verified", "checking", "unchecked"] }).notNull(),
+  progress: integer("progress").notNull(),
+  ownedValue: factValue("owned_value"),
+  ownedStreak: integer("owned_streak").notNull(),
+  ownedSettled: factValue("owned_settled"),
+  certifiedValue: factValue("certified_value"),
+  certifiedStreak: integer("certified_streak").notNull(),
+  certifiedSettled: factValue("certified_settled"),
+  porkValue: factValue("pork_value"),
+  porkStreak: integer("pork_streak").notNull(),
+  porkSettled: factValue("pork_settled"),
+  alcoholValue: factValue("alcohol_value"),
+  alcoholStreak: integer("alcohol_streak").notNull(),
+  alcoholSettled: factValue("alcohol_settled"),
+  eligibleChecks: integer("eligible_checks").notNull(),
+  lastCheckedAt: ms("last_checked_at"),
+  verifiedAt: ms("verified_at"),
+  updatedAt: ms("updated_at").notNull(),
+});
+
+export const placeStatusChanges = sqliteTable("place_status_changes", {
+  id: text("id").primaryKey(),
+  placeId: text("place_id").notNull(),
+  fromStatus: text("from_status").notNull(),
+  toStatus: text("to_status").notNull(),
+  fact: text("fact"),
+  fromValue: text("from_value"),
+  toValue: text("to_value"),
+  createdAt: ms("created_at").notNull(),
 });
 
 export const savedPlaces = sqliteTable(
   "saved_places",
   {
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .$defaultFn(() => new Date()),
+    userId: userRef("user_id").notNull(),
+    placeId: text("place_id").notNull(),
+    createdAt: ms("created_at").notNull(),
   },
-  (table) => [
-    primaryKey({
-      name: "saved_places_pkey",
-      columns: [table.userId, table.placeId],
-    }),
-    index("saved_places_user_id_created_at_idx").on(
-      table.userId,
-      table.createdAt,
-    ),
-    index("saved_places_place_id_idx").on(table.placeId),
-  ],
+  (table) => [primaryKey({ columns: [table.userId, table.placeId] })],
 );
 
-export const placeRatings = sqliteTable(
-  "place_ratings",
-  {
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    rating: text("rating", {
-      enum: ["mashallah", "alhamdulillah", "astaghfirullah"],
-    }).notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .$defaultFn(() => new Date()),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-      .notNull()
-      .$defaultFn(() => new Date()),
-  },
-  (table) => [
-    primaryKey({
-      name: "place_ratings_pkey",
-      columns: [table.userId, table.placeId],
-    }),
-    check(
-      "place_ratings_rating_check",
-      sql`${table.rating} IN ('mashallah', 'alhamdulillah', 'astaghfirullah')`,
-    ),
-    index("place_ratings_place_id_rating_idx").on(table.placeId, table.rating),
-  ],
-);
-
-export const placeReviews = sqliteTable(
-  "place_reviews",
-  {
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    title: text("title"),
-    body: text("body").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .$defaultFn(() => new Date()),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-      .notNull()
-      .$defaultFn(() => new Date()),
-  },
-  (table) => [
-    primaryKey({
-      name: "place_reviews_pkey",
-      columns: [table.userId, table.placeId],
-    }),
-    check(
-      "place_reviews_body_check",
-      sql`length(trim(${table.body})) > 0 AND length(${table.body}) <= 5000`,
-    ),
-    check(
-      "place_reviews_title_check",
-      sql`${table.title} IS NULL OR length(${table.title}) <= 120`,
-    ),
-    index("place_reviews_place_id_created_at_idx").on(
-      table.placeId,
-      sql`${table.createdAt} DESC`,
-    ),
-  ],
-);
-
-export const placePhotos = sqliteTable(
-  "place_photos",
-  {
-    id: text("id").primaryKey(),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    r2Key: text("r2_key").notNull().unique(),
-    contentType: text("content_type").notNull(),
-    byteSize: integer("byte_size").notNull(),
-    originalFileName: text("original_file_name").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .$defaultFn(() => new Date()),
-  },
-  (table) => [
-    check(
-      "place_photos_content_type_check",
-      sql`${table.contentType} IN ('image/jpeg', 'image/png', 'image/webp')`,
-    ),
-    check(
-      "place_photos_byte_size_check",
-      sql`${table.byteSize} BETWEEN 1 AND 8388608`,
-    ),
-    index("place_photos_place_id_created_at_idx").on(
-      table.placeId,
-      sql`${table.createdAt} DESC`,
-    ),
-  ],
-);
-
-export const placeHalalVerifications = sqliteTable(
-  "place_halal_verifications",
-  {
-    id: text("id").primaryKey(),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    submittedByUserId: text("submitted_by_user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    status: text("status").notNull().default("pending"),
-    note: text("note"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .$defaultFn(() => new Date()),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-      .notNull()
-      .$defaultFn(() => new Date()),
-    /* Source attribution and scope, added by migration 0009. */
-    evidenceKind: text("evidence_kind").notNull().default("first-hand"),
-    claimedStatus: text("claimed_status").notNull().default("self-declared"),
-    scope: text("scope").notNull().default("venue"),
-    scopeNote: text("scope_note"),
-    certificationBody: text("certification_body"),
-    certificateId: text("certificate_id"),
-    capturedAt: integer("captured_at", { mode: "timestamp_ms" }),
-    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
-    relationship: text("relationship").notNull().default("none"),
-    incentivized: integer("incentivized", { mode: "boolean" })
-      .notNull()
-      .default(false),
-    visibility: text("visibility").notNull().default("public"),
-    reviewedByUserId: text("reviewed_by_user_id"),
-    reviewReason: text("review_reason"),
-    supersededById: text("superseded_by_id"),
-  },
-  (table) => [
-    index("place_halal_verifications_place_status_created_idx").on(
-      table.placeId,
-      table.status,
-      table.createdAt,
-    ),
-    index("place_halal_verifications_submitter_idx").on(
-      table.submittedByUserId,
-      table.createdAt,
-    ),
-  ],
-);
-
-export const placeHalalVerificationEvidence = sqliteTable(
-  "place_halal_verification_evidence",
-  {
-    id: text("id").primaryKey(),
-    verificationId: text("verification_id")
-      .notNull()
-      .references(() => placeHalalVerifications.id, { onDelete: "cascade" }),
-    kind: text("kind").notNull(),
-    url: text("url"),
-    r2Key: text("r2_key"),
-    contentType: text("content_type"),
-    fileName: text("file_name"),
-    sizeBytes: integer("size_bytes"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .$defaultFn(() => new Date()),
-  },
-  (table) => [
-    index("place_halal_verification_evidence_verification_idx").on(
-      table.verificationId,
-      table.createdAt,
-    ),
-    index("place_halal_verification_evidence_r2_key_idx").on(table.r2Key),
-  ],
-);
-
-/* ---------------------------------------------------------------------------
- * Trust-first platform tables (migration 0009). As above, these definitions
- * document the shape; reads and writes go through raw SQL in src/lib/*.ts.
- * ------------------------------------------------------------------------ */
-
-export const userPreferences = sqliteTable("user_preferences", {
-  userId: text("user_id")
-    .primaryKey()
-    .references(() => authUser.id, { onDelete: "cascade" }),
-  minimumStatus: text("minimum_status").notNull().default("self-declared"),
-  requireCertification: integer("require_certification", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  avoidAlcohol: integer("avoid_alcohol", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  avoidPork: integer("avoid_pork", { mode: "boolean" }).notNull().default(false),
-  requireDedicatedKitchen: integer("require_dedicated_kitchen", {
-    mode: "boolean",
-  })
-    .notNull()
-    .default(false),
-  requirePrayerSpace: integer("require_prayer_space", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  vegetarianOnly: integer("vegetarian_only", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  preferHandSlaughter: integer("prefer_hand_slaughter", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  maxEvidenceAgeDays: integer("max_evidence_age_days"),
-  allergies: text("allergies", { mode: "json" }).notNull().$type<string[]>(),
-  cuisines: text("cuisines", { mode: "json" }).notNull().$type<string[]>(),
-  homeCitySlug: text("home_city_slug"),
-  visibilityVisits: text("visibility_visits").notNull().default("public"),
-  visibilityLists: text("visibility_lists").notNull().default("public"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+export const placeMediaLinks = sqliteTable("place_media_links", {
+  id: text("id").primaryKey(),
+  placeId: text("place_id").notNull(),
+  submittedByUserId: text("submitted_by_user_id"),
+  platform: text("platform", { enum: ["instagram", "tiktok", "youtube"] }).notNull(),
+  url: text("url").notNull(),
+  authorHandle: text("author_handle"),
+  authorName: text("author_name"),
+  title: text("title"),
+  thumbnailUrl: text("thumbnail_url"),
+  createdAt: ms("created_at").notNull(),
 });
 
-export const userProfiles = sqliteTable("user_profiles", {
-  userId: text("user_id")
-    .primaryKey()
-    .references(() => authUser.id, { onDelete: "cascade" }),
-  handle: text("handle").notNull().unique(),
+const answer = (name: string) => text(name, { enum: ["yes", "no", "unsure"] });
+
+export const checks = sqliteTable("checks", {
+  id: text("id").primaryKey(),
+  userId: userRef("user_id").notNull(),
+  placeId: text("place_id").notNull(),
+  owned: answer("owned"),
+  certified: answer("certified"),
+  pork: answer("pork"),
+  alcohol: answer("alcohol"),
+  verdict: text("verdict", { enum: ["no", "okay", "liked", "loved"] }),
+  note: text("note"),
+  shared: integer("shared", { mode: "boolean" }).notNull(),
+  excluded: integer("excluded", { mode: "boolean" }).notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  createdAt: ms("created_at").notNull(),
+});
+
+export const checkDishes = sqliteTable(
+  "check_dishes",
+  {
+    checkId: text("check_id").notNull(),
+    position: integer("position").notNull(),
+    name: text("name").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.checkId, table.position] })],
+);
+
+export const placePhotos = sqliteTable("place_photos", {
+  id: text("id").primaryKey(),
+  placeId: text("place_id").notNull(),
+  userId: userRef("user_id").notNull(),
+  checkId: text("check_id"),
+  r2Key: text("r2_key").notNull(),
+  contentType: text("content_type").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  createdAt: ms("created_at").notNull(),
+});
+
+export const profiles = sqliteTable("profiles", {
+  userId: userRef("user_id").primaryKey(),
+  handle: text("handle").notNull(),
   displayName: text("display_name"),
   bio: text("bio"),
-  homeCitySlug: text("home_city_slug"),
   avatarKey: text("avatar_key"),
-  isPrivate: integer("is_private", { mode: "boolean" }).notNull().default(false),
-  /** Listed on the diner leaderboard (migration 0017). Private accounts never are. */
-  showOnLeaderboards: integer("show_on_leaderboards", { mode: "boolean" })
-    .notNull()
-    .default(true),
-  onboardedAt: integer("onboarded_at", { mode: "timestamp_ms" }),
-  invitedByUserId: text("invited_by_user_id").references(() => authUser.id, {
-    onDelete: "set null",
-  }),
-  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  homeCitySlug: text("home_city_slug"),
+  isPrivate: integer("is_private", { mode: "boolean" }).notNull(),
+  listsPrivateDefault: integer("lists_private_default", { mode: "boolean" }).notNull(),
+  showOnLeaderboards: integer("show_on_leaderboards", { mode: "boolean" }).notNull(),
+  defaultFilters: text("default_filters", { mode: "json" }).notNull().$type<string[]>(),
+  onboardedAt: ms("onboarded_at"),
+  invitedByUserId: text("invited_by_user_id"),
+  suspendedAt: ms("suspended_at"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
 });
 
-/* Social graph (migration 0014). Follows of a private account stay pending
- * until accepted; a block hides both people from each other. */
 export const follows = sqliteTable(
   "follows",
   {
-    followerId: text("follower_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    followeeId: text("followee_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    status: text("status", { enum: ["pending", "accepted"] })
-      .notNull()
-      .default("accepted"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    followerId: userRef("follower_id").notNull(),
+    followeeId: userRef("followee_id").notNull(),
+    status: text("status", { enum: ["pending", "accepted"] }).notNull(),
+    createdAt: ms("created_at").notNull(),
+    updatedAt: ms("updated_at").notNull(),
   },
-  (table) => [
-    primaryKey({ columns: [table.followerId, table.followeeId] }),
-    index("follows_followee_idx").on(table.followeeId, table.status, table.createdAt),
-    index("follows_follower_idx").on(table.followerId, table.status, table.createdAt),
-  ],
+  (table) => [primaryKey({ columns: [table.followerId, table.followeeId] })],
 );
 
-export const userBlocks = sqliteTable(
-  "user_blocks",
+export const blocks = sqliteTable(
+  "blocks",
   {
-    blockerId: text("blocker_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    blockedId: text("blocked_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    blockerId: userRef("blocker_id").notNull(),
+    blockedId: userRef("blocked_id").notNull(),
+    createdAt: ms("created_at").notNull(),
   },
-  (table) => [
-    primaryKey({ columns: [table.blockerId, table.blockedId] }),
-    index("user_blocks_blocked_idx").on(table.blockedId),
-  ],
+  (table) => [primaryKey({ columns: [table.blockerId, table.blockedId] })],
 );
 
-export const placeFacts = sqliteTable("place_facts", {
-  placeId: text("place_id")
-    .primaryKey()
-    .references(() => places.id, { onDelete: "cascade" }),
-  servesAlcohol: text("serves_alcohol").notNull().default("unknown"),
-  servesPork: text("serves_pork").notNull().default("unknown"),
-  dedicatedHalalKitchen: text("dedicated_halal_kitchen")
-    .notNull()
-    .default("unknown"),
-  muslimOwned: text("muslim_owned").notNull().default("unknown"),
-  prayerSpace: text("prayer_space").notNull().default("unknown"),
-  womenFriendlyFacilities: text("women_friendly_facilities")
-    .notNull()
-    .default("unknown"),
-  vegetarianOptions: text("vegetarian_options").notNull().default("unknown"),
-  certificationBody: text("certification_body"),
-  priceBand: integer("price_band"),
-  serviceTypes: text("service_types", { mode: "json" })
-    .notNull()
-    .$type<string[]>(),
-  meals: text("meals", { mode: "json" }).notNull().$type<string[]>(),
-  neighbourhood: text("neighbourhood"),
-  brandSlug: text("brand_slug"),
-  branchLabel: text("branch_label"),
-  reservationUrl: text("reservation_url"),
-  deliveryUrl: text("delivery_url"),
-  menuUrl: text("menu_url"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  updatedByUserId: text("updated_by_user_id"),
+export const likes = sqliteTable(
+  "likes",
+  {
+    checkId: text("check_id").notNull(),
+    userId: userRef("user_id").notNull(),
+    createdAt: ms("created_at").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.checkId, table.userId] })],
+);
+
+export const comments = sqliteTable("comments", {
+  id: text("id").primaryKey(),
+  checkId: text("check_id").notNull(),
+  userId: userRef("user_id").notNull(),
+  body: text("body").notNull(),
+  status: text("status", { enum: ["visible", "hidden"] }).notNull(),
+  createdAt: ms("created_at").notNull(),
 });
 
-export const placeHalalStatusHistory = sqliteTable(
-  "place_halal_status_history",
-  {
-    id: text("id").primaryKey(),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    previousStatus: text("previous_status"),
-    nextStatus: text("next_status").notNull(),
-    previousConfidence: text("previous_confidence"),
-    nextConfidence: text("next_confidence").notNull(),
-    verificationId: text("verification_id"),
-    reason: text("reason"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("place_halal_status_history_place_idx").on(
-      table.placeId,
-      sql`${table.createdAt} DESC`,
-    ),
-  ],
-);
+export const lists = sqliteTable("lists", {
+  id: text("id").primaryKey(),
+  ownerId: userRef("owner_id").notNull(),
+  kind: text("kind", { enum: ["ranked", "plan", "guide"] }).notNull(),
+  title: text("title").notNull(),
+  caption: text("caption"),
+  visibility: text("visibility", { enum: ["public", "followers", "private"] }).notNull(),
+  citySlug: text("city_slug"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});
 
-export const placeDishes = sqliteTable(
-  "place_dishes",
+export const listItems = sqliteTable(
+  "list_items",
   {
-    id: text("id").primaryKey(),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    normalizedName: text("normalized_name").notNull(),
-    cuisine: text("cuisine"),
-    priceMinor: integer("price_minor"),
-    currency: text("currency"),
-    halalScope: text("halal_scope").notNull().default("unknown"),
-    sourceUrl: text("source_url"),
-    capturedAt: integer("captured_at", { mode: "timestamp_ms" }),
-    submittedByUserId: text("submitted_by_user_id"),
-    status: text("status").notNull().default("accepted"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [index("place_dishes_normalized_idx").on(table.normalizedName)],
-);
-
-export const placeVisits = sqliteTable(
-  "place_visits",
-  {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    visitedAt: integer("visited_at", { mode: "timestamp_ms" }).notNull(),
-    verificationMethod: text("verification_method").notNull().default("none"),
-    verificationConfidence: text("verification_confidence")
-      .notNull()
-      .default("none"),
-    verificationDetail: text("verification_detail"),
-    receiptR2Key: text("receipt_r2_key"),
-    context: text("context", { mode: "json" })
-      .notNull()
-      .$type<Record<string, string>>(),
-    visibility: text("visibility").notNull().default("public"),
-    /** Client retry token. The same key from one diner is one visit (migration 0018). */
-    idempotencyKey: text("idempotency_key"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("place_visits_place_idx").on(table.placeId, sql`${table.visitedAt} DESC`),
-    index("place_visits_user_idx").on(table.userId, sql`${table.visitedAt} DESC`),
-  ],
-);
-
-export const placeCheckIns = sqliteTable(
-  "place_check_ins",
-  {
-    visitId: text("visit_id")
-      .primaryKey()
-      .references(() => placeVisits.id, { onDelete: "cascade" }),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    wouldReturn: text("would_return", {
-      enum: ["definitely", "maybe", "no"],
-    }).notNull(),
-    wouldBringFriend: text("would_bring_friend", {
-      enum: ["yes", "maybe", "no"],
-    }),
-    valueVerdict: text("value_verdict", {
-      enum: ["great", "fair", "overpriced"],
-    }).notNull(),
-    serviceVerdict: text("service_verdict", {
-      enum: ["good", "fine", "poor"],
-    }),
-    spendMinor: integer("spend_minor"),
-    currency: text("currency"),
-    note: text("note"),
-    incentivized: integer("incentivized", { mode: "boolean" })
-      .notNull()
-      .default(false),
-    relationship: text("relationship").notNull().default("none"),
-    /** Four-step taste verdict from the log sheet (migration 0015). */
-    verdict: text("verdict", {
-      enum: ["disliked", "okay", "liked", "favourite"],
-    }),
-    /** The pending halal check made on the same visit, if any (migration 0015). */
-    halalVerificationId: text("halal_verification_id").references(
-      () => placeHalalVerifications.id,
-      { onDelete: "set null" },
-    ),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("place_check_ins_place_idx").on(
-      table.placeId,
-      sql`${table.createdAt} DESC`,
-    ),
-  ],
-);
-
-export const placeCheckInDishes = sqliteTable(
-  "place_check_in_dishes",
-  {
-    id: text("id").primaryKey(),
-    visitId: text("visit_id")
-      .notNull()
-      .references(() => placeVisits.id, { onDelete: "cascade" }),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    dishId: text("dish_id"),
-    dishName: text("dish_name").notNull(),
-    normalizedName: text("normalized_name").notNull(),
-    verdict: text("verdict", {
-      enum: ["order-again", "fine", "avoid"],
-    }).notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("place_check_in_dishes_place_idx").on(
-      table.placeId,
-      table.normalizedName,
-    ),
-  ],
-);
-
-export const placeLists = sqliteTable(
-  "place_lists",
-  {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    title: text("title").notNull(),
-    slug: text("slug").notNull(),
-    description: text("description"),
-    caption: text("caption"),
-    coverPlaceId: text("cover_place_id").references(() => places.id, {
-      onDelete: "set null",
-    }),
-    editToken: text("edit_token"),
-    ranked: integer("ranked", { mode: "boolean" }).notNull().default(true),
-    visibility: text("visibility", {
-      enum: ["public", "unlisted", "private"],
-    })
-      .notNull()
-      .default("public"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [index("place_lists_user_slug_idx").on(table.userId, table.slug)],
-);
-
-export const placeListItems = sqliteTable(
-  "place_list_items",
-  {
-    listId: text("list_id")
-      .notNull()
-      .references(() => placeLists.id, { onDelete: "cascade" }),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
+    listId: text("list_id").notNull(),
+    placeId: text("place_id").notNull(),
     position: integer("position").notNull(),
     note: text("note"),
-    addedByUserId: text("added_by_user_id").references(() => authUser.id, {
-      onDelete: "set null",
-    }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    addedByUserId: text("added_by_user_id"),
+    createdAt: ms("created_at").notNull(),
   },
-  (table) => [
-    primaryKey({
-      name: "place_list_items_pkey",
-      columns: [table.listId, table.placeId],
-    }),
-    index("place_list_items_order_idx").on(table.listId, table.position),
-  ],
+  (table) => [primaryKey({ columns: [table.listId, table.placeId] })],
 );
 
-export const placeEditSuggestions = sqliteTable(
-  "place_edit_suggestions",
+export const listMembers = sqliteTable(
+  "list_members",
   {
-    id: text("id").primaryKey(),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    submittedByUserId: text("submitted_by_user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    field: text("field").notNull(),
-    currentValue: text("current_value"),
-    proposedValue: text("proposed_value").notNull(),
-    sourceUrl: text("source_url"),
-    note: text("note"),
-    relationship: text("relationship").notNull().default("none"),
-    status: text("status").notNull().default("pending"),
-    statusReason: text("status_reason"),
-    reviewedByUserId: text("reviewed_by_user_id"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    listId: text("list_id").notNull(),
+    userId: userRef("user_id").notNull(),
+    status: text("status", { enum: ["invited", "accepted"] }).notNull(),
+    invitedBy: text("invited_by"),
+    createdAt: ms("created_at").notNull(),
   },
-  (table) => [
-    index("place_edit_suggestions_place_idx").on(
-      table.placeId,
-      table.status,
-      sql`${table.createdAt} DESC`,
-    ),
-  ],
-);
-
-export const placeDuplicateReports = sqliteTable(
-  "place_duplicate_reports",
-  {
-    id: text("id").primaryKey(),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    duplicateOfPlaceId: text("duplicate_of_place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    submittedByUserId: text("submitted_by_user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    note: text("note"),
-    status: text("status").notNull().default("pending"),
-    statusReason: text("status_reason"),
-    reviewedByUserId: text("reviewed_by_user_id"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("place_duplicate_reports_status_idx").on(table.status, table.createdAt),
-  ],
-);
-
-export const moderators = sqliteTable("moderators", {
-  userId: text("user_id")
-    .primaryKey()
-    .references(() => authUser.id, { onDelete: "cascade" }),
-  role: text("role", { enum: ["moderator", "admin"] })
-    .notNull()
-    .default("moderator"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-});
-
-export const contentReports = sqliteTable(
-  "content_reports",
-  {
-    id: text("id").primaryKey(),
-    targetType: text("target_type").notNull(),
-    targetId: text("target_id").notNull(),
-    reportedByUserId: text("reported_by_user_id"),
-    reason: text("reason").notNull(),
-    detail: text("detail"),
-    status: text("status").notNull().default("open"),
-    resolution: text("resolution"),
-    reviewedByUserId: text("reviewed_by_user_id"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("content_reports_status_idx").on(table.status, table.createdAt),
-    index("content_reports_target_idx").on(table.targetType, table.targetId),
-  ],
-);
-
-export const communityConfirmations = sqliteTable(
-  "community_confirmations",
-  {
-    id: text("id").primaryKey(),
-    targetType: text("target_type", { enum: ["verification", "check-in"] }).notNull(),
-    targetId: text("target_id").notNull(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    uniqueIndex("community_confirmations_user_target_idx").on(
-      table.targetType,
-      table.targetId,
-      table.userId,
-    ),
-    index("community_confirmations_target_idx").on(table.targetType, table.targetId),
-  ],
-);
-
-export const reportAppeals = sqliteTable(
-  "report_appeals",
-  {
-    id: text("id").primaryKey(),
-    reportId: text("report_id")
-      .notNull()
-      .references(() => contentReports.id, { onDelete: "cascade" }),
-    submittedByUserId: text("submitted_by_user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    reason: text("reason").notNull(),
-    status: text("status").notNull().default("open"),
-    outcome: text("outcome"),
-    reviewedByUserId: text("reviewed_by_user_id"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [index("report_appeals_report_idx").on(table.reportId, table.createdAt)],
-);
-
-export const auditLog = sqliteTable(
-  "audit_log",
-  {
-    id: text("id").primaryKey(),
-    actorUserId: text("actor_user_id"),
-    action: text("action").notNull(),
-    targetType: text("target_type").notNull(),
-    targetId: text("target_id").notNull(),
-    reason: text("reason"),
-    source: text("source"),
-    beforeValue: text("before_value"),
-    afterValue: text("after_value"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("audit_log_target_idx").on(
-      table.targetType,
-      table.targetId,
-      sql`${table.createdAt} DESC`,
-    ),
-  ],
-);
-
-
-/* ---------------------------------------------------------------------------
- * Provenance, coverage and reputation (migration 0010).
- * ------------------------------------------------------------------------ */
-
-export const placeSourceRecords = sqliteTable(
-  "place_source_records",
-  {
-    id: text("id").primaryKey(),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    source: text("source").notNull(),
-    sourceClass: text("source_class").notNull(),
-    externalId: text("external_id"),
-    url: text("url"),
-    observedAt: integer("observed_at", { mode: "timestamp_ms" }).notNull(),
-    licence: text("licence"),
-    attribution: text("attribution"),
-    payloadHash: text("payload_hash"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("place_source_records_place_idx").on(
-      table.placeId,
-      sql`${table.observedAt} DESC`,
-    ),
-  ],
-);
-
-/** Append-only. Nothing updates `value`; a change is a new row. */
-export const placeObservations = sqliteTable(
-  "place_observations",
-  {
-    id: text("id").primaryKey(),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    predicate: text("predicate").notNull(),
-    value: text("value").notNull(),
-    source: text("source").notNull(),
-    sourceClass: text("source_class").notNull(),
-    sourceRecordId: text("source_record_id"),
-    sourceUrl: text("source_url"),
-    submittedByUserId: text("submitted_by_user_id"),
-    observedAt: integer("observed_at", { mode: "timestamp_ms" }).notNull(),
-    validUntil: integer("valid_until", { mode: "timestamp_ms" }),
-    confidence: text("confidence", { enum: ["high", "medium", "low"] })
-      .notNull()
-      .default("medium"),
-    supersededById: text("superseded_by_id"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("place_observations_current_idx").on(
-      table.placeId,
-      table.predicate,
-      sql`${table.observedAt} DESC`,
-    ),
-  ],
-);
-
-export const placeInspections = sqliteTable(
-  "place_inspections",
-  {
-    id: text("id").primaryKey(),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    authority: text("authority").notNull(),
-    kind: text("kind", { enum: ["hygiene", "licence", "inspection"] }).notNull(),
-    grade: text("grade"),
-    score: integer("score"),
-    licenceStatus: text("licence_status", {
-      enum: ["active", "expired", "suspended", "not-found"],
-    }),
-    licenceNumber: text("licence_number"),
-    inspectedAt: integer("inspected_at", { mode: "timestamp_ms" }),
-    validUntil: integer("valid_until", { mode: "timestamp_ms" }),
-    sourceUrl: text("source_url"),
-    retrievedAt: integer("retrieved_at", { mode: "timestamp_ms" }).notNull(),
-    matchConfidence: text("match_confidence", {
-      enum: ["high", "medium", "low"],
-    })
-      .notNull()
-      .default("medium"),
-    matchReviewedByUserId: text("match_reviewed_by_user_id"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("place_inspections_place_idx").on(
-      table.placeId,
-      sql`${table.inspectedAt} DESC`,
-    ),
-  ],
-);
-
-export const cityCoverageRequests = sqliteTable(
-  "city_coverage_requests",
-  {
-    id: text("id").primaryKey(),
-    citySlug: text("city_slug").notNull(),
-    requestedByUserId: text("requested_by_user_id"),
-    /** Salted hash, never a raw identifier: a spam control, not a visitor log. */
-    requesterHash: text("requester_hash"),
-    wantsToContribute: integer("wants_to_contribute", { mode: "boolean" })
-      .notNull()
-      .default(false),
-    note: text("note"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("city_coverage_requests_city_idx").on(
-      table.citySlug,
-      sql`${table.createdAt} DESC`,
-    ),
-  ],
-);
-
-export const contributorStanding = sqliteTable(
-  "contributor_standing",
-  {
-    userId: text("user_id")
-      .primaryKey()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    role: text("role", {
-      enum: ["new", "contributor", "trusted", "city-expert", "city-moderator"],
-    })
-      .notNull()
-      .default("new"),
-    citySlug: text("city_slug"),
-    acceptedCount: integer("accepted_count").notNull().default(0),
-    rejectedCount: integer("rejected_count").notNull().default(0),
-    verifiedVisits: integer("verified_visits").notNull().default(0),
-    restrictedUntil: integer("restricted_until", { mode: "timestamp_ms" }),
-    acceptedSinceRestriction: integer("accepted_since_restriction")
-      .notNull()
-      .default(0),
-    foundingContributorCity: text("founding_contributor_city"),
-    promotedAt: integer("promoted_at", { mode: "timestamp_ms" }),
-    promotedReason: text("promoted_reason"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [index("contributor_standing_city_idx").on(table.citySlug, table.role)],
-);
-
-/** Deliberately isolated: no discovery or ranking query joins this table. */
-export const sponsoredPlacements = sqliteTable(
-  "sponsored_placements",
-  {
-    id: text("id").primaryKey(),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    citySlug: text("city_slug"),
-    label: text("label").notNull(),
-    startsAt: integer("starts_at", { mode: "timestamp_ms" }).notNull(),
-    endsAt: integer("ends_at", { mode: "timestamp_ms" }).notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("sponsored_placements_window_idx").on(
-      table.citySlug,
-      table.startsAt,
-      table.endsAt,
-    ),
-  ],
-);
-
-export const transactionHandoffs = sqliteTable(
-  "transaction_handoffs",
-  {
-    id: text("id").primaryKey(),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    provider: text("provider").notNull(),
-    action: text("action", {
-      enum: ["order", "book", "pickup", "directions", "menu", "call"],
-    }).notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("transaction_handoffs_place_idx").on(
-      table.placeId,
-      sql`${table.createdAt} DESC`,
-    ),
-  ],
-);
-
-/** Structured answers from a step-by-step halal check (one per verification). */
-export const placeHalalCheckAnswers = sqliteTable("place_halal_check_answers", {
-  verificationId: text("verification_id")
-    .primaryKey()
-    .references(() => placeHalalVerifications.id, { onDelete: "cascade" }),
-  certificate: text("certificate", { enum: ["seen", "not-seen", "unsure"] }),
-  alcohol: text("alcohol", { enum: ["none", "served", "unsure"] }),
-  meat: text("meat", { enum: ["hand", "machine", "unsure"] }),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
-
-/** Creator videos linked to places. Read and written through raw SQL in media-links.ts. */
-export const placeMediaLinks = sqliteTable(
-  "place_media_links",
-  {
-    id: text("id").primaryKey(),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    submittedByUserId: text("submitted_by_user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    platform: text("platform", { enum: ["instagram", "tiktok", "youtube"] }).notNull(),
-    url: text("url").notNull(),
-    authorHandle: text("author_handle"),
-    authorName: text("author_name"),
-    title: text("title"),
-    thumbnailUrl: text("thumbnail_url"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .$defaultFn(() => new Date()),
-  },
-  (table) => [
-    index("place_media_links_place_created_idx").on(table.placeId, table.createdAt),
-    index("place_media_links_author_idx").on(table.platform, table.authorHandle),
-  ],
-);
-
-/* ---------------------------------------------------------------------------
- * Social layer (migration 0015): the visit feed, reactions
- * and comments. Reads and writes go through raw SQL in src/lib/social-*.ts and
- * src/lib/feed-repository.ts, except the feed event written with a visit.
- * ------------------------------------------------------------------------ */
-
-export const feedEvents = sqliteTable(
-  "feed_events",
-  {
-    id: text("id").primaryKey(),
-    actorId: text("actor_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    kind: text("kind", { enum: ["visit"] }).notNull(),
-    visitId: text("visit_id")
-      .notNull()
-      .unique()
-      .references(() => placeVisits.id, { onDelete: "cascade" }),
-    placeId: text("place_id")
-      .notNull()
-      .references(() => places.id, { onDelete: "cascade" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("feed_events_actor_idx").on(table.actorId, sql`${table.createdAt} DESC`),
-    index("feed_events_place_idx").on(table.placeId, table.actorId),
-  ],
-);
-
-export const reactions = sqliteTable(
-  "reactions",
-  {
-    visitId: text("visit_id")
-      .notNull()
-      .references(() => placeVisits.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    kind: text("kind", { enum: ["like"] }).notNull().default("like"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    primaryKey({ name: "reactions_pkey", columns: [table.visitId, table.userId] }),
-    index("reactions_user_idx").on(table.userId),
-  ],
-);
-
-export const comments = sqliteTable(
-  "comments",
-  {
-    id: text("id").primaryKey(),
-    visitId: text("visit_id")
-      .notNull()
-      .references(() => placeVisits.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    body: text("body").notNull(),
-    status: text("status", { enum: ["visible", "hidden"] })
-      .notNull()
-      .default("visible"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [index("comments_visit_idx").on(table.visitId, table.createdAt)],
-);
-
-/* ---------------------------------------------------------------------------
- * Social lists (migration 0016): collaborators and saves. Reads and writes go
- * through raw SQL in src/lib/lists-repository.ts.
- * ------------------------------------------------------------------------ */
-
-export const listCollaborators = sqliteTable(
-  "list_collaborators",
-  {
-    listId: text("list_id")
-      .notNull()
-      .references(() => placeLists.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    status: text("status", { enum: ["invited", "accepted"] })
-      .notNull()
-      .default("invited"),
-    invitedBy: text("invited_by").references(() => authUser.id, {
-      onDelete: "set null",
-    }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    primaryKey({ name: "list_collaborators_pkey", columns: [table.listId, table.userId] }),
-    index("list_collaborators_user_idx").on(table.userId, table.status),
-  ],
+  (table) => [primaryKey({ columns: [table.listId, table.userId] })],
 );
 
 export const listSaves = sqliteTable(
   "list_saves",
   {
-    listId: text("list_id")
-      .notNull()
-      .references(() => placeLists.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    listId: text("list_id").notNull(),
+    userId: userRef("user_id").notNull(),
+    createdAt: ms("created_at").notNull(),
   },
-  (table) => [
-    primaryKey({ name: "list_saves_pkey", columns: [table.listId, table.userId] }),
-    index("list_saves_user_idx").on(table.userId, sql`${table.createdAt} DESC`),
-  ],
+  (table) => [primaryKey({ columns: [table.listId, table.userId] })],
 );
 
-/* ---------------------------------------------------------------------------
- * Activity, recs and events (migration 0017). Reads and writes go through raw
- * SQL in src/lib/notifications-repository.ts, recs-repository.ts and
- * events-repository.ts.
- * ------------------------------------------------------------------------ */
+export const events = sqliteTable("events", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  citySlug: text("city_slug").notNull(),
+  venue: text("venue").notNull(),
+  address: text("address"),
+  startsAt: ms("starts_at").notNull(),
+  endsAt: ms("ends_at"),
+  status: text("status", { enum: ["draft", "published", "cancelled"] }).notNull(),
+  createdBy: text("created_by"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});
 
-export const notifications = sqliteTable(
-  "notifications",
-  {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    kind: text("kind", {
-      enum: [
-        "status-changed",
-        "check-reviewed",
-        "follow",
-        "follow-request",
-        "follow-accepted",
-        "like",
-        "comment",
-        "friend-visit",
-        "list-invite",
-        "list-places-added",
-        "rec",
-        "rec-reply",
-      ],
-    }).notNull(),
-    actorId: text("actor_id").references(() => authUser.id, { onDelete: "cascade" }),
-    placeId: text("place_id").references(() => places.id, { onDelete: "cascade" }),
-    visitId: text("visit_id").references(() => placeVisits.id, { onDelete: "cascade" }),
-    listId: text("list_id").references(() => placeLists.id, { onDelete: "cascade" }),
-    recId: text("rec_id"),
-    statusChangeId: text("status_change_id").references(
-      () => placeHalalStatusHistory.id,
-      { onDelete: "cascade" },
-    ),
-    verificationId: text("verification_id").references(
-      () => placeHalalVerifications.id,
-      { onDelete: "cascade" },
-    ),
-    dedupeKey: text("dedupe_key").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    readAt: integer("read_at", { mode: "timestamp_ms" }),
-  },
-  (table) => [
-    index("notifications_dedupe_idx").on(table.userId, table.dedupeKey),
-    index("notifications_user_idx").on(table.userId, sql`${table.createdAt} DESC`),
-    index("notifications_unread_idx").on(table.userId, table.readAt),
-    index("notifications_actor_idx").on(table.actorId),
-  ],
-);
-
-export const recs = sqliteTable(
-  "recs",
-  {
-    id: text("id").primaryKey(),
-    senderId: text("sender_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    recipientId: text("recipient_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    placeId: text("place_id").references(() => places.id, { onDelete: "cascade" }),
-    listId: text("list_id").references(() => placeLists.id, { onDelete: "cascade" }),
-    note: text("note"),
-    reply: text("reply", { enum: ["in", "want-to-try"] }),
-    repliedAt: integer("replied_at", { mode: "timestamp_ms" }),
-    readAt: integer("read_at", { mode: "timestamp_ms" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("recs_recipient_idx").on(table.recipientId, sql`${table.createdAt} DESC`),
-    index("recs_sender_idx").on(table.senderId, sql`${table.createdAt} DESC`),
-  ],
-);
-
-export const events = sqliteTable(
-  "events",
-  {
-    id: text("id").primaryKey(),
-    title: text("title").notNull(),
-    description: text("description"),
-    citySlug: text("city_slug").notNull(),
-    venue: text("venue").notNull(),
-    address: text("address"),
-    startsAt: integer("starts_at", { mode: "timestamp_ms" }).notNull(),
-    endsAt: integer("ends_at", { mode: "timestamp_ms" }),
-    status: text("status", { enum: ["published", "cancelled"] })
-      .notNull()
-      .default("published"),
-    createdBy: text("created_by").references(() => authUser.id, { onDelete: "set null" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("events_city_idx").on(table.citySlug, table.startsAt),
-    index("events_starts_idx").on(table.status, table.startsAt),
-  ],
-);
-
-export const eventVendors = sqliteTable(
-  "event_vendors",
-  {
-    id: text("id").primaryKey(),
-    eventId: text("event_id")
-      .notNull()
-      .references(() => events.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    note: text("note"),
-    placeId: text("place_id").references(() => places.id, { onDelete: "set null" }),
-    position: integer("position").notNull().default(0),
-  },
-  (table) => [
-    index("event_vendors_event_idx").on(table.eventId, table.position),
-    index("event_vendors_place_idx").on(table.placeId),
-  ],
-);
+export const eventVendors = sqliteTable("event_vendors", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull(),
+  name: text("name").notNull(),
+  note: text("note"),
+  placeId: text("place_id"),
+  position: integer("position").notNull(),
+});
 
 export const eventRsvps = sqliteTable(
   "event_rsvps",
   {
-    eventId: text("event_id")
-      .notNull()
-      .references(() => events.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    eventId: text("event_id").notNull(),
+    userId: userRef("user_id").notNull(),
+    createdAt: ms("created_at").notNull(),
   },
-  (table) => [
-    primaryKey({ name: "event_rsvps_pkey", columns: [table.eventId, table.userId] }),
-    index("event_rsvps_user_idx").on(table.userId, sql`${table.createdAt} DESC`),
-  ],
+  (table) => [primaryKey({ columns: [table.eventId, table.userId] })],
 );
+
+export const recs = sqliteTable("recs", {
+  id: text("id").primaryKey(),
+  senderId: userRef("sender_id").notNull(),
+  recipientId: userRef("recipient_id").notNull(),
+  placeId: text("place_id"),
+  listId: text("list_id"),
+  eventId: text("event_id"),
+  note: text("note"),
+  reply: text("reply", { enum: ["in", "want-to-try"] }),
+  repliedAt: ms("replied_at"),
+  readAt: ms("read_at"),
+  createdAt: ms("created_at").notNull(),
+});
+
+export const NOTIFICATION_KINDS = [
+  "status-changed",
+  "follow",
+  "follow-request",
+  "follow-accepted",
+  "like",
+  "comment",
+  "friend-visit",
+  "list-invite",
+  "rec-reply",
+  "invite-joined",
+] as const;
+
+export const notifications = sqliteTable("notifications", {
+  id: text("id").primaryKey(),
+  userId: userRef("user_id").notNull(),
+  kind: text("kind", { enum: NOTIFICATION_KINDS }).notNull(),
+  actorId: text("actor_id"),
+  placeId: text("place_id"),
+  checkId: text("check_id"),
+  listId: text("list_id"),
+  recId: text("rec_id"),
+  statusChangeId: text("status_change_id"),
+  dedupeKey: text("dedupe_key").notNull(),
+  createdAt: ms("created_at").notNull(),
+  readAt: ms("read_at"),
+});
+
+export const points = sqliteTable("points", {
+  id: text("id").primaryKey(),
+  userId: userRef("user_id").notNull(),
+  kind: text("kind", { enum: ["check", "place-added", "helped-verify"] }).notNull(),
+  placeId: text("place_id").notNull(),
+  checkId: text("check_id"),
+  citySlug: text("city_slug").notNull(),
+  points: integer("points").notNull(),
+  day: text("day").notNull(),
+  createdAt: ms("created_at").notNull(),
+});
+
+export const reports = sqliteTable("reports", {
+  id: text("id").primaryKey(),
+  targetType: text("target_type", { enum: ["place", "check", "comment", "user", "list"] }).notNull(),
+  targetId: text("target_id").notNull(),
+  reporterId: text("reporter_id"),
+  reason: text("reason").notNull(),
+  detail: text("detail"),
+  status: text("status", { enum: ["open", "actioned", "dismissed"] }).notNull(),
+  action: text("action"),
+  reviewedBy: text("reviewed_by"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});

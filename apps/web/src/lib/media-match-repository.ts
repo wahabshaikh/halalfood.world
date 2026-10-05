@@ -33,7 +33,7 @@ export async function matchPlacesForCaption(
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT p.id, p.name, p.city_slug, p.address_locality, p.street_address
     FROM places AS p
-    WHERE p.halal_confirmed = 1 AND p.listing_status = 'listed' AND (${sql.join(conditions, sql` OR `)})
+    WHERE p.listing_status = 'listed' AND (${sql.join(conditions, sql` OR `)})
     LIMIT ${CANDIDATE_LIMIT}
   `);
   const address = new Map(rows.map((row) => [String(row.id), String(row.street_address ?? "")]));

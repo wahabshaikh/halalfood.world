@@ -11,10 +11,10 @@ function insertPlace(
 ) {
   sqlite
     .prepare(
-      `INSERT INTO places (id, name, city_slug, city_url, street_address, address_locality, serves_cuisine, source, source_url, scraped_at, created_at, halal_confirmed)
-       VALUES (?, ?, 'mumbai', 'u', 'Crawford Market', 'Mumbai', '[]', 's', 'u', 1, 1, ?)`,
+      `INSERT INTO places (id, name, city_slug, street_address, address_locality, serves_cuisine, listing_status, created_at, updated_at)
+       VALUES (?, ?, 'mumbai', 'Crawford Market', 'Mumbai', '[]', ?, 1, 1)`,
     )
-    .run(id, name, listed);
+    .run(id, name, listed ? "listed" : "hidden");
 }
 
 test("a caption finds the listed place it names", async () => {

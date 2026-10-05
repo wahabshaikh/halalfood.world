@@ -74,10 +74,61 @@ export function createTestDatabase() {
   };
 }
 
-export function addUser(sqlite: DatabaseSync, id: string, name = id) {
+/** A user whose account is old enough for checks to count, unless `createdAt` says otherwise. */
+export function addUser(sqlite: DatabaseSync, id: string, name = id, createdAt = Date.now() - 30 * DAY) {
   sqlite
     .prepare(
       `INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`,
     )
-    .run(id, name, `${id}@example.com`, Date.now(), Date.now());
+    .run(id, name, `${id}@example.com`, createdAt, createdAt);
+}
+
+export const DAY = 24 * 60 * 60 * 1000;
+
+let placeCounter = 0;
+
+/** A listed place with an unchecked status row. */
+export function addPlace(
+  sqlite: DatabaseSync,
+  overrides: Partial<{ id: string; name: string; city: string; lat: number | null; lng: number | null; googlePlaceId: string | null; cuisines: string[]; status: string }> = {},
+) {
+  placeCounter += 1;
+  const id = overrides.id ?? `3f2504e0-4f89-11d3-9a0c-${String(placeCounter).padStart(12, "0")}`;
+  const now = Date.now();
+  sqlite
+    .prepare(
+      `INSERT INTO places (id, name, city_slug, street_address, address_locality, serves_cuisine, lat, lng, google_place_id, listing_status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      id,
+      overrides.name ?? `Place ${placeCounter}`,
+      overrides.city ?? "mumbai",
+      `${placeCounter} Main Road, Mumbai`,
+      "Bandra West",
+      JSON.stringify(overrides.cuisines ?? ["Mughlai"]),
+      overrides.lat === undefined ? 19.06 : overrides.lat,
+      overrides.lng === undefined ? 72.83 : overrides.lng,
+      overrides.googlePlaceId ?? null,
+      overrides.status ?? "listed",
+      now,
+      now,
+    );
+  sqlite
+    .prepare(`INSERT INTO place_status (place_id, status, progress, eligible_checks, updated_at) VALUES (?, 'unchecked', 0, 0, ?)`)
+    .run(id, now);
+  return id;
+}
+
+export function addProfile(
+  sqlite: DatabaseSync,
+  userId: string,
+  overrides: Partial<{ handle: string; name: string; isPrivate: boolean; onboarded: boolean }> = {},
+) {
+  const now = Date.now();
+  sqlite
+    .prepare(
+      `INSERT INTO profiles (user_id, handle, display_name, is_private, onboarded_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(userId, overrides.handle ?? userId, overrides.name ?? userId, overrides.isPrivate ? 1 : 0, overrides.onboarded === false ? null : now, now, now);
 }

@@ -1,11 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import {
-  Page,
-  PageMain,
-  SiteFooter,
-  SiteHeader,
-} from "../../src/components/site-chrome";
+import { AppShell } from "../../src/components/app-shell";
 import { readWorkerEnv } from "../../src/lib/worker-env";
 import { SIGNED_OUT_COPY, signInCopyFor, safeReturnPath } from "../../src/lib/signed-out";
 import LoginForm from "./login-form";
@@ -32,29 +27,13 @@ export default async function LoginPage({
 
   const host = (await headers()).get("host");
   const reason = typeof params.reason === "string" ? params.reason : "";
-  const heading =
-    reason === "save"
-      ? "Save it for later"
-      : returnTo.startsWith("/feed")
-        ? "See what your friends ate"
-        : returnTo.startsWith("/log")
-          ? "Log a visit"
-          : returnTo.startsWith("/add")
-        ? "Add a place"
-        : returnTo.includes("/check")
-          ? "Share what you saw"
-          : reason === "join"
-            ? "Join halalfood.world"
-            : "Log in or sign up";
 
   return (
-    <Page>
-      <SiteHeader />
-      <PageMain>
+    <AppShell hideNav footer={false}>
         <LoginForm
           siteKey={await readWorkerEnv("TURNSTILE_SITE_KEY", host)}
           returnTo={returnTo}
-          heading={heading}
+          invite={typeof params.invite === "string" ? params.invite : undefined}
           notice={
             reason === "signed-out"
               ? SIGNED_OUT_COPY
@@ -63,13 +42,11 @@ export default async function LoginPage({
                 : undefined
           }
         />
-      </PageMain>
-      <SiteFooter />
       <script
         src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
         async
         defer
       />
-    </Page>
+    </AppShell>
   );
 }

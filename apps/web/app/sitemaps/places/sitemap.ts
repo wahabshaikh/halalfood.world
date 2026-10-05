@@ -19,7 +19,7 @@ export default async function sitemap({
   });
   return places.map((place) => ({
     url: canonical(`/place/${place.id}`),
-    lastModified: toLastModified(place.scraped_at),
+    lastModified: toLastModified(place.updated_at),
     changeFrequency: "monthly" as const,
     priority: 0.5,
   }));

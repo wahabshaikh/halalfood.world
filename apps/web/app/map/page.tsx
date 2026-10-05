@@ -1,44 +1,44 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import {
-  Page,
-  SiteHeader,
-  TabBar,
-} from "../../src/components/site-chrome";
+import { citySlugParam, placeIdParam } from "@halalfood/core/params";
+import { parseFilters } from "@halalfood/core/halal";
+import { DEFAULT_MAP_VIEW } from "@halalfood/core/map-viewport";
+import { AppShell } from "../../src/components/app-shell";
+import { getViewerId } from "../../src/lib/auth-session";
+import { getPlaceById } from "../../src/lib/places";
+import { resolveCity } from "../../src/components/explore-screen";
 import MapView from "./map-view";
-import { loadLocalContext } from "../../src/lib/local-context-repository";
-import { initialMapView } from "../../src/lib/local-context";
-import { readEatingCityCookie } from "../../src/lib/eating-city";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Map of halal places",
-  description:
-    "Explore halal restaurants on the map, near you or anywhere you travel, with halal checks from people who ate there.",
+  title: "Map",
+  description: "Halal places on the map, coloured by how many people have checked them.",
   alternates: { canonical: "/map" },
 };
 
-export default async function MapPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+export default async function MapPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;
-  const explicit = ["city", "place", "lat", "lng"].some(
-    (key) => typeof params[key] === "string" && params[key] !== "",
-  );
-  const eating = explicit ? null : await readEatingCityCookie();
-  if (eating) redirect(`/map?city=${encodeURIComponent(eating)}`);
-  // A failed lookup just opens the default view; the map never waits on it.
-  const initialView = await loadLocalContext()
-    .then(initialMapView)
-    .catch(() => null);
+  const text = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : null);
+  const viewerId = await getViewerId();
+  const placeId = placeIdParam(text("place"));
+  const place = placeId ? await getPlaceById(placeId).catch(() => null) : null;
+  const { city } = await resolveCity(citySlugParam(text("city"))).catch(() => ({ city: null }));
+  const view =
+    place?.lat != null && place.lng != null
+      ? { center: [place.lng, place.lat] as [number, number], zoom: 15 }
+      : city?.center_lat != null && city.center_lng != null
+        ? { center: [city.center_lng, city.center_lat] as [number, number], zoom: 12 }
+        : DEFAULT_MAP_VIEW;
   return (
-    <Page>
-      <SiteHeader />
-      <main>
-        <MapView initialView={initialView} />
-      </main>
-      <TabBar active="map" />
-    </Page>
+    <AppShell active="explore" footer={false} width="full">
+      <MapView
+        initialView={view}
+        citySlug={city?.city_slug ?? null}
+        initialFilters={parseFilters(text("filters"))}
+        initialFriends={Boolean(viewerId) && text("friends") === "1"}
+        signedIn={Boolean(viewerId)}
+        selectedId={place?.id ?? null}
+      />
+    </AppShell>
   );
 }

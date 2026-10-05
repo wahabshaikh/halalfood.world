@@ -1,22 +1,17 @@
-import { HANDLE_PATTERN, normalizeHandle } from "@halalfood/core/social";
-import { getProfileByHandle } from "../../../../src/lib/preferences-repository";
+import { HANDLE_PATTERN, normalizeHandle } from "@halalfood/core/people";
+import { getProfileByHandle } from "../../../../src/lib/profiles";
 import { getEvidenceBucket, isSafeAvatarR2Key } from "../../../../src/lib/r2";
 
 /**
- * A diner's profile photo. Photos are public, like the name and handle beside
- * them; the `v` query parameter changes on every upload so a short cache is
- * safe.
+ * A profile photo. Photos are public, like the name and handle beside them;
+ * the `v` query parameter changes on every upload so a short cache is safe.
  */
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ handle: string }> },
-): Promise<Response> {
+export async function GET(_request: Request, { params }: { params: Promise<{ handle: string }> }): Promise<Response> {
   const handle = normalizeHandle(decodeURIComponent((await params).handle));
   if (!handle || !HANDLE_PATTERN.test(handle)) return new Response("Not found", { status: 404 });
   try {
     const profile = await getProfileByHandle(handle);
-    if (!profile?.avatarKey || !isSafeAvatarR2Key(profile.avatarKey))
-      return new Response("Not found", { status: 404 });
+    if (!profile?.avatarKey || profile.suspended || !isSafeAvatarR2Key(profile.avatarKey)) return new Response("Not found", { status: 404 });
     const bucket = await getEvidenceBucket();
     if (!bucket) return new Response("Unavailable", { status: 503 });
     const object = await bucket.get(profile.avatarKey);

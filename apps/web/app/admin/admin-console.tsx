@@ -1,576 +1,440 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Alert, AlertDescription } from "@halalfood/ui/components/alert";
-import { Badge } from "@halalfood/ui/components/badge";
-import { Button } from "@halalfood/ui/components/button";
-import { Card } from "@halalfood/ui/components/card";
-import { Input } from "@halalfood/ui/components/input";
-import { Block, Loading } from "../../src/components/blocks";
-import { FormMessage, InsufficientData, SectionIntro } from "../../src/components/section";
+import { useState } from "react";
+import { ArrowDown01Icon, ArrowUp01Icon, Delete02Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { cn } from "@halalfood/ui/lib/utils";
+import { Icon, buttonClass } from "../../src/components/kit";
+import { Segmented, api, errorText, toast } from "../../src/components/kit-client";
+import { timeAgo } from "../../src/components/time-ago";
 
-import { EVIDENCE_KIND_COPY, RELATIONSHIP_COPY, STATUS_COPY } from "@halalfood/core/halal-taxonomy";
-import { REPORT_REASON_COPY } from "@halalfood/core/moderation";
-import type { QueueEntry, ReportRow } from "../../src/lib/moderation-repository";
-import type { PendingPlaceSubmission } from "../../src/lib/place-link-submissions";
-import type { HiddenByModerator } from "../../src/lib/listing-moderation";
-import EventsAdmin from "./events-admin";
-import { signInAgainUrl } from "../../src/lib/signed-out";
-
-/**
- * The moderation console.
- *
- * The evidence queue is ordered by an explainable priority score and every row
- * shows the reasons for its position, so a moderator can see why a submission
- * is at the top rather than trusting an opaque ranking. Every decision writes
- * an audit entry, and a rejection is required to carry a reason the
- * contributor can read.
- */
-
-type Payload = {
-  role: string;
-  places: PendingPlaceSubmission[];
-  hiddenPlaces?: HiddenByModerator[];
-  evidence: QueueEntry[];
-  edits: Array<Record<string, unknown>>;
-  duplicates: Array<Record<string, unknown>>;
-  reports: ReportRow[];
-};
-
-type AuditEntry = {
+type Report = {
   id: string;
-  action: string;
   targetType: string;
   targetId: string;
-  reason: string | null;
+  reason: string;
+  reasonLabel: string;
+  detail: string | null;
   createdAt: number;
+  reporter: string | null;
+  target: { title: string; subtitle: string | null; href: string | null };
+  primary: string;
+  primaryLabel: string;
 };
 
-export default function AdminConsole() {
-  const [data, setData] = useState<Payload | null>(null);
-  const [audit, setAudit] = useState<AuditEntry[]>([]);
-  const [state, setState] = useState<"loading" | "ready" | "denied" | "error">("loading");
-  const [reasons, setReasons] = useState<Record<string, string>>({});
-  const [message, setMessage] = useState<string | null>(null);
-  const [listedPlaceId, setListedPlaceId] = useState<string | null>(null);
-  const [pins, setPins] = useState<Record<string, { lat: string; lng: string }>>({});
-  const [unpublishTarget, setUnpublishTarget] = useState("");
-  const [unpublishReason, setUnpublishReason] = useState("");
+type EventRow = { id: string; title: string; citySlug: string; venue: string; startsAt: number; status: "draft" | "published" | "cancelled"; stalls: number };
+type City = { slug: string; name: string };
 
-  async function load() {
+export function AdminConsole({ reports, events, cities }: { reports: Report[]; events: EventRow[]; cities: City[] }) {
+  const [tab, setTab] = useState<"reports" | "events">("reports");
+  return (
+    <div className="grid gap-5 px-5 pb-10">
+      <div className="max-w-sm">
+        <Segmented
+          label="Moderation"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "reports", label: `Reports${reports.length ? ` · ${reports.length}` : ""}` },
+            { value: "events", label: "Events" },
+          ]}
+        />
+      </div>
+      {tab === "reports" ? <Reports initial={reports} /> : <Events initial={events} cities={cities} />}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+/* Reports                                                                   */
+/* ------------------------------------------------------------------------ */
+
+function Reports({ initial }: { initial: Report[] }) {
+  const [reports, setReports] = useState(initial);
+  const done = (id: string) => setReports((current) => current.filter((report) => report.id !== id));
+  if (!reports.length) return <p className="py-10 text-center text-sm font-semibold text-muted-foreground">No open reports.</p>;
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {reports.map((report) => (
+        <ReportCard key={report.id} report={report} onDone={() => done(report.id)} />
+      ))}
+    </div>
+  );
+}
+
+function ReportCard({ report, onDone }: { report: Report; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"idle" | "merge" | "fix">("idle");
+  const [details, setDetails] = useState({ name: "", address: "", telephone: "", website: "" });
+
+  const act = async (action: string, extra: Record<string, unknown> = {}) => {
+    setBusy(true);
     try {
-      const response = await fetch("/api/admin/queue");
-      if (response.status === 401) {
-        const body = await response.json();
-        if (typeof body.loginUrl === "string") window.location.href = signInAgainUrl(body);
-        return;
-      }
-      if (response.status === 403) {
-        setState("denied");
-        return;
-      }
-      if (!response.ok) throw new Error();
-      setData((await response.json()) as Payload);
-      const auditResponse = await fetch("/api/admin/audit?limit=40");
-      if (auditResponse.ok) {
-        const body = await auditResponse.json();
-        setAudit(Array.isArray(body.entries) ? body.entries : []);
-      }
-      setState("ready");
-    } catch {
-      setState("error");
+      await api(`/api/admin/reports/${report.id}`, { method: "POST", json: { action, ...extra } });
+      toast(action === "dismiss" ? "Dismissed" : "Done");
+      onDone();
+    } catch (error) {
+      toast(errorText(error));
+      setBusy(false);
     }
-  }
+  };
 
-  useEffect(() => {
-    void load();
-  }, []);
-
-  async function decide(kind: string, id: string, decision: string) {
-    setMessage(null);
-    setListedPlaceId(null);
-    const pin = kind === "place" && decision === "approved" ? pins[id] : undefined;
-    try {
-      const response = await fetch(`/api/admin/review/${kind}/${id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          decision,
-          reason: reasons[id] ?? "",
-          ...(pin && (pin.lat.trim() || pin.lng.trim()) ? { lat: pin.lat, lng: pin.lng } : {}),
-        }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (response.status === 401 && typeof body.loginUrl === "string") {
-        window.location.href = signInAgainUrl(body);
-        return;
-      }
-      if (!response.ok) {
-        setMessage(typeof body.error === "string" ? body.error : "That decision failed.");
-        return;
-      }
-      if (kind === "place" && decision === "approved" && typeof body.placeId === "string") {
-        setListedPlaceId(body.placeId);
-        setMessage(
-          pin && pin.lat.trim()
-            ? "Listed. It is in search, its city page and the map now. Written to the audit log."
-            : "Listed. It is in search and its city page now. Add a map pin on the place page to put it on the map. Written to the audit log.",
-        );
-      } else setMessage("Recorded, and written to the audit log.");
-      await load();
-    } catch {
-      setMessage("Could not reach the server.");
-    }
-  }
-
-  async function changeListing(placeId: string, action: "unpublish" | "restore", reason: string) {
-    setMessage(null);
-    setListedPlaceId(null);
-    try {
-      const response = await fetch(`/api/admin/places/${placeId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, reason }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (response.status === 401 && typeof body.loginUrl === "string") {
-        window.location.href = signInAgainUrl(body);
-        return;
-      }
-      if (!response.ok) {
-        setMessage(typeof body.error === "string" ? body.error : "That change failed.");
-        return;
-      }
-      if (action === "restore") setListedPlaceId(placeId);
-      setMessage(
-        action === "unpublish"
-          ? "Unpublished. It is hidden from search, city pages and the map, and can be restored below."
-          : "Restored. It is listed again.",
-      );
-      if (action === "unpublish") {
-        setUnpublishTarget("");
-        setUnpublishReason("");
-      }
-      await load();
-    } catch {
-      setMessage("Could not reach the server.");
-    }
-  }
-
-  function ReasonBox({ id, placeholder }: { id: string; placeholder: string }) {
-    return (
-      <Input
-        aria-label={placeholder}
-        value={reasons[id] ?? ""}
-        placeholder={placeholder}
-        onChange={(event) => setReasons((current) => ({ ...current, [id]: event.target.value }))}
-      />
-    );
-  }
-
-  if (state === "loading") return <Loading>Loading the queue…</Loading>;
-  if (state === "denied")
-    return (
-      <InsufficientData>
-        This console is for moderators. If you should have access, ask an admin to add your account
-        to the moderators table.
-      </InsufficientData>
-    );
-  if (state === "error" || !data)
-    return <FormMessage tone="error">The console could not load.</FormMessage>;
+  const primary = () => {
+    if (report.primary === "merge") return setMode("merge");
+    if (report.primary === "fix-details") return setMode("fix");
+    void act(report.primary);
+  };
 
   return (
-    <div>
-      {message && (
-        <Alert role="status">
-          <AlertDescription className="font-bold text-foreground">
-            {message}
-            {listedPlaceId && (
-              <>
-                {" "}
-                <a className="underline" href={`/place/${listedPlaceId}`}>
-                  Open the place
-                </a>
-              </>
-            )}
-          </AlertDescription>
-        </Alert>
+    <article className="grid gap-3 rounded-2xl border border-border p-4">
+      <div className="flex items-center gap-2">
+        <span className="rounded-full bg-warning-muted px-2.5 py-0.5 text-xs font-black text-warning-strong">{report.reasonLabel}</span>
+        <span className="text-xs font-bold text-muted-foreground uppercase">{report.targetType}</span>
+        <span className="ml-auto text-xs font-bold text-muted-foreground">{timeAgo(report.createdAt)}</span>
+      </div>
+      <div className="grid gap-0.5">
+        {report.target.href ? (
+          <a href={report.target.href} className="text-[15px] font-black text-foreground underline-offset-4 hover:underline">
+            {report.target.title}
+          </a>
+        ) : (
+          <strong className="text-[15px] font-black">{report.target.title}</strong>
+        )}
+        {report.target.subtitle && <span className="line-clamp-2 text-[13px] font-semibold text-muted-foreground">{report.target.subtitle}</span>}
+      </div>
+      {report.detail && <p className="rounded-xl bg-muted px-3 py-2 text-sm">“{report.detail}”</p>}
+      <span className="text-xs font-bold text-muted-foreground">Reported by {report.reporter ? `@${report.reporter}` : "a deleted account"}</span>
+
+      {mode === "merge" && <MergePicker sourceId={report.targetId} busy={busy} onPick={(intoPlaceId) => act("merge", { intoPlaceId })} />}
+      {mode === "fix" && (
+        <div className="grid gap-2">
+          {(["name", "address", "telephone", "website"] as const).map((field) => (
+            <input
+              key={field}
+              value={details[field]}
+              onChange={(event) => setDetails({ ...details, [field]: event.target.value })}
+              placeholder={field[0].toUpperCase() + field.slice(1)}
+              className="h-11 rounded-xl border border-input px-3 text-sm font-semibold outline-none focus:border-foreground"
+            />
+          ))}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              act("fix-details", {
+                details: Object.fromEntries(Object.entries(details).filter(([, value]) => value.trim())),
+              })
+            }
+            className={buttonClass("dark", "md")}
+          >
+            Save details
+          </button>
+        </div>
       )}
 
-      <Block title={<>Pending places ({data.places.length})</>}>
-        <SectionIntro>
-          Places sent from Add a place stay here until a moderator lists them or turns them down.
-          Approve lists the place at once in search and on its city page. Add a pin to put it on
-          the map too. A rejection needs a reason, and the person who sent it sees that reason on
-          their contributions.
-        </SectionIntro>
-        {data.places.length === 0 ? (
-          <InsufficientData>Nothing waiting.</InsufficientData>
-        ) : (
-          <ul className="grid gap-3">
-            {data.places.map((place) => (
-              <li key={place.id}>
-                <Card size="sm" className="gap-2 px-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 font-semibold">
-                    <span>
-                      {place.name}
-                      <span className="font-normal text-muted-foreground"> · {place.citySlug}</span>
-                    </span>
-                    <Badge variant="secondary">pending</Badge>
-                  </div>
-                  <p className="text-sm">{place.streetAddress}</p>
-                  <p className="text-sm break-all [&_a]:font-semibold [&_a]:underline">
-                    <a href={place.sourceUrl} target="_blank" rel="noopener noreferrer nofollow">
-                      {place.sourceUrl}
-                    </a>
-                  </p>
-                  {place.googlePlaceId && (
-                    <p className="text-xs text-muted-foreground">
-                      Google place id {place.googlePlaceId}
-                    </p>
-                  )}
-                  {place.filingNote && (
-                    <p className="text-[13px] text-muted-foreground">{place.filingNote}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">Reference {place.id}</p>
-                  <ReasonBox
-                    id={place.id}
-                    placeholder="Reason (required to reject; the contributor sees it)"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      aria-label="Map pin latitude (optional)"
-                      inputMode="decimal"
-                      placeholder="Latitude (optional)"
-                      value={pins[place.id]?.lat ?? ""}
-                      onChange={(event) =>
-                        setPins((current) => ({
-                          ...current,
-                          [place.id]: { lat: event.target.value, lng: current[place.id]?.lng ?? "" },
-                        }))
-                      }
-                    />
-                    <Input
-                      aria-label="Map pin longitude (optional)"
-                      inputMode="decimal"
-                      placeholder="Longitude (optional)"
-                      value={pins[place.id]?.lng ?? ""}
-                      onChange={(event) =>
-                        setPins((current) => ({
-                          ...current,
-                          [place.id]: { lat: current[place.id]?.lat ?? "", lng: event.target.value },
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => void decide("place", place.id, "approved")}>
-                      Approve
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => void decide("place", place.id, "rejected")}
-                    >
-                      Reject
-                    </Button>
-                  </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Block>
+      {mode === "idle" && (
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={primary} disabled={busy} className={buttonClass(report.primary === "suspend-user" ? "danger" : "dark", "md")}>
+            {report.primaryLabel}
+          </button>
+          <button type="button" onClick={() => act("dismiss")} disabled={busy} className={buttonClass("outline", "md")}>
+            Dismiss
+          </button>
+        </div>
+      )}
+    </article>
+  );
+}
 
-      <Block title={<>Unpublished places ({data.hiddenPlaces?.length ?? 0})</>}>
-        <SectionIntro>
-          Unpublishing hides a listed place from search, city pages and the map. Nothing is
-          deleted, and it can be restored here. Places hidden by the listing rules, such as
-          alcohol-led venues, are not listed here and cannot be restored.
-        </SectionIntro>
-        <form
-          className="mb-4 grid gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const match = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(
-              unpublishTarget,
-            );
-            if (!match) {
-              setMessage("Paste a place link or id.");
-              return;
-            }
-            if (!unpublishReason.trim()) {
-              setMessage("Unpublishing needs a reason. It is kept on the audit log.");
-              return;
-            }
-            void changeListing(match[1]!.toLowerCase(), "unpublish", unpublishReason.trim());
+function PlaceSearch({ onPick, placeholder }: { onPick: (place: { id: string; name: string; area: string }) => void; placeholder: string }) {
+  const [query, setQuery] = useState("");
+  const [places, setPlaces] = useState<{ id: string; name: string; area: string }[]>([]);
+  const [timer, setTimer] = useState<number | null>(null);
+  const search = (value: string) => {
+    setQuery(value);
+    if (timer) window.clearTimeout(timer);
+    if (value.trim().length < 2) return setPlaces([]);
+    setTimer(
+      window.setTimeout(async () => {
+        try {
+          const body = await api<{ places: { id: string; name: string; area: string }[] }>(`/api/search?q=${encodeURIComponent(value.trim())}`);
+          setPlaces(body.places);
+        } catch {
+          setPlaces([]);
+        }
+      }, 200),
+    );
+  };
+  return (
+    <div className="grid gap-1">
+      <label className="flex h-11 items-center gap-2 rounded-xl border border-input px-3">
+        <Icon icon={Search01Icon} size={16} />
+        <span className="sr-only">{placeholder}</span>
+        <input value={query} onChange={(event) => search(event.target.value)} placeholder={placeholder} className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none" />
+      </label>
+      {places.map((place) => (
+        <button
+          key={place.id}
+          type="button"
+          onClick={() => {
+            onPick(place);
+            setQuery("");
+            setPlaces([]);
           }}
+          className="grid rounded-lg px-3 py-2 text-left hover:bg-muted"
         >
-          <Input
-            aria-label="Place link or id to unpublish"
-            placeholder="Place link or id"
-            value={unpublishTarget}
-            onChange={(event) => setUnpublishTarget(event.target.value)}
-          />
-          <Input
-            aria-label="Reason for unpublishing (required)"
-            placeholder="Reason (required; kept on the audit log)"
-            value={unpublishReason}
-            onChange={(event) => setUnpublishReason(event.target.value)}
-          />
-          <Button type="submit" variant="outline" className="justify-self-start">
-            Unpublish
-          </Button>
-        </form>
-        {!data.hiddenPlaces?.length ? (
-          <InsufficientData>No places are unpublished.</InsufficientData>
-        ) : (
-          <ul className="grid gap-3">
-            {data.hiddenPlaces.map((place) => (
-              <li key={place.placeId}>
-                <Card size="sm" className="gap-2 px-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 font-semibold">
-                    <span>
-                      {place.name}
-                      <span className="font-normal text-muted-foreground"> · {place.citySlug}</span>
-                    </span>
-                    <Badge variant="secondary">unpublished</Badge>
-                  </div>
-                  {place.reason && (
-                    <p className="text-[13px] text-muted-foreground">{place.reason}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">Reference {place.placeId}</p>
-                  <ReasonBox id={`restore-${place.placeId}`} placeholder="Note (optional)" />
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      onClick={() =>
-                        void changeListing(
-                          place.placeId,
-                          "restore",
-                          reasons[`restore-${place.placeId}`] ?? "",
-                        )
-                      }
-                    >
-                      Restore
-                    </Button>
-                  </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Block>
+          <strong className="text-sm font-extrabold">{place.name}</strong>
+          <span className="text-xs font-semibold text-muted-foreground">{place.area}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
-      <Block title={<>Evidence queue ({data.evidence.length})</>}>
-        <SectionIntro>
-          Ordered by conflict, open reports, declared interest, expiry, claim impact and how long a
-          submission has waited.
-        </SectionIntro>
-        {data.evidence.length === 0 ? (
-          <InsufficientData>Nothing waiting.</InsufficientData>
-        ) : (
-          <ul className="grid gap-3">
-            {data.evidence.map((entry) => (
-              <li key={entry.id}>
-                <Card size="sm" className="gap-2 px-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 font-semibold [&_a]:hover:underline">
-                    <a href={`/place/${entry.placeId}`}>{entry.placeName}</a>
-                    <Badge variant="secondary">priority {entry.priority}</Badge>
-                  </div>
-                  <p className="text-sm [&_a]:font-semibold [&_a]:hover:underline">
-                    {EVIDENCE_KIND_COPY[entry.kind]} claiming{" "}
-                    {STATUS_COPY[entry.claimedStatus].label} ·{" "}
-                    {RELATIONSHIP_COPY[entry.relationship]}
-                    {entry.incentivized ? " · rewarded" : ""}
-                  </p>
-                  {entry.note && (
-                    <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
-                      {entry.note}
-                    </p>
-                  )}
-                  <ul className="list-disc pl-4.5 text-xs text-muted-foreground">
-                    {entry.rationale.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
-                  </ul>
-                  <ReasonBox
-                    id={entry.id}
-                    placeholder="Reason (required to reject; the contributor sees it)"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => void decide("evidence", entry.id, "approved")}>
-                      Approve
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => void decide("evidence", entry.id, "rejected")}
-                    >
-                      Reject
-                    </Button>
-                  </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Block>
+function MergePicker({ sourceId, busy, onPick }: { sourceId: string; busy: boolean; onPick: (id: string) => void }) {
+  const [into, setInto] = useState<{ id: string; name: string } | null>(null);
+  return (
+    <div className="grid gap-2">
+      <span className="text-sm font-extrabold">Merge into…</span>
+      {into ? (
+        <div className="flex items-center justify-between gap-2 rounded-xl bg-muted px-3 py-2">
+          <strong className="text-sm">{into.name}</strong>
+          <button type="button" onClick={() => setInto(null)} className="text-xs font-extrabold underline">
+            Change
+          </button>
+        </div>
+      ) : (
+        <PlaceSearch placeholder="Search the place to keep" onPick={(place) => place.id !== sourceId && setInto(place)} />
+      )}
+      <button type="button" disabled={!into || busy} onClick={() => into && onPick(into.id)} className={buttonClass("dark", "md")}>
+        Merge
+      </button>
+    </div>
+  );
+}
 
-      <Block title={<>Factual edits ({data.edits.length})</>}>
-        {data.edits.length === 0 ? (
-          <InsufficientData>Nothing waiting.</InsufficientData>
-        ) : (
-          <ul className="grid gap-3">
-            {data.edits.map((edit) => {
-              const id = String(edit.id);
-              return (
-                <li key={id}>
-                  <Card size="sm" className="gap-2 px-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2 font-semibold [&_a]:hover:underline">
-                      <a href={`/place/${String(edit.place_id)}`}>{String(edit.place_name)}</a>
-                      <Badge variant="secondary">{String(edit.field)}</Badge>
-                    </div>
-                    <p className="text-sm [&_a]:font-semibold [&_a]:hover:underline">
-                      {String(edit.current_value ?? "(empty)")} →{" "}
-                      <strong>{String(edit.proposed_value)}</strong>
-                    </p>
-                    {edit.source_url ? (
-                      <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
-                        Source:{" "}
-                        <a
-                          href={String(edit.source_url)}
-                          target="_blank"
-                          rel="noopener noreferrer nofollow"
-                        >
-                          {String(edit.source_url)}
-                        </a>
-                      </p>
-                    ) : (
-                      <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
-                        No source provided.
-                      </p>
-                    )}
-                    {edit.note ? (
-                      <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
-                        {String(edit.note)}
-                      </p>
-                    ) : null}
-                    <ReasonBox id={id} placeholder="Reason for the contributor" />
-                    <div className="flex flex-wrap gap-2">
-                      <Button onClick={() => void decide("edit", id, "accepted")}>Accept</Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() => void decide("edit", id, "needs-evidence")}
-                      >
-                        Needs evidence
-                      </Button>
-                      <Button variant="outline" onClick={() => void decide("edit", id, "rejected")}>
-                        Reject
-                      </Button>
-                    </div>
-                  </Card>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Block>
+/* ------------------------------------------------------------------------ */
+/* Events                                                                    */
+/* ------------------------------------------------------------------------ */
 
-      <Block title={<>Duplicates ({data.duplicates.length})</>}>
-        {data.duplicates.length === 0 ? (
-          <InsufficientData>Nothing waiting.</InsufficientData>
-        ) : (
-          <ul className="grid gap-3">
-            {data.duplicates.map((report) => {
-              const id = String(report.id);
-              return (
-                <li key={id}>
-                  <Card size="sm" className="gap-2 px-4">
-                    <p className="text-sm [&_a]:font-semibold [&_a]:hover:underline">
-                      <a href={`/place/${String(report.place_id)}`}>{String(report.place_name)}</a>{" "}
-                      duplicates{" "}
-                      <a href={`/place/${String(report.duplicate_of_place_id)}`}>
-                        {String(report.duplicate_of_name)}
-                      </a>
-                    </p>
-                    {report.note ? (
-                      <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
-                        {String(report.note)}
-                      </p>
-                    ) : null}
-                    <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
-                      Merging moves every visit, evidence item, photo, save and list entry onto the
-                      place that is kept.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button onClick={() => void decide("duplicate", id, "merge")}>Merge</Button>
-                    </div>
-                  </Card>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Block>
+type Stall = { name: string; note: string; placeId: string | null; placeName: string | null };
+type Draft = { id: string | null; title: string; citySlug: string; venue: string; address: string; startsAt: string; endsAt: string; description: string; stalls: Stall[] };
 
-      <Block title={<>Open reports ({data.reports.length})</>}>
-        {data.reports.length === 0 ? (
-          <InsufficientData>Nothing waiting.</InsufficientData>
-        ) : (
-          <ul className="grid gap-3">
-            {data.reports.map((report) => (
-              <li key={report.id}>
-                <Card size="sm" className="gap-2 px-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 font-semibold [&_a]:hover:underline">
-                    <span>{report.targetType}</span>
-                    <Badge variant="secondary">
-                      {REPORT_REASON_COPY[report.reason as keyof typeof REPORT_REASON_COPY] ??
-                        report.reason}
-                    </Badge>
-                  </div>
-                  {report.detail && (
-                    <p className="text-[13px] break-words text-muted-foreground [&_a]:underline">
-                      {report.detail}
-                    </p>
-                  )}
-                  <ReasonBox id={report.id} placeholder="Resolution note" />
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => void decide("report", report.id, "upheld")}>
-                      Uphold
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => void decide("report", report.id, "dismissed")}
-                    >
-                      Dismiss
-                    </Button>
-                  </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Block>
+function toLocalInput(at: number | null): string {
+  if (!at) return "";
+  const date = new Date(at);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
-      <EventsAdmin />
+function Events({ initial, cities }: { initial: EventRow[]; cities: City[] }) {
+  const [events, setEvents] = useState(initial);
+  const [draft, setDraft] = useState<Draft | null>(null);
 
-      <Block title={<>Audit log</>}>
-        <SectionIntro>
-          Who changed halal- or ranking-sensitive data, when, why and from what source.
-        </SectionIntro>
-        <ul className="divide-y text-[13px]">
-          {audit.map((entry) => (
-            <li key={entry.id} className="flex flex-wrap gap-x-3 gap-y-1 py-2">
-              <span className="font-semibold text-muted-foreground tabular-nums">
-                {new Date(entry.createdAt).toISOString().slice(0, 16).replace("T", " ")}
+  const open = async (id: string | null) => {
+    if (!id) {
+      setDraft({ id: null, title: "", citySlug: cities[0]?.slug ?? "", venue: "", address: "", startsAt: "", endsAt: "", description: "", stalls: [] });
+      return;
+    }
+    try {
+      const { event } = await api<{
+        event: EventRow & { address: string | null; endsAt: number | null; description: string | null; stallList: { name: string; note: string | null; placeId: string | null; placeName: string | null }[] };
+      }>(`/api/admin/events/${id}`);
+      setDraft({
+        id,
+        title: event.title,
+        citySlug: event.citySlug,
+        venue: event.venue,
+        address: event.address ?? "",
+        startsAt: toLocalInput(event.startsAt),
+        endsAt: toLocalInput(event.endsAt),
+        description: event.description ?? "",
+        stalls: event.stallList.map((stall) => ({ name: stall.name, note: stall.note ?? "", placeId: stall.placeId, placeName: stall.placeName })),
+      });
+    } catch (error) {
+      toast(errorText(error));
+    }
+  };
+
+  const reload = async () => {
+    const body = await api<{ events: EventRow[] }>("/api/admin/events");
+    setEvents(body.events);
+  };
+
+  if (draft) return <EventForm draft={draft} cities={cities} onClose={() => setDraft(null)} onSaved={async () => (setDraft(null), await reload())} />;
+
+  return (
+    <div className="grid gap-3">
+      <button type="button" onClick={() => open(null)} className={buttonClass("dark", "md", "w-fit px-5")}>
+        New event
+      </button>
+      <ul className="grid">
+        {events.map((event) => (
+          <li key={event.id}>
+            <button type="button" onClick={() => open(event.id)} className="flex w-full items-center gap-3 border-b border-border/70 py-3 text-left">
+              <span className="grid min-w-0 flex-1">
+                <strong className="truncate text-[15px] font-extrabold">{event.title}</strong>
+                <span className="truncate text-[13px] font-semibold text-muted-foreground">
+                  {new Date(event.startsAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · {event.venue} · {event.stalls} stalls
+                </span>
               </span>
-              <span className="font-bold">{entry.action}</span>
-              <span className="text-muted-foreground">
-                {entry.targetType}/{entry.targetId.slice(0, 8)}
+              <span
+                className={cn(
+                  "rounded-full px-2.5 py-0.5 text-xs font-black",
+                  event.status === "published" ? "bg-success-muted text-success" : event.status === "cancelled" ? "bg-destructive/10 text-destructive" : "bg-secondary",
+                )}
+              >
+                {event.status === "published" ? "Live" : event.status === "cancelled" ? "Cancelled" : "Draft"}
               </span>
-              {entry.reason && <span className="basis-full">{entry.reason}</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {events.length === 0 && <p className="text-sm font-semibold text-muted-foreground">No events yet.</p>}
+    </div>
+  );
+}
+
+function EventForm({ draft: initial, cities, onClose, onSaved }: { draft: Draft; cities: City[]; onClose: () => void; onSaved: () => void }) {
+  const [draft, setDraft] = useState(initial);
+  const [stallName, setStallName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }));
+  const field = "h-11 rounded-xl border border-input px-3 text-sm font-semibold outline-none focus:border-foreground";
+
+  const save = async (status: "draft" | "published" | "cancelled") => {
+    setBusy(true);
+    try {
+      const body = {
+        title: draft.title,
+        citySlug: draft.citySlug,
+        venue: draft.venue,
+        address: draft.address,
+        description: draft.description,
+        startsAt: draft.startsAt ? new Date(draft.startsAt).getTime() : null,
+        endsAt: draft.endsAt ? new Date(draft.endsAt).getTime() : null,
+        status,
+        stalls: draft.stalls.map((stall) => ({ name: stall.name, note: stall.note, placeId: stall.placeId })),
+      };
+      await api(draft.id ? `/api/admin/events/${draft.id}` : "/api/admin/events", { method: draft.id ? "PUT" : "POST", json: body });
+      toast(status === "published" ? "Published" : "Saved");
+      onSaved();
+    } catch (error) {
+      toast(errorText(error));
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!draft.id || !window.confirm("Delete this event?")) return;
+    try {
+      await api(`/api/admin/events/${draft.id}`, { method: "DELETE" });
+      onSaved();
+    } catch (error) {
+      toast(errorText(error));
+    }
+  };
+
+  const moveStall = (index: number, delta: -1 | 1) => {
+    const target = index + delta;
+    if (target < 0 || target >= draft.stalls.length) return;
+    const stalls = [...draft.stalls];
+    [stalls[index], stalls[target]] = [stalls[target], stalls[index]];
+    set({ stalls });
+  };
+
+  return (
+    <div className="grid max-w-2xl gap-3">
+      <button type="button" onClick={onClose} className="w-fit text-sm font-extrabold underline">
+        Back to events
+      </button>
+      <input value={draft.title} onChange={(event) => set({ title: event.target.value })} placeholder="Title" aria-label="Title" className={field} />
+      <select value={draft.citySlug} onChange={(event) => set({ citySlug: event.target.value })} aria-label="City" className={field}>
+        {cities.map((city) => (
+          <option key={city.slug} value={city.slug}>
+            {city.name}
+          </option>
+        ))}
+      </select>
+      <input value={draft.venue} onChange={(event) => set({ venue: event.target.value })} placeholder="Venue" aria-label="Venue" className={field} />
+      <input value={draft.address} onChange={(event) => set({ address: event.target.value })} placeholder="Address" aria-label="Address" className={field} />
+      <div className="grid grid-cols-2 gap-2">
+        <label className="grid gap-1 text-xs font-extrabold">
+          Starts
+          <input type="datetime-local" value={draft.startsAt} onChange={(event) => set({ startsAt: event.target.value })} className={field} />
+        </label>
+        <label className="grid gap-1 text-xs font-extrabold">
+          Ends
+          <input type="datetime-local" value={draft.endsAt} onChange={(event) => set({ endsAt: event.target.value })} className={field} />
+        </label>
+      </div>
+      <textarea
+        value={draft.description}
+        onChange={(event) => set({ description: event.target.value })}
+        placeholder="Description"
+        aria-label="Description"
+        rows={3}
+        className="resize-none rounded-xl border border-input px-3 py-2 text-sm font-semibold outline-none focus:border-foreground"
+      />
+
+      <section className="grid gap-2">
+        <h3 className="text-[15px] font-black">Stalls</h3>
+        <ul className="grid gap-1.5">
+          {draft.stalls.map((stall, index) => (
+            <li key={`${stall.name}-${index}`} className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
+              <span className="grid min-w-0 flex-1">
+                <strong className="truncate text-sm">{stall.name}</strong>
+                <span className="text-xs font-semibold text-muted-foreground">{stall.placeName ? `Linked: ${stall.placeName}` : "Not linked to a place"}</span>
+              </span>
+              <button type="button" onClick={() => moveStall(index, -1)} aria-label="Move up" className="size-8">
+                <Icon icon={ArrowUp01Icon} size={14} className="mx-auto" />
+              </button>
+              <button type="button" onClick={() => moveStall(index, 1)} aria-label="Move down" className="size-8">
+                <Icon icon={ArrowDown01Icon} size={14} className="mx-auto" />
+              </button>
+              <button type="button" onClick={() => set({ stalls: draft.stalls.filter((_, i) => i !== index) })} aria-label="Remove stall" className="size-8">
+                <Icon icon={Delete02Icon} size={14} className="mx-auto" />
+              </button>
             </li>
           ))}
         </ul>
-      </Block>
+        <PlaceSearch
+          placeholder="Search a place to add as a stall"
+          onPick={(place) => set({ stalls: [...draft.stalls, { name: place.name, note: "", placeId: place.id, placeName: place.name }] })}
+        />
+        <div className="flex gap-2">
+          <input value={stallName} onChange={(event) => setStallName(event.target.value)} placeholder="Or type a stall name" aria-label="Stall name" className={cn(field, "flex-1")} />
+          <button
+            type="button"
+            onClick={() => {
+              if (!stallName.trim()) return;
+              set({ stalls: [...draft.stalls, { name: stallName.trim(), note: "", placeId: null, placeName: null }] });
+              setStallName("");
+            }}
+            className={buttonClass("outline", "md", "px-4")}
+          >
+            Add
+          </button>
+        </div>
+      </section>
+
+      <div className="flex flex-wrap gap-2 pt-2">
+        <button type="button" onClick={() => save("published")} disabled={busy} className={buttonClass("primary", "md", "px-5")}>
+          Publish
+        </button>
+        <button type="button" onClick={() => save("draft")} disabled={busy} className={buttonClass("outline", "md", "px-5")}>
+          Save draft
+        </button>
+        {draft.id && (
+          <>
+            <button type="button" onClick={() => save("cancelled")} disabled={busy} className={buttonClass("ghost", "md", "px-5")}>
+              Cancel event
+            </button>
+            <button type="button" onClick={remove} className={buttonClass("ghost", "md", "px-5 text-destructive")}>
+              Delete
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,128 +1,51 @@
-import { findPlaces } from "../../../src/lib/places";
-import { submitPlaceLink } from "../../../src/lib/place-link-submissions";
-import { duplicateBody } from "../../../src/lib/place-duplicates";
-import { respondToGooglePlaceSubmission } from "../../../src/lib/google-place-submission";
-import { bboxParam, limitParam } from "@halalfood/core/params";
-import { getRequestAuth } from "../../../src/lib/auth-session";
-import {
-  consumePlaceSubmissionLimits,
-  getClientIp,
-  retryAfterSeconds,
-} from "../../../src/lib/otp-rate-limit";
+import { publishListingChange } from "../../../src/lib/listing-cache";
 import { validatePlaceSubmission } from "@halalfood/core/place-submission";
-import { signedOutLoginPath, hasSessionCookie } from "../../../src/lib/signed-out";
+import { INVALID_JSON, badRequest, json, optionalUser, readJson, requireUser, spendBudget, unavailable } from "../../../src/lib/api";
+import { loadExplore, parseExploreParams } from "../../../src/lib/explore";
+import { addPlaceFromGoogle } from "../../../src/lib/google-place-submission";
+import { consumePlaceSubmissionLimits } from "../../../src/lib/otp-rate-limit";
 
-function noStore() {
-  return { "Cache-Control": "no-store" };
-}
-
-function unauthorized(hadSession: boolean) {
-  return Response.json(
-    {
-      error: "Sign in to add a place.",
-      loginUrl: signedOutLoginPath("/add", hadSession),
-    },
-    { status: 401, headers: noStore() },
-  );
-}
-
-function unavailable() {
-  return Response.json(
-    { error: "Place submissions are temporarily unavailable. Please try again." },
-    { status: 503, headers: noStore() },
-  );
-}
-
-function rateLimited(retryAfterMs: number) {
-  const seconds = retryAfterSeconds(retryAfterMs);
-  return Response.json(
-    { error: "Too many place submissions. Please try again later." },
-    {
-      status: 429,
-      headers: {
-        ...noStore(),
-        "Retry-After": String(seconds),
-        "X-Retry-After": String(seconds),
-      },
-    },
-  );
-}
-
+/** Explore list and map pins (spec §5.1). */
 export async function GET(request: Request) {
-  const params = new URL(request.url).searchParams;
-  let bbox, limit;
+  let params;
   try {
-    bbox = bboxParam(params.get("bbox"));
-    limit = limitParam(params.get("limit"));
+    params = parseExploreParams(new URL(request.url).searchParams, 300);
   } catch (error) {
-    return Response.json({ error: (error as Error).message }, { status: 400 });
+    return badRequest((error as Error).message);
   }
   try {
-    return Response.json(await findPlaces({ bbox, limit }), {
-      headers: { "Cache-Control": "public, max-age=30, s-maxage=60" },
+    const viewerId = await optionalUser(request);
+    const result = await loadExplore(viewerId, params);
+    return Response.json(result, {
+      headers: viewerId ? { "Cache-Control": "no-store" } : { "Cache-Control": "public, max-age=30, s-maxage=60" },
     });
   } catch {
-    return Response.json(
-      { error: "Places are temporarily unavailable. Please try again." },
-      { status: 503 },
-    );
+    return unavailable("Places are temporarily unavailable. Please try again.");
   }
 }
 
+/** Add a place from a Google result; optional answers become check 1. */
 export async function POST(request: Request) {
-  const auth = await getRequestAuth(request);
-  if (auth.status === "unavailable") return unavailable();
-  if (auth.status === "unauthenticated") return unauthorized(hasSessionCookie(request));
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json(
-      { error: "Send a valid JSON object." },
-      { status: 400, headers: noStore() },
-    );
-  }
+  const outcome = await requireUser(request, "/add");
+  if (!outcome.ok) return outcome.response;
+  const body = await readJson(request);
+  if (body === INVALID_JSON) return badRequest("Send a valid JSON object.");
   const validation = validatePlaceSubmission(body);
-  if (!validation.ok)
-    return Response.json(
-      { error: validation.error },
-      { status: 400, headers: noStore() },
-    );
-
+  if (!validation.ok) return badRequest(validation.error);
+  const limited = await spendBudget(consumePlaceSubmissionLimits, outcome.auth, "You’ve added a lot of places today. Please try again tomorrow.");
+  if (limited) return limited;
+  const key =
+    typeof (body as { idempotencyKey?: unknown }).idempotencyKey === "string"
+      ? String((body as { idempotencyKey: string }).idempotencyKey)
+      : crypto.randomUUID().replace(/-/g, "");
   try {
-    const decision = await consumePlaceSubmissionLimits(
-      auth.userId,
-      getClientIp(request),
-    );
-    if (!decision.allowed) return rateLimited(decision.retryAfterMs);
+    const result = await addPlaceFromGoogle(outcome.auth.userId, validation.data, key);
+    if (!result.ok)
+      return json({ error: result.error, ...(result.existingId ? { id: result.existingId } : {}) }, { status: result.status });
+    // New places change city counts and sitemaps; never fail the add over it.
+    await publishListingChange({ actorUserId: outcome.auth.userId, change: "place-added", placeId: result.id, citySlug: null }).catch(() => null);
+    return json({ id: result.id, status: result.status }, { status: 201 });
   } catch {
-    return unavailable();
+    return unavailable("Adding places is temporarily unavailable. Please try again.");
   }
-
-  const input = validation.data;
-  if (input.mode === "link") {
-    try {
-      const result = await submitPlaceLink(auth.userId, input);
-      if (!result.ok) {
-        return Response.json(duplicateBody(result.match, auth.userId), {
-          status: 409,
-          headers: noStore(),
-        });
-      }
-      return Response.json(
-        {
-          id: result.id,
-          status: result.status,
-          deduped: result.deduped,
-          listed: false,
-        },
-        { status: result.deduped ? 200 : 201, headers: noStore() },
-      );
-    } catch {
-      return unavailable();
-    }
-  }
-
-  return respondToGooglePlaceSubmission(auth.userId, input);
 }

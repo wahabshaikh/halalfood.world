@@ -1,125 +1,48 @@
-import { cache } from "react";
 import type { Metadata } from "next";
 import { citySlugParam } from "@halalfood/core/params";
-import { listUpcomingEvents } from "../../src/lib/events-repository";
-import { cachedRead } from "../../src/lib/read-cache";
-import { loadOrDegrade } from "../../src/lib/load";
-import { canonical, cityName, OG_IMAGE } from "../../src/lib/seo";
-import {
-  ExploreTabs,
-  Page,
-  PageIntro,
-  PageMain,
-  SiteFooter,
-  SiteHeader,
-  Unavailable,
-} from "../../src/components/site-chrome";
-import { ChipLink, ChipRow, EmptyState } from "../../src/components/blocks";
-import { EventCard } from "../../src/components/event-card";
-import { Note } from "../../src/components/section";
-import { readEatingCityCookie } from "../../src/lib/eating-city";
-import { EatingCityForm } from "../../src/components/eating-city-form";
-import { listCities } from "../../src/lib/places";
+import { Calendar03Icon } from "@hugeicons/core-free-icons";
+import { AppShell } from "../../src/components/app-shell";
+import { EventRow } from "../../src/components/event-bits";
+import { resolveCity } from "../../src/components/explore-screen";
+import { EmptyState, PageTitle, TopBar } from "../../src/components/kit";
+import { getViewerId } from "../../src/lib/auth-session";
+import { listEvents } from "../../src/lib/events";
+import { cityName } from "../../src/lib/place-view";
 
-const TITLE = "Halal food events";
-const DESCRIPTION =
-  "Iftar walks, Eid markets and food festivals, with every vendor's halal status shown on its own.";
+export const dynamic = "force-dynamic";
 
-const load = cache((citySlug: string | null) =>
-  loadOrDegrade(() =>
-    cachedRead(`events:page:v1:${citySlug ?? "all"}`, 120, () =>
-      listUpcomingEvents({ citySlug, limit: 50 }),
-    ),
-  ),
-);
+type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-export async function generateMetadata({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}): Promise<Metadata> {
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const city = citySlugParam(typeof (await searchParams).city === "string" ? ((await searchParams).city as string) : null);
   return {
-    title: city ? `${TITLE} in ${cityName(city)}` : TITLE,
-    description: DESCRIPTION,
+    title: city ? `Halal food events in ${cityName(city)}` : "Halal food events",
+    description: "Iftar walks, Eid markets and food festivals, with every stall's halal status.",
     alternates: { canonical: city ? `/events?city=${city}` : "/events" },
-    openGraph: {
-      type: "website",
-      url: canonical("/events"),
-      title: TITLE,
-      description: DESCRIPTION,
-      images: [{ url: OG_IMAGE, width: 1200, height: 630 }],
-    },
   };
 }
 
-export default async function EventsPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const raw = (await searchParams).city;
-  const requested = citySlugParam(typeof raw === "string" ? raw : null);
-  const stored = requested ? null : await readEatingCityCookie();
-  const city = requested ?? stored;
-  const [loaded, everywhere] = await Promise.all([load(city), city ? load(null) : Promise.resolve(null)]);
-  const all = city ? everywhere : loaded;
-  const cities = all?.status === "ok" ? [...new Set(all.data.map((event) => event.citySlug))] : [];
-
+export default async function EventsPage({ searchParams }: Props) {
+  const params = await searchParams;
+  const { city } = await resolveCity(citySlugParam(typeof params.city === "string" ? params.city : null));
+  const viewerId = await getViewerId();
+  const events = await listEvents({ citySlug: city?.city_slug ?? null, viewerId, limit: 50 });
+  const name = city ? cityName(city.city_slug) : null;
   return (
-    <Page>
-      <SiteHeader />
-      <PageMain narrow>
-        <ExploreTabs active="community" />
-        <PageIntro
-          title="Coming up"
-          lead="Events follow the city you choose. Every vendor carries its own status."
-        />
-        <EatingCityForm
-          cities={await listCities({ limit: 500 }).catch(() => [])}
-          selected={city}
-          networkLabel={null}
-          next="/events"
-        />
-        {stored && city === stored && (
-          <p className="mb-4 text-sm text-muted-foreground">
-            Showing events in {cityName(city)} because that is where you said you are eating.
-          </p>
-        )}
-        {cities.length > 1 && (
-          <ChipRow className="mb-6" role="navigation" aria-label="Cities">
-            <ChipLink href="/events" active={!city}>
-              All cities
-            </ChipLink>
-            {cities.map((slug) => (
-              <ChipLink key={slug} href={`/events?city=${slug}`} active={city === slug}>
-                {cityName(slug)}
-              </ChipLink>
+    <AppShell active="explore">
+      <TopBar back={city ? `/city/${city.city_slug}` : "/"} />
+      <div className="grid gap-3 px-5 pb-10">
+        <PageTitle sub={name ? `What’s on in ${name}` : undefined}>Events</PageTitle>
+        {events.length ? (
+          <div className="grid">
+            {events.map((event) => (
+              <EventRow key={event.id} event={event} viewerId={viewerId} />
             ))}
-          </ChipRow>
+          </div>
+        ) : (
+          <EmptyState icon={Calendar03Icon} title="No events coming up" body="Iftar walks, Eid markets and food festivals show up here." />
         )}
-        {loaded.status === "error" && <Unavailable retryPath="/events" />}
-        {loaded.status === "ok" && !loaded.data.length && (
-          <EmptyState>
-            No events are listed yet. Check back soon, or{" "}
-            <a href="/leaderboard">see what the community is up to</a>.
-          </EmptyState>
-        )}
-        {loaded.status === "ok" && loaded.data.length > 0 && (
-          <ul className="grid gap-3">
-            {loaded.data.map((event) => (
-              <li key={event.id}>
-                <EventCard event={event} showCity={!city} />
-              </li>
-            ))}
-          </ul>
-        )}
-        <Note className="mt-8">
-          A festival being halal isn&rsquo;t one fact, so each vendor shows its own status. A stall we haven&rsquo;t
-          listed yet shows &ldquo;Unverified&rdquo;, which only means nobody has checked it here.
-        </Note>
-      </PageMain>
-      <SiteFooter active="community" />
-    </Page>
+      </div>
+    </AppShell>
   );
 }

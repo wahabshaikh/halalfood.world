@@ -1,67 +1,32 @@
-import { sql } from "drizzle-orm";
-import { HANDLE_PATTERN, normalizeHandle } from "@halalfood/core/social";
-import { database } from "../../../../src/db";
+import { normalizeHandle } from "@halalfood/core/people";
+import { json, notFound, requireUser, spendBudget, unavailable } from "../../../../src/lib/api";
 import { consumePersonalWriteLimits } from "../../../../src/lib/otp-rate-limit";
-import { blockUser, unblockUser } from "../../../../src/lib/social-repository";
-import {
-  badRequest,
-  json,
-  notFound,
-  requireUser,
-  spendBudget,
-  unavailable,
-} from "../../../../src/lib/api";
+import { block, unblock } from "../../../../src/lib/people";
 
-async function targetOf(
-  rawHandle: string,
-  userId: string,
-): Promise<{ response: Response } | { targetId: string }> {
-  const handle = normalizeHandle(decodeURIComponent(rawHandle));
-  if (!handle || !HANDLE_PATTERN.test(handle))
-    return { response: badRequest("That is not a valid handle.") };
-  const db = await database();
-  const rows = await db.all<{ user_id?: unknown }>(sql`
-    SELECT user_id FROM user_profiles WHERE handle = ${handle} LIMIT 1
-  `);
-  const targetId = rows[0]?.user_id;
-  if (typeof targetId !== "string")
-    return { response: notFound("That diner could not be found.") };
-  if (targetId === userId)
-    return { response: badRequest("You cannot block yourself.") };
-  return { targetId };
-}
+type Context = { params: Promise<{ handle: string }> };
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ handle: string }> },
-): Promise<Response> {
-  const outcome = await requireUser(request, "/settings");
+/** Block someone: removes follows both ways and hides each side from the other. */
+export async function PUT(request: Request, { params }: Context): Promise<Response> {
+  const handle = normalizeHandle(decodeURIComponent((await params).handle));
+  if (!handle) return notFound("That person could not be found.");
+  const outcome = await requireUser(request, `/u/${handle}`);
   if (!outcome.ok) return outcome.response;
   const limited = await spendBudget(consumePersonalWriteLimits, outcome.auth);
   if (limited) return limited;
   try {
-    const target = await targetOf((await params).handle, outcome.auth.userId);
-    if ("response" in target) return target.response;
-    await blockUser(outcome.auth.userId, target.targetId);
-    return json({ blocked: true });
+    return (await block(outcome.auth.userId, handle)) ? json({ blocked: true }) : notFound("That person could not be found.");
   } catch {
     return unavailable();
   }
 }
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ handle: string }> },
-): Promise<Response> {
-  const outcome = await requireUser(request, "/settings");
+export async function DELETE(request: Request, { params }: Context): Promise<Response> {
+  const handle = normalizeHandle(decodeURIComponent((await params).handle));
+  if (!handle) return notFound("That person could not be found.");
+  const outcome = await requireUser(request, "/me/privacy");
   if (!outcome.ok) return outcome.response;
-  const limited = await spendBudget(consumePersonalWriteLimits, outcome.auth);
-  if (limited) return limited;
   try {
-    const target = await targetOf((await params).handle, outcome.auth.userId);
-    if ("response" in target) return target.response;
-    await unblockUser(outcome.auth.userId, target.targetId);
-    return json({ blocked: false });
+    return (await unblock(outcome.auth.userId, handle)) ? json({ blocked: false }) : notFound("That person could not be found.");
   } catch {
     return unavailable();
   }

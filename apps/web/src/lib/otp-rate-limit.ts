@@ -648,9 +648,9 @@ export function retryAfterSeconds(milliseconds: number): number {
 
 /* ------------------------------------------------ trust-platform budgets -- */
 
-/** A check-in is cheap to write but easy to farm, so the daily cap is low. */
+/** A check is cheap to write but easy to farm, so the daily cap is low (spec §9). */
 export const CHECK_IN_RATE_LIMITS = {
-  mutationUser: { windowMs: 24 * 60 * 60 * 1000, maxCount: 40, cooldownMs: 2000 },
+  mutationUser: { windowMs: 24 * 60 * 60 * 1000, maxCount: 20, cooldownMs: 2000 },
   mutationIp: { windowMs: 24 * 60 * 60 * 1000, maxCount: 200, cooldownMs: 500 },
 } as const;
 
@@ -667,10 +667,34 @@ export const CONTRIBUTION_RATE_LIMITS = {
 } as const;
 
 /** Comments are conversation, so the cap is hourly, with a cooldown against floods. */
+/** Comments: 100 a day per person (spec §9). */
 export const COMMENT_RATE_LIMITS = {
-  mutationUser: { windowMs: 60 * 60 * 1000, maxCount: 60, cooldownMs: 3000 },
-  mutationIp: { windowMs: 60 * 60 * 1000, maxCount: 200, cooldownMs: 500 },
+  mutationUser: { windowMs: 24 * 60 * 60 * 1000, maxCount: 100, cooldownMs: 3000 },
+  mutationIp: { windowMs: 24 * 60 * 60 * 1000, maxCount: 500, cooldownMs: 500 },
 } as const;
+
+/** Recs: 30 sends a day per person (spec §9). */
+export const REC_RATE_LIMITS = {
+  mutationUser: { windowMs: 24 * 60 * 60 * 1000, maxCount: 30, cooldownMs: 1000 },
+  mutationIp: { windowMs: 24 * 60 * 60 * 1000, maxCount: 200, cooldownMs: 500 },
+} as const;
+
+export async function consumeRecLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([identifierKey("rec:send:user", userId), identifierKey("rec:send:ip", ip)]);
+  return consumePair(
+    [
+      { key: userKey, rule: REC_RATE_LIMITS.mutationUser },
+      { key: ipKey, rule: REC_RATE_LIMITS.mutationIp },
+    ],
+    store,
+    now,
+  );
+}
 
 export async function consumeCommentLimits(
   userId: string,

@@ -261,7 +261,7 @@ test("happy path uploads, lists, and deletes the authenticated user's photo", as
   };
   assert.equal(uploadBody.photo.isOwn, true);
   assert.equal(uploadBody.photo.contentType, "image/png");
-  assert.match(uploadBody.photo.url, /^\/api\/uploads\/r2\?key=photos%2F/);
+  assert.match(uploadBody.photo.url, /^\/api\/photos\/photos\//);
   assert.equal(repository.photos.size, 1);
 
   const listed = await handlePlacePhotosGet(new Request("https://halalfood.world"), placeContext(), {

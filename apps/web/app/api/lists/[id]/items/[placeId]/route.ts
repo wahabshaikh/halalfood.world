@@ -1,80 +1,40 @@
-import {
-  changeListItem,
-  getListForViewer,
-  listItems,
-} from "../../../../../../src/lib/lists-repository";
-import { canEditItems } from "@halalfood/core/place-lists";
 import { placeIdParam } from "@halalfood/core/params";
+import { INVALID_JSON, badRequest, json, readJson, requireUser, spendBudget, unavailable } from "../../../../../../src/lib/api";
+import { addItem, cleanItemNote, removeItem } from "../../../../../../src/lib/lists";
 import { consumePersonalWriteLimits } from "../../../../../../src/lib/otp-rate-limit";
-import {
-  INVALID_JSON,
-  badRequest,
-  forbidden,
-  json,
-  notFound,
-  readJson,
-  requireUser,
-  spendBudget,
-  unavailable,
-} from "../../../../../../src/lib/api";
 
 type Context = { params: Promise<{ id: string; placeId: string }> };
 
-async function change(
-  request: Request,
-  context: Context,
-  build: (body: unknown) => { remove: true } | { note: string | null } | string,
-): Promise<Response> {
-  const params = await context.params;
-  const listId = placeIdParam(params.id);
-  const placeId = placeIdParam(params.placeId);
-  if (!listId || !placeId) return badRequest("Invalid id.");
-
-  const outcome = await requireUser(request, `/list/${listId}`);
+/** Add a place, with an optional `note`. */
+export async function POST(request: Request, { params }: Context): Promise<Response> {
+  const { id, placeId: rawPlace } = await params;
+  const placeId = placeIdParam(rawPlace);
+  if (!placeId) return badRequest("That place id is not valid.");
+  const outcome = await requireUser(request, `/list/${id}`);
   if (!outcome.ok) return outcome.response;
-
-  let body: unknown = null;
-  if (request.method !== "DELETE") {
-    body = await readJson(request);
-    if (body === INVALID_JSON) return badRequest("Send a valid JSON object.");
-  }
-  const change = build(body);
-  if (typeof change === "string") return badRequest(change);
-
+  const body = await readJson(request);
+  const note = cleanItemNote(body === INVALID_JSON ? null : (body as { note?: unknown } | null)?.note);
+  if (!note.ok) return badRequest(note.error);
   const limited = await spendBudget(consumePersonalWriteLimits, outcome.auth);
   if (limited) return limited;
-
   try {
-    const access = await getListForViewer(listId, outcome.auth.userId);
-    if (!access) return notFound("That list could not be found.");
-    if (!canEditItems(access.role))
-      return forbidden("Only the owner and collaborators can change places.");
-    const changed = await changeListItem(
-      listId,
-      placeId,
-      { userId: outcome.auth.userId, role: access.role as "owner" | "editor" },
-      change,
-    );
-    // Not theirs to change, or not on the list: the same answer either way.
-    if (!changed) return forbidden("You can only change the places you added.");
-    return json({ items: await listItems(listId) });
+    const result = await addItem(id, outcome.auth.userId, placeId, note.note);
+    return result.ok ? json({ ok: true }, { status: 201 }) : json({ error: result.error }, { status: result.status });
   } catch {
     return unavailable();
   }
 }
 
-/** Take a place off the list. Editors can only take back their own. */
-export function DELETE(request: Request, context: Context): Promise<Response> {
-  return change(request, context, () => ({ remove: true }));
-}
-
-/** Change a place's note. */
-export function PATCH(request: Request, context: Context): Promise<Response> {
-  return change(request, context, (body) => {
-    const note = (body as { note?: unknown } | null)?.note;
-    if (note === null || note === undefined || note === "") return { note: null };
-    if (typeof note !== "string" || note.trim().length > 500)
-      return "Each note must be 500 characters or fewer.";
-    return { note: note.trim() || null };
-  });
+export async function DELETE(request: Request, { params }: Context): Promise<Response> {
+  const { id, placeId: rawPlace } = await params;
+  const placeId = placeIdParam(rawPlace);
+  if (!placeId) return badRequest("That place id is not valid.");
+  const outcome = await requireUser(request, `/list/${id}`);
+  if (!outcome.ok) return outcome.response;
+  try {
+    const result = await removeItem(id, outcome.auth.userId, placeId);
+    return result.ok ? json({ ok: true }) : json({ error: result.error }, { status: result.status });
+  } catch {
+    return unavailable();
+  }
 }

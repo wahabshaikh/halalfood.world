@@ -1,46 +1,41 @@
 import type { Metadata } from "next";
-import {
-  Breadcrumbs,
-  Page,
-  PageIntro,
-  PageMain,
-  SiteFooter,
-  SiteHeader,
-} from "../../src/components/site-chrome";
-import AdminConsole from "./admin-console";
+import { redirect } from "next/navigation";
+import { AppShell } from "../../src/components/app-shell";
+import { EmptyState, TopBar } from "../../src/components/kit";
+import { getViewerId } from "../../src/lib/auth-session";
+import { listAllEvents } from "../../src/lib/events";
+import { listOpenReports } from "../../src/lib/moderation";
+import { isModerator } from "../../src/lib/moderators";
+import { cityName } from "../../src/lib/place-view";
+import { listCities } from "../../src/lib/places";
+import { REASON_LABEL } from "@halalfood/core/moderation";
+import { loginHref } from "../../src/lib/signed-out";
+import { AdminConsole } from "./admin-console";
 
-export const metadata: Metadata = {
-  title: "Moderation console",
-  description: "Evidence queue, edits, duplicates, reports and the audit log.",
-  alternates: { canonical: "/admin" },
-  robots: { index: false, follow: false },
-};
+export const dynamic = "force-dynamic";
 
-export default function AdminPage() {
+export const metadata: Metadata = { title: "Moderation", robots: { index: false } };
+
+export default async function AdminPage() {
+  const viewerId = await getViewerId();
+  if (!viewerId) redirect(loginHref("/admin"));
+  if (!(await isModerator(viewerId))) {
+    return (
+      <AppShell active="you">
+        <TopBar back="/me" />
+        <EmptyState title="Moderators only" body="This page is for the people who review reports." />
+      </AppShell>
+    );
+  }
+  const [reports, events, cities] = await Promise.all([listOpenReports(), listAllEvents(), listCities({ limit: 2000 })]);
   return (
-    <Page>
-      <SiteHeader />
-      <PageMain>
-        <Breadcrumbs
-          trail={[
-            { name: "Halalfood", path: "/" },
-            { name: "Moderation", path: "/admin" },
-          ]}
-        />
-        <PageIntro
-          eyebrow={<>PROTECT THE DATABASE</>}
-          title={<>Moderation console</>}
-          lead={
-            <>
-              Operational tooling is part of the trust product, not back-office
-            polish. Every decision here is recorded in the audit log with its
-            actor, reason and source.
-            </>
-          }
-        />
-        <AdminConsole />
-      </PageMain>
-      <SiteFooter />
-    </Page>
+    <AppShell active="you" width="wide">
+      <TopBar back="/me" title="Moderation" />
+      <AdminConsole
+        reports={reports.map((report) => ({ ...report, reasonLabel: REASON_LABEL[report.reason] ?? report.reason }))}
+        events={events}
+        cities={cities.map((city) => ({ slug: city.city_slug, name: cityName(city.city_slug) }))}
+      />
+    </AppShell>
   );
 }

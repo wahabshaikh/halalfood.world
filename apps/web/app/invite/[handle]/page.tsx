@@ -1,134 +1,76 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Button } from "@halalfood/ui/components/button";
-import { Card } from "@halalfood/ui/components/card";
-import {
-  Page,
-  PageMain,
-  SiteFooter,
-  SiteHeader,
-  Unavailable,
-} from "../../../src/components/site-chrome";
-import { PersonAvatar } from "../../../src/components/person";
-import { getProfileByHandle } from "../../../src/lib/preferences-repository";
-import { loadOrDegrade } from "../../../src/lib/load";
-import { avatarUrl, HANDLE_PATTERN, normalizeHandle } from "@halalfood/core/social";
-import { cityName } from "../../../src/lib/seo";
+import { sql } from "drizzle-orm";
+import { normalizeHandle } from "@halalfood/core/people";
+import { AppShell } from "../../../src/components/app-shell";
+import { Avatar, PlaceArt, StatusPill, buttonClass } from "../../../src/components/kit";
+import { database } from "../../../src/db";
+import { visibleCheck } from "../../../src/lib/feed";
+import { PLACE_CARD_COLUMNS, photoUrl, toPlaceCard } from "../../../src/lib/place-view";
+import { avatarUrl, getProfileByHandle } from "../../../src/lib/profiles";
+import { loginHref } from "../../../src/lib/signed-out";
 
-/**
- * An invite link names only the diner who shared it: no token, no contact data.
- * Opening it shows who invited you, then hands off to onboarding, which follows
- * them when you finish.
- */
-async function load(rawHandle: string) {
-  const handle = normalizeHandle(decodeURIComponent(rawHandle));
-  if (!handle || !HANDLE_PATTERN.test(handle)) return { status: "missing" as const };
-  return loadOrDegrade(() => getProfileByHandle(handle));
+export const dynamic = "force-dynamic";
+
+type Props = { params: Promise<{ handle: string }> };
+
+async function load(raw: string) {
+  const handle = normalizeHandle(decodeURIComponent(raw));
+  const profile = handle ? await getProfileByHandle(handle) : null;
+  return profile && !profile.suspended ? profile : null;
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ handle: string }>;
-}): Promise<Metadata> {
-  const { handle } = await params;
-  const loaded = await load(handle);
-  const profile = loaded.status === "ok" ? loaded.data : null;
-  const name = profile ? (profile.displayName ?? profile.handle) : null;
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const profile = await load((await params).handle).catch(() => null);
+  if (!profile) return { title: "Not found", robots: { index: false } };
   return {
-    title: name ? `${name} invited you to halalfood.world` : "Join halalfood.world",
-    description: "Find halal food through the people you trust.",
-    alternates: { canonical: profile ? `/invite/${profile.handle}` : "/" },
-    robots: { index: false, follow: true },
+    title: `${profile.displayName} invited you`,
+    description: `${profile.displayName} invited you to halalfood.world: halal places checked by people who eat there.`,
+    robots: { index: false },
   };
 }
 
-export default async function InvitePage({
-  params,
-}: {
-  params: Promise<{ handle: string }>;
-}) {
-  const { handle } = await params;
-  const loaded = await load(handle);
-  if (loaded.status === "missing") notFound();
-  if (loaded.status === "error")
-    return (
-      <Page>
-        <SiteHeader hideSearch />
-        <PageMain narrow>
-          <Unavailable retryPath={`/invite/${encodeURIComponent(handle)}`} />
-        </PageMain>
-        <SiteFooter />
-      </Page>
-    );
-  const profile = loaded.data;
-  if (!profile || profile.onboardedAt === null) {
-    return (
-      <Page>
-        <SiteHeader hideSearch />
-        <PageMain narrow>
-          <section className="mx-auto my-10 max-w-xl">
-            <Card className="items-center gap-4 rounded-3xl px-6 py-9 text-center shadow-lg ring-border sm:px-9">
-              <h1 className="text-[26px]">This invite is not active yet</h1>
-              <p className="text-base text-muted-foreground">
-                The person who shared it still needs to finish their profile. You can look
-                through the directory in the meantime.
-              </p>
-              <Button asChild size="xl">
-                <a href="/">Browse places</a>
-              </Button>
-            </Card>
-          </section>
-        </PageMain>
-        <SiteFooter />
-      </Page>
-    );
-  }
-  const name = profile.displayName ?? profile.handle;
-
+export default async function InvitePage({ params }: Props) {
+  const profile = await load((await params).handle);
+  if (!profile) notFound();
+  const db = await database();
+  // check-visibility: gated — signed-out view of the inviter's loved places (visibleCheck).
+  const rows = await db.all<Record<string, unknown>>(sql`
+    SELECT ${PLACE_CARD_COLUMNS}
+    FROM checks c LEFT JOIN profiles pr ON pr.user_id = c.user_id JOIN places p ON p.id = c.place_id JOIN place_status s ON s.place_id = p.id
+    WHERE c.user_id = ${profile.userId} AND c.verdict = 'loved' AND p.listing_status = 'listed' AND ${visibleCheck(null)}
+    GROUP BY p.id
+    ORDER BY MAX(c.created_at) DESC
+    LIMIT 2
+  `);
+  const places = rows.map(toPlaceCard);
+  const first = profile.displayName.split(" ")[0];
   return (
-    <Page>
-      <SiteHeader hideSearch />
-      <PageMain narrow>
-        <section aria-labelledby="invite-title" className="mx-auto my-10 max-w-xl">
-          <Card className="items-center gap-4 rounded-3xl px-6 py-9 text-center shadow-lg ring-border sm:px-9">
-            <PersonAvatar
-              name={name}
-              avatarUrl={avatarUrl(profile.handle, profile.avatarKey)}
-              size={84}
-            />
-            <h1 id="invite-title" className="text-[26px]">
-              {name} invited you to halalfood.world
-            </h1>
-            <p className="text-base text-muted-foreground">
-              Follow friends, see where they eat and keep your own list. Halal status comes only
-              from dated, moderated evidence, never from likes or followers.
-            </p>
-            {profile.homeCitySlug && (
-              <p className="text-sm">
-                {name} is eating in{" "}
-                <a className="font-bold underline" href={`/city/${profile.homeCitySlug}`}>
-                  {cityName(profile.homeCitySlug)}
-                </a>
-                .
-              </p>
-            )}
-            <p className="text-sm text-muted-foreground">
-              Join and follow @{profile.handle}. If that follow does not stick, Finish on the
-              setup page retries it without creating a second profile.
-            </p>
-            <Button asChild size="xl" className="w-full">
-              <a href={`/onboarding?ref=${encodeURIComponent(profile.handle)}`}>
-                Join and follow @{profile.handle}
+    <AppShell hideNav>
+      <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center px-6 pt-16 pb-10 text-center">
+        <Avatar name={profile.displayName} seed={profile.userId} src={avatarUrl(profile.avatarKey, profile.handle)} size={88} />
+        <h1 className="mt-5 text-[28px] leading-tight font-black tracking-tight">{profile.displayName} invited you to halalfood.world</h1>
+        <p className="mt-2 text-[15px] font-semibold text-subtle-foreground">Halal places, checked by people who eat there. See where {first} eats.</p>
+        {places.length > 0 && (
+          <div className="mt-8 grid w-full grid-cols-2 gap-3 text-left">
+            {places.map((place) => (
+              <a key={place.id} href={`/place/${place.id}`} className="grid gap-1.5 text-foreground">
+                <PlaceArt name={place.name} seed={place.id} src={photoUrl(place.photoKey)} className="h-28 w-full" rounded="rounded-[14px]" />
+                <strong className="truncate text-[15px] font-extrabold">{place.name}</strong>
+                <StatusPill status={place.status} short className="w-fit" />
               </a>
-            </Button>
-            <a className="text-sm font-bold underline" href={`/u/${profile.handle}`}>
-              See {name}&apos;s profile first
-            </a>
-          </Card>
-        </section>
-      </PageMain>
-      <SiteFooter />
-    </Page>
+            ))}
+          </div>
+        )}
+        <div className="mt-auto grid w-full gap-2.5 pt-10">
+          <a href={`${loginHref("/", "join")}&invite=${encodeURIComponent(profile.handle)}`} className={buttonClass("primary", "lg")}>
+            Join and follow {first}
+          </a>
+          <a href="/" className={buttonClass("ghost", "lg")}>
+            Just look around
+          </a>
+        </div>
+      </div>
+    </AppShell>
   );
 }
