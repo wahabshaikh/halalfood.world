@@ -170,6 +170,7 @@ export async function getList(id: string, viewerId: string | null, client: Clien
     WHERE m.list_id = ${id} AND pr.suspended_at IS NULL
     ORDER BY sort
   `);
+  // check-visibility: owner-only — "been" is whether the viewer has their own check there.
   const items = await db.all<Record<string, unknown>>(sql`
     SELECT ${PLACE_CARD_COLUMNS}, i.position, i.note AS item_note, i.added_by_user_id,
       ${viewerId ? sql`EXISTS (SELECT 1 FROM checks c WHERE c.place_id = p.id AND c.user_id = ${viewerId})` : sql`0`} AS been
