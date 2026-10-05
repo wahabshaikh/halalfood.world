@@ -121,13 +121,10 @@ test("Failed to fetch and Load failed never render for the screens outside the m
   }
 
   const screens = [
-    "../app/event/[id]/event-going.tsx",
-    "../app/send/send-view.tsx",
-    "../app/admin/events-admin.tsx",
     "../app/map/map-view.tsx",
-    "../app/feed/feed-view.tsx",
-    "../app/add/add-place-form.tsx",
-    "../app/place/[id]/check/check-flow.tsx",
+    "../app/place/[id]/place-client.tsx",
+    "../app/place/[id]/check/check-form.tsx",
+    "../app/search/search-screen.tsx",
   ];
   for (const screen of screens) {
     const source = readFileSync(new URL(screen, import.meta.url), "utf8");

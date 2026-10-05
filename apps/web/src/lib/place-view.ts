@@ -128,5 +128,5 @@ export function formatDistance(km: number | null): string | null {
 }
 
 export function photoUrl(key: string | null): string | null {
-  return key ? `/api/photos/${encodeURIComponent(key)}` : null;
+  return key ? `/api/photos/${key.split("/").map(encodeURIComponent).join("/")}` : null;
 }

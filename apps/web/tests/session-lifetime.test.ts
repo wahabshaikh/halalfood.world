@@ -71,13 +71,7 @@ test("form drafts round-trip in session storage", () => {
   clearFormDraft("halalfood:review-draft:1", store);
   assert.equal(readFormDraft("halalfood:review-draft:1", store), null);
 
-  const checkIn = readFileSync(new URL("../app/place/[id]/place-check-in.tsx", import.meta.url), "utf8");
-  const review = readFileSync(new URL("../app/place/[id]/place-reviews.tsx", import.meta.url), "utf8");
-  const check = readFileSync(new URL("../app/place/[id]/check/check-flow.tsx", import.meta.url), "utf8");
-  const add = readFileSync(new URL("../app/add/add-place-form.tsx", import.meta.url), "utf8");
-  for (const source of [checkIn, review, check, add]) {
-    assert.match(source, /signedOutLoginPath/);
-    assert.match(source, /saveFormDraft|saveDraft\(/);
-  }
-  assert.match(checkIn, /useState\(false\)/);
+  const check = readFileSync(new URL("../app/place/[id]/check/check-form.tsx", import.meta.url), "utf8");
+  assert.match(check, /saveFormDraft/);
+  assert.match(check, /clearFormDraft/);
 });

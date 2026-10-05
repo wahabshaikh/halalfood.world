@@ -61,15 +61,13 @@ function extensionFor(content: PlacePhotoContentType): "jpg" | "png" | "webp" {
 
 function mapPhoto(row: Record<string, unknown>): PlacePhoto {
   const type = contentType(row.content_type);
-  const rawFileName =
-    typeof row.original_file_name === "string" ? row.original_file_name.trim() : "";
   const byteSize = Number(row.byte_size);
   return {
     id: typeof row.id === "string" ? row.id : String(row.id ?? ""),
     r2Key: typeof row.r2_key === "string" ? row.r2_key : "",
     contentType: type,
     byteSize: Number.isInteger(byteSize) && byteSize > 0 ? byteSize : 0,
-    fileName: rawFileName || `halal-photo.${extensionFor(type)}`,
+    fileName: `halal-photo.${extensionFor(type)}`,
     createdAt: isoDate(row.created_at),
     isOwn: row.is_own === true || row.is_own === 1 || row.is_own === "true",
   };
@@ -91,7 +89,7 @@ export function d1PlacePhotoRepository(
       const rows = await db.all(sql`
         SELECT 1
         FROM places
-        WHERE id = ${placeId} AND halal_confirmed = 1 AND listing_status = 'listed'
+        WHERE id = ${placeId} AND listing_status = 'listed'
         LIMIT 1
       `);
       return rows.length > 0;
@@ -106,13 +104,12 @@ export function d1PlacePhotoRepository(
           ph.r2_key,
           ph.content_type,
           ph.byte_size,
-          ph.original_file_name,
           ph.created_at,
           ${ownPhoto} AS is_own
         FROM place_photos AS ph
         INNER JOIN places AS p ON p.id = ph.place_id
         WHERE ph.place_id = ${placeId}
-          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
+          AND p.listing_status = 'listed'
         ORDER BY ph.created_at DESC, ph.id DESC
         LIMIT 100
       `);
@@ -124,8 +121,7 @@ export function d1PlacePhotoRepository(
       const id = crypto.randomUUID();
       const rows = await db.all<Record<string, unknown>>(sql`
         INSERT INTO place_photos (
-          id, place_id, user_id, r2_key, content_type, byte_size,
-          original_file_name, created_at
+          id, place_id, user_id, r2_key, content_type, byte_size, created_at
         )
         SELECT
           ${id},
@@ -134,14 +130,12 @@ export function d1PlacePhotoRepository(
           ${input.r2Key},
           ${input.contentType},
           ${input.byteSize},
-          ${input.fileName},
           ${Date.now()}
         FROM places AS p
         WHERE p.id = ${placeId}
-          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
+          AND p.listing_status = 'listed'
         RETURNING
-          id, r2_key, content_type, byte_size,
-          original_file_name, created_at, 1 AS is_own
+          id, r2_key, content_type, byte_size, created_at, 1 AS is_own
       `);
       return photoFromRow(rows[0]);
     },
@@ -155,7 +149,7 @@ export function d1PlacePhotoRepository(
           AND user_id = ${userId}
           AND EXISTS (
             SELECT 1 FROM places
-            WHERE places.id = place_photos.place_id AND places.halal_confirmed = 1 AND places.listing_status = 'listed'
+            WHERE places.id = place_photos.place_id AND places.listing_status = 'listed'
           )
         RETURNING r2_key
       `);
@@ -165,12 +159,12 @@ export function d1PlacePhotoRepository(
 
     async getUploadAccess(key) {
       const db = await client;
-      const rows = await db.all<{ content_type?: unknown; original_file_name?: unknown }>(sql`
-        SELECT ph.content_type, ph.original_file_name
+      const rows = await db.all<{ content_type?: unknown }>(sql`
+        SELECT ph.content_type
         FROM place_photos AS ph
         INNER JOIN places AS p ON p.id = ph.place_id
         WHERE ph.r2_key = ${key}
-          AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
+          AND p.listing_status = 'listed'
         LIMIT 1
       `);
       const row = rows[0];
@@ -178,13 +172,12 @@ export function d1PlacePhotoRepository(
         !row ||
         (row.content_type !== "image/jpeg" &&
           row.content_type !== "image/png" &&
-          row.content_type !== "image/webp") ||
-        typeof row.original_file_name !== "string"
+          row.content_type !== "image/webp")
       )
         return null;
       return {
         contentType: row.content_type,
-        fileName: row.original_file_name,
+        fileName: `halal-photo.${extensionFor(row.content_type)}`,
       };
     },
   };

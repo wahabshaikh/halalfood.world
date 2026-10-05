@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { parseStatus, type PlaceStatus } from "@halalfood/core/halal";
 import { database } from "../db";
 import { cachedRead } from "./read-cache";
 
@@ -47,8 +48,7 @@ export type CreatorPlace = {
   placeName: string;
   citySlug: string;
   addressLocality: string | null;
-  ratingValue: string | null;
-  reviewCount: number | null;
+  status: PlaceStatus;
   streetAddress: string;
   url: string;
   title: string | null;
@@ -275,7 +275,7 @@ export function d1MediaLinkRepository(
     async hasPlace(placeId) {
       const db = await client;
       const rows = await db.all(sql`
-        SELECT 1 FROM places WHERE id = ${placeId} AND halal_confirmed = 1 AND listing_status = 'listed' LIMIT 1
+        SELECT 1 FROM places WHERE id = ${placeId} AND listing_status = 'listed' LIMIT 1
       `);
       return rows.length > 0;
     },
@@ -323,10 +323,10 @@ export async function getCreatorProfile(
   const db = await client;
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT m.place_id, m.url, m.title, m.thumbnail_url, m.author_name, m.created_at,
-      p.name AS place_name, p.city_slug, p.address_locality, p.rating_value,
-      p.review_count, p.street_address
+      p.name AS place_name, p.city_slug, p.address_locality, p.street_address, s.status, s.progress
     FROM place_media_links AS m
-    INNER JOIN places AS p ON p.id = m.place_id AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
+    INNER JOIN places AS p ON p.id = m.place_id AND p.listing_status = 'listed'
+    INNER JOIN place_status AS s ON s.place_id = p.id
     WHERE m.platform = ${platform} AND m.author_handle = ${handle}
     ORDER BY m.created_at DESC
     LIMIT 200
@@ -343,8 +343,7 @@ export async function getCreatorProfile(
       placeName: String(row.place_name),
       citySlug: String(row.city_slug),
       addressLocality: nullableText(row.address_locality),
-      ratingValue: nullableText(row.rating_value),
-      reviewCount: typeof row.review_count === "number" ? row.review_count : null,
+      status: parseStatus(row.status, row.progress),
       streetAddress: String(row.street_address ?? ""),
       url: String(row.url),
       title: nullableText(row.title),
@@ -385,7 +384,7 @@ async function queryTopCreators(
     SELECT m.platform, m.author_handle, max(m.author_name) AS author_name,
       count(DISTINCT m.place_id) AS place_count, count(*) AS video_count
     FROM place_media_links AS m
-    INNER JOIN places AS p ON p.id = m.place_id AND p.halal_confirmed = 1 AND p.listing_status = 'listed'
+    INNER JOIN places AS p ON p.id = m.place_id AND p.listing_status = 'listed'
     WHERE m.author_handle IS NOT NULL
     GROUP BY m.platform, m.author_handle
     ORDER BY place_count DESC, video_count DESC, m.author_handle

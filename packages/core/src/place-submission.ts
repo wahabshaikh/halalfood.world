@@ -1,38 +1,23 @@
 /**
  * Places can only be added by picking a Google Maps result. The name,
  * address, city and coordinates all come from Google on the server, so
- * nothing about the listing is typed in by hand.
+ * nothing about the listing is typed in by hand. The adder may answer the four
+ * halal questions; those answers are stored as the place's first check.
  */
-export const PLACE_SUBMISSION_MODES = ["google", "link"] as const;
-export type PlaceSubmissionMode = (typeof PLACE_SUBMISSION_MODES)[number];
+import { ANSWERS, FACTS, type Answer, type Fact } from "./halal";
 
-export type ValidatedGoogleSubmission = {
-  mode: "google";
+export type ValidatedPlaceSubmission = {
   googlePlaceId: string;
-  halalConfirmed: true;
   /**
-   * Name, address, and city from the result the person picked.
-   * Place Details still wins when it can be called. These fields are only
-   * used when that call is skipped.
+   * Name, address and city from the result the person picked. Place Details
+   * still wins when it can be called; these are used only when it is skipped.
    */
   name: string | null;
   address: string | null;
   city: string | null;
+  /** Null when the adder answered nothing definite. */
+  answers: Record<Fact, Answer> | null;
 };
-
-/** A maps or website link held for review. It does not publish a listing. */
-export type ValidatedLinkSubmission = {
-  mode: "link";
-  name: string;
-  city: string;
-  citySlug: string;
-  address: string;
-  sourceUrl: string;
-  googlePlaceId: string | null;
-  halalConfirmed: true;
-};
-
-export type ValidatedPlaceSubmission = ValidatedGoogleSubmission | ValidatedLinkSubmission;
 
 export type ValidationResult =
   | { ok: true; data: ValidatedPlaceSubmission }
@@ -91,21 +76,6 @@ function optionalGooglePlaceId(
   return { value: normalized };
 }
 
-function httpsUrl(value: unknown): { value: string } | { error: string } {
-  if (typeof value !== "string") return { error: "Paste a link to the place." };
-  const normalized = value.trim();
-  if (!normalized) return { error: "Paste a link to the place." };
-  if (normalized.length > 500) return { error: "That link is too long." };
-  let url: URL;
-  try {
-    url = new URL(normalized);
-  } catch {
-    return { error: "Paste a full https link to the place." };
-  }
-  if (url.protocol !== "https:") return { error: "The link must start with https." };
-  return { value: url.toString() };
-}
-
 /** Pull a Google place id out of a maps link, when the link actually has one. */
 export function googlePlaceIdFromUrl(value: string): string | null {
   const placeId = value.match(/place_id(?:=|%3D|:)([A-Za-z0-9_-]{8,})/i);
@@ -119,58 +89,31 @@ export function googlePlaceIdFromUrl(value: string): string | null {
 export function validatePlaceSubmission(body: unknown): ValidationResult {
   const input = objectValue(body);
   if (!input) return { ok: false, error: "Send a JSON object." };
-
-  if (input.mode !== "google" && input.mode !== "link")
-    return {
-      ok: false,
-      error: "Pick a Google result, or send a place link for a moderator to review.",
-    };
-  if (input.halalConfirmed !== true)
-    return {
-      ok: false,
-      error: "You must confirm that this place is halal before submitting.",
-    };
-
-  if (input.mode === "link") {
-    const name = textValue(input.name, "place name", 120);
-    if ("error" in name) return { ok: false, error: name.error };
-    const city = textValue(input.city, "city", 80);
-    if ("error" in city) return { ok: false, error: city.error };
-    const citySlug = slugifyCity(city.value);
-    if (!citySlug) return { ok: false, error: "Enter the city in Latin letters so we can file it." };
-    const address = textValue(input.address, "street address", 200);
-    if ("error" in address) return { ok: false, error: address.error };
-    const sourceUrl = httpsUrl(input.sourceUrl);
-    if ("error" in sourceUrl) return { ok: false, error: sourceUrl.error };
-    return {
-      ok: true,
-      data: {
-        mode: "link",
-        name: name.value,
-        city: city.value,
-        citySlug,
-        address: address.value,
-        sourceUrl: sourceUrl.value,
-        googlePlaceId: googlePlaceIdFromUrl(sourceUrl.value),
-        halalConfirmed: true,
-      },
-    };
-  }
-
   const googlePlaceId = optionalGooglePlaceId(input.googlePlaceId);
   if ("error" in googlePlaceId) return { ok: false, error: googlePlaceId.error };
-  if (!googlePlaceId.value)
-    return { ok: false, error: "Choose a place from Google search first." };
+  if (!googlePlaceId.value) return { ok: false, error: "Choose a place from Google search first." };
+
+  let answers: Record<Fact, Answer> | null = null;
+  const raw = objectValue(input.answers);
+  if (raw) {
+    answers = {} as Record<Fact, Answer>;
+    for (const fact of FACTS) {
+      const value = raw[fact];
+      if (value === undefined || value === null || value === "") answers[fact] = null;
+      else if ((ANSWERS as readonly unknown[]).includes(value)) answers[fact] = value as Answer;
+      else return { ok: false, error: `Unknown answer for ${fact}.` };
+    }
+    if (!FACTS.some((fact) => answers![fact] === "yes" || answers![fact] === "no")) answers = null;
+  }
 
   return {
     ok: true,
     data: {
-      mode: "google",
       googlePlaceId: googlePlaceId.value,
-      halalConfirmed: true,
       name: optionalSubmissionText(input.name, 120),
       address: optionalSubmissionText(input.address, 200),
       city: optionalSubmissionText(input.city, 80),
+      answers,
     },
   };
 }

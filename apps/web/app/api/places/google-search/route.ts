@@ -7,43 +7,26 @@ import {
   guardedGoogleTextSearch,
   type GoogleResultExisting,
 } from "../../../../src/lib/google-search-guard";
-import {
-  citySlugFromAddress,
-  findExistingPlaces,
-  type ExistingPlaceMatch,
-} from "../../../../src/lib/place-duplicates";
+import { listedGoogleIds } from "../../../../src/lib/places";
 import { locationFromRequest } from "../../../../src/lib/visitor-location";
 
 function noStore() {
   return { "Cache-Control": "no-store" };
 }
 
-function existingCopy(match: ExistingPlaceMatch | null): GoogleResultExisting | null {
-  if (!match) return null;
-  if (match.kind === "listed") {
-    return { status: "listed", placeId: match.placeId, name: match.name, url: `/place/${match.placeId}` };
-  }
-  return { status: match.kind === "pending" ? "pending" : "known", name: match.name };
-}
-
 /**
- * Which Google results are already listed or under review, so /add can turn
- * off Add for them. A failed lookup marks nothing; POST /api/places still
- * refuses the duplicate.
+ * Which Google results are already listed, so /add can link to them instead.
+ * A failed lookup marks nothing; POST /api/places still refuses the duplicate.
  */
 async function existingFor(
   places: Array<{ id: string; displayName: string; formattedAddress: string }>,
 ): Promise<Array<GoogleResultExisting | null>> {
   try {
-    const matches = await findExistingPlaces(
-      places.map((place) => ({
-        googlePlaceId: place.id,
-        name: place.displayName,
-        citySlug: citySlugFromAddress(place.formattedAddress),
-        address: place.formattedAddress,
-      })),
-    );
-    return matches.map(existingCopy);
+    const listed = await listedGoogleIds(places.map((place) => place.id));
+    return places.map((place) => {
+      const id = listed.get(place.id);
+      return id ? { status: "listed" as const, placeId: id, name: place.displayName, url: `/place/${id}` } : null;
+    });
   } catch {
     return [];
   }

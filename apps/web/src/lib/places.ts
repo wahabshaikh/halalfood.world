@@ -199,6 +199,7 @@ export async function explorePlaces(
   if (query.friendIds) {
     if (!query.friendIds.length) return { places: [], total: 0 };
     const ids = sql.join(query.friendIds.map((id) => sql`${id}`), sql`, `);
+    // check-visibility: audience — shared checks and saves by people the viewer follows.
     conditions.push(sql`(
       EXISTS (SELECT 1 FROM checks c WHERE c.place_id = p.id AND c.shared = 1 AND c.user_id IN (${ids}))
       OR EXISTS (SELECT 1 FROM saved_places sp WHERE sp.place_id = p.id AND sp.user_id IN (${ids}))
@@ -264,6 +265,7 @@ export async function searchPlaces(
         containsText(sql`p.serves_cuisine`, q),
         containsText(sql`p.address_locality`, q),
         containsText(sql`p.street_address`, q),
+        // check-visibility: aggregate — matches on dish names only, no author is exposed.
         sql`EXISTS (SELECT 1 FROM checks c JOIN check_dishes d ON d.check_id = c.id
           WHERE c.place_id = p.id AND c.excluded = 0 AND ${containsText(sql`d.name`, q)})`,
       ],

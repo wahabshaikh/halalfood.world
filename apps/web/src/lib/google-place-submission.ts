@@ -1,4 +1,12 @@
-import { slugifyCity, type ValidatedGoogleSubmission, type ValidatedLinkSubmission } from "@halalfood/core/place-submission";
+/**
+ * Add a place from a Google Maps result (spec §6.9). It goes live at once as
+ * "Not checked yet", or "1 of 3" when the adder answered the questions, which
+ * are stored as the place's first check.
+ */
+import { slugifyCity, type ValidatedPlaceSubmission } from "@halalfood/core/place-submission";
+import { validateCheck } from "@halalfood/core/check";
+import { hiddenListingReason } from "@halalfood/core/listing-visibility";
+import { database } from "../db";
 import {
   GOOGLE_PLACES_ADD_FIELD_MASK,
   getGooglePlaceDetails,
@@ -7,18 +15,11 @@ import {
   googlePlaceMapsUrl,
   type GooglePlaceDetailsResult,
 } from "./google-places";
-import { submitPlaceLink, type LinkSubmissionResult } from "./place-link-submissions";
 import { reserveGoogleDetailsCall } from "./google-search-budget";
-import {
-  citySlugFromAddress,
-  duplicateBody,
-  findExistingPlace,
-  type DuplicateCandidate,
-  type ExistingPlaceMatch,
-} from "./place-duplicates";
+import { createPlaceStatements, findPlaceByGoogleId, type CreatePlaceInput } from "./places";
+import { awardPoints, checkStatements, recomputePlaceStatus, runBatch } from "./checks-repository";
 
-const POSTCODE_AT_END =
-  /(?:\s|^)(?:[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}|\d{5}(?:-\d{4})?)$/i;
+const POSTCODE_AT_END = /(?:\s|^)(?:[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}|\d{5}(?:-\d{4})?)$/i;
 
 /**
  * City from a formatted address when Place Details did not run.
@@ -34,194 +35,145 @@ export function cityFromFormattedAddress(address: string): string | null {
   return parts[0] ?? null;
 }
 
-/** Maps link plus the name and address the person already picked. */
-export function linkFromSelectedGooglePlace(
-  input: ValidatedGoogleSubmission,
-): ValidatedLinkSubmission | null {
-  const name = input.name?.trim() || "";
-  const address = input.address?.trim() || "";
-  if (!name || !address) return null;
-  const city = input.city?.trim() || cityFromFormattedAddress(address);
-  const citySlug = city ? slugifyCity(city) : "";
-  if (!city || !citySlug) return null;
-  return {
-    mode: "link",
-    name,
-    city,
-    citySlug,
-    address,
-    sourceUrl: googlePlaceMapsUrl(input.googlePlaceId),
-    googlePlaceId: input.googlePlaceId,
-    halalConfirmed: true,
-  };
-}
+type DatabaseClient = Awaited<ReturnType<typeof database>>;
 
-export type GooglePlaceSubmissionDeps = {
-  now?: () => Date;
+export type AddPlaceDeps = {
+  now?: () => number;
   reserve?: (now: Date) => Promise<boolean>;
-  fetchDetails?: (
-    placeId: string,
-    options?: { fieldMask?: string },
-  ) => Promise<GooglePlaceDetailsResult>;
-  submit?: typeof submitPlaceLink;
+  fetchDetails?: (placeId: string, options?: { fieldMask?: string }) => Promise<GooglePlaceDetailsResult>;
   hasApiKey?: () => boolean;
-  findExisting?: (candidate: DuplicateCandidate) => Promise<ExistingPlaceMatch | null>;
+  client?: DatabaseClient | Promise<DatabaseClient>;
 };
 
-function noStore() {
-  return { "Cache-Control": "no-store" };
-}
+export type AddPlaceResult =
+  | { ok: true; id: string; status: "unchecked" | "checking" }
+  | { ok: false; status: number; error: string; existingId?: string };
 
-function googleDetailsError(code: string) {
-  if (code === "NOT_CONFIGURED") {
-    return Response.json(
-      { error: "Adding places is paused right now. Please try again later." },
-      { status: 503, headers: noStore() },
-    );
-  }
-  if (code === "INVALID_RESPONSE") {
-    return Response.json(
-      { error: "Google didn’t return enough details for that place. Try another result." },
-      { status: 422, headers: noStore() },
-    );
-  }
-  return Response.json(
-    { error: "Google couldn’t confirm that place. Please try again." },
-    { status: 502, headers: noStore() },
-  );
-}
+const UNAVAILABLE = "Adding places is paused right now. Please try again later.";
 
-function filedResponse(result: LinkSubmissionResult, userId: string) {
-  if (!result.ok) {
-    return Response.json(duplicateBody(result.match, userId), {
-      status: 409,
-      headers: noStore(),
-    });
-  }
-  return Response.json(
-    {
-      id: result.id,
-      status: result.status,
-      deduped: result.deduped,
-      listed: false,
-    },
-    { status: result.deduped ? 200 : 201, headers: noStore() },
-  );
-}
-
-const CAPPED_REASON =
-  "Filed from the selected Google result without a Place Details lookup. Not listed and not a halal certification.";
-
-/**
- * Place Details for an add-place submission, counted on the details daily cap.
- * A full cap files the maps link and the picked name and address instead.
- */
-export async function respondToGooglePlaceSubmission(
-  userId: string,
-  input: ValidatedGoogleSubmission,
-  deps: GooglePlaceSubmissionDeps = {},
-): Promise<Response> {
-  // A place or submission we already have is refused before Place Details,
-  // so a duplicate costs no Google call. submitPlaceLink checks again with
-  // the name and city Google returns.
-  let early: ExistingPlaceMatch | null = null;
-  try {
-    const address = input.address?.trim() || "";
-    early = await (deps.findExisting ?? ((candidate) => findExistingPlace(candidate)))({
-      googlePlaceId: input.googlePlaceId,
-      name: input.name?.trim() || "",
-      citySlug: input.city?.trim() ? slugifyCity(input.city) : citySlugFromAddress(address),
-      address,
-    });
-  } catch {
-    early = null;
-  }
-  if (early) {
-    return Response.json(duplicateBody(early, userId), { status: 409, headers: noStore() });
-  }
-
-  const now = deps.now?.() ?? new Date();
-  const reserve = deps.reserve ?? reserveGoogleDetailsCall;
+/** Resolve the listing from Place Details, or from what was picked when the daily cap is spent. */
+async function listingFor(
+  input: ValidatedPlaceSubmission,
+  deps: AddPlaceDeps,
+  now: number,
+): Promise<{ ok: true; listing: Omit<CreatePlaceInput, "submittedByUserId"> } | { ok: false; status: number; error: string }> {
   let allowed = false;
   try {
-    allowed = await reserve(now);
+    allowed = await (deps.reserve ?? reserveGoogleDetailsCall)(new Date(now));
   } catch {
     allowed = false;
   }
-
-  const submit = deps.submit ?? submitPlaceLink;
   if (!allowed) {
-    const link = linkFromSelectedGooglePlace(input);
-    if (!link) {
-      return Response.json(
-        { error: "Add the place with its name and address, or try again later." },
-        { status: 422, headers: noStore() },
-      );
-    }
-    try {
-      return filedResponse(await submit(userId, link, undefined, "google", CAPPED_REASON), userId);
-    } catch {
-      return Response.json(
-        { error: "Place submissions are temporarily unavailable. Please try again." },
-        { status: 503, headers: noStore() },
-      );
-    }
+    const name = input.name?.trim() || "";
+    const address = input.address?.trim() || "";
+    const city = input.city?.trim() || cityFromFormattedAddress(address);
+    const citySlug = city ? slugifyCity(city) : "";
+    if (!name || !address || !citySlug)
+      return { ok: false, status: 422, error: "Google is busy right now. Please try again later." };
+    return {
+      ok: true,
+      listing: {
+        name,
+        citySlug,
+        streetAddress: address,
+        addressLocality: null,
+        addressCountry: null,
+        mapsUrl: googlePlaceMapsUrl(input.googlePlaceId),
+        googlePlaceId: input.googlePlaceId,
+        servesCuisine: [],
+        lat: null,
+        lng: null,
+      },
+    };
   }
-
-  const hasApiKey = deps.hasApiKey ?? (() => Boolean(getGooglePlacesApiKey()));
-  if (!hasApiKey()) {
-    return Response.json(
-      { error: "Adding places is paused right now. Please try again later." },
-      { status: 503, headers: noStore() },
-    );
-  }
-
+  if (!(deps.hasApiKey ?? (() => Boolean(getGooglePlacesApiKey())))())
+    return { ok: false, status: 503, error: UNAVAILABLE };
   let details: GooglePlaceDetailsResult;
   try {
     details = await (deps.fetchDetails ?? getGooglePlaceDetails)(input.googlePlaceId, {
       fieldMask: GOOGLE_PLACES_ADD_FIELD_MASK,
     });
   } catch {
-    return googleDetailsError("NETWORK_ERROR");
+    return { ok: false, status: 502, error: "Google couldn’t confirm that place. Please try again." };
   }
-  if (!details.ok) return googleDetailsError(details.code);
-
+  if (!details.ok)
+    return details.code === "NOT_CONFIGURED"
+      ? { ok: false, status: 503, error: UNAVAILABLE }
+      : { ok: false, status: 502, error: "Google couldn’t confirm that place. Please try again." };
   const name = details.place.displayName?.text?.trim();
   const address = details.place.formattedAddress?.trim();
-  if (!name || !address || !details.coordinates) return googleDetailsError("INVALID_RESPONSE");
-  const googlePlaceId = details.place.id?.trim() || input.googlePlaceId;
-  const city = googlePlaceLocality(details.place);
+  if (!name || !address)
+    return { ok: false, status: 422, error: "Google didn’t return enough details for that place. Try another result." };
+  const city = googlePlaceLocality(details.place) ?? cityFromFormattedAddress(address);
   const citySlug = city ? slugifyCity(city) : "";
-  if (!city || !citySlug) {
-    return Response.json(
-      { error: "Google doesn’t say which city this place is in, so we can’t list it yet." },
-      { status: 422, headers: noStore() },
-    );
-  }
+  if (!citySlug)
+    return { ok: false, status: 422, error: "Google doesn’t say which city this place is in, so we can’t list it yet." };
+  const googlePlaceId = details.place.id?.trim() || input.googlePlaceId;
+  return {
+    ok: true,
+    listing: {
+      name,
+      citySlug,
+      streetAddress: address,
+      addressLocality: city,
+      addressCountry: null,
+      mapsUrl: googlePlaceMapsUrl(googlePlaceId),
+      googlePlaceId,
+      servesCuisine: [],
+      lat: details.coordinates?.lat ?? null,
+      lng: details.coordinates?.lng ?? null,
+    },
+  };
+}
 
-  try {
-    return filedResponse(
-      await submit(
-        userId,
-        {
-          mode: "link",
-          name,
-          city,
-          citySlug,
-          address,
-          sourceUrl: googlePlaceMapsUrl(googlePlaceId),
-          googlePlaceId,
-          halalConfirmed: true,
-        },
-        undefined,
-        "google",
-      ),
-      userId,
-    );
-  } catch {
-    return Response.json(
-      { error: "Place submissions are temporarily unavailable. Please try again." },
-      { status: 503, headers: noStore() },
-    );
+export async function addPlaceFromGoogle(
+  userId: string,
+  input: ValidatedPlaceSubmission,
+  idempotencyKey: string,
+  deps: AddPlaceDeps = {},
+): Promise<AddPlaceResult> {
+  const client = deps.client ?? database();
+  const now = deps.now?.() ?? Date.now();
+  // A place we already have costs no Google call.
+  const existing = await findPlaceByGoogleId(input.googlePlaceId, client);
+  if (existing)
+    return { ok: false, status: 409, error: "That place is already listed.", existingId: existing.id };
+
+  const resolved = await listingFor(input, deps, now);
+  if (!resolved.ok) return resolved;
+  const { listing } = resolved;
+  if (listing.googlePlaceId && listing.googlePlaceId !== input.googlePlaceId) {
+    const again = await findPlaceByGoogleId(listing.googlePlaceId, client);
+    if (again) return { ok: false, status: 409, error: "That place is already listed.", existingId: again.id };
   }
+  if (hiddenListingReason({ name: listing.name }))
+    return { ok: false, status: 422, error: "This looks like a bar, so it can’t be listed here." };
+
+  const id = crypto.randomUUID();
+  const statements = [
+    ...createPlaceStatements({ ...listing, submittedByUserId: userId }, id, now),
+    awardPoints(userId, "place-added", id, listing.citySlug, null, now),
+  ];
+  let hasCheck = false;
+  if (input.answers) {
+    const check = validateCheck({ ...input.answers, idempotencyKey, shared: true });
+    if (check.ok) {
+      hasCheck = true;
+      statements.push(...checkStatements(userId, id, listing.citySlug, check.value, crypto.randomUUID(), now));
+    }
+  }
+  const db = await client;
+  try {
+    await runBatch(db, statements);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/unique constraint failed/i.test(message)) {
+      const raced = listing.googlePlaceId ? await findPlaceByGoogleId(listing.googlePlaceId, db) : null;
+      return { ok: false, status: 409, error: "That place is already listed.", existingId: raced?.id };
+    }
+    throw error;
+  }
+  if (!hasCheck) return { ok: true, id, status: "unchecked" };
+  const recompute = await recomputePlaceStatus(id, db, now);
+  return { ok: true, id, status: recompute.after.kind === "unchecked" ? "unchecked" : "checking" };
 }

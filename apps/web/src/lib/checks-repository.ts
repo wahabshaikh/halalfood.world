@@ -77,6 +77,7 @@ function asStatus(row: StatusRow | undefined): PlaceStatus {
 }
 
 async function loadChecksForStatus(db: DatabaseClient, placeId: string): Promise<CheckForStatus[]> {
+  // check-visibility: status — every check counts toward the halal facts; nothing about authors leaves this function.
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT c.user_id, c.created_at, c.excluded, c.owned, c.certified, c.pork, c.alcohol,
       u.created_at AS author_created_at, pr.suspended_at
@@ -220,6 +221,7 @@ export async function createCheck(
   now = Date.now(),
 ): Promise<CreatedCheck> {
   const db = await client;
+  // check-visibility: owner-only — the caller's own retry.
   const existing = await db.all<{ id: string }>(sql`
     SELECT id FROM checks WHERE user_id = ${userId} AND idempotency_key = ${input.idempotencyKey} LIMIT 1
   `);
@@ -234,6 +236,7 @@ export async function createCheck(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/unique constraint failed/i.test(message)) {
+      // check-visibility: owner-only — the caller's own retry.
       const again = await db.all<{ id: string }>(sql`
         SELECT id FROM checks WHERE user_id = ${userId} AND idempotency_key = ${input.idempotencyKey} LIMIT 1
       `);
@@ -272,6 +275,7 @@ export async function listPlaceNotes(
 ): Promise<PlaceNote[]> {
   const db = await client;
   const limit = Math.min(Math.max(options.limit ?? 2, 1), 50);
+  // check-visibility: gated — shared notes from authors the viewer may see (visibleAuthor).
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT c.id, c.user_id, c.note, c.verdict, c.created_at, pr.handle, pr.display_name, pr.avatar_key, u.name
     FROM checks c
@@ -320,6 +324,7 @@ export async function topDishes(
 ): Promise<{ name: string; count: number }[]> {
   const db = await client;
   const since = (options.now ?? Date.now()) - 365 * 24 * 60 * 60 * 1000;
+  // check-visibility: aggregate — anonymous dish counts, no author is exposed.
   const rows = await db.all<{ name: string; count: number }>(sql`
     SELECT min(d.name) AS name, count(*) AS count
     FROM check_dishes d JOIN checks c ON c.id = d.check_id
@@ -342,6 +347,7 @@ export type MyCheck = {
 
 export async function listMyChecks(userId: string, limit = 50, client: Client = database()): Promise<MyCheck[]> {
   const db = await client;
+  // check-visibility: owner-only — the signed-in user's own checks.
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT c.id, c.place_id, c.verdict, c.created_at, p.name, s.status, s.progress
     FROM checks c JOIN places p ON p.id = c.place_id JOIN place_status s ON s.place_id = p.id

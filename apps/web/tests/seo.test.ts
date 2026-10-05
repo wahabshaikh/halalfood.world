@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  APPROXIMATE_NOTE,
   canonical,
   cityDescription,
   cityName,
@@ -10,8 +9,6 @@ import {
   jsonLdScript,
   placeDescription,
   placeJsonLd,
-  cityEvidencePhrase,
-  evidenceSharePhrase,
   placeShareText,
   placeTitle,
   plural,
@@ -24,6 +21,9 @@ import {
   toLastModified,
 } from "../src/lib/sitemap";
 
+const verified = { kind: "verified" } as const;
+const facts = { owned: "yes", certified: "yes", pork: "no", alcohol: null } as const;
+
 const place = {
   id: "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
   name: "Bademiya",
@@ -35,8 +35,6 @@ const place = {
   address_country: "India",
   telephone: "+91 22 1234 5678",
   website: "https://example.com",
-  rating_value: "4.30",
-  review_count: 1240,
   serves_cuisine: ["Indian", "Kebab"],
   lat: 18.9219,
   lng: 72.8323,
@@ -59,46 +57,8 @@ test("canonical URLs resolve against the production origin", () => {
   );
 });
 
-test("city share text states the evidence mix and keeps the certification line", () => {
-  const unchecked = cityDescription("mumbai", 7700, {
-    indexed: 7700,
-    enriched: 0,
-    intelligent: 0,
-    trusted: 0,
-  });
-  assert.equal(unchecked.includes("Unverified, not yet checked by the community"), true);
-  assert.equal(unchecked.includes("not a halal certification"), true);
-  assert.ok(unchecked.length <= 160);
-
-  const mixed = cityDescription("mumbai", 7700, {
-    indexed: 5000,
-    enriched: 2000,
-    intelligent: 400,
-    trusted: 300,
-  });
-  assert.equal(mixed.includes(cityEvidencePhrase({
-    indexed: 5000,
-    enriched: 2000,
-    intelligent: 400,
-    trusted: 300,
-  })), true);
-  assert.equal(mixed.includes("not a halal certification"), true);
-  assert.ok(mixed.length <= 160);
-
-  const checked = cityDescription("mumbai", 12, {
-    indexed: 0,
-    enriched: 4,
-    intelligent: 5,
-    trusted: 3,
-  });
-  assert.equal(checked.includes("Checked by the community"), true);
-  assert.equal(checked.includes("not a halal certification"), true);
-  assert.equal(cityDescription("mumbai", 12, null).includes("could not be loaded"), true);
-  assert.equal(evidenceSharePhrase("not-halal"), "Not halal, checked by the community");
-});
-
 test("descriptions stay within the meta description budget", () => {
-  assert.ok(placeDescription(place).length <= 160);
+  assert.ok(placeDescription(place, verified, facts).length <= 160);
   assert.ok(cityDescription("mumbai", 2431).length <= 160);
   const long = truncate("a b ".repeat(200));
   assert.ok(long.length <= 160);
@@ -106,55 +66,22 @@ test("descriptions stay within the meta description budget", () => {
   assert.equal(truncate("short enough"), "short enough");
 });
 
-test("titles and counts read naturally in both numbers", () => {
+test("titles, share text and descriptions state the community status", () => {
   assert.equal(cityTitle("mumbai", 2431), "2,431 places listed in Mumbai");
   assert.equal(cityTitle("mumbai", 1), "1 place listed in Mumbai");
   assert.equal(cityTitle("mumbai", 0), "Places listed in Mumbai");
-  assert.equal(cityTitle("mumbai", 2431).toLowerCase().includes("halal"), false);
   assert.equal(plural(1, "place"), "place");
   assert.equal(plural(2, "city", "cities"), "cities");
   assert.equal(placeTitle(place), "Bademiya in Mumbai");
+  assert.equal(placeShareText("Bademiya", "Mumbai", { kind: "unchecked" }), "Bademiya in Mumbai. Not checked yet.");
   assert.equal(
-    placeShareText("Bademiya", "Mumbai", "unverified"),
-    "Bademiya in Mumbai. Unverified, not yet checked by the community. A listing is not a halal certification.",
+    placeShareText("Bademiya", "Mumbai", { kind: "checking", progress: 2 }),
+    "Bademiya in Mumbai. 2 of 3 community checks so far.",
   );
-  assert.equal(
-    placeShareText("Bademiya", "Mumbai", "verified"),
-    "Bademiya in Mumbai. Verified halal, checked by the community. A listing is not a halal certification.",
-  );
-  assert.equal(
-    placeShareText("Bademiya", "Mumbai", "community-verified"),
-    "Bademiya in Mumbai. Community verified, checked by the community. A listing is not a halal certification.",
-  );
-  assert.equal(placeShareText("Bademiya", "Mumbai", null).includes("could not be loaded"), true);
-  assert.equal(placeDescription(place).includes("not a halal certification"), true);
-  const withStatus = placeDescription(place, { evidenceStatus: "unverified" });
-  assert.equal(withStatus.includes("Unverified, not yet checked by the community"), true);
-  assert.equal(withStatus.includes("not a halal certification"), true);
-  assert.ok(withStatus.length <= 160);
-  const verified = placeDescription(place, {
-    includeCommunity: true,
-    evidenceStatus: "verified",
-  });
-  assert.equal(verified.includes("Verified halal, checked by the community"), true);
-  assert.equal(verified.includes("not a halal certification"), true);
-  assert.ok(verified.length <= 160);
-  assert.equal(placeDescription(place).includes("Google rating"), true);
-  assert.equal(placeDescription(place).includes("Map location is approximate."), true);
-  assert.equal(placeDescription(place).includes("a halal Halal"), false);
-  const longName = placeDescription(
-    {
-      ...place,
-      name: "Kirin Beer Garden in Urban Sapporo Building",
-      address_locality: "Sapporo",
-      serves_cuisine: ["Halal"],
-    },
-    { includeCommunity: true },
-  );
-  assert.equal(longName.includes("Map location is approximate."), true);
-  assert.equal(longName.includes("Map location is…"), false);
-  assert.equal(longName.includes("a halal Halal"), false);
-  assert.ok(longName.length <= 160);
+  const description = placeDescription(place, verified, facts);
+  assert.match(description, /Community verified/);
+  assert.match(description, /Muslim-owned: Yes/);
+  assert.equal(placeDescription({ ...place, serves_cuisine: ["Halal"] }, verified, facts).includes("Halal,"), false);
 });
 
 test("addresses skip missing parts without leaving stray separators", () => {
@@ -169,26 +96,19 @@ test("addresses skip missing parts without leaving stray separators", () => {
   assert.equal(formatAddress({}), "");
 });
 
-test("JSON-LD marks the coordinates as approximate", () => {
-  const data = placeJsonLd(place) as Record<string, any>;
+test("JSON-LD carries the community status as properties, never as a rating", () => {
+  const data = placeJsonLd(place, { status: verified, facts }) as Record<string, any>;
   assert.equal(data["@type"], "Restaurant");
   assert.equal(data.url, "https://halalfood.world/place/" + place.id);
   assert.equal(data.geo.latitude, place.lat);
-  assert.equal(data.geo.additionalProperty.value, "approximate");
-  assert.equal(data.disambiguatingDescription, APPROXIMATE_NOTE);
-  assert.equal(data.aggregateRating.ratingValue, 4.3);
-  assert.equal(data.aggregateRating.reviewCount, 1240);
+  assert.equal(data.aggregateRating, undefined);
   assert.deepEqual(data.servesCuisine, ["Indian", "Kebab"]);
-  const halalLabel = placeJsonLd({ ...place, serves_cuisine: ["Halal"] }) as Record<string, unknown>;
+  const names = data.additionalProperty.map((property: { name: string }) => property.name);
+  assert.deepEqual(names, ["communityStatus", "Muslim-owned", "Halal certified", "Pork"]);
+  const halalLabel = placeJsonLd({ ...place, serves_cuisine: ["Halal"] }, { status: verified, facts }) as Record<string, unknown>;
   assert.equal(halalLabel.servesCuisine, undefined);
-});
-
-test("JSON-LD omits geo when the row has no coordinates", () => {
-  const data = placeJsonLd({ ...place, lat: null, lng: null }) as Record<
-    string,
-    any
-  >;
-  assert.equal(data.geo, undefined);
+  const noGeo = placeJsonLd({ ...place, lat: null, lng: null }, { status: verified, facts }) as Record<string, unknown>;
+  assert.equal(noGeo.geo, undefined);
 });
 
 test("JSON-LD payloads cannot break out of a script tag", () => {

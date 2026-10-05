@@ -196,11 +196,12 @@ export function statusSubline(status: PlaceStatus, latest: string | null): strin
 export function StatusCard({
   status,
   latest,
-  howHref,
+  how,
 }: {
   status: PlaceStatus;
   latest: string | null;
-  howHref: string;
+  /** The "How verification works" trigger. */
+  how: ReactNode;
 }) {
   const filled = status.kind === "verified" ? 3 : status.kind === "checking" ? status.progress : 0;
   const tone = {
@@ -228,9 +229,7 @@ export function StatusCard({
         </div>
       </div>
       <Meter filled={filled} tone={status.kind} />
-      <a href={howHref} className="w-fit text-sm font-extrabold text-inherit underline underline-offset-3">
-        How verification works
-      </a>
+      {how}
     </section>
   );
 }

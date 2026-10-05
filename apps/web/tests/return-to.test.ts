@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import test from "node:test";
-import { mapReturnPath } from "../src/lib/map-return-path";
 import { loginHref, safeReturnPath, signInAgainUrl, signedOutLoginPath } from "../src/lib/signed-out";
 
 function returnToOf(href: string): string | null {
@@ -71,20 +70,6 @@ test("a 401 body's loginUrl is replaced by the page the person is on, reason kep
     assert.equal(new URL(href, "https://x.test").searchParams.get("reason"), "signed-out");
     assert.equal(returnToOf(signInAgainUrl({})), "/map?city=london&mine=1");
   });
-});
-
-test("the map API's 401 returns to the map page, never its own bbox query", () => {
-  const params = new URLSearchParams(
-    "bbox=-0.2,51.4,0.1,51.6&limit=600&social=1&mine=1&whose=friends&city=london",
-  );
-  assert.equal(mapReturnPath(params), "/map?mine=1&whose=friends&city=london");
-  params.set("returnTo", "/map?city=london&mine=1&whose=friends&place=abc");
-  assert.equal(mapReturnPath(params), "/map?city=london&mine=1&whose=friends&place=abc");
-  params.set("returnTo", "https://evil.example/map");
-  assert.equal(mapReturnPath(params), "/map?mine=1&whose=friends&city=london");
-  params.set("returnTo", "/settings");
-  assert.equal(mapReturnPath(params), "/map?mine=1&whose=friends&city=london", "only map pages");
-  assert.equal(mapReturnPath(new URLSearchParams("bbox=1,2,3,4&limit=600")), "/map");
 });
 
 function sources(dir: string): string[] {

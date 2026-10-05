@@ -6,7 +6,6 @@ import {
   type OtpRateLimitStore,
 } from "../src/lib/otp-rate-limit";
 import {
-  googlePlaceIdFromUrl,
   slugifyCity,
   validateGooglePlaceQuery,
   validatePlaceSubmission,
@@ -18,72 +17,30 @@ test("city slugs use the existing lowercase kebab-case convention", () => {
   assert.equal(slugifyCity("東京"), "");
 });
 
-test("place validation requires explicit halal confirmation", () => {
-  const result = validatePlaceSubmission({
-    mode: "google",
-    googlePlaceId: "ChIJexample",
-    halalConfirmed: false,
-  });
-  assert.deepEqual(result, {
-    ok: false,
-    error: "You must confirm that this place is halal before submitting.",
-  });
-});
-
-test("manual entry is rejected so every place comes from Google", () => {
-  const result = validatePlaceSubmission({
-    mode: "manual",
-    name: "Example Kitchen",
-    address: "1 Example Street",
-    city: "London",
-    halalConfirmed: true,
-  });
-  assert.equal(result.ok, false);
-});
-
 test("Google validation keeps the place id and the picked name and address", () => {
   const result = validatePlaceSubmission({
-    mode: "google",
     name: "Typed name",
     address: "Typed address",
     city: "Typed city",
     googlePlaceId: " ChIJexample ",
-    halalConfirmed: true,
   });
   assert.deepEqual(result, {
     ok: true,
-    data: {
-      mode: "google",
-      googlePlaceId: "ChIJexample",
-      halalConfirmed: true,
-      name: "Typed name",
-      address: "Typed address",
-      city: "Typed city",
-    },
-  });
-  const bare = validatePlaceSubmission({
-    mode: "google",
-    googlePlaceId: "ChIJexample",
-    halalConfirmed: true,
-  });
-  assert.deepEqual(bare, {
-    ok: true,
-    data: {
-      mode: "google",
-      googlePlaceId: "ChIJexample",
-      halalConfirmed: true,
-      name: null,
-      address: null,
-      city: null,
-    },
+    data: { googlePlaceId: "ChIJexample", name: "Typed name", address: "Typed address", city: "Typed city", answers: null },
   });
 });
 
+test("answers become check 1 only when one is definite", () => {
+  const answered = validatePlaceSubmission({ googlePlaceId: "ChIJexample", answers: { owned: "yes", pork: "unsure" } });
+  assert.ok(answered.ok);
+  if (answered.ok) assert.deepEqual(answered.data.answers, { owned: "yes", certified: null, pork: "unsure", alcohol: null });
+  const unsure = validatePlaceSubmission({ googlePlaceId: "ChIJexample", answers: { owned: "unsure" } });
+  assert.ok(unsure.ok && unsure.data.answers === null);
+  assert.equal(validatePlaceSubmission({ googlePlaceId: "ChIJexample", answers: { owned: "maybe" } }).ok, false);
+});
+
 test("Google validation requires a selected place and bounds search input", () => {
-  const missing = validatePlaceSubmission({
-    mode: "google",
-    halalConfirmed: true,
-  });
+  const missing = validatePlaceSubmission({});
   assert.deepEqual(missing, {
     ok: false,
     error: "Choose a place from Google search first.",
@@ -100,23 +57,6 @@ test("Google validation requires a selected place and bounds search input", () =
     ok: true,
     query: "halal kitchen",
   });
-});
-
-test("a place link is filed for review and keeps a Google id when the URL has one", () => {
-  const result = validatePlaceSubmission({
-    mode: "link",
-    name: "Dishoom",
-    city: "London",
-    address: "5 Stable Street",
-    sourceUrl: "https://maps.google.com/?q=place_id:ChIJdishoom",
-    halalConfirmed: true,
-  });
-  assert.equal(result.ok, true);
-  if (!result.ok || result.data.mode !== "link") return;
-  assert.equal(result.data.citySlug, "london");
-  assert.equal(result.data.googlePlaceId, "ChIJdishoom");
-  assert.equal(googlePlaceIdFromUrl("https://example.com/menu"), null);
-  assert.equal(validatePlaceSubmission({ mode: "link", halalConfirmed: true }).ok, false);
 });
 
 test("place submission limiter hashes separate user and IP buckets", async () => {

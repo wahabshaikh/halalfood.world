@@ -87,7 +87,7 @@ function rateLimited(retryAfterMs: number, action: "upload" | "mutation") {
 }
 
 function uploadUrl(key: string): string {
-  return `/api/uploads/r2?key=${encodeURIComponent(key)}`;
+  return `/api/photos/${key.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 function photoPayload(photo: PlacePhoto) {

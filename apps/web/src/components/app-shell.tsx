@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { cn } from "@halalfood/ui/lib/utils";
 import { Logo } from "./brand";
 import { NavTabs, type TabKey } from "./nav-tabs";
+import { Toaster } from "./kit-client";
 
 /**
  * Every screen sits in this frame: a five-tab bar on phones that becomes a top
@@ -51,6 +52,7 @@ export function AppShell({
         </footer>
       )}
       {!hideNav && <NavTabs active={active} variant="bottom" />}
+      <Toaster />
     </div>
   );
 }

@@ -648,9 +648,9 @@ export function retryAfterSeconds(milliseconds: number): number {
 
 /* ------------------------------------------------ trust-platform budgets -- */
 
-/** A check-in is cheap to write but easy to farm, so the daily cap is low. */
+/** A check is cheap to write but easy to farm, so the daily cap is low (spec §9). */
 export const CHECK_IN_RATE_LIMITS = {
-  mutationUser: { windowMs: 24 * 60 * 60 * 1000, maxCount: 40, cooldownMs: 2000 },
+  mutationUser: { windowMs: 24 * 60 * 60 * 1000, maxCount: 20, cooldownMs: 2000 },
   mutationIp: { windowMs: 24 * 60 * 60 * 1000, maxCount: 200, cooldownMs: 500 },
 } as const;
 
