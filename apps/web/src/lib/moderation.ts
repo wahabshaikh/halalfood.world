@@ -41,6 +41,7 @@ export type ReportView = {
 /** Open reports, oldest first, with enough about each target to act on it. */
 export async function listOpenReports(client: Client = database()): Promise<ReportView[]> {
   const db = await client;
+  // check-visibility: moderator — only moderators reach this, to act on a report.
   const rows = await db.all<Record<string, unknown>>(sql`
     SELECT r.id, r.target_type, r.target_id, r.reason, r.detail, r.created_at, rp.handle AS reporter,
       p.name AS place_name, p.street_address AS place_address, p.listing_status AS place_listing,
@@ -146,6 +147,7 @@ export async function actOnReport(reportId: string, moderatorId: string, input: 
       const [place] = await db.all<Record<string, unknown>>(sql`SELECT id, name, telephone, website, street_address, listing_status FROM places WHERE id = ${targetId}`);
       if (!place) return { ok: false, status: 404, error: "That place is gone." };
       if (input.action === "reset-checks") {
+        // check-visibility: moderator — only moderators reach this, to act on a report.
         await runBatch(db, [
           sql`DELETE FROM points WHERE kind = 'check' AND check_id IN (SELECT id FROM checks WHERE place_id = ${targetId} AND created_at <= ${now})`,
           sql`UPDATE checks SET excluded = 1 WHERE place_id = ${targetId} AND created_at <= ${now}`,
@@ -212,6 +214,7 @@ export async function actOnReport(reportId: string, moderatorId: string, input: 
 
     case "exclude-check": {
       if (targetType !== "check") return { ok: false, status: 400, error: "That action is for checks." };
+      // check-visibility: moderator — only moderators reach this, to act on a report.
       const [check] = await db.all<{ place_id: string }>(sql`SELECT place_id FROM checks WHERE id = ${targetId}`);
       if (!check) return { ok: false, status: 404, error: "That check is gone." };
       await runBatch(db, [
@@ -226,6 +229,7 @@ export async function actOnReport(reportId: string, moderatorId: string, input: 
 
     case "suspend-user": {
       if (targetType !== "user") return { ok: false, status: 400, error: "That action is for people." };
+      // check-visibility: moderator — only moderators reach this, to act on a report.
       const places = await db.all<{ place_id: string }>(sql`SELECT DISTINCT place_id FROM checks WHERE user_id = ${targetId}`);
       await runBatch(db, [
         sql`UPDATE profiles SET suspended_at = ${now}, updated_at = ${now} WHERE user_id = ${targetId}`,

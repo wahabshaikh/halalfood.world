@@ -8,6 +8,7 @@
  *   aggregate  — anonymous counts or matches, no author exposed
  *   audience   — limited to people the viewer follows
  *   gated      — the query applies visibleAuthor()
+ *   moderator  — only reachable by moderators acting on a report
  */
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -37,7 +38,7 @@ test("every check query applies the visibility rule or names its audience", () =
       const query = text.slice(start, end);
       const before = text.slice(Math.max(0, start - 300), start);
       const ruled = /visibleAuthor\(/.test(query);
-      const named = /check-visibility: (status|owner-only|aggregate|audience|gated)/.test(before);
+      const named = /check-visibility: (status|owner-only|aggregate|audience|gated|moderator)/.test(before);
       if (!ruled && !named) {
         const line = text.slice(0, match.index).split("\n").length;
         offenders.push(`${relative(ROOT, file)}:${line} ${match[0]}`);
