@@ -1,12 +1,6 @@
 import type { Metadata } from "next";
-import { Button } from "@halalfood/ui/components/button";
-import {
-  EmptyPanel,
-  Page,
-  PageMain,
-  SiteFooter,
-  SiteHeader,
-} from "../src/components/site-chrome";
+import { AppShell } from "../src/components/app-shell";
+import { EmptyState, LinkButton } from "../src/components/kit";
 
 export const metadata: Metadata = {
   title: "Page not found",
@@ -15,23 +9,16 @@ export const metadata: Metadata = {
 
 export default function NotFound() {
   return (
-    <Page>
-      <SiteHeader />
-      <PageMain>
-        <EmptyPanel
-          art="map"
-          title="We couldn’t find that page"
-          description="The place or city may have moved, or the link might have a typo."
-        >
-          <Button asChild size="xl">
-            <a href="/">Start exploring</a>
-          </Button>
-          <Button asChild size="xl" variant="outline">
-            <a href="/cities">Browse cities</a>
-          </Button>
-        </EmptyPanel>
-      </PageMain>
-      <SiteFooter />
-    </Page>
+    <AppShell>
+      <EmptyState
+        title="We couldn’t find that page"
+        body="The place may have moved, or the link might have a typo."
+        action={
+          <LinkButton href="/" className="mt-2">
+            Start exploring
+          </LinkButton>
+        }
+      />
+    </AppShell>
   );
 }
