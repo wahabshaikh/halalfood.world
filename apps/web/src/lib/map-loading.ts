@@ -29,10 +29,10 @@ export function unauthorizedFallback(state: {
 export const TOAST_LINK_TAP_TARGET = "-my-3 h-auto min-h-11 min-w-11 px-1 font-extrabold";
 
 /**
- * The toast's Dismiss: a 44x44 px button (size-11) around the same 15 px icon.
- * The -10 px margin keeps the 24 px footprint it had, so the pill does not grow.
+ * The toast's Dismiss stays the 24 px button it was; an invisible ::after
+ * 10 px past each edge makes the tap target 44x44 px without growing the pill.
  */
-export const TOAST_DISMISS_TAP_TARGET = "-m-2.5 size-11 rounded-full";
+export const TOAST_DISMISS_TAP_TARGET = "relative after:absolute after:-inset-2.5 after:content-['']";
 
 /** The toast after a Friends/Yours 401 fell back to everyone's places. */
 export const SCOPE_FALLBACK_NOTICE = "Sign in to see your places and your friends’ places.";

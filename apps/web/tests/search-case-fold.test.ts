@@ -73,8 +73,9 @@ test("polish: /search's Add button wraps and the toast Dismiss is 44x44", async 
   assert.match(page, /ADD_QUERY_BUTTON = `[^`]*whitespace-normal[^`]*max-w-full|ADD_QUERY_BUTTON = `[^`]*max-w-full[^`]*whitespace-normal/);
   assert.match(page, /\[overflow-wrap:anywhere\]/);
   const { TOAST_DISMISS_TAP_TARGET } = await import("../src/lib/map-loading");
-  assert.match(TOAST_DISMISS_TAP_TARGET, /\bsize-11\b/);
-  assert.match(TOAST_DISMISS_TAP_TARGET, /-m-2\.5/);
+  // 24 px button + 10 px each side = 44 px.
+  assert.match(TOAST_DISMISS_TAP_TARGET, /\bafter:-inset-2\.5\b/);
+  assert.match(TOAST_DISMISS_TAP_TARGET, /\brelative\b/);
   const view = readFileSync(new URL("../app/map/map-view.tsx", import.meta.url), "utf8");
   assert.match(view, /className=\{TOAST_DISMISS_TAP_TARGET\}/);
 });
