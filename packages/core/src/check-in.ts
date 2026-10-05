@@ -79,12 +79,6 @@ export const VISIT_CONTEXT_VALUES: Record<
 /** Below this many check-ins the product shows counts, not a percentage. */
 export const MIN_PUBLISHABLE_SAMPLE = 5;
 
-export const WOULD_RETURN_COPY: Record<WouldReturn, string> = {
-  definitely: "Definitely",
-  maybe: "Maybe",
-  no: "No",
-};
-
 export const VALUE_COPY: Record<ValueVerdict, string> = {
   great: "Great value",
   fair: "Fair",

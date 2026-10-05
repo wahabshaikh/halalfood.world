@@ -3,7 +3,6 @@
 import { sql } from "drizzle-orm";
 import { database } from "../db";
 import {
-  cityDemandScore,
   summarizeCityCoverage,
   type CityCoverage,
   type CoverageLevel,
@@ -73,58 +72,6 @@ export async function requestCityCoverage(
     RETURNING id
   `);
   return { created: rows.length > 0 };
-}
-
-export type CityDemandRow = CityCoverage & { demandScore: number };
-
-/** Cities ordered by where enrichment spend would go furthest. */
-export async function listCityDemand(
-  limit = 50,
-  client: DatabaseClient | Promise<DatabaseClient> = database(),
-): Promise<CityDemandRow[]> {
-  const db = await client;
-  const rows = await db.all<Record<string, unknown>>(sql`
-    SELECT
-      p.city_slug,
-      SUM(CASE WHEN p.coverage_level = 'indexed' THEN 1 ELSE 0 END) AS indexed,
-      SUM(CASE WHEN p.coverage_level = 'enriched' THEN 1 ELSE 0 END) AS enriched,
-      SUM(CASE WHEN p.coverage_level = 'intelligent' THEN 1 ELSE 0 END) AS intelligent,
-      SUM(CASE WHEN p.coverage_level = 'trusted' THEN 1 ELSE 0 END) AS trusted,
-      (SELECT COUNT(*) FROM city_coverage_requests AS r WHERE r.city_slug = p.city_slug)
-        AS requests,
-      (SELECT COUNT(*) FROM city_coverage_requests AS r
-        WHERE r.city_slug = p.city_slug AND r.wants_to_contribute = 1) AS contributors
-    FROM places AS p
-    WHERE p.halal_confirmed = 1 AND p.listing_status = 'listed'
-    GROUP BY p.city_slug
-    ORDER BY requests DESC, COUNT(*) DESC
-    LIMIT ${Math.min(Math.max(limit, 1), 200)}
-  `);
-
-  return rows.map((row) => {
-    const coverage = summarizeCityCoverage(
-      String(row.city_slug ?? ""),
-      {
-        indexed: num(row.indexed),
-        enriched: num(row.enriched),
-        intelligent: num(row.intelligent),
-        trusted: num(row.trusted),
-      },
-      { requests: num(row.requests), contributors: num(row.contributors) },
-    );
-    return {
-      ...coverage,
-      demandScore: cityDemandScore({
-        requests: coverage.requests,
-        // Search and view counts are not instrumented yet; the score is built
-        // so those terms can be filled in without changing its shape.
-        searches: 0,
-        placeViews: 0,
-        contributors: coverage.contributors,
-        enrichedPercent: coverage.enrichedPercent,
-      }),
-    };
-  });
 }
 
 /**

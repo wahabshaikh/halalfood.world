@@ -260,14 +260,6 @@ export const ONBOARDING_STEPS = [
 ] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
-/** Steps a person may skip. Name and handle are the only required answers. */
-export const SKIPPABLE_STEPS: readonly OnboardingStep[] = [
-  "welcome",
-  "standard",
-  "picks",
-  "friends",
-];
-
 export const MAX_WANT_TO_TRY = 3;
 
 export type OnboardingInput = {

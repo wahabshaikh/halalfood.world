@@ -12,7 +12,7 @@ import {
   isHalalTaxonomyStatus,
   type HalalTaxonomyStatus,
 } from "./halal-taxonomy";
-import { FACT_KEYS, MEALS, SERVICE_TYPES, type FactKey } from "./place-facts";
+import { MEALS, SERVICE_TYPES } from "./place-facts";
 
 export const SORT_OPTIONS = [
   "recommended",
@@ -217,10 +217,6 @@ export function activeFilterCount(filters: DiscoveryFilters): number {
   );
 }
 
-export function hasActiveFilters(filters: DiscoveryFilters): boolean {
-  return activeFilterCount(filters) > 0;
-}
-
 /**
  * Translate a user's saved dietary standards into filter selections, so
  * "apply my standards" is visible and editable rather than a hidden rule.
@@ -266,16 +262,3 @@ export const SORT_COPY: Record<SortOption, string> = {
   recent: "Recently verified",
   value: "Value",
 };
-
-/** Fact filter keys mapped to the underlying fact columns, for UI labels. */
-export const FACT_FILTER_TO_FACT: Partial<Record<FactFilterKey, FactKey>> = {
-  noAlcohol: "servesAlcohol",
-  noPork: "servesPork",
-  dedicatedKitchen: "dedicatedHalalKitchen",
-  muslimOwned: "muslimOwned",
-  prayerSpace: "prayerSpace",
-  womenFriendly: "womenFriendlyFacilities",
-  vegetarian: "vegetarianOptions",
-};
-
-export const ALL_FACT_KEYS = FACT_KEYS;

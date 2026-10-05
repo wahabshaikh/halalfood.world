@@ -19,25 +19,6 @@ export type LinkSubmissionResult =
       place: ListedMatch | null;
     };
 
-/** A listed place with the same Google id, or the same name in the same city. */
-export async function findListedPlace(
-  input: { googlePlaceId: string | null; name: string; citySlug: string },
-  client: DatabaseClient | Promise<DatabaseClient> = database(),
-): Promise<ListedMatch | null> {
-  const db = await client;
-  const rows = await db.all<ListedMatch>(sql`
-    SELECT id, name FROM places
-    WHERE halal_confirmed = 1 AND listing_status = 'listed'
-      AND (
-        (${input.googlePlaceId} IS NOT NULL AND google_place_id = ${input.googlePlaceId})
-        OR (lower(name) = lower(${input.name}) AND city_slug = ${input.citySlug})
-      )
-    LIMIT 1
-  `);
-  const row = rows[0];
-  return row?.id ? { id: row.id, name: row.name } : null;
-}
-
 /**
  * Store a place link for review. The same person sending the same link again
  * gets the original row. Nothing here is published or treated as certified.

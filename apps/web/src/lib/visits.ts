@@ -507,24 +507,6 @@ export async function listVisitedPlaces(
   }));
 }
 
-/** Has this user already recorded a visit here in the last few hours? */
-export async function hasRecentVisit(
-  userId: string,
-  placeId: string,
-  withinMs: number,
-  client: DatabaseClient | Promise<DatabaseClient> = database(),
-): Promise<boolean> {
-  const db = await client;
-  // visit-visibility: owner-only (duplicate check-in guard).
-  const rows = await db.all(sql`
-    SELECT 1 FROM place_visits
-    WHERE user_id = ${userId} AND place_id = ${placeId}
-      AND visited_at >= ${Date.now() - withinMs}
-    LIMIT 1
-  `);
-  return rows.length > 0;
-}
-
 /** Attach the pending halal check a diner made on this visit. */
 export async function linkHalalCheck(
   visitId: string,

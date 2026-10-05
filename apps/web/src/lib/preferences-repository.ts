@@ -131,12 +131,6 @@ export type DinerProfile = {
   createdAt: number;
 };
 
-const HANDLE = /^[a-z0-9](?:[a-z0-9_-]{1,30})[a-z0-9]$/;
-
-export function isValidHandle(value: unknown): value is string {
-  return typeof value === "string" && HANDLE.test(value);
-}
-
 /** Deterministic fallback handle so a profile never leaks an email address. */
 export async function deriveHandle(userId: string): Promise<string> {
   const bytes = new TextEncoder().encode(`halalfood:handle:${userId}`);

@@ -204,10 +204,3 @@ export function isVerifiedVisit(result: {
 }): boolean {
   return result.method !== "none" && result.confidence !== "none";
 }
-
-export const VERIFICATION_WEIGHT: Record<VerificationConfidence, number> = {
-  high: 1,
-  medium: 0.75,
-  low: 0.5,
-  none: 0.25,
-};

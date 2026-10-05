@@ -19,40 +19,6 @@ export const CONTRIBUTOR_ROLES = [
 
 export type ContributorRole = (typeof CONTRIBUTOR_ROLES)[number];
 
-export type RoleCopy = {
-  label: string;
-  qualification: string;
-  privileges: string;
-};
-
-export const ROLE_COPY: Record<ContributorRole, RoleCopy> = {
-  new: {
-    label: "New contributor",
-    qualification: "No verified history yet",
-    privileges: "Submissions are reviewed before they publish",
-  },
-  contributor: {
-    label: "Contributor",
-    qualification: "Several accepted contributions",
-    privileges: "Low-risk facts publish without waiting",
-  },
-  trusted: {
-    label: "Trusted contributor",
-    qualification: "High accuracy sustained over time",
-    privileges: "Review disputed facts and validate evidence",
-  },
-  "city-expert": {
-    label: "City expert",
-    qualification: "Deep local coverage and reliability",
-    privileges: "Manage the city queue and guide local launches",
-  },
-  "city-moderator": {
-    label: "City moderator",
-    qualification: "Sustained trust and policy knowledge",
-    privileges: "Resolve disputes within defined limits",
-  },
-};
-
 export type Standing = {
   role: ContributorRole;
   accepted: number;

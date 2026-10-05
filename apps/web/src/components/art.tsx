@@ -123,38 +123,3 @@ export function Illustration({
     </svg>
   );
 }
-
-const LEAVES = Array.from({ length: 6 }, (_, index) => {
-  const angle = ((200 + (index / 5) * 110) * Math.PI) / 180;
-  const x = 18 + 15 * Math.cos(angle);
-  const y = 24 - 17 * Math.sin(angle);
-  const rotation = (angle * 180) / Math.PI + 90;
-  return { x: x.toFixed(1), y: y.toFixed(1), rotation: rotation.toFixed(0) };
-});
-
-/** A honey laurel branch; pair a flipped one on the right. */
-export function Laurel({ size = 40, flip = false }: { size?: number; flip?: boolean }) {
-  return (
-    <svg
-      width={Math.round(size * 0.7)}
-      height={size}
-      viewBox="0 0 31 44"
-      aria-hidden="true"
-      focusable="false"
-      style={flip ? { transform: "scaleX(-1)" } : undefined}
-    >
-      <path d="M18 42C4 36 0 20 6 4" stroke="#D99A1F" strokeWidth="1.8" fill="none" />
-      {LEAVES.map((leaf, index) => (
-        <ellipse
-          key={index}
-          cx={leaf.x}
-          cy={leaf.y}
-          rx="3"
-          ry="6.5"
-          transform={`rotate(${leaf.rotation} ${leaf.x} ${leaf.y})`}
-          fill="#F2B33D"
-        />
-      ))}
-    </svg>
-  );
-}

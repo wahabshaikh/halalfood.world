@@ -38,21 +38,6 @@ export type PlaceDetail = Omit<Place, "lat" | "lng"> & {
   lng: number | null;
 };
 
-export type CreatePlaceInput = {
-  name: string;
-  citySlug: string;
-  cityUrl: string;
-  streetAddress: string;
-  addressLocality: string;
-  mapsUrl: string | null;
-  googlePlaceId: string | null;
-  sourceUrl: string;
-  lat: number | null;
-  lng: number | null;
-  submittedByUserId: string;
-  halalConfirmed: true;
-};
-
 export type City = {
   city_slug: string;
   place_count: number;
@@ -209,34 +194,6 @@ export async function getPlaceById(
     serves_cuisine: parseServesCuisine(row.serves_cuisine),
     halal_confirmed: toBoolean(row.halal_confirmed),
   };
-}
-
-/** Insert one authenticated, explicitly halal user submission. */
-export async function createPlace(input: CreatePlaceInput) {
-  const id = crypto.randomUUID();
-  const now = Date.now();
-  const db = await database();
-  const rows = await db.all<{ id: string }>(sql`
-    INSERT INTO places (
-      id, name, city_slug, city_url, list_position, street_address,
-      address_locality, address_region, postal_code, address_country,
-      telephone, website, maps_url, google_place_id, serves_cuisine,
-      rating_value, review_count, source, source_url, scraped_at, created_at,
-      lat, lng, submitted_by_user_id, halal_confirmed
-    ) VALUES (
-      ${id}, ${input.name}, ${input.citySlug}, ${input.cityUrl}, NULL,
-      ${input.streetAddress}, ${input.addressLocality}, NULL, NULL, NULL,
-      NULL, NULL, ${input.mapsUrl}, ${input.googlePlaceId}, ${JSON.stringify([])},
-      NULL, NULL, 'user-submitted', ${input.sourceUrl}, ${now},
-      ${now}, ${input.lat}, ${input.lng},
-      ${input.submittedByUserId}, 1
-    )
-    RETURNING id
-  `);
-  const row = rows[0];
-  if (typeof row?.id !== "string" || !row.id)
-    throw new Error("Created place id was missing");
-  return { id: row.id };
 }
 
 export type PlaceCoordinateCandidate = {

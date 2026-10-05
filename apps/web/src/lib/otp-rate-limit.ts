@@ -100,9 +100,6 @@ export const RATING_RATE_LIMITS = {
   },
 } as const;
 
-/** Descriptive alias for callers that group limits by feature. */
-export const PLACE_RATING_RATE_LIMITS = RATING_RATE_LIMITS;
-
 /** Durable budgets for halal place review mutations. */
 export const REVIEW_RATE_LIMITS = {
   mutationUser: {
@@ -116,9 +113,6 @@ export const REVIEW_RATE_LIMITS = {
     cooldownMs: 100,
   },
 } as const;
-
-/** Descriptive alias for callers that group limits by feature. */
-export const PLACE_REVIEW_RATE_LIMITS = REVIEW_RATE_LIMITS;
 
 /** Durable budgets for linking creator videos to places (each one fetches oEmbed). */
 export const MEDIA_LINK_RATE_LIMITS = {
@@ -171,9 +165,6 @@ export const PLACE_PHOTO_RATE_LIMITS = {
     cooldownMs: 100,
   },
 } as const;
-
-/** Descriptive alias for callers that use the shorter feature name. */
-export const PHOTO_RATE_LIMITS = PLACE_PHOTO_RATE_LIMITS;
 
 export type OtpRateLimitRule = {
   windowMs: number;

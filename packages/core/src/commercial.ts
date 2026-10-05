@@ -20,15 +20,6 @@ export const TRANSACTION_ACTIONS = [
 
 export type TransactionAction = (typeof TRANSACTION_ACTIONS)[number];
 
-export const TRANSACTION_COPY: Record<TransactionAction, string> = {
-  order: "Order delivery",
-  book: "Book a table",
-  pickup: "Order pickup",
-  directions: "Directions",
-  menu: "Menu",
-  call: "Call",
-};
-
 /** Actions that may earn the platform a commission, and must say so. */
 export const COMMISSIONABLE: ReadonlySet<TransactionAction> = new Set([
   "order",

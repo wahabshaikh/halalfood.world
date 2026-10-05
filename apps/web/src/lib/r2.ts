@@ -381,34 +381,6 @@ export async function storePlacePhotoBytes(
   };
 }
 
-export async function storePlacePhotoFile(
-  bucket: R2BucketLike,
-  userId: string,
-  file: {
-    type: string;
-    size: number;
-    name: string;
-    arrayBuffer(): Promise<ArrayBuffer>;
-  },
-) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const validation = validatePlacePhotoFile({
-    contentType: file.type,
-    sizeBytes: file.size,
-    fileName: file.name,
-    bytes,
-  });
-  if (!validation.ok) return validation;
-  if (bytes.byteLength !== validation.sizeBytes) {
-    return {
-      ok: false as const,
-      status: 400 as const,
-      error: "The photo size could not be verified.",
-    };
-  }
-  return storePlacePhotoBytes(bucket, userId, bytes, validation);
-}
-
 /* --------------------------------------------------------------- avatars -- */
 
 export function isSafeAvatarR2Key(value: unknown): value is string {

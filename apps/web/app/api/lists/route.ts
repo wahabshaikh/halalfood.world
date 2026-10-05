@@ -16,8 +16,7 @@ export async function GET(request: Request): Promise<Response> {
   if (!outcome.ok) return outcome.response;
   try {
     const hub = await listHub(outcome.auth.userId);
-    // `lists` stays the diner's own, as before; the rest is what sharing added.
-    return json({ lists: hub.mine, ...hub });
+    return json(hub);
   } catch (error) {
     return domainFailure("Your lists", error);
   }

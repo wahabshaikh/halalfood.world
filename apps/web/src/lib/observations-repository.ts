@@ -117,42 +117,6 @@ export async function appendObservation(
   return id;
 }
 
-/** Record that a provider was consulted, with its licence and attribution. */
-export async function recordSource(
-  input: {
-    placeId: string;
-    source: string;
-    sourceClass: SourceClass;
-    externalId?: string | null;
-    url?: string | null;
-    observedAt: number;
-    licence?: string | null;
-    attribution?: string | null;
-    payloadHash?: string | null;
-  },
-  client: DatabaseClient | Promise<DatabaseClient> = database(),
-): Promise<string> {
-  const db = await client;
-  const id = crypto.randomUUID();
-  const now = Date.now();
-  await db.run(sql`
-    INSERT INTO place_source_records (
-      id, place_id, source, source_class, external_id, url, observed_at,
-      licence, attribution, payload_hash, created_at
-    ) VALUES (
-      ${id}, ${input.placeId}, ${input.source}, ${input.sourceClass},
-      ${input.externalId ?? null}, ${input.url ?? null}, ${input.observedAt},
-      ${input.licence ?? null}, ${input.attribution ?? null},
-      ${input.payloadHash ?? null}, ${now}
-    )
-    ON CONFLICT(place_id, source, external_id) DO UPDATE SET
-      observed_at = excluded.observed_at,
-      url = excluded.url,
-      payload_hash = excluded.payload_hash
-  `);
-  return id;
-}
-
 /* ----------------------------------------------------------- inspections -- */
 
 export type PlaceInspection = {

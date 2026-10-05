@@ -185,11 +185,6 @@ export function goingLine(
   return `${named.join(", ")} and ${rest} ${rest === 1 ? "other" : "others"} going`;
 }
 
-/** A stable slug-free path for an event page. */
-export function eventPath(id: string): string {
-  return `/event/${id}`;
-}
-
 export function isEventId(value: unknown): value is string {
   return typeof value === "string" && UUID.test(value);
 }

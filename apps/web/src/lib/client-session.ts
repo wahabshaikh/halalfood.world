@@ -53,8 +53,3 @@ export function getClientSession(): Promise<ClientSessionUser | null> {
   }
   return sessionLoad;
 }
-
-/** Whether the visitor is signed in, as far as the UI needs to know. */
-export async function isClientSignedIn(): Promise<boolean> {
-  return (await getClientSession()) !== null;
-}

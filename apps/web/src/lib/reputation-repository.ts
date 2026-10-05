@@ -119,20 +119,3 @@ export async function refreshStanding(
 
   return promotion;
 }
-
-/** Everyone standing at trusted or above in one city. */
-export async function listCityExperts(
-  citySlug: string,
-  client: DatabaseClient | Promise<DatabaseClient> = database(),
-) {
-  const db = await client;
-  return db.all<Record<string, unknown>>(sql`
-    SELECT s.user_id, s.role, s.accepted_count, s.verified_visits, p.handle
-    FROM contributor_standing AS s
-    LEFT JOIN user_profiles AS p ON p.user_id = s.user_id
-    WHERE s.city_slug = ${citySlug}
-      AND s.role IN ('trusted', 'city-expert', 'city-moderator')
-    ORDER BY s.accepted_count DESC
-    LIMIT 50
-  `);
-}
