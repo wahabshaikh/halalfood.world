@@ -10,7 +10,7 @@ import type { PinSocial } from "../../src/lib/map-social-repository";
 import { getClientSession } from "../../src/lib/client-session";
 import { retryDecision } from "../../src/lib/fetch-retry";
 import { currentReturnPath, signedOutLoginPath, loginHref, signInAgainUrl } from "../../src/lib/signed-out";
-import { filtersForUrl, mapNoticeVisible, SCOPE_FALLBACK_NOTICE, TOAST_LINK_TAP_TARGET, unauthorizedFallback } from "../../src/lib/map-loading";
+import { filtersForUrl, mapNoticeVisible, SCOPE_FALLBACK_NOTICE, TOAST_DISMISS_TAP_TARGET, TOAST_LINK_TAP_TARGET, unauthorizedFallback } from "../../src/lib/map-loading";
 import {
   EMPTY_FILTERS,
   activeFilterCount,
@@ -867,7 +867,13 @@ export default function MapView({
                   </a>
                 </Button>
               )}
-              <Button variant="ghost" size="icon-xs" aria-label="Dismiss" onClick={() => setNotice("")}>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className={TOAST_DISMISS_TAP_TARGET}
+                aria-label="Dismiss"
+                onClick={() => setNotice("")}
+              >
                 <HugeiconsIcon icon={Cancel01Icon} size={15} aria-hidden="true" />
               </Button>
             </div>

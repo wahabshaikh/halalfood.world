@@ -269,14 +269,16 @@ function buildConditions(query: DiscoveryQuery): SQL[] {
 
   if (filters.q) {
     // instr(), not LIKE: D1 caps LIKE patterns at 50 bytes (text-search.ts).
+    // The text columns are searched as one string, joined by a control
+    // character (U+001F) so a match cannot span two columns, and each case
+    // spelling of the query is bound once, not once per column: D1 allows 100
+    // parameters per query (text-search.ts).
     const q = normalizeSearchQuery(filters.q);
+    const text = sql`COALESCE(p.name, '') || char(31) || replace(COALESCE(p.city_slug, ''), '-', ' ')
+      || char(31) || COALESCE(p.street_address, '') || char(31) || COALESCE(p.address_locality, '')
+      || char(31) || COALESCE(p.serves_cuisine, '') || char(31) || COALESCE(f.neighbourhood, '')`;
     conditions.push(sql`(
-      ${containsText(sql`p.name`, q)}
-      OR ${containsText(sql`replace(p.city_slug, '-', ' ')`, q)}
-      OR ${containsText(sql`p.street_address`, q)}
-      OR ${containsText(sql`p.address_locality`, q)}
-      OR ${containsText(sql`p.serves_cuisine`, q)}
-      OR ${containsText(sql`f.neighbourhood`, q)}
+      ${containsText(text, q)}
       OR EXISTS (
         SELECT 1 FROM place_dishes AS sd
         WHERE sd.place_id = p.id AND sd.status = 'accepted'
@@ -320,7 +322,8 @@ function buildConditions(query: DiscoveryQuery): SQL[] {
       sql`(${sql.join(
         filters.cuisines.map(
           (cuisine) =>
-            containsText(sql`p.serves_cuisine`, normalizeSearchQuery(cuisine)),
+            // Up to 20 cuisines: one spelling each, as before (text-search.ts).
+            containsText(sql`p.serves_cuisine`, normalizeSearchQuery(cuisine), 1),
         ),
         sql` OR `,
       )})`,
@@ -407,7 +410,7 @@ function discoveryCacheKey(query: DiscoveryQuery): string {
   const origin = query.origin
     ? `${roundCoord(query.origin.lat)},${roundCoord(query.origin.lng)}`
     : "";
-  return `places:discover:v1:${query.limit}:${query.offset ?? 0}:${query.citySlug ?? ""}:${bbox}:${origin}:${JSON.stringify(query.filters)}`;
+  return `places:discover:v2:${query.limit}:${query.offset ?? 0}:${query.citySlug ?? ""}:${bbox}:${origin}:${JSON.stringify(query.filters)}`;
 }
 
 export async function discoverPlaces(

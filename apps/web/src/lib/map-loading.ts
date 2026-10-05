@@ -28,6 +28,13 @@ export function unauthorizedFallback(state: {
  */
 export const TOAST_LINK_TAP_TARGET = "-my-3 h-auto min-h-11 min-w-11 px-1 font-extrabold";
 
+/**
+ * The toast's Dismiss stays the 24 px button it was; an invisible ::after
+ * makes the tap target 44x44 px without growing the pill. The inset is from
+ * the padding box, inside a 1 px border: 22 + 2 × 11 = 44.
+ */
+export const TOAST_DISMISS_TAP_TARGET = "relative after:absolute after:-inset-[11px] after:content-['']";
+
 /** The toast after a Friends/Yours 401 fell back to everyone's places. */
 export const SCOPE_FALLBACK_NOTICE = "Sign in to see your places and your friends’ places.";
 
