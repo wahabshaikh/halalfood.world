@@ -9,6 +9,10 @@ import { join } from "node:path";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../../src/db/schema";
 
+export const D1_MAX_BOUND_PARAMETERS = 100;
+/** The parameter count of every statement bound, for budget tests. */
+export const boundParameterCounts: number[] = [];
+
 type Param = string | number | bigint | null | Uint8Array;
 
 class Statement {
@@ -18,6 +22,10 @@ class Statement {
     private readonly text: string,
   ) {}
   bind(...params: unknown[]) {
+    // D1 allows at most 100 bound parameters per query.
+    boundParameterCounts.push(params.length);
+    if (params.length > D1_MAX_BOUND_PARAMETERS)
+      throw new Error(`D1_ERROR: too many SQL variables (${params.length})`);
     this.params = params.map((value) =>
       value === undefined ? null : typeof value === "boolean" ? Number(value) : (value as Param),
     );
