@@ -16,3 +16,6 @@ next-env.d.ts
 # Copied to the repo root by scripts/stage-cloudflare-build.mjs
 /migrations
 /wrangler.jsonc
+
+# Personal Claude Code settings
+.claude/settings.local.json
