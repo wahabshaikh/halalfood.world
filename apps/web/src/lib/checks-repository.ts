@@ -60,6 +60,8 @@ export type Recompute = {
   changes: StatusChange[];
   /** Authors who should get helped-verify points: set when the place first verifies. */
   firstVerifiedBy: string[];
+  /** Each fact's value before this recompute. */
+  previousValues: Record<(typeof FACTS)[number], "yes" | "no" | null>;
 };
 
 type StatusRow = {
@@ -162,7 +164,8 @@ export async function recomputePlaceStatus(
       statements.push(awardPoints(userId, "helped-verify", placeId, place?.city_slug ?? "", null, now));
   }
   await runBatch(db, statements);
-  return { before, after, derived, changes, firstVerifiedBy };
+  const previousValues = Object.fromEntries(FACTS.map((fact) => [fact, current?.[`${fact}_value`] ?? null])) as Recompute["previousValues"];
+  return { before, after, derived, changes, firstVerifiedBy, previousValues };
 }
 
 export function awardPoints(

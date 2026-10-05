@@ -6,6 +6,7 @@ import { getViewerId } from "../../../src/lib/auth-session";
 import { KIND_LABEL, getList } from "../../../src/lib/lists";
 import { photoUrl } from "../../../src/lib/place-view";
 import { avatarUrl } from "../../../src/lib/profiles";
+import { canonical, jsonLdScript } from "../../../src/lib/seo";
 import { ListActions, ListHeaderActions, ListItems } from "./list-client";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +44,29 @@ export default async function ListPage({ params }: Props) {
 
   return (
     <AppShell active="saved">
+      {list.visibility === "public" && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLdScript([
+              {
+                "@context": "https://schema.org",
+                "@type": "ItemList",
+                name: list.title,
+                ...(list.caption ? { description: list.caption } : {}),
+                url: canonical(`/list/${list.id}`),
+                itemListOrder: list.kind === "ranked" ? "https://schema.org/ItemListOrderAscending" : "https://schema.org/ItemListUnordered",
+                itemListElement: list.places.map((place, index) => ({
+                  "@type": "ListItem",
+                  position: index + 1,
+                  url: canonical(`/place/${place.id}`),
+                  name: place.name,
+                })),
+              },
+            ]),
+          }}
+        />
+      )}
       <div className="relative h-[200px] overflow-hidden bg-secondary md:rounded-b-[20px]">
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element

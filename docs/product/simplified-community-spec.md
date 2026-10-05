@@ -753,3 +753,21 @@ These were open in the design's "What changed" page. They're decided here so the
 8. **Points:** check 3, place added 5, helped verify 10.
 9. **Alcohol-led venues stay hidden** by the existing listing rule. "Serves alcohol" is a fact on restaurants, not a reason to hide them.
 10. **Dark mode** keeps working through the token table in [§7.1](#71-tokens). The design shows light only.
+
+---
+
+## 16. Implementation notes
+
+Where the build differs from the text above, and why.
+
+1. **Column names kept.** `places` keeps `address_locality`, `serves_cuisine` and `submitted_by_user_id` instead of `locality`, `cuisines` and `added_by_user_id`, so the place import, Google mapping and existing helpers stay unchanged.
+2. **No maturity cron.** §2.1 already says a check only counts if its author was 24 hours old *when they sent it*, so a check never becomes eligible later and there is nothing to recompute on a schedule.
+3. **`place_status` has `<fact>_settled` and `verified_at`.** The last settled value is stored so a flip is recorded even when the fact passes through an unsettled state on the way, and `verified_at` marks the first time a place was verified so `helped-verify` is awarded once.
+4. **Photos attach by id.** The check form uploads photos first (`POST /api/places/[id]/photos`) and sends their ids with the check, so a failed upload never loses the answers.
+5. **`/eating` stays** as the small route that stores the chosen city in a cookie.
+6. **Deleted accounts.** Instead of one shared `deleted` user, each deleted account's checks move to its own anonymous tombstone user with the same account age. With a single shared user, "latest check per person" would collapse every deleted account into one person and change statuses.
+7. **Edge cache.** Place, city, list and profile pages render the viewer's saves, friends and actions on the server, so they are not cached at the edge; only `/cities` and the sitemaps are.
+8. **Week boundaries are UTC.** There is no city table with time zones yet, so "This week" on Community starts Monday 00:00 UTC.
+9. **Mini maps.** The Add confirm step shows the chosen result as a card (Google text search returns no coordinates), and the Passport map is a dot plot of checked places that links to `/map`.
+10. **Ranked list reordering** uses Move up and Move down buttons at every width; there are no drag handles.
+11. **Moderation audience.** Queries over `checks` that only moderators reach are annotated `check-visibility: moderator` for the visibility audit test.

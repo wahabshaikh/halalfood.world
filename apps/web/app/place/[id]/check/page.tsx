@@ -22,7 +22,7 @@ export default async function CheckPage({ params }: { params: Promise<{ id: stri
   const profile = await getProfile(viewerId).catch(() => null);
   return (
     <AppShell hideNav footer={false}>
-      <CheckForm placeId={place.id} placeName={place.name} before={place.card.status} isPrivate={profile?.isPrivate ?? false} />
+      <CheckForm placeId={place.id} placeName={place.name} isPrivate={profile?.isPrivate ?? false} />
     </AppShell>
   );
 }

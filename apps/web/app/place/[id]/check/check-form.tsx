@@ -41,7 +41,7 @@ function emptyDraft(): Draft {
 
 type Sent = { before: PlaceStatus; status: PlaceStatus; message: string };
 
-export function CheckForm({ placeId, placeName, before, isPrivate }: { placeId: string; placeName: string; before: PlaceStatus; isPrivate: boolean }) {
+export function CheckForm({ placeId, placeName, isPrivate }: { placeId: string; placeName: string; isPrivate: boolean }) {
   const storageKey = `halalfood:check-draft:${placeId}`;
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [restored, setRestored] = useState(false);

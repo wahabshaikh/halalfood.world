@@ -1,5 +1,5 @@
 import { placeIdParam } from "@halalfood/core/params";
-import { checkOutcome, validateCheck } from "@halalfood/core/check";
+import { checkOutcome, disagreesWith, validateCheck } from "@halalfood/core/check";
 import { INVALID_JSON, badRequest, json, notFound, readJson, requireUser, spendBudget, unavailable } from "../../../../../src/lib/api";
 import { CheckPlaceMissing, createCheck } from "../../../../../src/lib/checks-repository";
 import { consumeCheckInLimits } from "../../../../../src/lib/otp-rate-limit";
@@ -29,7 +29,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         deduped: result.deduped,
         before: result.recompute?.before ?? status,
         status,
-        message: result.recompute ? checkOutcome(result.recompute.before, status, place?.name ?? "This place") : "Your check is in.",
+        message: result.recompute
+          ? checkOutcome(result.recompute.before, status, place?.name ?? "This place", {
+              disagreed: disagreesWith(validation.value, result.recompute.previousValues),
+              counted: result.recompute.derived.authorsNewestFirst.includes(outcome.auth.userId),
+            })
+          : "Your check is in.",
       },
       { status: result.deduped ? 200 : 201 },
     );

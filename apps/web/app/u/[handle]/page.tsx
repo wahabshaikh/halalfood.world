@@ -12,6 +12,7 @@ import { cityName, photoUrl } from "../../../src/lib/place-view";
 import { avatarUrl } from "../../../src/lib/profiles";
 import { loadPublicProfile } from "../../../src/lib/public-profile";
 import { loginHref } from "../../../src/lib/signed-out";
+import { canonical, jsonLdScript } from "../../../src/lib/seo";
 import { visitJson } from "../../../src/lib/visit-json";
 import { ProfileActions, ProfileMenu } from "./profile-client";
 
@@ -47,6 +48,26 @@ export default async function ProfilePage({ params, searchParams }: Props) {
 
   return (
     <AppShell active={relation === "self" ? "you" : "friends"}>
+      {!profile.isPrivate && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLdScript([
+              {
+                "@context": "https://schema.org",
+                "@type": "ProfilePage",
+                url: canonical(`/u/${profile.handle}`),
+                mainEntity: {
+                  "@type": "Person",
+                  name: profile.displayName,
+                  alternateName: `@${profile.handle}`,
+                  ...(profile.bio ? { description: profile.bio } : {}),
+                },
+              },
+            ]),
+          }}
+        />
+      )}
       <TopBar back={relation === "self" ? "/me" : "/friends"}>
         {relation !== "self" && viewerId && <ProfileMenu handle={profile.handle} userId={profile.userId} name={profile.displayName} blocked={relation === "blocked"} />}
       </TopBar>

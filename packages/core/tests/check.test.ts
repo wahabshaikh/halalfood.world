@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkOutcome, validateCheck, verdictVerb } from "../src/check";
+import { checkOutcome, disagreesWith, validateCheck, verdictVerb } from "../src/check";
 
 const base = { idempotencyKey: "abcdefgh1234" };
 
@@ -37,7 +37,11 @@ test("outcome copy compares status before and after", () => {
   assert.match(checkOutcome({ kind: "checking", progress: 2 }, { kind: "verified" }, "Noor"), /is now Community verified/);
   assert.match(checkOutcome({ kind: "verified" }, { kind: "verified" }, "Noor"), /stays Community verified/);
   assert.match(checkOutcome({ kind: "checking", progress: 1 }, { kind: "checking", progress: 2 }, "Noor"), /2 of 3/);
-  assert.match(checkOutcome({ kind: "checking", progress: 2 }, { kind: "checking", progress: 1 }, "Noor"), /differ/);
+  assert.match(checkOutcome({ kind: "checking", progress: 2 }, { kind: "checking", progress: 1 }, "Noor", { disagreed: true }), /differ/);
+  assert.match(checkOutcome({ kind: "checking", progress: 1 }, { kind: "checking", progress: 1 }, "Noor"), /1 of 3/, "agreeing answers never read as a disagreement");
+  assert.match(checkOutcome({ kind: "unchecked" }, { kind: "unchecked" }, "Noor", { counted: false }), /after 24 hours/);
+  assert.equal(disagreesWith({ owned: "yes", certified: null, pork: "no", alcohol: "unsure" }, { owned: "yes", certified: "no", pork: null, alcohol: "yes" }), false);
+  assert.equal(disagreesWith({ owned: "no", certified: null, pork: null, alcohol: null }, { owned: "yes", certified: null, pork: null, alcohol: null }), true);
   assert.match(checkOutcome({ kind: "unchecked" }, { kind: "checking", progress: 1 }, "Noor"), /1 of 3/);
   assert.equal(verdictVerb("loved"), "loved");
   assert.equal(verdictVerb("okay"), "checked");

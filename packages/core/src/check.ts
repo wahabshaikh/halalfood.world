@@ -109,22 +109,36 @@ export function validateCheck(body: unknown): CheckValidation {
   };
 }
 
-/** The line shown after a check, comparing status before and after. */
+/**
+ * The line shown after a check (spec §6.8). `disagreed` is true when one of the
+ * check's definite answers differs from what the place said before it;
+ * `counted` is false when the account is too new for the check to count yet.
+ */
 export function checkOutcome(
   before: { kind: string; progress?: number },
   after: { kind: string; progress?: number },
   placeName: string,
+  options: { disagreed?: boolean; counted?: boolean } = {},
 ): string {
+  if (options.counted === false) return "Thanks. Checks from new accounts start counting after 24 hours.";
   if (after.kind === "verified")
     return before.kind === "verified"
       ? `Your answers match the last two checks. ${placeName} stays Community verified.`
       : `Your answers match the last two checks. ${placeName} is now Community verified.`;
   if (after.kind === "checking") {
-    const progress = after.progress ?? 1;
-    const previous = before.kind === "checking" ? (before.progress ?? 0) : before.kind === "verified" ? 3 : 0;
-    if (progress <= previous && previous > 0)
-      return "Your answers differ from recent checks. The place waits for 3 that match.";
-    return progress === 2 ? "That’s 2 of 3. One more to verify." : "That’s 1 of 3. Two more to verify.";
+    if (options.disagreed) return "Your answers differ from recent checks. The place waits for 3 that match.";
+    return after.progress === 2 ? "That’s 2 of 3. One more to verify." : "That’s 1 of 3. Two more matching checks verify it.";
   }
   return "Your check is in.";
+}
+
+/** True when any definite answer differs from the fact's value before this check. */
+export function disagreesWith(
+  answers: Record<"owned" | "certified" | "pork" | "alcohol", string | null>,
+  previous: Record<"owned" | "certified" | "pork" | "alcohol", "yes" | "no" | null>,
+): boolean {
+  return (["owned", "certified", "pork", "alcohol"] as const).some((fact) => {
+    const answer = answers[fact];
+    return (answer === "yes" || answer === "no") && previous[fact] !== null && previous[fact] !== answer;
+  });
 }
