@@ -62,6 +62,11 @@ export const metadata: Metadata = {
 };
 
 const TABS = ["places", "people", "lists"] as const;
+
+/** Break anywhere if needed: a query can be 64 characters with no spaces. */
+const WRAP_ANYWHERE = "[overflow-wrap:anywhere]";
+/** The "Add “q”" button wraps inside the page instead of widening it (AC-27). */
+const ADD_QUERY_BUTTON = `h-auto min-h-12 max-w-full py-2.5 text-center whitespace-normal ${WRAP_ANYWHERE}`;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = { places: "Places", people: "People", lists: "Lists" };
 
@@ -174,7 +179,7 @@ export default async function SearchPage({
         {searchable && loaded.status === "ok" && (
           <>
             <div className="mb-5 grid gap-1">
-              <h1 className="text-[clamp(24px,3vw,32px)] leading-tight">Halal places matching “{q}”</h1>
+              <h1 className={`text-[clamp(24px,3vw,32px)] leading-tight ${WRAP_ANYWHERE}`}>Halal places matching “{q}”</h1>
               <p className="text-muted-foreground">
                   {loaded.data.results.total
                     ? formatCount(loaded.data.results.total) +
@@ -207,10 +212,11 @@ export default async function SearchPage({
               <EmptyPanel
                 art="visits"
                 titleAs="h2"
-                title={`Know “${q}”?`}
+                // A long or unbroken query (64 characters, emoji) must wrap, not widen the page.
+                title={<span className={WRAP_ANYWHERE}>Know “{q}”?</span>}
                 description="Add it in under a minute."
               >
-                <Button asChild size="xl">
+                <Button asChild size="xl" className={ADD_QUERY_BUTTON}>
                   <a href={"/add?q=" + encodeURIComponent(q)}>Add “{q}”</a>
                 </Button>
               </EmptyPanel>

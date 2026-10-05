@@ -114,7 +114,7 @@ export async function findPlaces(
     // length of input is a normal search (see text-search.ts).
     const q = normalizeSearchQuery(options.q);
     return listingCachedRead(
-      `places:search:v3:${options.limit}:${q}`,
+      `places:search:v4:${options.limit}:${q}`,
       SEARCH_TTL_SECONDS,
       () => queryPlaces({ q, limit: options.limit }, client),
       client,

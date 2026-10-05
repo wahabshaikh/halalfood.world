@@ -28,6 +28,12 @@ export function unauthorizedFallback(state: {
  */
 export const TOAST_LINK_TAP_TARGET = "-my-3 h-auto min-h-11 min-w-11 px-1 font-extrabold";
 
+/**
+ * The toast's Dismiss: a 44x44 px button (size-11) around the same 15 px icon.
+ * The -10 px margin keeps the 24 px footprint it had, so the pill does not grow.
+ */
+export const TOAST_DISMISS_TAP_TARGET = "-m-2.5 size-11 rounded-full";
+
 /** The toast after a Friends/Yours 401 fell back to everyone's places. */
 export const SCOPE_FALLBACK_NOTICE = "Sign in to see your places and your friends’ places.";
 
