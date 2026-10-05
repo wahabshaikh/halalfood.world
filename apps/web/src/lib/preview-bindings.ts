@@ -3,8 +3,11 @@
 // and that command publishes whatever bindings are in dist/server/wrangler.json.
 
 export const PRODUCTION_BRANCH = "main";
-export const PRODUCTION_D1_ID = "3e4b080f-0559-4235-9923-2d6e4dec528f";
-export const PRODUCTION_D1_NAME = "halalfood-world";
+export const PRODUCTION_D1_ID = "889b19af-2870-45b4-b6ee-92c3686010f0";
+export const PRODUCTION_D1_NAME = "halalfood-world-v2";
+/** Pre-cutover production D1, kept untouched as the rollback (docs/ROLLBACK.md). */
+export const ROLLBACK_D1_ID = "3e4b080f-0559-4235-9923-2d6e4dec528f";
+export const ROLLBACK_D1_NAME = "halalfood-world";
 export const PRODUCTION_R2_BUCKET = "halalfood-world-evidence";
 
 export const PREVIEW_D1_ID = "c5d8e0ff-c001-48b8-8545-49861227c16f";
@@ -19,6 +22,7 @@ function assertDistinct(left: string, right: string, label: string): void {
 }
 
 assertDistinct(PREVIEW_D1_ID, PRODUCTION_D1_ID, "Preview D1 id");
+assertDistinct(PREVIEW_D1_ID, ROLLBACK_D1_ID, "Preview D1 id");
 assertDistinct(PREVIEW_R2_BUCKET, PRODUCTION_R2_BUCKET, "Preview R2 bucket");
 
 export type PreviewIsolation = "production" | "preview" | "refuse";

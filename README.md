@@ -301,9 +301,9 @@ The limiter fails closed if D1 is unavailable, so a provider outage cannot turn 
 
 ### Auth schema migration
 
-The schema is one baseline, [`migrations/0001_baseline.sql`](apps/web/migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. `src/db/schema.ts` mirrors it. The project hasn't launched, so there are no compatibility migrations: resetting a database means dropping it and applying the baseline.
+The schema is one baseline, [`migrations/0001_baseline.sql`](apps/web/migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. `src/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([docs/ROLLBACK.md](docs/ROLLBACK.md)). From here on, schema changes are new numbered, additive migrations applied before the deploy (the deploy gate refuses pending ones). Never drop or reset the production database.
 
-To keep the place listings across a reset, export them first and import them after:
+For a local or preview database only, place listings can be carried across a reset like this. Production never takes this path; the Oct 5 cutover imported old prod's places into the new database as reviewed SQL instead:
 
 ```sh
 npm run places:export -w @halalfood/web -- seed/places.jsonl   # before
@@ -315,7 +315,7 @@ Only listed rows and the columns the new schema keeps are carried. Every place c
 
 ```sh
 npm run db:migrate:local   # local development database
-npm run db:migrate:remote  # deployed halalfood-world D1 database
+npm run db:migrate:remote  # deployed production D1 database (halalfood-world-v2)
 ```
 
 Do not apply production migrations by splitting a file into statements: `wrangler d1 execute --command` treats a leading `--` comment as a flag, and a semicolon inside a comment is not a statement boundary.
@@ -402,10 +402,10 @@ EMAIL_FROM=noreply@halalfood.world
 
 ### Migration gate
 
-Workers Builds on `main` runs `npm run build`, then `npx wrangler deploy`. At the end of the build, `scripts/stage-cloudflare-build.ts` runs this and exits non-zero when it fails or when it lists anything still pending:
+Workers Builds on `main` runs `npm run build`, then `npx wrangler deploy`. At the end of the build, `scripts/stage-cloudflare-build.ts` reads the `DB` binding's `database_name` and `database_id` from [`apps/web/wrangler.jsonc`](apps/web/wrangler.jsonc), runs this for that database, and exits non-zero when it fails, when the binding is missing or malformed, or when it lists anything still pending:
 
 ```sh
-npx wrangler d1 migrations list halalfood-world --remote
+npx wrangler d1 migrations list halalfood-world-v2 --remote
 ```
 
 A failing build stops Workers Builds before `wrangler deploy`. The gate does not apply migration files. It runs only when `WORKERS_CI=1` and `WORKERS_CI_BRANCH=main`. Preview builds and GitHub Actions skip it. The list command has a 60 second timeout; a timeout fails the build the same way a failed command does.
