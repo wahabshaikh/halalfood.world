@@ -227,3 +227,29 @@ export async function suggestedPeople(
   `);
   return rows.map((row) => ({ ...toCard(row), followers: Number(row.followers ?? 0) }));
 }
+
+/**
+ * Someone signed up from `/invite/{handle}`: follow the inviter (accepted even
+ * if private, since they shared the link), remember who invited them, and tell
+ * the inviter. Only once, and only for a brand-new profile.
+ */
+export async function acceptInvite(userId: string, inviterHandle: string, client: Client = database(), now = Date.now()): Promise<boolean> {
+  const db = await client;
+  const inviter = await getProfileByHandle(inviterHandle, db);
+  if (!inviter || inviter.suspended || inviter.userId === userId) return false;
+  const [me] = await db.all<{ invited_by_user_id: string | null; onboarded_at: number | null }>(sql`
+    SELECT invited_by_user_id, onboarded_at FROM profiles WHERE user_id = ${userId}
+  `);
+  if (!me || me.invited_by_user_id || me.onboarded_at) return false;
+  const followed = await follow(userId, inviter.handle, { autoAccept: true }, db, now);
+  if (!followed.ok) return false;
+  const note = notificationStatement(
+    { userId: inviter.userId, kind: "invite-joined", actorId: userId, dedupeKey: `invite-joined:${userId}` },
+    now,
+  );
+  await runBatch(db, [
+    sql`UPDATE profiles SET invited_by_user_id = ${inviter.userId}, updated_at = ${now} WHERE user_id = ${userId}`,
+    ...(note ? [note] : []),
+  ]);
+  return true;
+}

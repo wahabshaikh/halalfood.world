@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { safeReturnPath } from "../../src/lib/signed-out";
 import { resolveCity } from "../../src/components/explore-screen";
 import { AppShell } from "../../src/components/app-shell";
 import { getViewerId } from "../../src/lib/auth-session";
 import { cityName } from "../../src/lib/place-view";
 import { avatarUrl, ensureProfile } from "../../src/lib/profiles";
-import { loginHref } from "../../src/lib/signed-out";
+import { loginHref, safeReturnPath } from "../../src/lib/signed-out";
+import { acceptInvite } from "../../src/lib/people";
+import { normalizeHandle } from "@halalfood/core/people";
 import { WelcomeFlow } from "./welcome-flow";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +21,10 @@ export default async function WelcomePage({ searchParams }: Props) {
   const returnTo = safeReturnPath(typeof params.returnTo === "string" ? params.returnTo : "/");
   const viewerId = await getViewerId();
   if (!viewerId) redirect(loginHref("/welcome"));
-  const profile = await ensureProfile(viewerId);
+  let profile = await ensureProfile(viewerId);
   if (!profile) redirect("/");
+  const invite = typeof params.invite === "string" ? normalizeHandle(params.invite) : null;
+  if (invite && (await acceptInvite(viewerId, invite).catch(() => false))) profile = (await ensureProfile(viewerId)) ?? profile;
   const citySlug = profile.homeCitySlug ?? (await resolveCity(null).catch(() => ({ city: null }))).city?.city_slug ?? null;
   return (
     <AppShell hideNav footer={false}>

@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowLeft01Icon, Camera01Icon, Flag02Icon } from "@hugeicons/core-free-icons";
-import { REASON_LABEL, PLACE_REASONS } from "@halalfood/core/moderation";
-import { cn } from "@halalfood/ui/lib/utils";
+import { ArrowLeft01Icon, Camera01Icon } from "@hugeicons/core-free-icons";
 import { Avatar, Icon, buttonClass } from "../../../src/components/kit";
+import { ReportButton } from "../../../src/components/report-sheet";
+import { SendSheetButton } from "../../../src/components/send-sheet";
 import { SaveHeart, ShareAction, Sheet, api, errorText, toast, useSheet } from "../../../src/components/kit-client";
 import { currentReturnPath, loginHref } from "../../../src/lib/signed-out";
 import type { PlaceNote } from "../../../src/lib/checks-repository";
@@ -31,6 +31,9 @@ export function HeroActions({
         <Icon icon={ArrowLeft01Icon} />
       </a>
       <div className="flex gap-2">
+        {signedIn && (
+          <SendSheetButton target={{ kind: "place", id: placeId, name }} className={round} label="" ariaLabel="Send to friends" />
+        )}
         <ShareAction url={`/place/${placeId}`} title={name} text={shareText} className={round} />
         <SaveHeart placeId={placeId} saved={saved} signedIn={signedIn} variant="floating" label={name} />
       </div>
@@ -72,71 +75,7 @@ export function HowItWorks() {
 }
 
 export function ReportPlace({ placeId, placeName, signedIn }: { placeId: string; placeName: string; signedIn: boolean }) {
-  const sheet = useSheet("report");
-  const [reason, setReason] = useState<string>("wrong-answers");
-  const [detail, setDetail] = useState("");
-  const [busy, setBusy] = useState(false);
-  const send = async () => {
-    setBusy(true);
-    try {
-      await api("/api/reports", { method: "POST", json: { targetType: "place", targetId: placeId, reason, detail } });
-      sheet.hide();
-      setDetail("");
-      toast("Thanks. A moderator will take a look.");
-    } catch (error) {
-      toast(errorText(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => (signedIn ? sheet.show() : window.location.assign(loginHref(currentReturnPath())))}
-        className="inline-flex min-h-11 w-fit items-center gap-2 text-sm font-extrabold text-subtle-foreground"
-      >
-        <Icon icon={Flag02Icon} size={18} />
-        Report a problem
-      </button>
-      <Sheet open={sheet.open} onClose={sheet.hide} title="What’s wrong?">
-        <p className="-mt-2 mb-4 text-sm font-semibold text-subtle-foreground">{placeName}</p>
-        <div role="radiogroup" aria-label="Reason" className="grid gap-2">
-          {PLACE_REASONS.map((value) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={reason === value}
-              onClick={() => setReason(value)}
-              className={cn(
-                "flex min-h-[50px] items-center gap-3 rounded-[14px] px-3.5 text-left text-[15px] font-bold",
-                reason === value ? "border-2 border-foreground bg-muted" : "border border-input",
-              )}
-            >
-              <span className={cn("size-5 shrink-0 rounded-full", reason === value ? "border-[6px] border-foreground" : "border-2 border-muted-foreground")} />
-              {REASON_LABEL[value]}
-            </button>
-          ))}
-        </div>
-        <label htmlFor="report-detail" className="mt-4 mb-1.5 block text-sm font-extrabold">
-          Details <span className="font-semibold text-muted-foreground">(optional)</span>
-        </label>
-        <textarea
-          id="report-detail"
-          rows={2}
-          maxLength={500}
-          value={detail}
-          onChange={(event) => setDetail(event.target.value)}
-          placeholder="e.g. They started serving beer in August"
-          className="w-full resize-none rounded-[14px] border border-input px-3.5 py-3 text-[15px]"
-        />
-        <button type="button" onClick={send} disabled={busy} className={buttonClass("dark", "lg", "mt-4 w-full")}>
-          {busy ? "Sending…" : "Send report"}
-        </button>
-      </Sheet>
-    </>
-  );
+  return <ReportButton targetType="place" targetId={placeId} subject={placeName} signedIn={signedIn} />;
 }
 
 export function AddPhoto({ placeId, signedIn }: { placeId: string; signedIn: boolean }) {
