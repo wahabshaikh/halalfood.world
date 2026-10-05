@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { sql } from "drizzle-orm";
 import { normalizeHandle } from "@halalfood/core/people";
 import { AppShell } from "../../../src/components/app-shell";
-import { Avatar, PlaceArt, StatusPill, buttonClass } from "../../../src/components/kit";
+import { Avatar, FormCard, PlaceArt, StatusPill, buttonClass } from "../../../src/components/kit";
 import { database } from "../../../src/db";
 import { visibleCheck } from "../../../src/lib/feed";
 import { PLACE_CARD_COLUMNS, photoUrl, toPlaceCard } from "../../../src/lib/place-view";
@@ -47,7 +47,7 @@ export default async function InvitePage({ params }: Props) {
   const first = profile.displayName.split(" ")[0];
   return (
     <AppShell hideNav>
-      <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center px-6 pt-16 pb-10 text-center">
+      <FormCard fill className="items-center text-center max-md:pt-12">
         <Avatar name={profile.displayName} seed={profile.userId} src={avatarUrl(profile.avatarKey, profile.handle)} size={88} />
         <h1 className="mt-5 text-[28px] leading-tight font-black tracking-tight">{profile.displayName} invited you to halalfood.world</h1>
         <p className="mt-2 text-[15px] font-semibold text-subtle-foreground">Halal places, checked by people who eat there. See where {first} eats.</p>
@@ -70,7 +70,7 @@ export default async function InvitePage({ params }: Props) {
             Just look around
           </a>
         </div>
-      </div>
+      </FormCard>
     </AppShell>
   );
 }

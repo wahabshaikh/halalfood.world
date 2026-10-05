@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { ArrowLeft01Icon, Camera01Icon } from "@hugeicons/core-free-icons";
+import { cn } from "@halalfood/ui/lib/utils";
 import { Avatar, Icon, buttonClass } from "../../../src/components/kit";
 import { ReportButton } from "../../../src/components/report-sheet";
 import { SendSheetButton } from "../../../src/components/send-sheet";
@@ -27,10 +28,10 @@ export function HeroActions({
   const round = "flex size-11 items-center justify-center rounded-full bg-background text-foreground shadow-md";
   return (
     <div className="absolute inset-x-4 top-4 flex justify-between">
-      <a href={backHref} aria-label="Back" className={round}>
+      <a href={backHref} aria-label="Back" className={cn(round, "md:hidden")}>
         <Icon icon={ArrowLeft01Icon} />
       </a>
-      <div className="flex gap-2">
+      <div className="flex gap-2 md:ml-auto">
         {signedIn && (
           <SendSheetButton target={{ kind: "place", id: placeId, name }} className={round} label="" ariaLabel="Send to friends" />
         )}

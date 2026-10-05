@@ -61,7 +61,7 @@ export function LikeButton({ checkId, initial, count, className }: { checkId: st
 export function VisitCard({ visit }: { visit: VisitJson }) {
   const photo = visit.photos.find(Boolean) ?? null;
   return (
-    <article className="grid gap-3 border-b border-border/70 py-4 last:border-b-0">
+    <article className="grid gap-3 border-b border-border/70 py-4 last:border-b-0 md:rounded-[20px] md:border md:border-border md:p-5 md:last:border-b">
       <header className="flex items-start gap-3">
         <a href={visit.author.handle ? `/u/${visit.author.handle}` : "#"} aria-label={visit.author.name}>
           <Avatar name={visit.author.name} seed={visit.author.userId} src={visit.author.avatarUrl} size={40} />
@@ -83,7 +83,7 @@ export function VisitCard({ visit }: { visit: VisitJson }) {
         {photo && (
           // Check photos are served from our own R2 proxy route.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={photo} alt={`Photo from ${visit.place.name}`} loading="lazy" className="aspect-[4/3] w-full rounded-2xl object-cover" />
+          <img src={photo} alt={`Photo from ${visit.place.name}`} loading="lazy" className="aspect-[4/3] w-full rounded-2xl object-cover md:aspect-[16/9]" />
         )}
         {visit.note && <p className="text-[15px] leading-relaxed">{visit.note}</p>}
       </a>

@@ -101,6 +101,49 @@ export function IconLink({
 /* Bars                                                                       */
 /* ------------------------------------------------------------------------ */
 
+/**
+ * The page frame inside AppShell. Every page puts its content in one of these
+ * so the gutters and the top spacing are the same everywhere.
+ *   full     the whole 6xl frame, for grids and two-column layouts
+ *   content  a centred reading column, for feeds, lists and settings
+ *   form     a narrower centred column, for one-task forms
+ */
+const PAGE_WIDTH = { full: "", content: "max-w-3xl", form: "max-w-xl" } as const;
+
+export function Page({
+  size = "full",
+  className,
+  children,
+}: {
+  size?: keyof typeof PAGE_WIDTH;
+  className?: string;
+  children: ReactNode;
+}) {
+  return <div className={cn("mx-auto w-full page-x pt-4 md:pt-8", PAGE_WIDTH[size], className)}>{children}</div>;
+}
+
+/**
+ * One-task screens (sign in, check a place, add a place, onboarding): a
+ * narrow column that sits in a bordered card on desktop. `fill` makes it at
+ * least a screen tall on phones so its last button can sit at the bottom.
+ */
+export function FormCard({ className, fill = false, children }: { className?: string; fill?: boolean; children: ReactNode }) {
+  return (
+    <Page size="form" className={cn("pt-6 md:pt-12", fill && "max-md:flex max-md:min-h-dvh max-md:flex-col")}>
+      <div className={cn("md:rounded-[24px] md:border md:border-border md:p-8", fill && "flex flex-col max-md:flex-1", className)}>{children}</div>
+    </Page>
+  );
+}
+
+/**
+ * A list of rows is a plain divided list on phones and a grid of bordered
+ * cards from md. `LIST_GRID` goes on the <ul>, `ROW_CARD` on each <li> (or the
+ * link that fills it), so every list on the site reads the same.
+ */
+export const LIST_GRID = "md:grid md:grid-cols-2 md:gap-4 lg:grid-cols-3";
+export const ROW_CARD = "md:rounded-2xl md:border md:border-border md:px-4 md:transition-colors md:hover:bg-muted";
+
+/** Back or close, an optional title and actions. Sits inside a Page, flush with its text edge. */
 export function TopBar({
   back,
   close,
@@ -115,7 +158,7 @@ export function TopBar({
   className?: string;
 }) {
   return (
-    <header className={cn("flex min-h-[68px] items-center gap-1.5 px-4 pt-3 pb-1.5", className)}>
+    <header className={cn("-mx-2.5 -mt-1 mb-1 flex min-h-12 items-center gap-1.5 md:mb-3", className)}>
       {back && <IconLink href={back} label="Back" icon={ArrowLeft01Icon} />}
       {close && <IconLink href={close} label="Close" icon={Cancel01Icon} />}
       {title && <h1 className="min-w-0 truncate text-xl font-black">{title}</h1>}
@@ -127,8 +170,8 @@ export function TopBar({
 export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
   return (
     <div className="grid gap-1.5">
-      <h1 className="text-[28px] leading-tight font-black tracking-tight">{children}</h1>
-      {sub && <p className="text-[15px] font-semibold text-subtle-foreground">{sub}</p>}
+      <h1 className="text-[28px] leading-tight font-black tracking-tight md:text-[34px]">{children}</h1>
+      {sub && <p className="text-[15px] font-semibold text-subtle-foreground md:text-base">{sub}</p>}
     </div>
   );
 }
@@ -136,7 +179,7 @@ export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactN
 export function SectionTitle({ children, action, id }: { children: ReactNode; action?: ReactNode; id?: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <h2 id={id} className="text-[19px] font-black">
+      <h2 id={id} className="text-[19px] font-black md:text-xl">
         {children}
       </h2>
       {action}
@@ -202,6 +245,7 @@ export function StatusCard({
   latest,
   people,
   how,
+  className,
 }: {
   status: PlaceStatus;
   latest: string | null;
@@ -209,6 +253,7 @@ export function StatusCard({
   people?: number;
   /** The "How verification works" trigger. */
   how: ReactNode;
+  className?: string;
 }) {
   const filled = status.kind === "verified" ? 3 : status.kind === "checking" ? status.progress : 0;
   const tone = {
@@ -225,7 +270,7 @@ export function StatusCard({
   const title =
     status.kind === "verified" ? "Verified" : status.kind === "checking" ? `${status.progress} of 3 checks` : "Not checked yet";
   return (
-    <section aria-label="Halal status" className={cn("grid gap-3 rounded-[20px] p-4", tone)}>
+    <section aria-label="Halal status" className={cn("grid gap-3 rounded-[20px] p-4 lg:p-5", tone, className)}>
       <div className="flex items-center gap-2.5">
         <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-full", iconTone)}>
           <Icon icon={icon} size={20} strokeWidth={2.6} />
@@ -252,8 +297,8 @@ export function FactTile({ fact, value, evidence }: { fact: Fact; value: Definit
   const tone = factTone(fact, value);
   const icon = tone === "unknown" ? HelpCircleIcon : tone === "good" ? Tick02Icon : Cancel01Icon;
   return (
-    <div className="grid gap-2.5 rounded-2xl border border-border p-3.5">
-      <span className={cn("flex size-[30px] items-center justify-center rounded-full", TONE_DOT[tone])}>
+    <div className="grid content-start gap-2.5 rounded-2xl border border-border p-3.5 lg:flex lg:items-start lg:gap-3.5 lg:p-4">
+      <span className={cn("flex size-[30px] shrink-0 items-center justify-center rounded-full", TONE_DOT[tone])}>
         <Icon icon={icon} size={16} strokeWidth={3} />
       </span>
       <div className="grid gap-0.5">
@@ -411,7 +456,7 @@ export function EmptyState({
   icon?: IconSvgElement;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2.5 px-3 py-10 text-center">
+    <div className="flex flex-col items-center gap-2.5 py-10 text-center md:py-20">
       {icon && (
         <span className="mb-1 flex size-[76px] items-center justify-center rounded-full bg-accent text-primary">
           <Icon icon={icon} size={34} />

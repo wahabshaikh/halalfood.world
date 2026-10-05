@@ -1,5 +1,6 @@
 import type { EventSummary } from "../lib/events";
-import { AvatarStack } from "./kit";
+import { cn } from "@halalfood/ui/lib/utils";
+import { AvatarStack, ROW_CARD } from "./kit";
 import { LocalTime } from "./local-time";
 
 export function DateBlock({ at }: { at: number }) {
@@ -28,7 +29,7 @@ export function friendsLine(event: Pick<EventSummary, "friends" | "going">, view
 export function EventRow({ event, viewerId }: { event: EventSummary; viewerId: string | null }) {
   const friends = friendsLine(event, viewerId);
   return (
-    <a href={`/event/${event.id}`} className="flex items-center gap-3.5 border-b border-border/70 py-3.5 text-foreground last:border-b-0">
+    <a href={`/event/${event.id}`} className={cn("flex items-center gap-3.5 border-b border-border/70 py-3.5 text-foreground last:border-b-0", ROW_CARD, "md:py-4 md:last:border-b")}>
       <DateBlock at={event.startsAt} />
       <span className="grid min-w-0 flex-1 gap-0.5">
         <strong className="truncate text-base font-extrabold">{event.title}</strong>

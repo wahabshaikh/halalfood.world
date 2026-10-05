@@ -3,7 +3,7 @@ import { ArrowDown01Icon, MapsIcon, Notification03Icon, Search01Icon } from "@hu
 import { parseFilters, type Filter } from "@halalfood/core/halal";
 import { AppShell } from "./app-shell";
 import { BrandMark } from "./brand";
-import { Avatar, Icon, IconLink, SectionTitle } from "./kit";
+import { Avatar, Icon, IconLink, Page, SectionTitle } from "./kit";
 import { FilterChips, RestoreFilters } from "./kit-client";
 import { ExploreList } from "./explore-list";
 import { getViewerId } from "../lib/auth-session";
@@ -85,51 +85,54 @@ export async function ExploreScreen({ city, searchParams }: { city: City; search
         }}
       />
       {rawFilters === undefined && !viewerId && <RestoreFilters hasParam={false} />}
-      <header className="grid gap-3.5 px-5 pt-[18px] pb-3">
-        <div className="flex items-center justify-between gap-3">
-          <a href="/cities" className="inline-flex min-h-11 items-center gap-1.5 text-foreground">
-            <BrandMark size={26} className="md:hidden" />
-            <span className="text-[22px] font-black tracking-tight">{name}</span>
-            <Icon icon={ArrowDown01Icon} size={18} strokeWidth={2.4} />
-            <span className="sr-only">Change city</span>
-          </a>
-          {viewerId ? (
-            <div className="flex items-center gap-1 md:hidden">
-              <IconLink href="/inbox" label="Inbox" icon={Notification03Icon} />
-              <a href="/me" aria-label="Your profile">
-                <Avatar name={profile?.displayName ?? "You"} seed={viewerId} src={profile ? avatarUrl(profile.avatarKey, profile.handle) : null} />
-              </a>
-            </div>
-          ) : (
-            <a
-              href={loginHref(`/city/${city.city_slug}`)}
-              className="inline-flex min-h-10 items-center rounded-full border border-input px-4 text-sm font-extrabold text-foreground"
-            >
-              Sign in
+      <Page className="pt-[18px] md:pt-8">
+        <header className="grid gap-3.5 pb-3 md:pb-6">
+          <div className="flex items-center justify-between gap-3">
+            <a href="/cities" className="inline-flex min-h-11 items-center gap-1.5 text-foreground">
+              <BrandMark size={26} className="md:hidden" />
+              <span className="text-[22px] font-black tracking-tight md:text-[34px]">{name}</span>
+              <Icon icon={ArrowDown01Icon} size={18} strokeWidth={2.4} />
+              <span className="sr-only">Change city</span>
             </a>
-          )}
-        </div>
-        <a
-          href={`/search?city=${city.city_slug}`}
-          className="flex h-[50px] items-center gap-2.5 rounded-full bg-secondary px-[18px] text-[15px] font-semibold text-muted-foreground"
-        >
-          <Icon icon={Search01Icon} className="text-foreground" />
-          Search places, dishes, people
-        </a>
-      </header>
+            {viewerId ? (
+              <div className="flex items-center gap-1 md:hidden">
+                <IconLink href="/inbox" label="Inbox" icon={Notification03Icon} />
+                <a href="/me" aria-label="Your profile">
+                  <Avatar name={profile?.displayName ?? "You"} seed={viewerId} src={profile ? avatarUrl(profile.avatarKey, profile.handle) : null} />
+                </a>
+              </div>
+            ) : (
+              <a
+                href={loginHref(`/city/${city.city_slug}`)}
+                className="inline-flex min-h-10 items-center rounded-full border border-input px-4 text-sm font-extrabold text-foreground hover:bg-secondary"
+              >
+                Sign in
+              </a>
+            )}
+          </div>
+          <a
+            href={`/search?city=${city.city_slug}`}
+            className="flex h-[50px] items-center gap-2.5 rounded-full bg-secondary px-[18px] text-[15px] font-semibold text-muted-foreground md:hidden"
+          >
+            <Icon icon={Search01Icon} className="text-foreground" />
+            Search places, dishes, people
+          </a>
+        </header>
 
-      <div className="grid gap-[26px] pt-1">
-        <ExploreExtras citySlug={city.city_slug} cityLabel={name} viewerId={viewerId} />
-        <section aria-labelledby="places-title" className="grid gap-2.5">
-          <div className="px-5">
+        <div className="grid gap-[26px] pt-1 md:gap-10 md:pt-0">
+          <ExploreExtras citySlug={city.city_slug} cityLabel={name} viewerId={viewerId} />
+          <section aria-labelledby="places-title" className="grid gap-2.5 md:gap-4">
             <SectionTitle id="places-title">{near ? "Places near you" : `Places in ${name}`}</SectionTitle>
-          </div>
-          <FilterChips filters={filters} friends={friends} showFriends={Boolean(viewerId)} />
-          <div className="px-5">
+            <FilterChips
+              filters={filters}
+              friends={friends}
+              showFriends={Boolean(viewerId)}
+              className="-mx-5 px-5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0"
+            />
             <ExploreList initial={result.places} total={result.total} query={query.toString()} signedIn={Boolean(viewerId)} pageSize={PAGE} />
-          </div>
-        </section>
-      </div>
+          </section>
+        </div>
+      </Page>
 
       <a
         href={`/map?${mapQuery}`}

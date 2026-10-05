@@ -47,19 +47,19 @@ export function NavTabs({ active, variant }: { active?: TabKey; variant: "top" |
   const unread = useUnread();
   if (variant === "top")
     return (
-      <nav aria-label="Main" className="ml-auto flex items-center gap-1">
+      <nav aria-label="Main" className="ml-auto flex shrink-0 items-center gap-1">
         {TABS.map((tab) => (
           <a
             key={tab.key}
             href={tab.href}
             aria-current={tab.key === active ? "page" : undefined}
             className={cn(
-              "relative inline-flex min-h-10 items-center gap-2 rounded-full px-3.5 text-sm font-extrabold text-muted-foreground hover:bg-secondary hover:text-foreground",
+              "relative inline-flex min-h-10 items-center gap-2 rounded-full px-3 text-sm lg:px-3.5 font-extrabold text-muted-foreground hover:bg-secondary hover:text-foreground",
               tab.key === active && "bg-secondary text-foreground",
             )}
           >
             <Icon icon={tab.icon} size={18} />
-            {tab.label}
+            <span className="max-lg:sr-only">{tab.label}</span>
             {tab.key === "friends" && unread > 0 && (
               <span className="size-2 rounded-full bg-primary" aria-label={`${unread} new`} />
             )}

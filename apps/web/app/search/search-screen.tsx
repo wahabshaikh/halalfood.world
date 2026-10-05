@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { cn } from "@halalfood/ui/lib/utils";
 import type { ExploreItem } from "../../src/lib/explore";
 import type { ListResult, PersonResult } from "../../src/lib/search-social";
 import { cityName } from "../../src/lib/place-view";
-import { Avatar, EmptyState, Eyebrow, Icon, IconLink, LinkButton, PlaceArt } from "../../src/components/kit";
+import { Avatar, EmptyState, Eyebrow, Icon, IconLink, LIST_GRID, LinkButton, Page, PlaceArt, ROW_CARD } from "../../src/components/kit";
 import { api, chipClass } from "../../src/components/kit-client";
 import { PlaceRow } from "../../src/components/place-row";
 
@@ -69,13 +70,13 @@ export function SearchScreen({
   const tries = ["biryani", "shawarma", "kebab", city ? cityName(city) : "London"];
 
   return (
-    <div>
-      <header className="flex items-center gap-1.5 px-4 pt-[18px] pb-3">
+    <Page className="pt-[18px] md:pt-8">
+      <header className="-mx-2.5 flex items-center gap-1.5 pb-3 md:pb-6">
         <IconLink href={city ? `/city/${city}` : "/"} label="Back" icon={ArrowLeft01Icon} />
         <label htmlFor="search-input" className="sr-only">
           Search places, dishes, people
         </label>
-        <div className="flex h-[50px] flex-1 items-center gap-2.5 rounded-full border-2 border-foreground bg-secondary px-4">
+        <div className="flex h-[50px] flex-1 items-center gap-2.5 rounded-full border-2 border-foreground bg-secondary px-4 md:max-w-2xl">
           <Icon icon={Search01Icon} />
           <input
             id="search-input"
@@ -90,7 +91,7 @@ export function SearchScreen({
         </div>
       </header>
 
-      <div className="grid gap-[22px] px-5 pt-1 pb-6">
+      <div className="grid gap-[22px] pt-1 md:gap-9">
         {blank && (
           <section className="grid gap-2.5">
             <Eyebrow>Try</Eyebrow>
@@ -105,9 +106,9 @@ export function SearchScreen({
         )}
         {state === "error" && <p className="text-sm font-bold text-destructive">Search isn’t working right now. Try again in a moment.</p>}
         {results.places.length > 0 && (
-          <section className="grid gap-1">
+          <section className="grid gap-1 md:gap-3">
             <Eyebrow>Places</Eyebrow>
-            <ul>
+            <ul className={LIST_GRID}>
               {results.places.map((place) => (
                 <PlaceRow key={place.id} place={place} signedIn={signedIn} compact />
               ))}
@@ -115,12 +116,12 @@ export function SearchScreen({
           </section>
         )}
         {results.people.length > 0 && (
-          <section className="grid gap-1">
+          <section className="grid gap-1 md:gap-3">
             <Eyebrow>People</Eyebrow>
-            <ul>
+            <ul className={LIST_GRID}>
               {results.people.map((person) => (
                 <li key={person.userId}>
-                  <a href={`/u/${person.handle}`} className="flex min-h-[60px] items-center gap-3 border-b border-border text-foreground">
+                  <a href={`/u/${person.handle}`} className={cn("flex min-h-[60px] items-center gap-3 border-b border-border text-foreground", ROW_CARD)}>
                     <Avatar name={person.name} seed={person.userId} src={person.avatarKey ? `/api/avatars/${person.handle}` : null} size={44} />
                     <span className="grid">
                       <span className="text-base font-extrabold">{person.name}</span>
@@ -136,12 +137,12 @@ export function SearchScreen({
           </section>
         )}
         {results.lists.length > 0 && (
-          <section className="grid gap-1">
+          <section className="grid gap-1 md:gap-3">
             <Eyebrow>Lists &amp; guides</Eyebrow>
-            <ul>
+            <ul className={LIST_GRID}>
               {results.lists.map((list) => (
                 <li key={list.id}>
-                  <a href={`/list/${list.id}`} className="flex min-h-16 items-center gap-3 border-b border-border text-foreground">
+                  <a href={`/list/${list.id}`} className={cn("flex min-h-16 items-center gap-3 border-b border-border text-foreground", ROW_CARD)}>
                     <PlaceArt name={list.title} seed={list.coverPlaceId ?? list.id} className="size-[52px]" rounded="rounded-[14px]" textSize="text-base" />
                     <span className="grid">
                       <span className="text-base font-extrabold">{list.title}</span>
@@ -157,12 +158,12 @@ export function SearchScreen({
           </section>
         )}
         {results.cities.length > 0 && (
-          <section className="grid gap-1">
+          <section className="grid gap-1 md:gap-3">
             <Eyebrow>Cities</Eyebrow>
-            <ul>
+            <ul className={LIST_GRID}>
               {results.cities.map((item) => (
                 <li key={item.city_slug}>
-                  <a href={`/city/${item.city_slug}`} className="flex min-h-[52px] items-center justify-between border-b border-border text-base font-extrabold text-foreground">
+                  <a href={`/city/${item.city_slug}`} className={cn("flex min-h-[52px] items-center justify-between border-b border-border text-base font-extrabold text-foreground", ROW_CARD)}>
                     {cityName(item.city_slug)}
                     <span className="text-[13px] font-bold text-muted-foreground">{item.place_count.toLocaleString("en")} places</span>
                   </a>
@@ -175,6 +176,6 @@ export function SearchScreen({
           <EmptyState title="Nothing listed yet" body="If it’s on Google Maps, you can add it." action={<LinkButton href="/add" size="md">Add a place</LinkButton>} />
         )}
       </div>
-    </div>
+    </Page>
   );
 }

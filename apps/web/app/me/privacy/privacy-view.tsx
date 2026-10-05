@@ -44,7 +44,7 @@ export function PrivacyView({ initial, requests, blocked }: { initial: Settings;
   };
 
   return (
-    <div className="grid gap-8 px-5 pt-2 pb-10">
+    <div className="grid gap-8 pt-2">
       <section className="grid divide-y divide-border/70">
         <SwitchRow
           label="Private account"

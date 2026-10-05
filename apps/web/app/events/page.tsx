@@ -4,7 +4,7 @@ import { Calendar03Icon } from "@hugeicons/core-free-icons";
 import { AppShell } from "../../src/components/app-shell";
 import { EventRow } from "../../src/components/event-bits";
 import { resolveCity } from "../../src/components/explore-screen";
-import { EmptyState, PageTitle, TopBar } from "../../src/components/kit";
+import { EmptyState, Page, PageTitle, TopBar } from "../../src/components/kit";
 import { getViewerId } from "../../src/lib/auth-session";
 import { listEvents } from "../../src/lib/events";
 import { cityName } from "../../src/lib/place-view";
@@ -30,11 +30,12 @@ export default async function EventsPage({ searchParams }: Props) {
   const name = city ? cityName(city.city_slug) : null;
   return (
     <AppShell active="explore">
-      <TopBar back={city ? `/city/${city.city_slug}` : "/"} />
-      <div className="grid gap-3 px-5 pb-10">
+      <Page>
+        <TopBar back={city ? `/city/${city.city_slug}` : "/"} />
+        <div className="grid gap-3 md:gap-6">
         <PageTitle sub={name ? `What’s on in ${name}` : undefined}>Events</PageTitle>
         {events.length ? (
-          <div className="grid">
+          <div className="grid md:grid-cols-2 md:gap-4">
             {events.map((event) => (
               <EventRow key={event.id} event={event} viewerId={viewerId} />
             ))}
@@ -42,7 +43,8 @@ export default async function EventsPage({ searchParams }: Props) {
         ) : (
           <EmptyState icon={Calendar03Icon} title="No events coming up" body="Iftar walks, Eid markets and food festivals show up here." />
         )}
-      </div>
+        </div>
+      </Page>
     </AppShell>
   );
 }

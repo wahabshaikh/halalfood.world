@@ -24,7 +24,7 @@ export function FeedList({ initial, next: firstNext }: { initial: VisitJson[]; n
     }
   };
   return (
-    <div className="grid">
+    <div className="grid md:gap-4">
       {items.map((visit) => (
         <VisitCard key={visit.checkId} visit={visit} />
       ))}
@@ -41,7 +41,7 @@ export function SuggestedPeople({ people }: { people: { handle: string; name: st
   if (!people.length) return null;
   return (
     <section className="grid gap-2">
-      <h2 className="text-[17px] font-black">People to follow</h2>
+      <h2 className="text-[17px] font-black md:text-xl">People to follow</h2>
       <ul className="grid">
         {people.map((person) => (
           <li key={person.handle} className="flex items-center gap-3 border-b border-border/70 py-3 last:border-b-0">

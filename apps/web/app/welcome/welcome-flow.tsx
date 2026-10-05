@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Copy01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import type { Filter } from "@halalfood/core/halal";
 import { cn } from "@halalfood/ui/lib/utils";
-import { Avatar, Icon, buttonClass } from "../../src/components/kit";
+import { Avatar, FormCard, Icon, buttonClass } from "../../src/components/kit";
 import { api, errorText, toast } from "../../src/components/kit-client";
 import { AvatarPicker, FilterChecklist, FollowButton, HandleField, TextField, type HandleCheck } from "../../src/components/people-client";
 
@@ -78,7 +78,7 @@ export function WelcomeFlow({
   const profileReady = name.trim().length > 0 && handle.trim().length >= 3 && handleCheck.state !== "bad" && handleCheck.state !== "checking";
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col px-6 pt-6 pb-8">
+    <FormCard fill className="max-md:pb-4">
       <div className="flex items-center gap-3">
         <div className="grid flex-1 grid-cols-3 gap-1.5" aria-label={`Step ${step + 1} of 3`}>
           {[0, 1, 2].map((index) => (
@@ -140,7 +140,7 @@ export function WelcomeFlow({
           busy={busy}
         />
       )}
-    </div>
+    </FormCard>
   );
 }
 
