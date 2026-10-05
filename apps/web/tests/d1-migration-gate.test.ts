@@ -57,3 +57,23 @@ test("an unreadable migration list fails closed", () => {
   const parsed = parseMigrationList("Authentication error");
   assert.equal(parsed.ok, false);
 });
+
+test("the gate checks the DB binding named in wrangler.jsonc", async () => {
+  const { productionD1FromConfig } = await import("../src/lib/d1-migration-gate");
+  const { readFileSync } = await import("node:fs");
+  const { parseWranglerJsonc, PRODUCTION_D1_ID, PRODUCTION_D1_NAME, ROLLBACK_D1_ID } = await import(
+    "../src/lib/preview-bindings"
+  );
+  const config = parseWranglerJsonc(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
+  const target = productionD1FromConfig(config);
+  assert.deepEqual(target, { ok: true, name: PRODUCTION_D1_NAME, id: PRODUCTION_D1_ID });
+  assert.deepEqual(target, { ok: true, name: "halalfood-world-v2", id: "889b19af-2870-45b4-b6ee-92c3686010f0" });
+  assert.notEqual(PRODUCTION_D1_ID, ROLLBACK_D1_ID);
+  // Missing or placeholder bindings stop the deploy instead of checking some other database.
+  assert.equal(productionD1FromConfig({}).ok, false);
+  assert.equal(productionD1FromConfig({ d1_databases: [{ binding: "DB", database_name: "halalfood-world-v2", database_id: "REPLACE_WITH_V2_ID" }] }).ok, false);
+  assert.equal(productionD1FromConfig({ d1_databases: [{ binding: "OTHER", database_name: "x", database_id: PRODUCTION_D1_ID }] }).ok, false);
+  const stage = readFileSync(new URL("../../../scripts/stage-cloudflare-build.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(stage, /"migrations", "list", "halalfood-world"/);
+  assert.match(stage, /productionD1FromConfig\(sourceConfig\)/);
+});

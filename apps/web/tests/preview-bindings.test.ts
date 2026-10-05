@@ -206,3 +206,10 @@ test("a preview rate limit left on a production namespace refuses the upload", (
     ["81101", "81102"],
   );
 });
+
+test("previews never bind the rollback (pre-cutover) production database", async () => {
+  const { ROLLBACK_D1_ID } = await import("../src/lib/preview-bindings");
+  assert.notEqual(PREVIEW_D1_ID, ROLLBACK_D1_ID);
+  const bind = readFileSync(new URL("../../../scripts/bind-github-preview.ts", import.meta.url), "utf8");
+  assert.match(bind, /D1_DATABASE_ID === ROLLBACK_D1_ID/);
+});

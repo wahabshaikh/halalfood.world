@@ -23,9 +23,10 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "halalfood-world",
-      // Replace with the id printed by `wrangler d1 create halalfood-world`.
-      "database_id": "3e4b080f-0559-4235-9923-2d6e4dec528f",
+      // Production D1 since the 0001_baseline cutover (Oct 5, 2026). The deploy
+      // gate reads this name and id. Rollback: docs/ROLLBACK.md.
+      "database_name": "halalfood-world-v2",
+      "database_id": "889b19af-2870-45b4-b6ee-92c3686010f0",
       "migrations_dir": "migrations"
     }
   ],
