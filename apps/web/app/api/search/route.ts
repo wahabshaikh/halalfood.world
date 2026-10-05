@@ -2,6 +2,7 @@ import { citySlugParam } from "@halalfood/core/params";
 import { optionalUser, unavailable } from "../../../src/lib/api";
 import { decoratePlaces } from "../../../src/lib/explore";
 import { searchCities, searchPlaces } from "../../../src/lib/places";
+import { avatarUrl } from "../../../src/lib/profiles";
 import { normalizeSearchQuery } from "../../../src/lib/search-query";
 import { searchLists, searchPeople } from "../../../src/lib/search-social";
 
@@ -20,7 +21,13 @@ export async function GET(request: Request) {
       searchCities(q, 5),
     ]);
     return Response.json(
-      { q, places: await decoratePlaces(viewerId, places), people, lists, cities },
+      {
+        q,
+        places: await decoratePlaces(viewerId, places),
+        people: people.map((person) => ({ ...person, avatarUrl: avatarUrl(person.avatarKey, person.handle) })),
+        lists,
+        cities,
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch {

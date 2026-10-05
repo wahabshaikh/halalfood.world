@@ -37,13 +37,13 @@ test("sign-out clears this app's drafts and flags, nothing else", () => {
   assert.equal(local.getItem("theme"), "dark");
 });
 
-test("Sign out is in the user menu and on Settings, and ends the server session first", () => {
+test("Sign out is on Settings, and ends the server session first", () => {
   const root = join(import.meta.dirname, "..");
-  const menu = readFileSync(join(root, "src/components/account-menu.tsx"), "utf8");
-  const settings = readFileSync(join(root, "app/settings/settings-view.tsx"), "utf8");
+  const settings = readFileSync(join(root, "app/me/settings/settings-view.tsx"), "utf8");
+  const button = readFileSync(join(root, "src/components/sign-out-button.tsx"), "utf8");
   const lib = readFileSync(join(root, "src/lib/sign-out.ts"), "utf8");
-  assert.match(menu, /<SignOutMenuItem \/>/);
-  assert.match(settings, /<SignOutButton \/>/);
+  assert.match(settings, /<SignOutButton /);
+  assert.match(button, /await signOut\(\)/);
   const server = lib.indexOf("authClient.signOut()");
   assert.ok(server > 0, "POST /api/auth/sign-out through Better Auth");
   assert.ok(lib.indexOf("clearLocalAccountState();", server) > server, "local state is cleared after");
