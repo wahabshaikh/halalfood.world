@@ -428,8 +428,8 @@ test("429 Google search copy comes from presentHttpFailure", () => {
   assert.match(presented.message, /Reference [a-z0-9-]{4,16}\./i);
   assert.equal(presented.retry, true);
   assert.equal(presented.message.includes("Failed to fetch"), false);
-  const form = readFileSync(new URL("../app/add/add-place-form.tsx", import.meta.url), "utf8");
-  assert.match(form, /presentHttpFailure\(\s*"Google search",\s*429/);
+  const form = readFileSync(new URL("../app/add/add-flow.tsx", import.meta.url), "utf8");
+  assert.match(form, /presentHttpFailure\("Google search", failure\.status/);
 });
 
 test("the search route skips Google for a short query", async () => {

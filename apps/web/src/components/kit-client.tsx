@@ -67,7 +67,7 @@ export function Toaster() {
 /* Requests                                                                  */
 /* ------------------------------------------------------------------------ */
 
-export type ApiError = { status: number; error: string; loginUrl?: string };
+export type ApiError = { status: number; error: string; loginUrl?: string; body: Record<string, unknown> };
 
 /** fetch JSON; a 401 sends the person to sign in and comes back here. */
 export async function api<T>(url: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
@@ -86,6 +86,7 @@ export async function api<T>(url: string, init: RequestInit & { json?: unknown }
       status: response.status,
       error: typeof body.error === "string" ? body.error : "Something went wrong. Please try again.",
       loginUrl: typeof body.loginUrl === "string" ? body.loginUrl : undefined,
+      body,
     } satisfies ApiError;
   }
   return body as T;
