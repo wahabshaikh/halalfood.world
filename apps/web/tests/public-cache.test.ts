@@ -18,26 +18,16 @@ test("public documents get a shared cache lifetime", () => {
     /s-maxage=21600/,
   );
   assert.match(
-    publicCacheControl(
-      request("https://halalfood.world/place/081ea610-a74f-4990-b8ca-3216aac6dfc8"),
-    ) ?? "",
-    /s-maxage=600/,
-  );
-  assert.match(
-    publicCacheControl(request("https://halalfood.world/city/london?page=2")) ?? "",
-    /s-maxage=600/,
-  );
-  assert.match(
-    publicCacheControl(request("https://halalfood.world/guides/mumbai")) ?? "",
-    /s-maxage=600/,
-  );
-  assert.match(
     publicCacheControl(request("https://halalfood.world/cities")) ?? "",
     /s-maxage=600/,
   );
 });
 
 test("personalized and non-document requests stay uncached", () => {
+  // These render the signed-in viewer's saves and friends on the server.
+  assert.equal(publicCacheControl(request("https://halalfood.world/place/081ea610-a74f-4990-b8ca-3216aac6dfc8")), null);
+  assert.equal(publicCacheControl(request("https://halalfood.world/city/london")), null);
+  assert.equal(publicCacheControl(request("https://halalfood.world/list/081ea610-a74f-4990-b8ca-3216aac6dfc8")), null);
   assert.equal(publicCacheControl(request("https://halalfood.world/")), null);
   assert.equal(publicCacheControl(request("https://halalfood.world/map")), null);
   assert.equal(publicCacheControl(request("https://halalfood.world/search?q=london")), null);
@@ -72,7 +62,7 @@ test("a public HTML response is marked shareable and tagged for purge", async ()
       headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
     });
   };
-  const response = await withPublicCache(request("https://halalfood.world/city/london"), load);
+  const response = await withPublicCache(request("https://halalfood.world/cities"), load);
   assert.equal(await response.text(), "<html>London</html>");
   // The edge keeps it for 10 minutes; browsers always ask again, so a deploy
   // never leaves a browser holding pre-deploy HTML.
@@ -80,22 +70,13 @@ test("a public HTML response is marked shareable and tagged for purge", async ()
   assert.match(response.headers.get("cloudflare-cdn-cache-control") ?? "", /stale-while-revalidate=86400/);
   assert.equal(response.headers.get("cache-control"), "public, max-age=0, must-revalidate");
   assert.doesNotMatch(response.headers.get("cache-control") ?? "", /stale-while-revalidate|s-maxage/);
-  assert.equal(response.headers.get("cache-tag"), "cities,city-london");
+  assert.equal(response.headers.get("cache-tag"), "cities");
   assert.equal(loads, 1);
-
-  const place = await withPublicCache(
-    request("https://halalfood.world/place/0B210F3A-8f70-47f7-a7d0-e4a46ff55fe2"),
-    load,
-  );
-  assert.equal(
-    place.headers.get("cache-tag"),
-    "places,place-0b210f3a-8f70-47f7-a7d0-e4a46ff55fe2",
-  );
 });
 
 test("documentCacheTags names what a listing change purges", () => {
   assert.deepEqual(documentCacheTags(request("https://halalfood.world/cities")), ["cities"]);
-  assert.deepEqual(documentCacheTags(request("https://halalfood.world/guides/london")), ["guides"]);
+  assert.deepEqual(documentCacheTags(request("https://halalfood.world/place/081ea610-a74f-4990-b8ca-3216aac6dfc8")), []);
   assert.deepEqual(documentCacheTags(request("https://halalfood.world/sitemaps/places/0.xml")), [
     "sitemaps",
   ]);
@@ -104,7 +85,7 @@ test("documentCacheTags names what a listing change purges", () => {
 
 test("an unavailable noindex page is not marked shareable", async () => {
   const response = await withPublicCache(
-    request("https://halalfood.world/city/london"),
+    request("https://halalfood.world/cities"),
     async () =>
       new Response('<html><head><meta name="robots" content="noindex, follow"></head></html>', {
         headers: { "Content-Type": "text/html", "Cache-Control": "no-store" },

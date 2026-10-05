@@ -14,8 +14,10 @@
  * API store inside the Worker. That copy was per colo and could not be purged,
  * so an approved or unpublished place stayed stale there.
  *
- * The homepage, map, search, events, and leaderboard are left uncached:
- * they vary by the eating-city cookie or by a signed-in viewer.
+ * Place, city, list and profile pages are left uncached: they render the
+ * signed-in viewer's saves, friends and actions on the server, and a shared
+ * edge copy would hand one person's page to everyone. Only the city
+ * directory and the sitemaps are the same for every visitor.
  */
 
 /**
@@ -36,11 +38,6 @@ const SITEMAP_CACHE_CONTROL =
  */
 export const BROWSER_DOCUMENT_CACHE_CONTROL = "public, max-age=0, must-revalidate";
 
-const PLACE_PATH =
-  /^\/place\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const CITY_PATH = /^\/city\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const GUIDE_PATH = /^\/guides\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
 export function publicCacheControl(request: Request): string | null {
   if (request.method !== "GET") return null;
   const url = new URL(request.url);
@@ -53,9 +50,7 @@ export function publicCacheControl(request: Request): string | null {
   const path = url.pathname;
   if (path === "/sitemap.xml" || path.startsWith("/sitemaps/"))
     return SITEMAP_CACHE_CONTROL;
-  if (path === "/cities" || path === "/guides") return DOCUMENT_CACHE_CONTROL;
-  if (PLACE_PATH.test(path) || CITY_PATH.test(path) || GUIDE_PATH.test(path))
-    return DOCUMENT_CACHE_CONTROL;
+  if (path === "/cities") return DOCUMENT_CACHE_CONTROL;
   return null;
 }
 
@@ -64,9 +59,6 @@ export function documentCacheTags(request: Request): string[] {
   const path = new URL(request.url).pathname;
   if (path === "/sitemap.xml" || path.startsWith("/sitemaps/")) return ["sitemaps"];
   if (path === "/cities") return ["cities"];
-  if (path === "/guides" || GUIDE_PATH.test(path)) return ["guides"];
-  if (PLACE_PATH.test(path)) return ["places", `place-${path.slice("/place/".length).toLowerCase()}`];
-  if (CITY_PATH.test(path)) return ["cities", `city-${path.slice("/city/".length)}`];
   return [];
 }
 

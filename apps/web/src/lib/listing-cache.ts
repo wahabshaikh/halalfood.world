@@ -139,11 +139,11 @@ export async function publishListingChange(
   const now = Math.max(Date.now(), previous + 1);
   await db.run(sql`
     INSERT INTO audit_log (
-      id, actor_user_id, action, target_type, target_id, reason, source,
+      id, actor_user_id, action, target_type, target_id, reason,
       before_value, after_value, created_at
     ) VALUES (
       ${crypto.randomUUID()}, ${input.actorUserId}, ${LISTING_VERSION_ACTION},
-      ${LISTING_VERSION_TARGET_TYPE}, ${LISTING_VERSION_TARGET_ID}, NULL, 'moderation',
+      ${LISTING_VERSION_TARGET_TYPE}, ${LISTING_VERSION_TARGET_ID}, NULL,
       NULL, ${JSON.stringify({ change: input.change, placeId: input.placeId, citySlug: input.citySlug })},
       ${now}
     )

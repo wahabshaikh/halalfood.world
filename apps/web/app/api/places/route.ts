@@ -1,3 +1,4 @@
+import { publishListingChange } from "../../../src/lib/listing-cache";
 import { validatePlaceSubmission } from "@halalfood/core/place-submission";
 import { INVALID_JSON, badRequest, json, optionalUser, readJson, requireUser, spendBudget, unavailable } from "../../../src/lib/api";
 import { loadExplore, parseExploreParams } from "../../../src/lib/explore";
@@ -41,6 +42,8 @@ export async function POST(request: Request) {
     const result = await addPlaceFromGoogle(outcome.auth.userId, validation.data, key);
     if (!result.ok)
       return json({ error: result.error, ...(result.existingId ? { id: result.existingId } : {}) }, { status: result.status });
+    // New places change city counts and sitemaps; never fail the add over it.
+    await publishListingChange({ actorUserId: outcome.auth.userId, change: "place-added", placeId: result.id, citySlug: null }).catch(() => null);
     return json({ id: result.id, status: result.status }, { status: 201 });
   } catch {
     return unavailable("Adding places is temporarily unavailable. Please try again.");

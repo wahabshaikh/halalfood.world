@@ -7,6 +7,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { ACTION_LABEL, primaryAction, type ReportTarget } from "@halalfood/core/moderation";
 import { database } from "../db";
 import { recomputePlaceStatus, runBatch } from "./checks-repository";
+import { publishListingChange } from "./listing-cache";
 
 type DatabaseClient = Awaited<ReturnType<typeof database>>;
 type Client = DatabaseClient | Promise<DatabaseClient>;
@@ -144,7 +145,7 @@ export async function actOnReport(reportId: string, moderatorId: string, input: 
     case "fix-details":
     case "merge": {
       if (targetType !== "place") return { ok: false, status: 400, error: "That action is for places." };
-      const [place] = await db.all<Record<string, unknown>>(sql`SELECT id, name, telephone, website, street_address, listing_status FROM places WHERE id = ${targetId}`);
+      const [place] = await db.all<Record<string, unknown>>(sql`SELECT id, name, city_slug, telephone, website, street_address, listing_status FROM places WHERE id = ${targetId}`);
       if (!place) return { ok: false, status: 404, error: "That place is gone." };
       if (input.action === "reset-checks") {
         // check-visibility: moderator — only moderators reach this, to act on a report.
@@ -203,6 +204,8 @@ export async function actOnReport(reportId: string, moderatorId: string, input: 
         ]);
         recompute.push(into);
       }
+      if (input.action !== "reset-checks")
+        await publishListingChange({ actorUserId: moderatorId, change: input.action, placeId: targetId, citySlug: String(place.city_slug) }, db).catch(() => null);
       break;
     }
 

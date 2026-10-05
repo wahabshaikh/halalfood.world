@@ -13,6 +13,7 @@ export default async function sitemap() {
   const entries: SitemapIndexEntry[] = [
     { path: "/sitemaps/core/sitemap.xml" },
     { path: "/sitemaps/cities/sitemap.xml" },
+    { path: "/sitemaps/social/sitemap.xml" },
   ];
   try {
     for (const id of placeChunkIds(await countPlaces()))
