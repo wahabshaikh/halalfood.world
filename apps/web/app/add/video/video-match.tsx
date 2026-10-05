@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ArrowLeft01Icon, Search01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import type { PlaceStatus } from "@halalfood/core/halal";
-import { Icon, PageTitle, PlaceArt, StatusPill, buttonClass } from "../../../src/components/kit";
+import { FormCard, Icon, PageTitle, PlaceArt, StatusPill, buttonClass } from "../../../src/components/kit";
 import { api, errorText, toast } from "../../../src/components/kit-client";
 
 type Link = {
@@ -52,7 +52,7 @@ export function VideoMatch() {
 
   if (saved) {
     return (
-      <div className="mx-auto flex max-w-md flex-col items-center gap-3.5 px-6 pt-16 pb-10 text-center">
+      <FormCard className="items-center gap-3.5 text-center max-md:pt-12">
         <span className="flex size-[76px] items-center justify-center rounded-full bg-success text-success-foreground">
           <Icon icon={Tick02Icon} size={38} strokeWidth={2.8} />
         </span>
@@ -66,13 +66,13 @@ export function VideoMatch() {
             Open Saved
           </a>
         </div>
-      </div>
+      </FormCard>
     );
   }
 
   const top = found?.matches[0] ?? null;
   return (
-    <div className="mx-auto grid max-w-xl gap-5 px-5 pt-4 pb-10">
+    <FormCard className="grid gap-5">
       <a href="/add" className="inline-flex min-h-11 w-fit items-center gap-1.5 text-sm font-extrabold text-foreground">
         <Icon icon={ArrowLeft01Icon} size={18} />
         Add a place
@@ -145,6 +145,6 @@ export function VideoMatch() {
           </div>
         </section>
       )}
-    </div>
+    </FormCard>
   );
 }

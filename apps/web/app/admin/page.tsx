@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AppShell } from "../../src/components/app-shell";
-import { EmptyState, TopBar } from "../../src/components/kit";
+import { EmptyState, Page, TopBar } from "../../src/components/kit";
 import { getViewerId } from "../../src/lib/auth-session";
 import { listAllEvents } from "../../src/lib/events";
 import { listOpenReports } from "../../src/lib/moderation";
@@ -23,8 +23,10 @@ export default async function AdminPage() {
   if (!(await isModerator(viewerId))) {
     return (
       <AppShell active="you">
-        <TopBar back="/me" />
-        <EmptyState title="Moderators only" body="This page is for the people who review reports and evidence." />
+        <Page size="content">
+          <TopBar back="/me" />
+          <EmptyState title="Moderators only" body="This page is for the people who review reports and evidence." />
+        </Page>
       </AppShell>
     );
   }
@@ -35,14 +37,16 @@ export default async function AdminPage() {
     listCities({ limit: 2000 }),
   ]);
   return (
-    <AppShell active="you" width="wide">
-      <TopBar back="/me" title="Moderation" />
-      <AdminConsole
-        reports={reports.map((report) => ({ ...report, reasonLabel: REASON_LABEL[report.reason] ?? report.reason }))}
-        evidence={evidence}
-        events={events}
-        cities={cities.map((city) => ({ slug: city.city_slug, name: cityName(city.city_slug) }))}
-      />
+    <AppShell active="you">
+      <Page>
+        <TopBar back="/me" title="Moderation" />
+        <AdminConsole
+          reports={reports.map((report) => ({ ...report, reasonLabel: REASON_LABEL[report.reason] ?? report.reason }))}
+          evidence={evidence}
+          events={events}
+          cities={cities.map((city) => ({ slug: city.city_slug, name: cityName(city.city_slug) }))}
+        />
+      </Page>
     </AppShell>
   );
 }

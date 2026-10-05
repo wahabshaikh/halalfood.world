@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ExploreItem } from "../lib/explore";
-import { buttonClass, EmptyState } from "./kit";
+import { buttonClass, EmptyState, LIST_GRID } from "./kit";
 import { api, errorText, toast } from "./kit-client";
 import { PlaceRow } from "./place-row";
 
@@ -50,13 +50,13 @@ export function ExploreList({
     );
   return (
     <>
-      <ul>
+      <ul className={LIST_GRID}>
         {places.map((place) => (
           <PlaceRow key={place.id} place={place} signedIn={signedIn} />
         ))}
       </ul>
       {places.length < total && (
-        <button type="button" onClick={more} disabled={busy} className={buttonClass("outline", "md", "mt-4 w-full")}>
+        <button type="button" onClick={more} disabled={busy} className={buttonClass("outline", "md", "mt-4 w-full md:mx-auto md:mt-6 md:w-auto md:px-8")}>
           {busy ? "Loading…" : "Show more"}
         </button>
       )}

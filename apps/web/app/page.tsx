@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AppShell } from "../src/components/app-shell";
-import { EmptyState, LinkButton } from "../src/components/kit";
+import { EmptyState, LinkButton, Page } from "../src/components/kit";
 import { ExploreScreen, resolveCity, type ExploreSearchParams } from "../src/components/explore-screen";
 import { SITE_NAME } from "../src/lib/seo";
 
@@ -19,11 +19,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<Exp
   if (!city)
     return (
       <AppShell active="explore">
-        <EmptyState
-          title="No places are listed yet"
-          body="If it’s on Google Maps, you can add it."
-          action={<LinkButton href="/add">Add a place</LinkButton>}
-        />
+        <Page size="content">
+          <EmptyState
+            title="No places are listed yet"
+            body="If it’s on Google Maps, you can add it."
+            action={<LinkButton href="/add">Add a place</LinkButton>}
+          />
+        </Page>
       </AppShell>
     );
   return <ExploreScreen city={city} searchParams={params} />;

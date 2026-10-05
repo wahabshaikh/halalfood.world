@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { citySlugParam } from "@halalfood/core/params";
 import { AppShell } from "../../src/components/app-shell";
 import { resolveCity } from "../../src/components/explore-screen";
-import { Avatar, TopBar } from "../../src/components/kit";
+import { Avatar, Page, TopBar } from "../../src/components/kit";
 import { getViewerId } from "../../src/lib/auth-session";
 import { leaderboard, type BoardRow } from "../../src/lib/community";
 import { cityName } from "../../src/lib/place-view";
@@ -55,72 +55,74 @@ export default async function CommunityPage({ searchParams }: Props) {
 
   return (
     <AppShell active="friends">
-      <TopBar back="/friends" title="Community" />
-      <div className="grid gap-5 px-5 pb-10">
-        <div className="flex flex-wrap items-center gap-3">
-          <CityPicker value={slug} period={period} cities={cities.slice(0, 300).map((item) => ({ slug: item.city_slug, name: cityName(item.city_slug) }))} />
-          <nav aria-label="Period" className="ml-auto grid grid-cols-2 rounded-full bg-secondary p-1">
-            {(["week", "all"] as const).map((value) => (
-              <a
-                key={value}
-                href={`/community?city=${slug}&period=${value}`}
-                aria-current={period === value ? "page" : undefined}
-                className={`min-h-9 rounded-full px-4 text-center text-sm leading-9 font-extrabold ${period === value ? "bg-background text-foreground shadow-sm" : "text-subtle-foreground"}`}
-              >
-                {value === "week" ? "This week" : "All time"}
-              </a>
-            ))}
-          </nav>
-        </div>
-        <p className="text-[13px] font-semibold text-muted-foreground">3 points a check, 5 for adding a place, 10 for helping verify one.</p>
+      <Page size="content">
+        <TopBar back="/friends" title="Community" />
+        <div className="grid gap-5 md:gap-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <CityPicker value={slug} period={period} cities={cities.slice(0, 300).map((item) => ({ slug: item.city_slug, name: cityName(item.city_slug) }))} />
+            <nav aria-label="Period" className="ml-auto grid grid-cols-2 rounded-full bg-secondary p-1">
+              {(["week", "all"] as const).map((value) => (
+                <a
+                  key={value}
+                  href={`/community?city=${slug}&period=${value}`}
+                  aria-current={period === value ? "page" : undefined}
+                  className={`min-h-9 rounded-full px-4 text-center text-sm leading-9 font-extrabold ${period === value ? "bg-background text-foreground shadow-sm" : "text-subtle-foreground"}`}
+                >
+                  {value === "week" ? "This week" : "All time"}
+                </a>
+              ))}
+            </nav>
+          </div>
+          <p className="text-[13px] font-semibold text-muted-foreground">3 points a check, 5 for adding a place, 10 for helping verify one.</p>
 
-        {podium.length ? (
-          <div className="grid grid-cols-3 items-end gap-2 text-center">
-            {[podium[1], podium[0], podium[2]].map((row, index) =>
-              row ? (
-                <a key={row.userId} href={`/u/${row.handle}`} className="grid justify-items-center gap-1.5 text-foreground">
-                  <Avatar name={row.name} seed={row.userId} src={avatarUrl(row.avatarKey, row.handle)} size={index === 1 ? 72 : 56} ring />
-                  <strong className="w-full truncate text-sm font-extrabold">{row.userId === viewerId ? "You" : row.name.split(" ")[0]}</strong>
-                  <span
-                    className={`flex w-full items-start justify-center rounded-t-2xl pt-2 text-lg font-black ${index === 1 ? "h-24 bg-primary text-primary-foreground" : index === 0 ? "h-16 bg-secondary" : "h-12 bg-secondary"}`}
-                  >
-                    {row.rank}
-                  </span>
-                  <span className="text-xs font-bold text-muted-foreground">{row.points} pts</span>
+          {podium.length ? (
+            <div className="grid grid-cols-3 items-end gap-2 text-center">
+              {[podium[1], podium[0], podium[2]].map((row, index) =>
+                row ? (
+                  <a key={row.userId} href={`/u/${row.handle}`} className="grid justify-items-center gap-1.5 text-foreground">
+                    <Avatar name={row.name} seed={row.userId} src={avatarUrl(row.avatarKey, row.handle)} size={index === 1 ? 72 : 56} ring />
+                    <strong className="w-full truncate text-sm font-extrabold">{row.userId === viewerId ? "You" : row.name.split(" ")[0]}</strong>
+                    <span
+                      className={`flex w-full items-start justify-center rounded-t-2xl pt-2 text-lg font-black ${index === 1 ? "h-24 bg-primary text-primary-foreground" : index === 0 ? "h-16 bg-secondary" : "h-12 bg-secondary"}`}
+                    >
+                      {row.rank}
+                    </span>
+                    <span className="text-xs font-bold text-muted-foreground">{row.points} pts</span>
+                  </a>
+                ) : (
+                  <span key={index} />
+                ),
+              )}
+            </div>
+          ) : (
+            <p className="py-8 text-center text-sm font-semibold text-muted-foreground">No points here yet. Check a place to get on the board.</p>
+          )}
+
+          {rest.length > 0 && (
+            <ol className="grid gap-1">
+              {rest.map((row) => (
+                <li key={row.userId}>
+                  <Row row={row} me={row.userId === viewerId} />
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {me && !meOnBoard && (
+            <div className="sticky bottom-[calc(96px+env(safe-area-inset-bottom))] rounded-2xl bg-background shadow-lg md:bottom-4">
+              {me.kind === "row" ? (
+                <Row row={me.row} me />
+              ) : me.kind === "hidden" ? (
+                <a href="/me/privacy" className="block rounded-2xl bg-muted px-4 py-3 text-sm font-extrabold text-foreground">
+                  You’re hidden from leaderboards. <span className="underline">Privacy</span>
                 </a>
               ) : (
-                <span key={index} />
-              ),
-            )}
-          </div>
-        ) : (
-          <p className="py-8 text-center text-sm font-semibold text-muted-foreground">No points here yet. Check a place to get on the board.</p>
-        )}
-
-        {rest.length > 0 && (
-          <ol className="grid gap-1">
-            {rest.map((row) => (
-              <li key={row.userId}>
-                <Row row={row} me={row.userId === viewerId} />
-              </li>
-            ))}
-          </ol>
-        )}
-
-        {me && !meOnBoard && (
-          <div className="sticky bottom-[calc(96px+env(safe-area-inset-bottom))] rounded-2xl bg-background shadow-lg md:bottom-4">
-            {me.kind === "row" ? (
-              <Row row={me.row} me />
-            ) : me.kind === "hidden" ? (
-              <a href="/me/privacy" className="block rounded-2xl bg-muted px-4 py-3 text-sm font-extrabold text-foreground">
-                You’re hidden from leaderboards. <span className="underline">Privacy</span>
-              </a>
-            ) : (
-              <p className="rounded-2xl bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">Check a place in {cityName(slug)} to join the board.</p>
-            )}
-          </div>
-        )}
-      </div>
+                <p className="rounded-2xl bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">Check a place in {cityName(slug)} to join the board.</p>
+              )}
+            </div>
+          )}
+        </div>
+      </Page>
     </AppShell>
   );
 }

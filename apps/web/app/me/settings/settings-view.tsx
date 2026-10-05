@@ -77,7 +77,7 @@ export function SettingsView({
   const rowClass = "flex min-h-[56px] w-full items-center justify-between gap-3 border-b border-border/70 text-left text-[15px] font-extrabold text-foreground";
 
   return (
-    <div className="grid gap-8 px-5 pt-2 pb-10">
+    <div className="grid gap-8 pt-2">
       <section className="grid gap-4">
         <AvatarPicker name={name} seed={seed} initial={initial.avatarUrl} />
         <TextField label="Name" value={name} onChange={setName} maxLength={60} />

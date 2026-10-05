@@ -5,7 +5,7 @@ import { Camera01Icon, Cancel01Icon, PencilEdit02Icon, Tick02Icon } from "@hugei
 import { FACTS, type Answer, type Fact, type PlaceStatus } from "@halalfood/core/halal";
 import { MAX_DISHES, VERDICTS, VERDICT_LABEL, type Verdict } from "@halalfood/core/check";
 import { cn } from "@halalfood/ui/lib/utils";
-import { Icon, IconLink, Meter, PlaceArt, buttonClass } from "../../../../src/components/kit";
+import { FormCard, Icon, IconLink, Meter, PlaceArt, buttonClass } from "../../../../src/components/kit";
 import { api, errorText, toast } from "../../../../src/components/kit-client";
 import { clearFormDraft, readFormDraft, saveFormDraft } from "../../../../src/lib/form-draft";
 
@@ -116,8 +116,8 @@ export function CheckForm({ placeId, placeName, isPrivate }: { placeId: string; 
   if (sent) return <CheckSent placeId={placeId} placeName={placeName} sent={sent} />;
 
   return (
-    <div className="mx-auto max-w-md">
-      <header className="flex items-center gap-1.5 px-4 pt-[18px] pb-1.5">
+    <FormCard>
+      <header className="-mx-2.5 -mt-1 flex items-center gap-1.5 pb-1.5">
         <IconLink href={`/place/${placeId}`} label="Close" icon={Cancel01Icon} />
         <span className="flex min-w-0 items-center gap-2.5">
           <PlaceArt name={placeName} seed={placeId} className="size-9" rounded="rounded-[10px]" textSize="text-[13px]" />
@@ -125,7 +125,7 @@ export function CheckForm({ placeId, placeName, isPrivate }: { placeId: string; 
         </span>
       </header>
 
-      <div className="grid gap-[22px] px-6 pt-3.5 pb-8">
+      <div className="grid gap-[22px] pt-3.5 pb-8 md:pb-0">
         <div className="grid gap-1.5">
           <h1 className="text-[28px] leading-tight font-black tracking-tight">What did you see?</h1>
           <p className="text-[15px] font-semibold text-subtle-foreground">Answer what you know. Skip the rest.</p>
@@ -306,7 +306,7 @@ export function CheckForm({ placeId, placeName, isPrivate }: { placeId: string; 
           {busy ? "Sending…" : ready ? "Send check" : "Answer at least one"}
         </button>
       </div>
-    </div>
+    </FormCard>
   );
 }
 
@@ -318,7 +318,7 @@ function CheckSent({ placeId, placeName, sent }: { placeId: string; placeName: s
   const filled = progressOf(sent.status);
   const tone = sent.status.kind === "verified" ? "bg-success-muted text-success" : sent.status.kind === "checking" ? "bg-warning-muted text-warning-strong" : "bg-neutral-pill text-foreground";
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col px-6 pt-[110px] pb-10">
+    <FormCard fill className="max-md:pt-24">
       <div className="flex flex-col items-center gap-3.5 text-center">
         <span className="flex size-[76px] items-center justify-center rounded-full bg-success text-success-foreground">
           <Icon icon={Tick02Icon} size={38} strokeWidth={2.8} />
@@ -342,6 +342,6 @@ function CheckSent({ placeId, placeName, sent }: { placeId: string; placeName: s
           Find more places
         </a>
       </div>
-    </div>
+    </FormCard>
   );
 }

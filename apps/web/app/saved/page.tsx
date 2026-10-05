@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { ArrowRight01Icon, FavouriteIcon, Video01Icon } from "@hugeicons/core-free-icons";
+import { cn } from "@halalfood/ui/lib/utils";
 import { AppShell } from "../../src/components/app-shell";
-import { EmptyState, Icon, LinkButton, PageTitle, PlaceArt } from "../../src/components/kit";
+import { EmptyState, Icon, LIST_GRID, LinkButton, Page, PageTitle, PlaceArt, ROW_CARD } from "../../src/components/kit";
 import { NewListButton } from "../../src/components/list-sheets";
 import { PlaceRow } from "../../src/components/place-row";
 import { getViewerId } from "../../src/lib/auth-session";
@@ -33,12 +34,12 @@ function badge(list: Row): string {
 function ListGroup({ title, lists }: { title: string; lists: Row[] }) {
   if (!lists.length) return null;
   return (
-    <section className="grid gap-2">
-      <h2 className="text-[17px] font-black">{title}</h2>
-      <ul className="grid">
+    <section className="grid gap-2 md:gap-3">
+      <h2 className="text-[17px] font-black md:text-xl">{title}</h2>
+      <ul className={cn("grid", LIST_GRID)}>
         {lists.map((list) => (
           <li key={list.id}>
-            <a href={`/list/${list.id}`} className="flex items-center gap-3 border-b border-border/70 py-3 text-foreground">
+            <a href={`/list/${list.id}`} className={cn("flex items-center gap-3 border-b border-border/70 py-3 text-foreground", ROW_CARD, "md:py-3.5")}>
               <PlaceArt name={list.coverName ?? list.title} seed={list.coverPlaceId ?? list.id} src={photoUrl(list.coverKey)} className="size-14" rounded="rounded-[12px]" />
               <span className="grid min-w-0 flex-1 gap-0.5">
                 <strong className="truncate text-[15px] font-extrabold">{list.title}</strong>
@@ -62,7 +63,7 @@ export default async function SavedPage({ searchParams }: Props) {
   if (!viewerId) {
     return (
       <AppShell active="saved">
-        <div className="grid gap-4 px-5 pt-6">
+        <Page size="content" className="grid gap-4 md:gap-6">
           <PageTitle>Saved</PageTitle>
           <EmptyState
             icon={FavouriteIcon}
@@ -74,7 +75,7 @@ export default async function SavedPage({ searchParams }: Props) {
               </LinkButton>
             }
           />
-        </div>
+        </Page>
       </AppShell>
     );
   }
@@ -90,14 +91,14 @@ export default async function SavedPage({ searchParams }: Props) {
 
   return (
     <AppShell active="saved">
-      <div className="grid gap-4 px-5 pt-6 pb-10">
+      <Page className="grid gap-4 md:gap-6">
         <PageTitle>Saved</PageTitle>
         <SavedTabs
           initial={tab}
           places={
             <div className="grid gap-4">
               {places.length ? (
-                <ul>
+                <ul className={LIST_GRID}>
                   {places.map((place) => (
                     <PlaceRow key={place.id} place={place} signedIn />
                   ))}
@@ -105,7 +106,7 @@ export default async function SavedPage({ searchParams }: Props) {
               ) : (
                 <EmptyState icon={FavouriteIcon} title="Nothing saved yet" body="Tap the heart on any place to keep it here." />
               )}
-              <a href="/add/video" className="flex items-center gap-3.5 rounded-2xl border border-border p-4 text-foreground">
+              <a href="/add/video" className="flex items-center gap-3.5 rounded-2xl border border-border p-4 text-foreground hover:bg-muted md:max-w-md">
                 <span className="flex size-11 items-center justify-center rounded-full bg-accent text-primary">
                   <Icon icon={Video01Icon} />
                 </span>
@@ -129,7 +130,7 @@ export default async function SavedPage({ searchParams }: Props) {
             </div>
           }
         />
-      </div>
+      </Page>
     </AppShell>
   );
 }

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft01Icon, ArrowRight01Icon, Location01Icon, Search01Icon, Tick02Icon, Video01Icon } from "@hugeicons/core-free-icons";
 import { FACTS, type Answer, type Fact } from "@halalfood/core/halal";
 import { cn } from "@halalfood/ui/lib/utils";
-import { Icon, Meter, PageTitle, buttonClass } from "../../src/components/kit";
+import { FormCard, Icon, Meter, PageTitle, buttonClass } from "../../src/components/kit";
 import { ShareAction, api, errorText, toast, type ApiError } from "../../src/components/kit-client";
 import { presentHttpFailure } from "../../src/lib/failure-copy";
 import { clearFormDraft, readFormDraft, saveFormDraft } from "../../src/lib/form-draft";
@@ -85,7 +85,7 @@ function AddSearch({ onPick }: { onPick: (picked: Picked) => void }) {
   }, [query]);
 
   return (
-    <div className="mx-auto grid max-w-xl gap-5 px-5 pt-6 pb-10">
+    <FormCard className="grid gap-5">
       <PageTitle sub="Find it on Google Maps. It goes live straight away.">Add a place</PageTitle>
       <label className="flex h-[50px] items-center gap-2.5 rounded-full bg-secondary px-[18px]">
         <Icon icon={Search01Icon} />
@@ -141,7 +141,7 @@ function AddSearch({ onPick }: { onPick: (picked: Picked) => void }) {
       <p className="text-[13px] font-semibold text-muted-foreground">
         Names, addresses and map pins come from Google Maps. Adding a place isn’t a halal certification.
       </p>
-    </div>
+    </FormCard>
   );
 }
 
@@ -222,7 +222,7 @@ function AddConfirm({
   };
 
   return (
-    <div className="mx-auto grid max-w-xl gap-5 px-5 pt-4 pb-10">
+    <FormCard className="grid gap-5">
       <button type="button" onClick={onBack} className="inline-flex min-h-11 w-fit items-center gap-1.5 text-sm font-extrabold">
         <Icon icon={ArrowLeft01Icon} size={18} />
         Search again
@@ -277,14 +277,14 @@ function AddConfirm({
       <button type="button" onClick={submit} disabled={busy} className={buttonClass("primary", "lg")}>
         {busy ? "Adding…" : signedIn ? "Add place" : "Sign in to add"}
       </button>
-    </div>
+    </FormCard>
   );
 }
 
 function AddDone({ picked, added }: { picked: Picked; added: Added }) {
   const checking = added.status === "checking";
   return (
-    <div className="mx-auto flex min-h-[70dvh] max-w-md flex-col px-6 pt-16 pb-10">
+    <FormCard fill className="max-md:pt-12">
       <div className="flex flex-col items-center gap-3.5 text-center">
         <span className="flex size-[76px] items-center justify-center rounded-full bg-success text-success-foreground">
           <Icon icon={Tick02Icon} size={38} strokeWidth={2.8} />
@@ -315,6 +315,6 @@ function AddDone({ picked, added }: { picked: Picked; added: Added }) {
           />
         </div>
       </div>
-    </div>
+    </FormCard>
   );
 }

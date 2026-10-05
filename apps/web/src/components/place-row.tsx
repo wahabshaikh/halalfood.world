@@ -1,13 +1,14 @@
+import { cn } from "@halalfood/ui/lib/utils";
 import type { ExploreItem } from "../lib/explore";
 import { formatDistance, photoUrl } from "../lib/place-view";
-import { Avatar, FactTags, PlaceArt, StatusPill } from "./kit";
+import { Avatar, FactTags, PlaceArt, ROW_CARD, StatusPill } from "./kit";
 import { SaveHeart } from "./kit-client";
 
 /** One place in a list: art, name, where, status, facts, a friend line and the heart. */
 export function PlaceRow({ place, signedIn, compact = false }: { place: ExploreItem; signedIn: boolean; compact?: boolean }) {
   const meta = [place.cuisine, place.area, formatDistance(place.distanceKm)].filter(Boolean).join(" · ");
   return (
-    <li className="flex items-center gap-1 border-b border-border/70 last:border-b-0">
+    <li className={cn("flex items-center gap-1 border-b border-border/70 last:border-b-0", ROW_CARD, "md:last:border-b md:pr-1 md:pl-3.5")}>
       <a href={`/place/${place.id}`} className="flex min-w-0 flex-1 gap-3.5 py-3.5 text-foreground">
         <PlaceArt
           name={place.name}

@@ -8,7 +8,7 @@ import {
 } from "../../src/lib/auth-client";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { BrandMark } from "../../src/components/brand";
-import { IconLink, buttonClass } from "../../src/components/kit";
+import { FormCard, IconLink, buttonClass } from "../../src/components/kit";
 import { TURNSTILE_COMPACT_MAX_WIDTH, turnstileWidgetSize } from "../../src/lib/turnstile-size";
 
 interface TurnstileApi {
@@ -222,117 +222,119 @@ export default function LoginForm({
   const input =
     "h-[54px] w-full rounded-[14px] border border-muted-foreground/60 bg-background px-4 text-[17px] font-semibold focus:border-foreground focus:outline-none";
   return (
-    <section aria-labelledby="login-title" className="mx-auto flex w-full max-w-md flex-col px-6 pt-4 pb-10">
-      <IconLink href={returnTo} label="Close" icon={Cancel01Icon} className="-ml-2.5" />
-      {step === "email" ? (
-        <form className="mt-10 grid gap-4" onSubmit={requestCode}>
-          <div className="grid gap-3">
-            <BrandMark size={52} />
-            <h1 id="login-title" className="text-[30px] leading-tight font-black tracking-tight">
-              Sign in to save places and add checks
-            </h1>
-            <p className="text-[15px] font-semibold text-subtle-foreground">
-              No password. We’ll email you a 6-digit code.
-            </p>
-            {notice && (
-              <p role="status" className="rounded-xl bg-secondary px-3.5 py-3 text-sm font-bold">
-                {notice}
+    <FormCard className="pb-6 md:pb-8">
+      <section aria-labelledby="login-title" className="flex w-full flex-col">
+        <IconLink href={returnTo} label="Close" icon={Cancel01Icon} className="-ml-2.5" />
+        {step === "email" ? (
+          <form className="mt-10 grid gap-4" onSubmit={requestCode}>
+            <div className="grid gap-3">
+              <BrandMark size={52} className="md:hidden" />
+              <h1 id="login-title" className="text-[30px] leading-tight font-black tracking-tight">
+                Sign in to save places and add checks
+              </h1>
+              <p className="text-[15px] font-semibold text-subtle-foreground">
+                No password. We’ll email you a 6-digit code.
               </p>
+              {notice && (
+                <p role="status" className="rounded-xl bg-secondary px-3.5 py-3 text-sm font-bold">
+                  {notice}
+                </p>
+              )}
+            </div>
+            <div className="mt-4 grid gap-2">
+              <label htmlFor="login-email" className="text-sm font-extrabold">
+                Email
+              </label>
+              <input
+                id="login-email"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                autoFocus
+                placeholder="you@example.com"
+                required
+                maxLength={320}
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className={input}
+              />
+            </div>
+            {turnstileSize && (
+              <TurnstileCheck
+                key={`${turnstileReset}-${turnstileSize}`}
+                siteKey={siteKey}
+                size={turnstileSize}
+                onToken={onTurnstileToken}
+                onError={onTurnstileError}
+              />
             )}
-          </div>
-          <div className="mt-4 grid gap-2">
-            <label htmlFor="login-email" className="text-sm font-extrabold">
-              Email
-            </label>
-            <input
-              id="login-email"
-              type="email"
-              autoComplete="email"
-              inputMode="email"
-              autoFocus
-              placeholder="you@example.com"
-              required
-              maxLength={320}
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className={input}
-            />
-          </div>
-          {turnstileSize && (
-            <TurnstileCheck
-              key={`${turnstileReset}-${turnstileSize}`}
-              siteKey={siteKey}
-              size={turnstileSize}
-              onToken={onTurnstileToken}
-              onError={onTurnstileError}
-            />
-          )}
-          {turnstileError && <p className="text-sm text-muted-foreground">{turnstileError}</p>}
-          <button
-            type="submit"
-            className={buttonClass("primary", "lg", "w-full")}
-            disabled={busy || !email.trim() || !turnstileToken}
-          >
-            {busy ? "Sending…" : "Send code"}
-          </button>
-        </form>
-      ) : (
-        <form className="mt-10 grid gap-4" onSubmit={verifyCode}>
-          <div className="grid gap-2.5">
-            <h1 id="login-title" className="text-[30px] leading-tight font-black tracking-tight">
-              Check your email
-            </h1>
-            <p className="text-[15px] font-semibold text-subtle-foreground" role="status">
-              We sent a 6-digit code to <strong className="text-foreground">{email.trim().toLowerCase()}</strong>
-            </p>
-          </div>
-          <div className="mt-4 grid gap-2">
-            <label htmlFor="login-otp" className="text-sm font-extrabold">
-              Code
-            </label>
-            <input
-              id="login-otp"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              autoFocus
-              required
-              pattern="[0-9]{6}"
-              maxLength={6}
-              placeholder="000000"
-              value={otp}
-              onChange={(event) => {
-                const code = event.target.value.replace(/\D/g, "").slice(0, 6);
-                setOtp(code);
-                // Pasting or typing the last digit is enough; no extra tap.
-                if (code.length === 6) void verifyCode(undefined, code);
+            {turnstileError && <p className="text-sm text-muted-foreground">{turnstileError}</p>}
+            <button
+              type="submit"
+              className={buttonClass("primary", "lg", "w-full")}
+              disabled={busy || !email.trim() || !turnstileToken}
+            >
+              {busy ? "Sending…" : "Send code"}
+            </button>
+          </form>
+        ) : (
+          <form className="mt-10 grid gap-4" onSubmit={verifyCode}>
+            <div className="grid gap-2.5">
+              <h1 id="login-title" className="text-[30px] leading-tight font-black tracking-tight">
+                Check your email
+              </h1>
+              <p className="text-[15px] font-semibold text-subtle-foreground" role="status">
+                We sent a 6-digit code to <strong className="text-foreground">{email.trim().toLowerCase()}</strong>
+              </p>
+            </div>
+            <div className="mt-4 grid gap-2">
+              <label htmlFor="login-otp" className="text-sm font-extrabold">
+                Code
+              </label>
+              <input
+                id="login-otp"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                required
+                pattern="[0-9]{6}"
+                maxLength={6}
+                placeholder="000000"
+                value={otp}
+                onChange={(event) => {
+                  const code = event.target.value.replace(/\D/g, "").slice(0, 6);
+                  setOtp(code);
+                  // Pasting or typing the last digit is enough; no extra tap.
+                  if (code.length === 6) void verifyCode(undefined, code);
+                }}
+                className={input + " h-16 border-2 border-foreground text-[28px] font-black tracking-[0.3em]"}
+              />
+            </div>
+            <button type="submit" className={buttonClass("primary", "lg", "w-full")} disabled={busy || otp.length !== 6}>
+              {busy ? "Checking…" : "Continue"}
+            </button>
+            <button
+              type="button"
+              className="min-h-11 justify-self-start text-sm font-extrabold underline underline-offset-3"
+              onClick={() => {
+                setStep("email");
+                setOtp("");
+                setStatus("");
+                setError("");
+                setTurnstileToken("");
               }}
-              className={input + " h-16 border-2 border-foreground text-[28px] font-black tracking-[0.3em]"}
-            />
-          </div>
-          <button type="submit" className={buttonClass("primary", "lg", "w-full")} disabled={busy || otp.length !== 6}>
-            {busy ? "Checking…" : "Continue"}
-          </button>
-          <button
-            type="button"
-            className="min-h-11 justify-self-start text-sm font-extrabold underline underline-offset-3"
-            onClick={() => {
-              setStep("email");
-              setOtp("");
-              setStatus("");
-              setError("");
-              setTurnstileToken("");
-            }}
-          >
-            Use a different email
-          </button>
-        </form>
-      )}
-      {error && (
-        <p role="alert" className="mt-4 rounded-xl bg-destructive-muted px-3.5 py-3 text-sm font-bold text-destructive">
-          {error}
-        </p>
-      )}
-    </section>
+            >
+              Use a different email
+            </button>
+          </form>
+        )}
+        {error && (
+          <p role="alert" className="mt-4 rounded-xl bg-destructive-muted px-3.5 py-3 text-sm font-bold text-destructive">
+            {error}
+          </p>
+        )}
+      </section>
+    </FormCard>
   );
 }

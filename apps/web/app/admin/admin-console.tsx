@@ -50,7 +50,7 @@ export function AdminConsole({
 }) {
   const [tab, setTab] = useState<"reports" | "evidence" | "events">("reports");
   return (
-    <div className="grid gap-5 px-5 pb-10">
+    <div className="grid gap-5">
       <div className="max-w-sm">
         <Segmented
           label="Moderation"

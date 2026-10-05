@@ -133,6 +133,18 @@
   --radius-2xl: calc(var(--radius) + 8px);
 }
 
+/*
+  The one horizontal gutter. The top bar, every page and the footer all pad
+  their edges with this, inside the same `max-w-6xl` frame, so their left and
+  right edges line up at every width: 20px on phones, 32px from md up.
+*/
+@utility page-x {
+  padding-inline: 1.25rem;
+  @media (width >= 48rem) {
+    padding-inline: 2rem;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AppShell } from "../../../src/components/app-shell";
-import { TopBar } from "../../../src/components/kit";
+import { Page, TopBar } from "../../../src/components/kit";
 import { getViewerId } from "../../../src/lib/auth-session";
 import { listBlocked, listRequests } from "../../../src/lib/people";
 import { avatarUrl, ensureProfile } from "../../../src/lib/profiles";
@@ -25,16 +25,18 @@ export default async function PrivacyPage() {
   });
   return (
     <AppShell active="you">
-      <TopBar back="/me/settings" title="Privacy & people" />
-      <PrivacyView
-        initial={{
-          isPrivate: profile.isPrivate,
-          listsPrivateDefault: profile.listsPrivateDefault,
-          showOnLeaderboards: profile.showOnLeaderboards,
-        }}
-        requests={requests.map(person)}
-        blocked={blocked.map(person)}
-      />
+      <Page size="content">
+        <TopBar back="/me/settings" title="Privacy & people" />
+        <PrivacyView
+          initial={{
+            isPrivate: profile.isPrivate,
+            listsPrivateDefault: profile.listsPrivateDefault,
+            showOnLeaderboards: profile.showOnLeaderboards,
+          }}
+          requests={requests.map(person)}
+          blocked={blocked.map(person)}
+        />
+      </Page>
     </AppShell>
   );
 }

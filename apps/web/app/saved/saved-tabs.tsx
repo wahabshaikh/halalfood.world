@@ -26,16 +26,18 @@ export function SavedTabs({ initial, places, lists }: { initial: Tab | null; pla
     }
   };
   return (
-    <div className="grid gap-4">
-      <Segmented
-        label="Saved"
-        value={tab}
-        onChange={change}
-        options={[
-          { value: "places", label: "Places" },
-          { value: "lists", label: "Lists" },
-        ]}
-      />
+    <div className="grid gap-4 md:gap-6">
+      <div className="md:max-w-xs">
+        <Segmented
+          label="Saved"
+          value={tab}
+          onChange={change}
+          options={[
+            { value: "places", label: "Places" },
+            { value: "lists", label: "Lists" },
+          ]}
+        />
+      </div>
       <div role="tabpanel">{tab === "places" ? places : lists}</div>
     </div>
   );

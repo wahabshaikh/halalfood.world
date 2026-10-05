@@ -9,7 +9,7 @@ import { discoveryBboxExceedsCap, type DiscoveryBbox } from "@halalfood/core/dis
 import { cn } from "@halalfood/ui/lib/utils";
 import type { ExploreItem } from "../../src/lib/explore";
 import { formatDistance, photoUrl } from "../../src/lib/place-view";
-import { Avatar, Icon, PlaceArt, StatusPill, buttonClass } from "../../src/components/kit";
+import { Avatar, Icon, PlaceArt, StatusPill } from "../../src/components/kit";
 import { FilterChips, api, errorText, storeFilters, toast } from "../../src/components/kit-client";
 import { PlaceRow } from "../../src/components/place-row";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -85,7 +85,6 @@ export default function MapView({
   const [moved, setMoved] = useState(false);
   const [tooWide, setTooWide] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [listOpen, setListOpen] = useState(false);
   const ignoreMove = useRef(true);
 
   const syncUrl = useCallback(
@@ -244,10 +243,16 @@ export default function MapView({
 
   if (broken)
     return (
-      <div className="mx-auto max-w-2xl px-5 pt-5">
-        <p className="mb-3 rounded-xl bg-secondary px-4 py-3 text-sm font-bold">This browser can’t draw the map. Here are the same places as a list.</p>
-        <FilterChips filters={filters} friends={friends} showFriends={signedIn} onChange={(next) => (setFilters(next.filters), setFriends(next.friends))} />
-        <ul className="mt-3">
+      <div className="mx-auto w-full max-w-6xl page-x pt-5 md:pt-8">
+        <p className="mb-3 rounded-xl bg-secondary px-4 py-3 text-sm font-bold md:max-w-2xl">This browser can’t draw the map. Here are the same places as a list.</p>
+        <FilterChips
+          filters={filters}
+          friends={friends}
+          showFriends={signedIn}
+          className="-mx-5 px-5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0"
+          onChange={(next) => (setFilters(next.filters), setFriends(next.friends))}
+        />
+        <ul className="mt-3 md:mt-5 md:grid md:grid-cols-2 md:gap-4 lg:grid-cols-3">
           {places.map((place) => (
             <PlaceRow key={place.id} place={place} signedIn={signedIn} />
           ))}
@@ -256,106 +261,127 @@ export default function MapView({
     );
 
   return (
-    <div className="map-stage relative h-[calc(100dvh-84px-env(safe-area-inset-bottom))] w-full overflow-hidden bg-map md:h-[calc(100dvh-64px)]">
-      <div ref={container} className="map-canvas absolute inset-0" role="region" aria-label="Map of places" />
-
-      <div className="absolute inset-x-0 top-0 z-10 grid gap-2.5 pt-[18px] pb-2.5">
-        <div className="flex gap-2 px-4">
+    <div className="w-full md:flex md:h-[calc(100dvh-64px)]">
+      {/* From md the places sit in a side panel next to the map, like any desktop map. */}
+      <aside aria-label="Places in view" className="hidden min-h-0 w-[420px] shrink-0 flex-col border-r border-border bg-background md:flex">
+        <div className="grid gap-3 border-b border-border py-5 page-x">
           <a
             href={citySlug ? `/search?city=${citySlug}` : "/search"}
-            className="flex h-[50px] flex-1 items-center gap-2.5 rounded-full bg-background px-[18px] text-[15px] font-semibold text-muted-foreground shadow-md"
+            className="flex h-11 items-center gap-2.5 rounded-full bg-secondary px-4 text-sm font-semibold text-muted-foreground"
           >
-            <Icon icon={Search01Icon} className="text-foreground" />
+            <Icon icon={Search01Icon} size={18} className="text-foreground" />
             Search this city
           </a>
-          <button type="button" onClick={locate} aria-label="Find my location" className="flex size-[50px] items-center justify-center rounded-full bg-background shadow-md">
-            <Icon icon={Gps01Icon} size={22} />
-          </button>
+          <FilterChips
+            filters={filters}
+            friends={friends}
+            showFriends={signedIn}
+            className="flex-wrap overflow-visible"
+            onChange={(next) => {
+              storeFilters(next.filters);
+              setFilters(next.filters);
+              setFriends(next.friends);
+            }}
+          />
+          <p className="text-sm font-bold text-muted-foreground" aria-live="polite">
+            {tooWide ? "Zoom in to see places" : loading ? "Loading…" : `${places.length} ${places.length === 1 ? "place" : "places"} in view`}
+          </p>
         </div>
-        <FilterChips
-          filters={filters}
-          friends={friends}
-          showFriends={signedIn}
-          floating
-          onChange={(next) => {
-            storeFilters(next.filters);
-            setFilters(next.filters);
-            setFriends(next.friends);
-          }}
-        />
-        {(moved || tooWide || loading) && (
-          <div className="flex justify-center">
-            {tooWide ? (
-              <span className="rounded-full bg-background px-4 py-2 text-sm font-extrabold shadow-md">Zoom in to see places</span>
-            ) : loading ? (
-              <span className="rounded-full bg-background px-4 py-2 text-sm font-extrabold shadow-md">Loading…</span>
-            ) : (
-              <button type="button" onClick={() => void load()} className="min-h-10 rounded-full bg-foreground px-4 text-sm font-extrabold text-background shadow-md">
-                Search this area
-              </button>
-            )}
+        <ul className="grid flex-1 content-start gap-3 overflow-y-auto py-5 page-x">
+          {places.map((place) => (
+            <PlaceRow key={place.id} place={place} signedIn={signedIn} compact />
+          ))}
+          {!places.length && !loading && !tooWide && <li className="py-8 text-center text-sm text-muted-foreground">No places in this area.</li>}
+        </ul>
+      </aside>
+
+      <div className="map-stage relative h-[calc(100dvh-84px-env(safe-area-inset-bottom))] w-full overflow-hidden bg-map md:h-full md:min-w-0 md:flex-1">
+        <div ref={container} className="map-canvas absolute inset-0" role="region" aria-label="Map of places" />
+
+        <div className="absolute inset-x-0 top-0 z-10 grid gap-2.5 pt-[18px] pb-2.5 md:pt-4">
+          <div className="flex gap-2 px-4 md:justify-end">
+            <a
+              href={citySlug ? `/search?city=${citySlug}` : "/search"}
+              className="flex h-[50px] flex-1 items-center gap-2.5 rounded-full bg-background px-[18px] text-[15px] font-semibold text-muted-foreground shadow-md md:hidden"
+            >
+              <Icon icon={Search01Icon} className="text-foreground" />
+              Search this city
+            </a>
+            <button type="button" onClick={locate} aria-label="Find my location" className="flex size-[50px] items-center justify-center rounded-full bg-background shadow-md md:size-11">
+              <Icon icon={Gps01Icon} size={22} />
+            </button>
           </div>
+          <div className="md:hidden">
+            <FilterChips
+              filters={filters}
+              friends={friends}
+              showFriends={signedIn}
+              floating
+              className="px-5"
+              onChange={(next) => {
+                storeFilters(next.filters);
+                setFilters(next.filters);
+                setFriends(next.friends);
+              }}
+            />
+          </div>
+          {(moved || tooWide || loading) && (
+            <div className="flex justify-center">
+              {tooWide ? (
+                <span className="rounded-full bg-background px-4 py-2 text-sm font-extrabold shadow-md">Zoom in to see places</span>
+              ) : loading ? (
+                <span className="rounded-full bg-background px-4 py-2 text-sm font-extrabold shadow-md">Loading…</span>
+              ) : (
+                <button type="button" onClick={() => void load()} className="min-h-10 rounded-full bg-foreground px-4 text-sm font-extrabold text-background shadow-md">
+                  Search this area
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className={cn("absolute right-3 left-3 z-10 flex items-end justify-between gap-2", current ? "bottom-[118px]" : "bottom-4")}>
+          <div className="flex gap-2.5 rounded-full bg-background/92 px-2.5 py-1.5 text-xs font-extrabold" aria-label="Legend">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2.5 rounded-full bg-success" />
+              Verified
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2.5 rounded-full border-2 border-warning-strong bg-white" />
+              Checking
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2.5 rounded-full bg-muted-foreground" />
+              Not checked
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <a href={listHref} className="inline-flex h-10 items-center gap-2 rounded-full bg-foreground px-4 text-sm font-extrabold text-background md:hidden">
+              List
+              <Icon icon={ListViewIcon} size={16} />
+            </a>
+          </div>
+        </div>
+
+        {current && (
+          <section aria-label="Selected place" aria-live="polite" className="absolute right-3 bottom-3 left-3 z-20 mx-auto flex max-w-md items-center gap-3 rounded-[20px] bg-background p-3 shadow-2xl">
+            <PlaceArt name={current.name} seed={current.id} src={photoUrl(current.photoKey)} className="size-16" rounded="rounded-[14px]" textSize="text-lg" />
+            <a href={`/place/${current.id}`} className="grid min-w-0 flex-1 gap-1 text-foreground">
+              <span className="truncate text-base font-extrabold">{current.name}</span>
+              <span className="truncate text-[13px] font-semibold text-muted-foreground">
+                {[current.cuisine, current.area, formatDistance(current.distanceKm)].filter(Boolean).join(" · ")}
+              </span>
+              <span className="flex flex-wrap items-center gap-2">
+                <StatusPill status={current.status} />
+                {current.friend && <span className="text-xs font-bold text-foreground/85">{current.friend.line}</span>}
+              </span>
+            </a>
+            <a href={`/place/${current.id}`} aria-label={`Open ${current.name}`} className="flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary">
+              <Icon icon={ArrowRight01Icon} />
+            </a>
+          </section>
         )}
       </div>
-
-      <div className={cn("absolute right-3 left-3 z-10 flex items-end justify-between gap-2", current ? "bottom-[118px]" : "bottom-4")}>
-        <div className="flex gap-2.5 rounded-full bg-background/92 px-2.5 py-1.5 text-xs font-extrabold" aria-label="Legend">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="size-2.5 rounded-full bg-success" />
-            Verified
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="size-2.5 rounded-full border-2 border-warning-strong bg-white" />
-            Checking
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="size-2.5 rounded-full bg-muted-foreground" />
-            Not checked
-          </span>
-        </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setListOpen((open) => !open)} className="hidden min-h-10 items-center gap-2 rounded-full bg-background px-4 text-sm font-extrabold shadow-md md:inline-flex">
-            {places.length} places
-          </button>
-          <a href={listHref} className="inline-flex h-10 items-center gap-2 rounded-full bg-foreground px-4 text-sm font-extrabold text-background">
-            List
-            <Icon icon={ListViewIcon} size={16} />
-          </a>
-        </div>
-      </div>
-
-      {current && (
-        <section aria-label="Selected place" aria-live="polite" className="absolute right-3 bottom-3 left-3 z-20 mx-auto flex max-w-md items-center gap-3 rounded-[20px] bg-background p-3 shadow-2xl">
-          <PlaceArt name={current.name} seed={current.id} src={photoUrl(current.photoKey)} className="size-16" rounded="rounded-[14px]" textSize="text-lg" />
-          <a href={`/place/${current.id}`} className="grid min-w-0 flex-1 gap-1 text-foreground">
-            <span className="truncate text-base font-extrabold">{current.name}</span>
-            <span className="truncate text-[13px] font-semibold text-muted-foreground">
-              {[current.cuisine, current.area, formatDistance(current.distanceKm)].filter(Boolean).join(" · ")}
-            </span>
-            <span className="flex flex-wrap items-center gap-2">
-              <StatusPill status={current.status} />
-              {current.friend && <span className="text-xs font-bold text-foreground/85">{current.friend.line}</span>}
-            </span>
-          </a>
-          <a href={`/place/${current.id}`} aria-label={`Open ${current.name}`} className="flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary">
-            <Icon icon={ArrowRight01Icon} />
-          </a>
-        </section>
-      )}
-
-      {listOpen && (
-        <aside className="absolute top-36 right-3 bottom-16 z-20 hidden w-96 overflow-y-auto rounded-[20px] bg-background px-4 shadow-2xl md:block">
-          <ul>
-            {places.map((place) => (
-              <PlaceRow key={place.id} place={place} signedIn={signedIn} compact />
-            ))}
-          </ul>
-          {!places.length && <p className="py-8 text-center text-sm text-muted-foreground">No places in this area.</p>}
-          <button type="button" className={buttonClass("ghost", "sm", "my-2 w-full")} onClick={() => setListOpen(false)}>
-            Close
-          </button>
-        </aside>
-      )}
     </div>
   );
 }

@@ -41,11 +41,11 @@ export function CityPicker({ cities, current }: { cities: CityOption[]; current:
     );
   };
   return (
-    <div className="grid gap-1 px-5 pb-6">
+    <div className="grid gap-1">
       <label htmlFor="city-search" className="sr-only">
         Find a city
       </label>
-      <div className="mb-2 flex h-[50px] items-center gap-2.5 rounded-full bg-secondary px-4">
+      <div className="mb-2 flex h-[50px] items-center gap-2.5 rounded-full bg-secondary px-4 md:mb-4 md:max-w-md">
         <Icon icon={Search01Icon} />
         <input
           id="city-search"
@@ -60,12 +60,12 @@ export function CityPicker({ cities, current }: { cities: CityOption[]; current:
         type="button"
         onClick={locate}
         disabled={locating}
-        className="flex min-h-14 items-center gap-3 border-b border-border text-left text-base font-extrabold text-primary"
+        className="flex min-h-14 items-center gap-3 border-b border-border text-left text-base font-extrabold text-primary md:mb-2 md:w-fit md:border-b-0"
       >
         <Icon icon={Gps01Icon} size={22} />
         {locating ? "Finding you…" : "Use my location"}
       </button>
-      <ul>
+      <ul className="md:grid md:grid-cols-2 md:gap-x-10 lg:grid-cols-3">
         {shown.map((city) => (
           <li key={city.slug}>
             <a href={choose(city.slug)} className="flex min-h-14 items-center justify-between gap-3 border-b border-border text-foreground">

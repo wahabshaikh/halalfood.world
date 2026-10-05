@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { sql } from "drizzle-orm";
 import { AppShell } from "../../../src/components/app-shell";
-import { TopBar } from "../../../src/components/kit";
+import { Page, TopBar } from "../../../src/components/kit";
 import { database } from "../../../src/db";
 import { getViewerId } from "../../../src/lib/auth-session";
 import { avatarUrl, ensureProfile, profileStats } from "../../../src/lib/profiles";
@@ -25,8 +25,9 @@ export default async function SettingsPage() {
   ]);
   return (
     <AppShell active="you">
-      <TopBar back="/me" title="Settings" />
-      <SettingsView
+      <Page size="content">
+        <TopBar back="/me" title="Settings" />
+        <SettingsView
         seed={viewerId}
         email={user?.email ?? ""}
         pendingRequests={stats.pendingRequests}
@@ -37,7 +38,8 @@ export default async function SettingsPage() {
           avatarUrl: avatarUrl(profile.avatarKey, profile.handle),
           filters: profile.defaultFilters,
         }}
-      />
+        />
+      </Page>
     </AppShell>
   );
 }

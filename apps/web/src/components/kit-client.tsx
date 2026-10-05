@@ -152,6 +152,7 @@ export function SaveHeart({
       className={cn(
         "inline-flex size-11 shrink-0 items-center justify-center rounded-full",
         variant === "floating" && "bg-background shadow-md",
+        variant === "plain" && "hover:bg-secondary",
         saved ? "text-primary" : "text-foreground",
       )}
     >
@@ -200,12 +201,15 @@ export function FilterChips({
   friends,
   showFriends,
   floating = false,
+  className,
   onChange,
 }: {
   filters: Filter[];
   friends: boolean;
   showFriends: boolean;
   floating?: boolean;
+  /** Layout of the row. The default is a single scrolling line; callers add their own gutters. */
+  className?: string;
   onChange?: (next: { filters: Filter[]; friends: boolean }) => void;
 }) {
   const apply = (next: { filters: Filter[]; friends: boolean }) => {
@@ -221,7 +225,7 @@ export function FilterChips({
     window.location.assign(url.toString());
   };
   return (
-    <div role="group" aria-label="Filters" className="flex gap-2 overflow-x-auto px-5 pb-0.5 [scrollbar-width:none]">
+    <div role="group" aria-label="Filters" className={cn("flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none]", className)}>
       {showFriends && (
         <button type="button" aria-pressed={friends} className={chipClass(friends, floating)} onClick={() => apply({ filters, friends: !friends })}>
           Friends’ picks

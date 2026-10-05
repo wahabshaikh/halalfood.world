@@ -68,7 +68,7 @@ export function Comments({ checkId, signedIn, initial }: { checkId: string; sign
   };
 
   return (
-    <section id="comments" aria-labelledby="comments-title" className="grid gap-2 border-t border-border px-5 pt-4 pb-28 md:pb-10">
+    <section id="comments" aria-labelledby="comments-title" className="grid gap-2 border-t border-border pt-4 pb-28 md:pb-10">
       <h2 id="comments-title" className="text-[17px] font-black">
         Comments {comments.length > 0 && <span className="text-muted-foreground">{comments.length}</span>}
       </h2>

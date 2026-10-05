@@ -87,7 +87,7 @@ export function InboxView({ tab: initialTab, activity: initialActivity, recs: in
 
   const unread = (tab === "activity" ? activity : recs).some((item) => item.unread);
   return (
-    <div className="grid gap-4 px-5 pb-10">
+    <div className="grid gap-4">
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <Segmented
