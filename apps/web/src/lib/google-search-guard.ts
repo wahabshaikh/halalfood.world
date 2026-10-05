@@ -1,5 +1,5 @@
 import { validateGooglePlaceQuery } from "@halalfood/core/place-submission";
-import { findPlaces } from "./places";
+import { searchPlaces } from "./places";
 import {
   getGooglePlacesApiKey,
   searchGooglePlaces,
@@ -245,11 +245,11 @@ export async function limitGoogleSearch(
 }
 
 async function defaultLocalSearch(query: string): Promise<LocalListedPlace[]> {
-  const found = await findPlaces({ q: query, limit: 5 });
-  return found.places.map((place) => ({
+  const found = await searchPlaces(query, { limit: 5 });
+  return found.map((place) => ({
     id: place.id,
     name: place.name,
-    address: place.street_address,
+    address: place.area,
   }));
 }
 

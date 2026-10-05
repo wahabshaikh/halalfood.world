@@ -5,6 +5,7 @@ import {
   enforcePreviewSecretBoundary,
   PREVIEW_R2_BUCKET,
   PRODUCTION_D1_ID,
+  ROLLBACK_D1_ID,
   PRODUCTION_R2_BUCKET,
   R2_BINDING,
 } from "../apps/web/src/lib/preview-bindings.ts";
@@ -18,7 +19,7 @@ const binding = config.d1_databases?.find(
 if (!binding) {
   throw new Error("Generated wrangler config has no DB binding to rebind for preview");
 }
-if (process.env.D1_DATABASE_ID === PRODUCTION_D1_ID) {
+if (process.env.D1_DATABASE_ID === PRODUCTION_D1_ID || process.env.D1_DATABASE_ID === ROLLBACK_D1_ID) {
   throw new Error("Refusing to bind the preview upload to the production D1 database");
 }
 binding.database_name = process.env.D1_DATABASE_NAME;

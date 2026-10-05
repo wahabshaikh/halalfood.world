@@ -11,40 +11,45 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
-  halalfood.world theme for shadcn/ui.
-  Tandoor orange (primary), honey (warning), cream (muted) and a calm green
-  (success). Components only ever read these tokens.
+  halalfood.world tokens (spec §7.1). Components only ever read these.
+  Ink on white, one orange for the primary action, and three status tones:
+  green (Community verified), amber (n of 3 checks), grey (Not checked yet).
 */
 :root {
-  --radius: 1rem;
+  --radius: 0.875rem;
   --background: #ffffff;
-  --foreground: #222222;
+  --foreground: #1f1a17;
   --card: #ffffff;
-  --card-foreground: #222222;
+  --card-foreground: #1f1a17;
   --popover: #ffffff;
-  --popover-foreground: #222222;
+  --popover-foreground: #1f1a17;
   --primary: #c9461d;
   --primary-foreground: #ffffff;
-  --secondary: #f7f7f7;
-  --secondary-foreground: #222222;
+  --secondary: #f5f1ec;
+  --secondary-foreground: #1f1a17;
   --muted: #fbf7f2;
-  --muted-foreground: #6a6a6a;
+  --muted-foreground: #6f6760;
+  --subtle-foreground: #5f5852;
   --accent: #fdede7;
   --accent-foreground: #a93812;
   --destructive: #b3261e;
   --destructive-foreground: #ffffff;
+  --destructive-muted: #fbe5e3;
   --success: #1f6b45;
   --success-foreground: #ffffff;
   --success-muted: #e3f2e9;
   --warning: #f2b33d;
-  --warning-foreground: #6b4a0e;
-  --warning-muted: #fff4dc;
-  --info: #3f6480;
+  --warning-strong: #74500c;
+  --warning-foreground: #74500c;
+  --warning-muted: #fff1d6;
+  --neutral-pill: #f1eeea;
+  --neutral-pill-foreground: #5f5852;
+  --info: #2f4a5e;
   --info-muted: #e2e8ec;
   --brand: #e4572e;
-  --border: #dddddd;
-  --input: #b0b0b0;
-  --ring: #222222;
+  --border: #eae4dd;
+  --input: #dcd4cb;
+  --ring: #1f1a17;
   --map: #edeae4;
 }
 
@@ -59,18 +64,23 @@
   --primary-foreground: #1a0d07;
   --secondary: #2a2522;
   --secondary-foreground: #f6f1ec;
-  --muted: #2a2522;
+  --muted: #211d1b;
   --muted-foreground: #b7ada5;
+  --subtle-foreground: #c9bfb7;
   --accent: #3a2219;
   --accent-foreground: #ffb899;
   --destructive: #ef6b61;
   --destructive-foreground: #1a0806;
+  --destructive-muted: #3a1a17;
   --success: #5cc48d;
   --success-foreground: #06170e;
   --success-muted: #15301f;
   --warning: #f2b33d;
+  --warning-strong: #f2b33d;
   --warning-foreground: #ffe3a6;
   --warning-muted: #3a2c0f;
+  --neutral-pill: #2a2522;
+  --neutral-pill-foreground: #c9bfb7;
   --info: #8fb6d4;
   --info-muted: #1c2a35;
   --brand: #f0703f;
@@ -104,6 +114,11 @@
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-muted: var(--warning-muted);
+  --color-warning-strong: var(--warning-strong);
+  --color-neutral-pill: var(--neutral-pill);
+  --color-neutral-pill-foreground: var(--neutral-pill-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-destructive-muted: var(--destructive-muted);
   --color-info: var(--info);
   --color-info-muted: var(--info-muted);
   --color-brand: var(--brand);

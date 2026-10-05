@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const DATABASE_NAME = "halalfood-world";
+const DATABASE_NAME = "halalfood-world-v2";
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..");
 const WRANGLER_BINARY = process.platform === "win32" ? "wrangler.cmd" : "wrangler";

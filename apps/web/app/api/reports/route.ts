@@ -1,45 +1,30 @@
+import { sql } from "drizzle-orm";
 import { validateReport } from "@halalfood/core/moderation";
-import { createReport, listReports } from "../../../src/lib/moderation-repository";
+import { database } from "../../../src/db";
+import { INVALID_JSON, badRequest, json, readJson, requireUser, spendBudget, unavailable } from "../../../src/lib/api";
 import { consumeContributionLimits } from "../../../src/lib/otp-rate-limit";
-import {
-  INVALID_JSON,
-  badRequest,
-  json,
-  readJson,
-  requireUser,
-  spendBudget,
-  unavailable,
-} from "../../../src/lib/api";
 
-/** The reports this account has filed, with their outcomes and appeal state. */
-export async function GET(request: Request): Promise<Response> {
-  const outcome = await requireUser(request, "/reports");
+/** File a report about a place, a check, a comment, a person or a list. */
+export async function POST(request: Request) {
+  const outcome = await requireUser(request, "/");
   if (!outcome.ok) return outcome.response;
-  try {
-    return json({
-      reports: await listReports({ reportedByUserId: outcome.auth.userId }),
-    });
-  } catch {
-    return unavailable();
-  }
-}
-
-export async function POST(request: Request): Promise<Response> {
-  const outcome = await requireUser(request, "/reports");
-  if (!outcome.ok) return outcome.response;
-
   const body = await readJson(request);
   if (body === INVALID_JSON) return badRequest("Send a valid JSON object.");
   const validation = validateReport(body);
   if (!validation.ok) return badRequest(validation.error);
-
   const limited = await spendBudget(consumeContributionLimits, outcome.auth);
   if (limited) return limited;
-
+  const { targetType, targetId, reason, detail } = validation.value;
   try {
-    const id = await createReport(validation.data, outcome.auth.userId);
-    return json({ id, status: "open" }, { status: 201 });
+    const db = await database();
+    const now = Date.now();
+    const id = crypto.randomUUID();
+    await db.run(sql`
+      INSERT INTO reports (id, target_type, target_id, reporter_id, reason, detail, status, created_at, updated_at)
+      VALUES (${id}, ${targetType}, ${targetId}, ${outcome.auth.userId}, ${reason}, ${detail}, 'open', ${now}, ${now})
+    `);
+    return json({ id }, { status: 201 });
   } catch {
-    return unavailable();
+    return unavailable("Reports are temporarily unavailable. Please try again.");
   }
 }

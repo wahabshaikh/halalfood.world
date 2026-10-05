@@ -1,244 +1,133 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import {
-  Breadcrumbs,
-  Page,
-  PageIntro,
-  PageMain,
-  SiteFooter,
-  SiteHeader,
-  Unavailable,
-} from "../../../src/components/site-chrome";
-import { TextLink } from "../../../src/components/blocks";
-import { Note } from "../../../src/components/section";
-import { PersonAvatar } from "../../../src/components/person";
-import { PlacePhoto } from "../../../src/components/place-photo";
-import {
-  getEditToken,
-  getListForViewer,
-  handleOf,
-  listCollaboratorsOf,
-  listItems,
-} from "../../../src/lib/lists-repository";
-import { listVisitedPlaceIds } from "../../../src/lib/visits";
+import { AppShell } from "../../../src/components/app-shell";
+import { AvatarStack, PlaceArt } from "../../../src/components/kit";
 import { getViewerId } from "../../../src/lib/auth-session";
-import { placeIdParam } from "@halalfood/core/params";
-import { isEditToken, listProgress } from "@halalfood/core/place-lists";
-import { loadOrDegrade } from "../../../src/lib/load";
-import { canonical } from "../../../src/lib/seo";
-import ListActions from "./list-actions";
-import ListItems from "./list-items";
-import JoinList from "./join-list";
+import { KIND_LABEL, getList } from "../../../src/lib/lists";
+import { photoUrl } from "../../../src/lib/place-view";
+import { avatarUrl } from "../../../src/lib/profiles";
+import { canonical, jsonLdScript } from "../../../src/lib/seo";
+import { ListActions, ListHeaderActions, ListItems } from "./list-client";
 
-/**
- * A shared list. It is server-rendered and works without an account, which is
- * the point: every shareable artifact has to be useful to whoever opens it.
- *
- * What a viewer sees depends on who they are: private lists belong to their
- * people, a block hides a list both ways, and a private account's lists open
- * only for its followers. All of those read as missing, so none of them leaks
- * that the list exists.
- */
-async function load(raw: string) {
-  const id = placeIdParam(raw);
-  if (!id) return { status: "missing" as const };
-  return loadOrDegrade(async () => {
-    const viewerId = await getViewerId();
-    const access = await getListForViewer(id, viewerId);
-    if (!access) return null;
-    const [items, visited, collaborators, viewerHandle, editToken] = await Promise.all([
-      listItems(id),
-      viewerId ? listVisitedPlaceIds(viewerId) : Promise.resolve(new Set<string>()),
-      access.role === "owner" || access.role === "editor" || access.role === "invited"
-        ? listCollaboratorsOf(id)
-        : Promise.resolve([]),
-      viewerId ? handleOf(viewerId) : Promise.resolve(null),
-      access.role === "owner" && access.editLinkOn && viewerId
-        ? getEditToken(id, viewerId)
-        : Promise.resolve(null),
-    ]);
-    return {
-      ...access,
-      viewerId,
-      viewerHandle,
-      items,
-      visited,
-      collaborators,
-      editLinkPath: editToken ? `/list/${id}?join=${editToken}` : null,
-    };
-  });
-}
+export const dynamic = "force-dynamic";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}): Promise<Metadata> {
-  const loaded = await load((await params).id);
-  if (loaded.status !== "ok")
-    return { title: "List not found", robots: { index: false, follow: true } };
-  const { list } = loaded.data;
+type Props = { params: Promise<{ id: string }> };
+
+const ID = /^[0-9a-f-]{36}$/i;
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const id = (await params).id;
+  const list = ID.test(id) ? await getList(id, null).catch(() => null) : null;
+  if (!list) return { title: "List", robots: { index: false } };
   return {
     title: list.title,
-    description:
-      list.caption ??
-      list.description ??
-      `${list.itemCount} halal ${list.itemCount === 1 ? "place" : "places"} collected on halalfood.world.`,
+    description: list.caption ?? `${list.items} halal places${list.ownerName ? `, by ${list.ownerName}` : ""}.`,
     alternates: { canonical: `/list/${list.id}` },
-    robots:
-      list.visibility === "public"
-        ? { index: true, follow: true }
-        : { index: false, follow: true },
   };
 }
 
-export default async function ListPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const { id } = await params;
-  const join = (await searchParams).join;
-  const joinToken = typeof join === "string" && isEditToken(join) ? join : null;
-  const loaded = await load(id);
-  if (loaded.status === "error")
-    return (
-      <Page>
-        <SiteHeader />
-        <PageMain>
-          <Unavailable retryPath={`/list/${encodeURIComponent(id)}`} />
-        </PageMain>
-        <SiteFooter />
-      </Page>
-    );
-
-  // A private list opened through its edit link shows only the invitation, so
-  // the link never reveals what is on the list before someone joins.
-  if (loaded.status === "missing") {
-    const listId = placeIdParam(id);
-    if (!joinToken || !listId) notFound();
-    return (
-      <Page>
-        <SiteHeader />
-        <PageMain>
-          <PageIntro eyebrow="A SHARED LIST" title="You’ve been invited to a list">
-            <JoinList listId={listId} token={joinToken} />
-          </PageIntro>
-        </PageMain>
-        <SiteFooter />
-      </Page>
-    );
-  }
-
-  const { list, owner, role, saved, editLinkPath, items, visited, collaborators, viewerId, viewerHandle } =
-    loaded.data;
-  const progress = viewerId ? listProgress(items, visited) : null;
-  const cover = items.find((item) => item.placeId === list.displayCoverPlaceId) ?? items[0];
-  const ownerName = owner ? (owner.displayName ?? owner.handle) : null;
-  const canJoin = joinToken && (role === "viewer" || !viewerId) && !list.ranked;
+export default async function ListPage({ params }: Props) {
+  const id = (await params).id;
+  if (!ID.test(id)) notFound();
+  const viewerId = await getViewerId();
+  const list = await getList(id, viewerId);
+  if (!list) notFound();
+  const cover = list.places.find((place) => place.photoKey);
+  const month = new Date(list.updatedAt).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const accepted = list.people.filter((person) => person.status !== "invited");
+  const byline =
+    list.kind === "guide"
+      ? `Guide by halalfood.world · updated ${month}`
+      : list.kind === "plan" && accepted.length > 1
+        ? accepted.map((person) => person.name.split(" ")[0]).join(", ")
+        : `By ${list.ownerName ?? "someone"}`;
 
   return (
-    <Page>
-      <SiteHeader />
-      <PageMain>
-        <Breadcrumbs
-          trail={[
-            { name: "Halalfood", path: "/" },
-            { name: list.title, path: `/list/${list.id}` },
-          ]}
+    <AppShell active="saved">
+      {list.visibility === "public" && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLdScript([
+              {
+                "@context": "https://schema.org",
+                "@type": "ItemList",
+                name: list.title,
+                ...(list.caption ? { description: list.caption } : {}),
+                url: canonical(`/list/${list.id}`),
+                itemListOrder: list.kind === "ranked" ? "https://schema.org/ItemListOrderAscending" : "https://schema.org/ItemListUnordered",
+                itemListElement: list.places.map((place, index) => ({
+                  "@type": "ListItem",
+                  position: index + 1,
+                  url: canonical(`/place/${place.id}`),
+                  name: place.name,
+                })),
+              },
+            ]),
+          }}
         />
-        <PageIntro
-          eyebrow={list.ranked ? "A PERSONAL RANKING" : "A COLLECTION"}
-          title={list.title}
-          lead={list.caption || list.description || undefined}
-        >
-          {cover && (
-            <PlacePhoto
-              seed={cover.placeId}
-              name={cover.name}
-              className="aspect-[3/1] max-h-44 w-full rounded-2xl"
-            />
-          )}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-            {owner && (
-              <a href={`/u/${owner.handle}`} className="inline-flex items-center gap-2 font-semibold text-foreground hover:underline">
-                <PersonAvatar name={ownerName ?? owner.handle} avatarUrl={owner.avatarUrl} size={28} />
-                {ownerName}
-              </a>
+      )}
+      <div className="relative h-[200px] overflow-hidden bg-secondary md:rounded-b-[20px]">
+        {cover ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photoUrl(cover.photoKey) ?? ""} alt="" className="size-full object-cover" />
+        ) : (
+          <PlaceArt name={list.title} seed={list.id} className="size-full" rounded="rounded-none" textSize="text-5xl" />
+        )}
+        <ListHeaderActions list={{ id: list.id, title: list.title }} signedIn={Boolean(viewerId)} />
+        <span className="absolute bottom-3.5 left-4 rounded-full bg-background px-3 py-1 text-xs font-black">{KIND_LABEL[list.kind]}</span>
+      </div>
+      <div className="grid gap-4 px-5 pt-5 pb-10">
+        <div className="grid gap-1.5">
+          <h1 className="text-[28px] leading-tight font-black tracking-tight">{list.title}</h1>
+          {list.caption && <p className="text-[15px] font-semibold text-subtle-foreground">{list.caption}</p>}
+          <div className="flex items-center gap-2.5 pt-1">
+            {list.kind !== "guide" && (
+              <AvatarStack people={accepted.map((person) => ({ name: person.name, seed: person.userId, src: avatarUrl(person.avatarKey, person.handle) }))} size={28} />
             )}
-            <span>
-              {list.itemCount} {list.itemCount === 1 ? "place" : "places"}
-            </span>
-            {list.saveCount > 0 && (
-              <span>
-                {list.saveCount} {list.saveCount === 1 ? "save" : "saves"}
-              </span>
-            )}
-            {progress && progress.total > 0 && role !== "owner" && (
-              <span className="font-semibold text-foreground">
-                You’ve been {progress.been}/{progress.total}
-              </span>
-            )}
-            {progress && progress.total > 0 && role === "owner" && (
-              <span>
-                You’ve been to {progress.been} of {progress.total}
-              </span>
-            )}
+            <span className="text-[13px] font-bold text-muted-foreground">{byline}</span>
           </div>
-          {list.caption && list.description && <p className="text-sm">{list.description}</p>}
-          <Note>
-            {list.ranked
-              ? "This is one diner's ranking of places they have visited, not a platform ranking."
-              : collaborators.some((person) => person.status === "accepted")
-                ? "A collection put together by a group of diners."
-                : "A collection assembled by one diner."}{" "}
-            Saves and notes are taste; each place keeps its own halal status and evidence.
-          </Note>
-          {canJoin && joinToken && <JoinList listId={list.id} token={joinToken} />}
-          <ListActions
-            listId={list.id}
-            title={list.title}
-            role={role}
-            viewerHandle={viewerHandle}
-            signedIn={Boolean(viewerId)}
-            saved={saved}
-            saves={list.saveCount}
-            itemCount={list.itemCount}
-            sendable={
-              Boolean(viewerId) &&
-              (list.visibility === "public" || (role === "owner" && list.visibility === "unlisted"))
-            }
-            editable={{
-              title: list.title,
-              caption: list.caption,
-              description: list.description,
-              ranked: list.ranked,
-              visibility: list.visibility,
-              coverPlaceId: list.coverPlaceId,
-            }}
-            places={items.map((item) => ({ placeId: item.placeId, name: item.name }))}
-            collaborators={collaborators.map(({ userId: _userId, ...person }) => person)}
-            editLinkPath={editLinkPath}
-          />
-        </PageIntro>
+        </div>
+
+        {viewerId && list.items > 0 && (
+          <div className="grid gap-1.5 rounded-2xl bg-muted p-4">
+            <div className="flex justify-between text-sm font-extrabold">
+              <span>
+                You’ve been to {list.been} of {list.places.length}
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-background">
+              <div className="h-full rounded-full bg-success" style={{ width: `${list.places.length ? (list.been / list.places.length) * 100 : 0}%` }} />
+            </div>
+          </div>
+        )}
+
+        <ListActions
+          list={{ id: list.id, title: list.title, caption: list.caption, visibility: list.visibility, kind: list.kind }}
+          role={list.role}
+          canAdd={list.canAdd}
+          savedByMe={list.savedByMe}
+          signedIn={Boolean(viewerId)}
+        />
 
         <ListItems
           listId={list.id}
-          initialItems={items}
-          role={role}
+          ranked={list.kind === "ranked"}
+          canReorder={list.role === "owner" && list.kind === "ranked"}
           viewerId={viewerId}
-          ranked={list.ranked}
-          visitedIds={[...visited].filter((placeId) => items.some((item) => item.placeId === placeId))}
-          shared={collaborators.some((person) => person.status === "accepted")}
+          ownerId={list.ownerId}
+          items={list.places.map((place) => ({
+            id: place.id,
+            name: place.name,
+            area: [place.cuisine, place.area].filter(Boolean).join(" · "),
+            status: place.status,
+            photoKey: place.photoKey,
+            note: place.note,
+            been: place.been,
+            addedByUserId: place.addedByUserId,
+          }))}
         />
-
-        <p className="mt-6 text-sm text-muted-foreground">
-          Want your own? <TextLink href={canonical("/lists")}>Start a list</TextLink>.
-        </p>
-      </PageMain>
-      <SiteFooter />
-    </Page>
+      </div>
+    </AppShell>
   );
 }

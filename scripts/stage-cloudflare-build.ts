@@ -16,6 +16,7 @@ import {
   MIGRATION_LIST_TIMEOUT_MS,
   migrationListStopReason,
   parseMigrationList,
+  productionD1FromConfig,
   shouldGateProductionDeploy,
 } from "../apps/web/src/lib/d1-migration-gate.ts";
 
@@ -106,19 +107,29 @@ if (isolation === "preview") {
 }
 
 if (shouldGateProductionDeploy(process.env)) {
-  const listed = spawnSync(
-    "npx",
-    ["wrangler", "d1", "migrations", "list", "halalfood-world", "--remote"],
-    { encoding: "utf8", timeout: MIGRATION_LIST_TIMEOUT_MS },
-  );
+  // Check the database this Worker is deployed against: the DB binding in
+  // apps/web/wrangler.jsonc (name and id), never a hardcoded name.
+  const target = productionD1FromConfig(sourceConfig);
+  if (!target.ok) {
+    console.error(`Refusing to deploy: ${target.reason}`);
+    process.exit(1);
+  }
+  const { name: dbName, id: dbId } = target;
+  const listCommand = `wrangler d1 migrations list ${dbName} --remote`;
+  // The root wrangler.jsonc (copied above) has the same DB binding, so wrangler
+  // resolves the name to this id.
+  const listed = spawnSync("npx", ["wrangler", "d1", "migrations", "list", dbName, "--remote"], {
+    encoding: "utf8",
+    timeout: MIGRATION_LIST_TIMEOUT_MS,
+  });
   const output = `${listed.stdout ?? ""}\n${listed.stderr ?? ""}`;
   const stop = migrationListStopReason(listed);
   if (stop) {
     console.error(output);
     console.error(
       stop === "timeout"
-        ? "Refusing to deploy: `wrangler d1 migrations list halalfood-world --remote` timed out. Workers Builds will not run wrangler deploy."
-        : "Refusing to deploy: `wrangler d1 migrations list halalfood-world --remote` failed. Workers Builds will not run wrangler deploy.",
+        ? `Refusing to deploy: \`${listCommand}\` timed out. Workers Builds will not run wrangler deploy.`
+        : `Refusing to deploy: \`${listCommand}\` failed. Workers Builds will not run wrangler deploy.`,
     );
     process.exit(listed.status && listed.status > 0 ? listed.status : 1);
   }
@@ -129,12 +140,12 @@ if (shouldGateProductionDeploy(process.env)) {
     process.exit(1);
   }
   if (parsed.pending.length > 0) {
-    console.error("Refusing to deploy. halalfood-world has pending D1 migrations:");
+    console.error(`Refusing to deploy. ${dbName} (${dbId}) has pending D1 migrations:`);
     for (const name of parsed.pending) console.error(`  ${name}`);
     console.error("Apply those migrations before deploying. This build does not apply them.");
     process.exit(1);
   }
-  console.log("halalfood-world has no pending D1 migrations.");
+  console.log(`${dbName} (${dbId}) has no pending D1 migrations.`);
 }
 
 writeFileSync(generatedConfigPath, `${JSON.stringify(generatedConfig)}\n`);

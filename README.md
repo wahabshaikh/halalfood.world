@@ -1,18 +1,10 @@
 # halalfood.world
 
-A full-screen halal food map built with vinext, React, MapLibre GL, Drizzle and Cloudflare D1, deployed as a Cloudflare Worker. The interface uses CARTO Positron with OpenStreetMap attribution.
+A halal food guide built with vinext, React, MapLibre GL, Drizzle and Cloudflare D1, deployed as a Cloudflare Worker. The interface uses CARTO Positron with OpenStreetMap attribution.
 
-The home page is a server-rendered Explore view with rows of places per city; the interactive map lives at `/map` (old `/?place=` and `/?city=` links redirect there). City, place, search, guide and creator pages are server-rendered so they are crawlable, linkable and shareable without JavaScript.
+**How a place gets verified.** People who eat somewhere answer four questions: Is it Muslim-owned? Is it halal certified? Does it serve pork? Does it serve alcohol? Each answer is Yes, No or Not sure. A fact is settled when the three most recent definite answers from different accounts agree, and a place is **Community verified** when all four facts are settled. Until then it shows "n of 3 checks" or "Not checked yet" (which never means "not halal"). A check counts the moment it is sent, a person's latest check at a place is the only one that counts, and an account must be 24 hours old before its checks count. The rules live in [`packages/core/src/halal.ts`](packages/core/src/halal.ts) and [`docs/product/halal-model.md`](docs/product/halal-model.md); the full design is [`docs/product/simplified-community-spec.md`](docs/product/simplified-community-spec.md).
 
-Places can only be added by picking a Google Maps result: the name, address, city and pin come from Google Places on the server. Halal checks are structured (certificate seen, alcohol served, slaughter method) and go to moderators before they count. Creator videos are linked by pasting an Instagram, TikTok or YouTube URL; the creator's handle, name and thumbnail come from the platform's public oEmbed response.
-
-Signing in for the first time runs a short onboarding at `/onboarding` (name, handle and optional photo, a halal standard written to the same preferences as `/preferences`, three places to try, and friends by handle or invite link). Diners can follow each other (a private account turns a follow into a request), block people, and manage all of it at `/settings`; public profiles at `/u/[handle]` show follower counts and a follow button. The social graph only decides whose visits and lists someone sees: it never feeds into a place's halal status. The design is in `docs/design/social-community.html`; this is its phase 1.
-
-Signed-in diners can log a visit at `/log` (a four-step verdict, dishes, a note and an optional halal check that goes to moderators) and read a friends feed at `/feed`. The feed is assembled on read from the people you follow, hides anything blocked or private (private accounts show visits only to accepted followers), and leaves out places that fail the reader's own dietary standard. Visits at `/visit/[id]` take likes and comments, both reportable. None of it can change a place's halal status, which still comes only from approved evidence. Design: `docs/design/social-community.html`.
-
-Lists are now social (phase 3 of the same design). A list has a caption and a cover place, shows who made it, how many diners saved it and "you've been 3/7" for the reader, and can be planned with friends: the owner invites diners by handle (they accept before they can edit) or turns on an edit link, and collaborators add places, leave notes and take back their own picks. A ranked list stays one person's ranking, so only unranked lists take collaborators. Lists live at `/list/[id]` and `/lists`, and `/search` gains People and Lists tabs. On the map, "whose places" switches between everyone, your own visits and want-to-try places, and friends only (shared visits from people you follow, on the same terms as the feed), and a pin a friend has logged wears their face and a line such as "Zaid loved this". `/paste` turns an Instagram, TikTok or YouTube link into a suggested place: the caption from the platform's public oEmbed response is matched against listed place names, the diner confirms, and the place goes on their want-to-try list with the video linked and the creator credited. Instagram gives no caption, so those links go straight to search. Saves, collaborators and linked videos are taste and context; none of them can change a place's halal status.
-
-Activity, recs and events are phase 4 of the same design. The bell at `/activity` collects follows, likes, comments, list invites, friends visiting a place on your want-to-try list, the review outcome of your halal checks, and one alert only this site can send: a halal status changed at a place you saved, worded from the status history with a link to the evidence. Notifications are written when the event happens, once per event, never across a block, and never to the person who caused them. Recs (`/recs`, `/send`) send a place or a public list to people you follow or who follow you with a note of up to 140 characters. There is no chat: the only replies are "I'm in" and "Want to try" (which saves the place), and the inbox hides places that fail the reader's own dietary standard. Halal food events live at `/events` and `/event/[id]`: moderators publish them from the admin console, and every vendor carries its own status (a linked place shows its evidence-based status; an unlisted stall shows "Unverified", which the copy never presents as not halal). RSVPs show friends going. `/leaderboard` gains a diner board ranked by verified visits, this week or all time, globally or per city. A visit counts only when it was verified, not rewarded and had no declared tie to the restaurant, and a place counts once per day. Private accounts and anyone who switches off "Show me on leaderboards" in settings are never listed. Rank, RSVPs and recs are context; none of them can change a place's halal status.
+**Everything social is context, never evidence.** Follows, the Friends feed, likes, comments, lists, recs, events, points and creator videos help people decide where to eat, but none of them can change a place's status. Places can only be added from a Google Maps result and go live at once, with the adder's answers as the first check. Moderators act on reports and nothing else.
 
 Brand PNGs in `apps/web/public/` are rendered from `apps/web/public/icon.svg` with `node apps/web/scripts/generate-assets.mjs` (set `PLAYWRIGHT_CHROMIUM_PATH` if Chromium isn't in Playwright's default location).
 
@@ -23,12 +15,12 @@ This is an npm workspaces monorepo driven by [Turborepo](https://turborepo.com),
 | Path | Package | What it holds |
 | --- | --- | --- |
 | `apps/web` | `@halalfood/web` | The vinext/Cloudflare Worker web app: routes, API handlers, D1 schema and migrations, server-only libraries, scripts and web tests. |
-| `packages/core` | `@halalfood/core` | Platform-agnostic domain logic with no DOM, database or Worker dependencies: halal taxonomy and status copy, check-ins, discovery filters, place facts, preferences, reputation, moderation, visit verification, the social graph (handles, follows, blocks and the onboarding standard), list collaboration rules, map social labels, reel-to-place matching, notifications, recs, events and leaderboard windows. Import as `@halalfood/core/<module>`. |
+| `packages/core` | `@halalfood/core` | Platform-agnostic domain logic with no DOM, database or Worker dependencies: the halal status algorithm and filters (`halal`), check validation (`check`), points, people (handles, names, the follow rule), recs, reports and moderation actions, the food passport, reel-to-place matching, place submission and route params. Import as `@halalfood/core/<module>`. |
 | `packages/ui` | `@halalfood/ui` | [shadcn/ui](https://ui.shadcn.com) components (radix-nova style, [Hugeicons](https://hugeicons.com) icons) and the Tailwind theme tokens. Import as `@halalfood/ui/components/<name>`; the stylesheet is `@halalfood/ui/globals.css`. |
 
 A future `apps/mobile` (for example Expo/React Native) can depend on `@halalfood/core` directly and call the web app's `/api` routes. `@halalfood/ui` is web-only, since it renders DOM elements.
 
-**Styling.** Pages are composed from shadcn/ui components; there is no hand-written stylesheet. Colours, radii and fonts are theme tokens in `packages/ui/src/styles/globals.css` (primary is the tandoor orange, plus `success`, `warning` and `info` tokens used for halal status tones), and layout uses Tailwind utilities on those components. App-level building blocks shared by several pages live in `apps/web/src/components` (`site-chrome`, `section`, `blocks`, `form-fields`). To add a shadcn component, run it from the UI package so it lands in `packages/ui/src/components`:
+**Styling.** Pages are composed from shadcn/ui components; there is no hand-written stylesheet. Colours, radii and fonts are theme tokens in `packages/ui/src/styles/globals.css` (primary is the tandoor orange, plus `success`, `warning` and `info` tokens used for halal status tones), and layout uses Tailwind utilities on those components. App-level building blocks shared by several pages live in `apps/web/src/components` (`kit` for buttons, pills, meters and art; `kit-client` for sheets, toasts and the save heart; `app-shell` and `nav-tabs` for the five-tab frame). To add a shadcn component, run it from the UI package so it lands in `packages/ui/src/components`:
 
 ```sh
 cd packages/ui && npx shadcn@latest add <component>
@@ -118,164 +110,53 @@ Use the URL printed by the dev server. Development runs against the local D1 dat
 
 ## Routes
 
-| Route | Rendering | Purpose |
+The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 px, and a one-line footer. Sheets (How verification works, Report, Send, New list, Add to a list) set `?sheet=` so the back button closes them.
+
+| Route | Auth | Screen |
 | --- | --- | --- |
-| `/` | Client map + SSR `WebSite`/`FAQPage` JSON-LD | The map. Accepts the deep links below. |
-| `/cities` | SSR | Directory of every city, largest first. |
-| `/leaderboard` | SSR | Public halal community curator leaderboard. |
-| `/guides` | SSR | Curated city starting points built from ranked listings and an explicit selection rubric. |
-| `/guides/[citySlug]` | SSR | A readable city shortlist with source and evidence guidance. |
-| `/city/[citySlug]` | SSR | Listings for one city, 60 per page, with `ItemList` + `BreadcrumbList` JSON-LD. |
-| `/place/[id]` | SSR | Canonical restaurant page with Google/listing facts, community layers, and `Restaurant` + `BreadcrumbList` JSON-LD. |
-| `/saved` | Client list + SSR chrome | Authenticated user's saved halal places; unauthenticated visitors get a sign-in CTA. |
-| `/preferences` | Client form + SSR chrome | The signed-in user's dietary standards (halal threshold, factual requirements, allergies, privacy). |
-| `/lists` | Client list + SSR chrome | The signed-in user's ranked and unranked collections. |
-| `/list/[id]` | SSR | One public or unlisted list, readable without an account. |
-| `/passport` | Client view + SSR chrome | Food passport: coverage, milestones and the personal food map. |
-| `/u/[handle]` | SSR | Public diner profile, addressed by pseudonym and gated by the owner's privacy settings. |
-| `/contributions` | Client view + SSR chrome | Status and reason for every submission, plus the appeal path. |
-| `/admin` | Client console + SSR chrome | Moderation console; 403 for any account not in `moderators`. |
-| `/add` | Client form + SSR chrome | Authenticated users can submit a halal place using Google Places or manual entry. |
-| `/login` | Client form + SSR chrome | Email OTP sign-in protected by Cloudflare Turnstile. |
-| `/robots.txt`, `/sitemap.xml` | Metadata routes | See below. |
-| `/api/places`, `/api/places/search` | JSON | Viewport and search queries. |
-| `/api/places/[id]`, `/api/cities/[citySlug]` | JSON | Lookups behind the map deep links. |
-| `POST /api/places` | JSON | Authenticated halal place submission. |
-| `GET /api/places/saved` | JSON | Authenticated list of the current user's saved places. |
-| `POST/DELETE /api/places/[id]/saved` | JSON | Authenticated, rate-limited save or unsave mutation for one halal place. |
-| `GET /api/places/[id]/rating` | JSON | Aggregate halal reactions and the current user's reaction when signed in. |
-| `PUT/POST /api/places/[id]/rating` | JSON | Authenticated, rate-limited upsert of one halal reaction. |
-| `GET /api/places/[id]/reviews` | JSON | Public newest-first halal reviews with author display and timestamps. |
-| `PUT/POST/DELETE /api/places/[id]/reviews` | JSON | Authenticated, rate-limited create/update or delete of the current user's one review. |
-| `GET/POST /api/places/[id]/photos` | JSON/multipart | Public newest-first halal place photo gallery; authenticated image upload. |
-| `DELETE /api/places/[id]/photos/[photoId]` | JSON | Authenticated, ownership-checked deletion of the current user's photo. |
-| `GET /api/leaderboard` | JSON | Cacheable top-50 halal community contributor scores. |
-| `GET /api/discover` | JSON | Filtered, trust-aware discovery: halal status, facts, food and distance filters with explicit sorting. |
-| `GET /api/places/[id]/decision` | JSON | Decision summary: assessment, facts, return intent, dishes, status history, personal suitability. |
-| `GET/POST /api/places/[id]/check-ins` | JSON | Public return-intent aggregate; authenticated, rate-limited ten-second check-in. |
-| `GET/POST /api/places/[id]/dishes` | JSON | Community dish catalogue; a cited source publishes, an uncited one queues. |
-| `POST /api/places/[id]/edits` | JSON | Factual correction. Halal-sensitive fields always queue for moderation. |
-| `POST /api/places/[id]/duplicates` | JSON | Duplicate report for a moderator-performed merge. |
-| `GET/PUT /api/preferences` | JSON | The signed-in user's dietary standards. |
-| `GET/PUT /api/profile` | JSON | Pseudonymous public profile (handle, display name, bio, home city). |
-| `GET/POST /api/lists`, `GET/PUT/DELETE /api/lists/[id]` | JSON | Personal lists. |
-| `PUT /api/lists/[id]/items` | JSON | Replace a list's ordered contents; a published ranked list must hold only confirmed visits. |
-| `GET/POST /api/reports`, `POST /api/reports/[id]/appeal` | JSON | Report an error, fraud, harassment or misrepresentation, and appeal a decision. |
-| `GET /api/passport` | JSON | Coverage, milestones and visited places for the signed-in user. |
-| `GET /api/contributions` | JSON | Every submission by the signed-in user with its status and reason. |
-| `GET /api/admin/queue`, `GET /api/admin/audit` | JSON | Moderator-only queue and audit log. |
-| `POST /api/admin/review/[kind]/[id]` | JSON | One moderator decision on evidence, an edit, a duplicate, a report or an appeal. |
-| `GET /api/places/google-search` | JSON | Signed-out or signed-in Google Places (New) Text Search for the add form. Per-IP rate limit, result cache, and a daily call cap. |
-| `GET/POST /api/places/[id]/verifications` | JSON | Public approved evidence lookup; authenticated, rate-limited community halal verification submission. |
-| `POST/GET /api/uploads/r2` | Multipart/stream | Authenticated direct R2 upload and approved/own-pending evidence download. |
-| `/api/auth/*` | Better Auth catch-all | Email OTP request, verification, session, and sign-out endpoints. |
-| `POST /api/admin/email/healthcheck` | JSON | Optional operator smoke check; disabled by default and bearer-token gated when enabled. |
+| `/`, `/city/[slug]` | – | Explore: city switcher, search, This week in {city}, Guides & lists, filter chips and places. |
+| `/cities` | – | Choose a city. |
+| `/search` | – | Places, people, lists and cities. |
+| `/map` | – | The map, with the same filters as Explore. |
+| `/place/[id]` | – | A place: status, the four facts, actions, friends, dishes, photos, videos, notes, nearby. |
+| `/place/[id]/check` | ✓ | Check a place: the four questions, how it was, dishes, photos, a note, then Check sent. |
+| `/add`, `/add/video` | search –, submit ✓ | Add a place from Google Maps; save a place from a TikTok, Reel or YouTube link. |
+| `/login` | – | Email code sign-in with Turnstile. A new account goes to `/welcome`. |
+| `/welcome` | ✓ | First sign-in: profile, what matters, follow a few people. |
+| `/saved` | ✓ | Saved places and lists. |
+| `/list/[id]` | visibility | A ranked list, a plan with friends, or a guide. |
+| `/friends`, `/visit/[id]` | ✓ / visibility | The Friends feed and one visit with likes and comments. |
+| `/inbox` | ✓ | Activity and Recs. |
+| `/u/[handle]`, `/invite/[handle]` | visibility / – | Someone's profile; an invite landing. |
+| `/community` | – | The points leaderboard per city, this week or all time. |
+| `/events`, `/event/[id]` | – | Halal food events and their stalls. |
+| `/creator/[platform]/[handle]` | – | Places from a creator's videos. |
+| `/me`, `/me/settings`, `/me/privacy` | ✓ | You (Passport, Checks, Lists), Settings, Privacy & people. |
+| `/admin` | moderator | Reports and Events. |
 
-### The trust-first platform
+### API
 
-`migrations/0009_trust_platform.sql` and the libraries under `src/lib/` turn the
-directory into the trust-first product described in the feature catalogue:
-a six-status halal taxonomy derived from dated, scoped, expiring evidence; the
-ten-second check-in that replaces star ratings with return intent and dish
-verdicts; privacy-preserving visit verification; personal dietary standards;
-lists, the food passport and the diner profile; community contributions with
-visible status; and a moderation console backed by an audit log.
+| Method & path | Purpose |
+| --- | --- |
+| `GET /api/places` | Explore and map: `city`, `bbox`, `near`, `filters`, `friends`, `offset`, `limit`. |
+| `POST /api/places` | Add a place from a Google result with optional answers. 409 with the id for a duplicate. |
+| `GET /api/places/google-search` | Google Places text search for Add, rate-limited and capped per day; marks results already listed. |
+| `GET /api/places/[id]`, `GET/POST /api/places/[id]/checks`, `GET /api/places/[id]/notes` | A place, its checks, and its shared notes. |
+| `GET/POST /api/places/[id]/photos`, `DELETE …/photos/[photoId]`, `GET /api/photos/[...key]` | Photos (JPEG, PNG or WebP, 8 MB) and the R2 proxy. |
+| `POST/DELETE /api/places/[id]/saved`, `GET /api/places/saved` | Saves. |
+| `GET/POST /api/places/[id]/media`, `POST /api/media/match` | Video links and matching a pasted link to a place. |
+| `GET /api/search`, `GET /api/cities/nearest` | Search; nearest city. |
+| `GET/PUT/DELETE /api/me`, `POST/DELETE /api/me/avatar`, `POST /api/me/onboarding`, `GET /api/handles/check`, `GET /api/avatars/[handle]` | Profile, settings, account deletion, photo, onboarding and handles. |
+| `PUT/DELETE /api/follows/[handle]`, `POST/DELETE /api/follow-requests/[handle]`, `PUT/DELETE /api/blocks/[handle]`, `GET /api/people/suggested`, `GET /api/u/[handle]` | People. |
+| `GET /api/feed`, `GET /api/checks/[id]`, `PUT/DELETE /api/checks/[id]/like`, `GET/POST /api/checks/[id]/comments`, `DELETE /api/comments/[id]` | Feed, visits, likes and comments. |
+| `GET /api/inbox`, `POST /api/inbox/read`, `GET /api/inbox/summary`, `GET /api/recs/recipients`, `POST /api/recs`, `POST /api/recs/[id]/reply` | Inbox and recs. |
+| `GET/POST /api/lists`, `GET /api/lists/mine`, `GET/PUT/DELETE /api/lists/[id]`, `PUT /api/lists/[id]/items`, `POST/DELETE /api/lists/[id]/items/[placeId]`, `POST /api/lists/[id]/members`, `POST …/members/accept`, `DELETE …/members/[handle]`, `PUT/DELETE /api/lists/[id]/save` | Lists. |
+| `GET /api/community`, `GET /api/events`, `GET /api/events/[id]`, `PUT/DELETE /api/events/[id]/going`, `GET /api/creators/[platform]/[handle]` | Community and events. |
+| `POST /api/reports` | Report a place, check, comment, person or list. |
+| `GET /api/admin/reports`, `POST /api/admin/reports/[id]`, `GET/POST /api/admin/events`, `GET/PUT/DELETE /api/admin/events/[id]` | Moderation. Every action writes `audit_log`. |
+| `/api/auth/*`, `POST /api/admin/email/healthcheck` | Better Auth; the optional email smoke check. |
 
-The product rules, the safeguards they implement, and the places where two code
-paths have to agree are written up in
-[`docs/product/trust-platform.md`](docs/product/trust-platform.md). Read that
-before changing `src/lib/halal-taxonomy.ts` or `src/lib/discovery.ts`, which
-derive the same status two different ways (in TypeScript for the profile, in SQL
-for the map) and must stay consistent.
-
-Three rules are worth repeating here because they are easy to break by accident:
-
-- **Unverified never means Not halal.** Missing, stale or conflicting evidence
-  yields `unverified`; `not-halal` requires direct current evidence.
-- **No public percentage from a thin sample.** Below five check-ins the API
-  returns `wouldReturnPercent: null` and `insufficientData: true`, and verified
-  and unverified visits are never averaged together.
-- **Only derived verification results are stored.** A location proof is reduced
-  to a method, a confidence level and a sentence before anything is written;
-  `place_visits` holds no coordinates.
-
-Two operational notes:
-
-- D1's SQLite build has `ASIN`, `RADIANS`, `SIN`, `COS` and `SQRT` but **not**
-  `POWER`. The distance expression in `src/lib/discovery.ts` squares inline for
-  that reason.
-- The moderation console is gated on a row in the `moderators` table. Grant
-  access with
-  `npx wrangler d1 execute halalfood-world --remote --command "INSERT INTO moderators (user_id, role, created_at) VALUES ('<user id>', 'admin', unixepoch() * 1000)"`.
-
-### Provenance, coverage and the reputation ladder
-
-`migrations/0010_observations_and_coverage.sql` adds the provenance layer from
-the data expansion strategy: append-only `place_observations` carrying source,
-source class, observation date, validity and confidence; `place_source_records`
-holding licence and attribution per retrieval; `place_inspections` for official
-hygiene and licence records; coverage levels on places; city coverage requests;
-the contributor standing ladder; and sponsored placements kept in their own
-table.
-
-The rules these enforce are in
-[`docs/product/trust-platform.md`](docs/product/trust-platform.md). The ones
-easiest to break by accident:
-
-- **Never update an observation's value.** A change is a new row. The
-  `places` / `place_facts` columns are a projection the discovery query filters
-  on, not the record.
-- **Nothing in a ranking query may join `sponsored_placements`.** Sponsored
-  slots are returned as a separate list and always carry a disclosure.
-- **Official inspection records are never mixed into a diner-derived figure.**
-  They render in their own panel with the authority, date and match confidence.
-- **Coverage levels are derived from what is attached**, never set by hand. The
-  place page recomputes and writes the projection back so the city aggregate
-  cannot disagree with the place badge.
-
-### Feature 10: contributor leaderboard
-
-The public [`/leaderboard`](/leaderboard) page celebrates ummah contributions to
-the halal food map. It ranks users by five existing signals: places added
-(`places.submitted_by_user_id`), submitted halal verifications, reviews, photos
-and ratings. Saved places are intentionally not counted. Empty user names use a
-deterministic anonymized handle; public output never includes user ids or email
-addresses.
-
-The exact score weights are places added **10**, verifications submitted **8**,
-reviews **5**, photos **3**, and ratings **1**. The score is the sum of each
-count multiplied by its weight. The aggregation is one SQL query that unions
-the five sources, groups by user, joins `user` for the display name, and returns
-the top 50. Ties sort by score descending, then places added descending, then
-normalized name and a stable user-id tie-breaker.
-
-`GET /api/leaderboard` returns the same top 50 JSON payload with
-`Cache-Control: public, max-age=60, s-maxage=60`. No migration was needed.
-
-### Feature 11: restaurant pages
-
-`/place/[id]` assembles one canonical restaurant model from the existing place
-row and an optional Google Places Details (New) snapshot. The page keeps the
-Google/listing facts separate from the community evidence area: saves, halal
-reactions, reviews, community photos, and halal verification evidence remain
-available below the listing facts.
-
-Rows with a `google_place_id` use the existing `getGooglePlaceDetails` client
-with `GOOGLE_PLACES_FIELD_MASK` only (`id`, `name`, `formattedAddress`,
-`location`, `photos`). A successful normalized snapshot is stored in
-`places.google_details_snapshot` with `places.google_details_cached_at`,
-columns created by [`migrations/0002_places.sql`](migrations/0002_places.sql),
-and served for 7 days. A stale or missing snapshot makes one Essentials
-request; provider failures leave the saved row visible. Phone, website,
-rating, review count, address parts, and the Maps link use persisted listing
-columns or a deterministic Google Maps URL. The costlier
-`GOOGLE_PLACES_USEFUL_FIELD_MASK` is not used on page views, so phone/hours
-fields are not requested from Google on every visit.
-
-Metadata and Restaurant JSON-LD use the merged listing name and map link,
-retain the approximate-location disclaimer, and add a clearly labeled
-community-evidence note. Community reaction counts are not presented as a
-fake aggregate rating.
+Every write needs a session and spends a per-user and per-IP budget (checks 20 a day, places 10, recs 30, reports 10, comments 100). Reads that show checks apply one visibility rule: unshared checks are the author's alone, nothing crosses a block, and a private account's checks show only to accepted followers. `tests/check-visibility-audit.test.ts` fails if a query over `checks` doesn't say which audience it serves.
 
 ## Google Places coordinate backfill
 
@@ -420,46 +301,24 @@ The limiter fails closed if D1 is unavailable, so a provider outage cannot turn 
 
 ### Auth schema migration
 
-The migrations under [`migrations/`](migrations) are D1/SQLite SQL, applied with `wrangler d1 migrations apply` (see [Cloudflare deployment](#cloudflare-deployment)). IDs are `text`, timestamps are Unix epoch milliseconds, booleans are `0`/`1`, and `places.serves_cuisine` is a JSON array stored as text.
+The schema is one baseline, [`migrations/0001_baseline.sql`](apps/web/migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. `src/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([docs/ROLLBACK.md](docs/ROLLBACK.md)). From here on, schema changes are new numbered, additive migrations applied before the deploy (the deploy gate refuses pending ones). Never drop or reset the production database.
 
-Apply [`migrations/0001_better_auth_email_otp.sql`](migrations/0001_better_auth_email_otp.sql) first. It creates Better Auth's `user`, `session`, `account`, `verification`, and `rate_limit` tables plus the application OTP limiter table.
+For a local or preview database only, place listings can be carried across a reset like this. Production never takes this path; the Oct 5 cutover imported old prod's places into the new database as reviewed SQL instead:
 
-Apply [`migrations/0002_places.sql`](migrations/0002_places.sql) after it. It creates the `places` table, including `submitted_by_user_id` and `halal_confirmed` for community submissions, durable uniqueness for `(city_slug, name, street_address)`, and non-null `google_place_id` values. New user-submitted rows use `source = user-submitted`, `serves_cuisine = ["Halal"]`, the authenticated user id, and the submission time for both `created_at` and `scraped_at`.
+```sh
+npm run places:export -w @halalfood/web -- seed/places.jsonl   # before
+npm run db:migrate:remote                                       # baseline
+npm run places:import -w @halalfood/web -- seed/places.jsonl   # after
+```
 
-Apply [`migrations/0003_saved_places.sql`](migrations/0003_saved_places.sql) after it. It creates the additive `saved_places` table with a cascading foreign key to Better Auth's `user`, a cascading foreign key to `places`, and a unique `(user_id, place_id)` pair. It is safe to re-run.
-
-Apply [`migrations/0004_place_halal_verifications.sql`](migrations/0004_place_halal_verifications.sql) after it. It creates the additive `place_halal_verifications` and `place_halal_verification_evidence` tables, links both records to the existing place/user rows, and constrains status/evidence shapes. New submissions are `pending` and the migration is safe to re-run.
-
-Apply [`migrations/0005_place_ratings.sql`](migrations/0005_place_ratings.sql) after it. It creates the additive `place_ratings` table with cascading place/user foreign keys, one `(user_id, place_id)` row per user and place, and a check constraint for the three halal reaction values. The migration is safe to re-run.
-
-Apply [`migrations/0006_place_reviews.sql`](migrations/0006_place_reviews.sql) after it. It creates the additive `place_reviews` table with cascading place/user foreign keys, a required trimmed text body, an optional title, and a `(user_id, place_id)` primary key. That composite key intentionally gives each user one editable review per place and makes ownership enforcement/upsert behavior durable. The migration is safe to re-run.
-
-Apply [`migrations/0007_place_photos.sql`](migrations/0007_place_photos.sql) after it. It creates the additive `place_photos` table with cascading place/user foreign keys, unique R2 keys, image-only content types, an 8 MiB size check, and a place/created-at gallery index. The migration is safe to re-run.
-
-Apply [`migrations/0008_place_google_payload.sql`](migrations/0008_place_google_payload.sql) after it. It adds the full legacy Google Place Details payload and its Unix-millisecond fetch timestamp to `places`.
-
-Apply them in order with wrangler's own migration tracking, which skips migrations it has already recorded as applied:
+Only listed rows and the columns the new schema keeps are carried. Every place comes back as "Not checked yet".
 
 ```sh
 npm run db:migrate:local   # local development database
-npm run db:migrate:remote  # deployed halalfood-world D1 database
+npm run db:migrate:remote  # deployed production D1 database (halalfood-world-v2)
 ```
 
-`npm run db:migrate:remote` is `wrangler d1 migrations apply halalfood-world --remote`
-from `apps/web`. Wrangler sends each migration file as one script and skips
-files already recorded in `d1_migrations`, including `0008_place_google_payload.sql`.
-Do not apply production migrations by splitting a file into statements:
-`wrangler d1 execute --command` treats a leading `--` comment as a flag, and a
-semicolon inside a comment is not a statement boundary.
-
-The Drizzle definitions in `src/db/schema.ts` must stay aligned with this SQL. If Better Auth is upgraded or plugins are added, regenerate/review the Drizzle schema with the Better Auth CLI and create a new migration rather than changing the existing table names silently.
-
-The add API is auth-gated with an authoritative Better Auth session lookup. A
-manual submission stores the supplied name, address and city without making a
-paid provider request; a Google submission re-fetches the minimal Place Details
-mask on the server before writing. Every submission must include an explicit halal
-confirmation. The place page labels these rows as community submissions, and
-does not expose the submitter's id.
+Do not apply production migrations by splitting a file into statements: `wrangler d1 execute --command` treats a leading `--` comment as a flag, and a semicolon inside a comment is not a statement boundary.
 
 Dynamic segments are validated before they reach SQL: `citySlugParam` accepts only lowercase kebab-case, `placeIdParam` only UUIDs, and `pageParam` clamps the page index. An unparseable segment is a 404 and never costs a query.
 
@@ -467,11 +326,9 @@ City and place pages distinguish a missing row (a real 404) from an unreachable 
 
 ### Deep links and sharing
 
-- `/?place=<uuid>` opens the map on that pin and its popup.
-- `/?city=<slug>` frames the city on the map.
-- `/?lat=<lat>&lng=<lng>&z=<zoom>` sets the initial view; invalid values fall back to the default view.
-- Selecting a pin rewrites the address bar to `/?place=<uuid>` with `replaceState`, so the browser's own share button works.
-- Popups, city pages and place pages carry a Share control: Web Share where available, clipboard otherwise, and a selectable URL if both are blocked. Shared links point at the canonical `/place/<id>` page, which previews with an OG image and links back to the map.
+- `/map?city=<slug>`, `/map?place=<uuid>` and `/map?filters=…` open the map framed on a city, a place or a filter set.
+- Places, lists, events and profiles carry a Share control: Web Share where available, otherwise the link is copied.
+- Signed-in people can Send a place, list or event to people they follow or who follow them; it arrives in the recipient's Inbox.
 
 ## SEO, AEO and GEO
 
@@ -486,9 +343,12 @@ City and place pages distinguish a missing row (a real 404) from an unreachable 
 
 | Child | Contents |
 | --- | --- |
-| `/sitemaps/core/sitemap.xml` | Home and the city directory. |
+| `/sitemaps/core/sitemap.xml` | Home, the city directory, events and community. |
 | `/sitemaps/cities/sitemap.xml` | One entry per distinct `city_slug`, capped at 2,000. |
-| `/sitemaps/places/sitemap/N.xml` | Places, 5,000 per file (3 files today), from an id-ordered scan so chunk boundaries stay stable. |
+| `/sitemaps/places/sitemap/N.xml` | Places, 5,000 per file, from an id-ordered scan so chunk boundaries stay stable. |
+| `/sitemaps/social/sitemap.xml` | Public lists, public profiles with a shared check, and upcoming events. |
+
+`robots.txt` disallows `/api/`, `/search` and the signed-in screens (`/me`, `/saved`, `/inbox`, `/friends`, `/admin`, `/welcome`, `/add`, `/login`). Place, city, list and profile pages render the viewer's saves and friends on the server, so only `/cities` and the sitemaps are cached at the edge.
 
 `MAX_PLACE_CHUNKS` in `src/lib/sitemap.ts` caps the index at 50 chunks if the table ever grows far beyond its current size. If the count query fails, the index still advertises the core and city sitemaps rather than returning nothing.
 
@@ -502,48 +362,12 @@ node scripts/generate-assets.mjs
 
 ## Data and bounded APIs
 
-- `GET /api/places?bbox=west,south,east,north&limit=600`: requires a valid bbox, defaults to 400 and caps at 600. West greater than east crosses the antimeridian.
-- `GET /api/places/search?q=mumbai&limit=12`: searches name, city and address; requires 2–120 characters and caps at 40.
-- `GET /api/places/:id`: one place by UUID. 400 on a malformed id, 404 when absent.
-- `POST /api/places`: requires a Better Auth session and `halalConfirmed: true`; accepts `mode: google` with a selected `googlePlaceId`, or `mode: manual` with name, address and city. Returns 201 with the new place id, 401 for sign-in, 409 for a duplicate, and 429 when the durable submission budget is exhausted.
-- `GET /api/places/saved`: requires a Better Auth session and returns up to 200 saved halal places, newest first. Unauthenticated requests return 401 with a `/login?returnTo=%2Fsaved` hint.
-- `POST/DELETE /api/places/:id/saved`: requires a Better Auth session, validates the UUID and confirms the target is an existing halal listing. Both methods return the resulting `saved` state and 429 when either save-action bucket is exhausted.
-- `GET /api/places/google-search?q=...`: signed-out and signed-in. Uses server-only Google Places (New) Text Search when the query is at least 3 characters, the per-caller rate limit allows it, the result is not cached, and the daily cap has room. Optional `bbox=west,south,east,north` biases and caches by that area. A full day returns 200 with `fallback: "link"` and local places. 429 uses the shared rate-limit copy.
-- `GET /api/places/:id/verifications`: returns approved community evidence to everyone and the current contributor's own pending submission when signed in, plus a `summary` derived only from approved rows (`evidence-backed` or `unverified`, with the approved count and latest reviewed timestamp). Submitter ids are never exposed; pending evidence never changes the public summary.
-- `POST /api/places/:id/verifications`: requires a Better Auth session and at least one HTTPS Zabihah, Instagram, TikTok, or YouTube link or validated R2 upload. New rows are `pending` and the user/IP rate-limit buckets are consumed before the write.
-- `GET /api/places/:id/rating`: returns `counts` for `mashallah`, `alhamdulillah`, and `astaghfirullah`, plus `rating` for the current signed-in user (or `null`).
-- `PUT/POST /api/places/:id/rating`: requires a Better Auth session and `{ "rating": "mashallah" | "alhamdulillah" | "astaghfirullah" }`; upserts that user's reaction and returns the refreshed aggregate counts. Invalid UUIDs or reactions are rejected, and both user/IP rating buckets must allow the write.
-- `GET /api/places/:id/reviews`: returns up to 50 newest public reviews for a halal place, plus the signed-in user's own review when it falls outside that window, with the author's display name, body, optional title, created/updated timestamps, and an `isOwn` marker.
-- `PUT/POST /api/places/:id/reviews`: requires a Better Auth session and `{ "body": "...", "title": "..." }` (`title` is optional); trims input, caps title/body lengths at 120/5,000 characters, rejects empty bodies, and upserts the current user's one review for the place.
-- `DELETE /api/places/:id/reviews`: requires a Better Auth session and deletes only the review owned by that session's user. Review mutations require both hashed user/IP limiter buckets to allow the action.
-- `GET /api/places/:id/photos`: returns up to 100 newest public photos for a halal place with image URLs, metadata, and an `isOwn` marker for the signed-in user.
-- `POST /api/places/:id/photos`: requires a Better Auth session and a multipart `file`; accepts only JPEG, PNG, or WebP images up to 8 MiB, checks content type and magic bytes, stores the object, and registers its metadata in one request.
-- `DELETE /api/places/:id/photos/:photoId`: requires a Better Auth session and removes only the photo owned by that session's user. The database row is removed before best-effort R2 cleanup so failed cleanup cannot leave the image publicly authorized.
-- `POST /api/uploads/r2`: requires a Better Auth session and a configured `HALAL_EVIDENCE_R2` binding. It accepts only JPEG, PNG, WebP, and PDF files up to 8 MiB, checks the file signature, and returns an account-scoped R2 key for the verification submission. Missing R2 configuration fails closed with 503.
-- `GET /api/uploads/r2?key=...`: serves approved/own-pending verification evidence or a listed halal place photo. Photos are stored under `photos/<hashed-owner>/<uuid>.<ext>` and are public-read only when their `place_photos` row belongs to a listed halal place.
-- `GET /api/cities/:citySlug`: aggregate for one city, including the mean of its listed coordinates for map centring.
-- `src/lib/places.ts` also exposes `getPlaceById`, `listCities`, `countCities`, `getCity`, `findPlacesByCity`, `countPlaces` and `listPlaceRefs` for the server-rendered routes. Every one is parameterized and limit-clamped; none writes.
-- Responses contain `places`, `total` (all matching rows) and `limit`. The count pill shows the viewport total; the sheet explains when only the top 600 are shown. Results are ordered by rating, reviews, then ID.
-- Queries filter directly on non-null `places.lat` / `places.lng`, allowing the existing `places_lat_lng_idx` to serve viewport bounds. The server counts matches and only sends the capped selection to the client.
-- Ops has populated all 11,957 coordinates with city centroids plus about 1–3 km of jitter. These are **approximate locations**, not verified restaurant coordinates. The UI asks visitors to confirm the address. There is no runtime centroid fallback or client-side jitter.
-- `src/data/city_coords.json` is retained as a reference only; it is not imported into runtime code.
-- SQL values are parameterized; search wildcard characters are escaped. API failures return generic errors without database details or credentials.
-
-### Listing inclusion, reviewed evidence, and certification
-
-`places.halal_confirmed` is the publication flag that controls whether a place
-appears in the directory; it is not a reviewed evidence result. Place pages
-show `Evidence-backed` only when one or more community verification submissions
-have been approved by moderation, with the approved count and latest reviewed
-timestamp. They show `Unverified` when no approved evidence exists, which does
-not mean non-halal. Neither state is a formal certification or a substitute for
-checking with the restaurant. Pending submissions remain pending and are visible
-only to their submitter until reviewed.
-
-Rating aggregates use query-time filtered `COUNT` values from `place_ratings`
-instead of denormalized counters. This keeps a changed reaction and its totals
-in one durable source of truth; the rating read and mutation responses both
-return the three counts and total.
+- Every list endpoint is limit-clamped and parameterized; search escapes wildcard characters and caps `q` at 64 characters.
+- Status is computed in TypeScript and written to `place_status` in the same D1 batch as the check, so Explore, the map and search filter with plain SQL. Filters match the fact's current value, settled or not; Verified needs all four settled.
+- A status flip writes `place_status_changes` and tells everyone who saved the place.
+- Points (3 a check, 5 for adding a place, 10 for helping verify one) are an append-only ledger with one award per kind, place and person per day. They rank the Community board and never touch status.
+- Coordinates come from Google Places when a place is added; older rows may carry approximate city-centre coordinates until backfilled.
+- API failures return generic errors without database details or credentials.
 
 ## Cloudflare deployment
 
@@ -578,10 +402,10 @@ EMAIL_FROM=noreply@halalfood.world
 
 ### Migration gate
 
-Workers Builds on `main` runs `npm run build`, then `npx wrangler deploy`. At the end of the build, `scripts/stage-cloudflare-build.ts` runs this and exits non-zero when it fails or when it lists anything still pending:
+Workers Builds on `main` runs `npm run build`, then `npx wrangler deploy`. At the end of the build, `scripts/stage-cloudflare-build.ts` reads the `DB` binding's `database_name` and `database_id` from [`apps/web/wrangler.jsonc`](apps/web/wrangler.jsonc), runs this for that database, and exits non-zero when it fails, when the binding is missing or malformed, or when it lists anything still pending:
 
 ```sh
-npx wrangler d1 migrations list halalfood-world --remote
+npx wrangler d1 migrations list halalfood-world-v2 --remote
 ```
 
 A failing build stops Workers Builds before `wrangler deploy`. The gate does not apply migration files. It runs only when `WORKERS_CI=1` and `WORKERS_CI_BRANCH=main`. Preview builds and GitHub Actions skip it. The list command has a 60 second timeout; a timeout fails the build the same way a failed command does.
@@ -602,68 +426,25 @@ Enter the Resend API key, Better Auth secret, and Turnstile server secret at the
 npx @vinext/cloudflare deploy --config dist/server/wrangler.json
 ```
 
-### Migrating existing data from Neon
+### Resetting a deployed database
 
-This repository previously ran on Neon/Postgres. Cutting an existing deployment
-over to D1 needs a one-time, manual data export/import that isn't part of this
-codebase or CI, since it requires production credentials for both databases:
-
-1. Export each table's rows from the existing Neon database (for example with `psql \copy ... to '<file>.csv' csv`).
-2. Convert exported rows to `INSERT` statements matching the new D1 schema: ids stay as text, timestamps become Unix epoch milliseconds, booleans become `0`/`1`, and `places.serves_cuisine` becomes a JSON array string.
-3. Load the converted statements with `npx wrangler d1 execute halalfood-world --remote --file=<file>.sql`.
-4. Verify row counts per table match before decommissioning the Neon project.
+See [Auth schema migration](#auth-schema-migration): export the places, drop and recreate the database, apply the baseline, and import the places.
 
 Wrangler prints the workers.dev URL on success. Configure the custom domain `halalfood.world` in Cloudflare after deployment if desired. Local `.dev.vars` does **not** upload production secrets. Set `EMAIL_FROM` as a Worker variable (or leave the preferred default), and use `onboarding@resend.dev` until the custom domain is verified. No tile token is needed. Deployment also requires Cloudflare authentication.
 
 The optional email smoke check is disabled unless `EMAIL_HEALTHCHECK_ENABLED=true`. To enable it, configure `EMAIL_HEALTHCHECK_TO` and store a long random bearer token as `EMAIL_HEALTHCHECK_TOKEN` (use `npx wrangler secret put EMAIL_HEALTHCHECK_TOKEN` for production), then send an authenticated `POST` to `/api/admin/email/healthcheck` with `Authorization: Bearer <token>`. The endpoint has no request-supplied recipient and returns 404 while disabled, so it cannot be used as an unauthenticated spam endpoint. Use it only for occasional operator checks; it is not a queue or mass-mailing mechanism.
 
-### Community verification R2 uploads
+### R2 photos
 
-The web app's [`wrangler.jsonc`](apps/web/wrangler.jsonc) declares the `HALAL_EVIDENCE_R2`
-R2 binding and the bucket name `halalfood-world-evidence`. Create that bucket
-once in the target Cloudflare account, or change the bucket name in
-`wrangler.jsonc` before deployment:
+The web app's [`wrangler.jsonc`](apps/web/wrangler.jsonc) declares the `HALAL_EVIDENCE_R2` binding and the bucket `halalfood-world-evidence`. Create it once in the target account:
 
 ```sh
 npx wrangler r2 bucket create halalfood-world-evidence
 ```
 
-The upload path is a Worker-direct multipart upload; it does not need S3
-credentials or a public bucket. Uploads are limited to 8 MiB and the allowlist
-is `image/jpeg`, `image/png`, `image/webp`, and `application/pdf`. The server
-also checks the JPEG/PNG/WebP/PDF signature, stores an account-hashed key, and
-never accepts an arbitrary R2 key in a verification submission. R2 objects are
-served through the access-checked download route, so only approved evidence
-or the submitter's own pending evidence is readable.
+Place photos and profile photos are uploaded straight to the Worker (multipart, JPEG, PNG or WebP, 8 MB for places and 2 MB for profiles), checked by content type and file signature, and stored under account-hashed keys (`photos/…`, `avatars/…`). They are served through `GET /api/photos/[...key]` and `GET /api/avatars/[handle]`. Deleting an account deletes its photos.
 
-Place photos reuse this same `HALAL_EVIDENCE_R2` binding and
-`halalfood-world-evidence` bucket; no new Worker binding or bucket is needed.
-Photo objects use the `photos/<hashed-owner>/<uuid>.<jpg|png|webp>` prefix and
-are readable through the same proxy only while their `place_photos` row belongs
-to a listed halal place. One multipart request performs the direct R2 write and
-metadata registration together.
-
-`npm run build` generates the deployable Worker config at
-`dist/server/wrangler.json` and carries the root `r2_buckets` declaration into
-that generated config. Do not hand-edit `dist`; if the generated file is
-missing the `HALAL_EVIDENCE_R2` declaration, stop before deploying and inspect
-the vinext build output. The runtime reads this binding with vinext's native
-`cloudflare:workers` environment module and fails closed when it is absent.
-
-For Ops moderation, review the submitted links/files, then update only the
-status column (there is intentionally no admin UI in this feature). Approval
-adds community evidence to the place-page summary; it does not create a formal
-certification or change the listing flag:
-
-```sh
-npx wrangler d1 execute halalfood-world --remote --command "
-  UPDATE place_halal_verifications
-  SET status = 'approved', updated_at = unixepoch() * 1000
-  WHERE id = '<verification id>' AND status = 'pending'
-"
-```
-
-The supported status values are `pending`, `approved`, and `rejected`.
+`npm run build` carries the `r2_buckets` declaration into `dist/server/wrangler.json`. Do not hand-edit `dist`.
 
 The framework deployment setup follows the [official vinext documentation](https://github.com/cloudflare/vinext). Basemap availability depends on CARTO; review its service terms before scaling traffic.
 

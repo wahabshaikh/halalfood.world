@@ -114,3 +114,16 @@ export async function spendBudget(
     return unavailable();
   }
 }
+
+/** A signed-in moderator, or the response to send instead (401 or 403). */
+export async function requireModerator(request: Request, returnTo = "/admin"): Promise<AuthOutcome> {
+  const outcome = await requireUser(request, returnTo);
+  if (!outcome.ok) return outcome;
+  const { isModerator } = await import("./moderators");
+  try {
+    if (!(await isModerator(outcome.auth.userId))) return { ok: false, response: forbidden("Moderators only.") };
+  } catch {
+    return { ok: false, response: unavailable() };
+  }
+  return outcome;
+}

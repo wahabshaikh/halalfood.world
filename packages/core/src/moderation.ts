@@ -1,277 +1,64 @@
-/**
- * Moderation and operations: the evidence review queue, reports, appeals and
- * the audit log.
- *
- * Operational tooling is part of the trust product. Every consequential change
- * to a halal claim or a ranking input is recorded with who, when, why and from
- * what source, and every decision has a documented appeal path.
- */
-
-import type { EvidenceKind, HalalTaxonomyStatus, Relationship } from "./halal-taxonomy";
-
-export const REPORT_TARGETS = [
-  "place",
-  "verification",
-  "check-in",
-  "photo",
-  "list",
-  "dish",
-  "user",
-] as const;
-
+/** Reports are the safety net (spec §1 rule 8). Moderators act on reports and nothing else. */
+export const REPORT_TARGETS = ["place", "check", "comment", "user", "list"] as const;
 export type ReportTarget = (typeof REPORT_TARGETS)[number];
 
-export const REPORT_REASONS = [
-  "factual-error",
-  "fraud",
-  "harassment",
-  "religious-misrepresentation",
-  "incentivized",
-  "duplicate",
-  "other",
-] as const;
+export const PLACE_REASONS = ["closed", "wrong-answers", "wrong-details", "duplicate", "other"] as const;
+export const CONTENT_REASONS = ["harassment", "spam", "other"] as const;
 
-export type ReportReason = (typeof REPORT_REASONS)[number];
-
-export const REPORT_REASON_COPY: Record<ReportReason, string> = {
-  "factual-error": "Factual error",
-  fraud: "Fraud or fake evidence",
+export const REASON_LABEL: Record<string, string> = {
+  closed: "It has closed",
+  "wrong-answers": "The halal answers are wrong",
+  "wrong-details": "Name, address or phone is wrong",
+  duplicate: "It’s listed twice",
   harassment: "Harassment",
-  "religious-misrepresentation": "Religious misrepresentation",
-  incentivized: "Rewarded or incentivized feedback",
-  duplicate: "Duplicate entry",
+  spam: "Spam",
   other: "Something else",
 };
 
-export const REPORT_STATUSES = [
-  "open",
-  "upheld",
-  "dismissed",
-  "appealed",
-  "appeal-upheld",
-  "appeal-dismissed",
-] as const;
+export const REPORT_DETAIL_MAX = 500;
 
-export type ReportStatus = (typeof REPORT_STATUSES)[number];
+export type ReportInput = { targetType: ReportTarget; targetId: string; reason: string; detail: string | null };
 
-export type ReportValidation =
-  | {
-      ok: true;
-      data: { targetType: ReportTarget; targetId: string; reason: ReportReason; detail: string | null };
-    }
-  | { ok: false; error: string };
-
-export function validateReport(input: unknown): ReportValidation {
-  if (!input || typeof input !== "object" || Array.isArray(input))
-    return { ok: false, error: "Send a JSON object." };
-  const body = input as Record<string, unknown>;
-
-  if (!(REPORT_TARGETS as readonly unknown[]).includes(body.targetType))
-    return { ok: false, error: "Choose what you are reporting." };
-  if (typeof body.targetId !== "string" || !body.targetId.trim() || body.targetId.length > 100)
-    return { ok: false, error: "The reported item is missing." };
-  if (!(REPORT_REASONS as readonly unknown[]).includes(body.reason))
-    return { ok: false, error: "Choose a reason for the report." };
-
+export function validateReport(body: unknown): { ok: true; value: ReportInput } | { ok: false; error: string } {
+  if (!body || typeof body !== "object") return { ok: false, error: "Send a report." };
+  const input = body as Record<string, unknown>;
+  if (!(REPORT_TARGETS as readonly unknown[]).includes(input.targetType)) return { ok: false, error: "Unknown report target." };
+  const targetType = input.targetType as ReportTarget;
+  if (typeof input.targetId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(input.targetId))
+    return { ok: false, error: "Unknown report target." };
+  const reasons: readonly string[] = targetType === "place" ? PLACE_REASONS : CONTENT_REASONS;
+  if (typeof input.reason !== "string" || !reasons.includes(input.reason)) return { ok: false, error: "Pick a reason." };
   let detail: string | null = null;
-  if (body.detail !== undefined && body.detail !== null && body.detail !== "") {
-    if (typeof body.detail !== "string" || body.detail.trim().length > 2000)
-      return { ok: false, error: "The detail must be 2000 characters or fewer." };
-    detail = body.detail.trim() || null;
+  if (typeof input.detail === "string" && input.detail.trim()) {
+    detail = input.detail.trim();
+    if (detail.length > REPORT_DETAIL_MAX) return { ok: false, error: "Keep the details to 500 characters." };
   }
-  if ((body.reason === "other" || body.reason === "harassment") && !detail)
-    return { ok: false, error: "Tell us what happened so the report can be reviewed." };
-
-  return {
-    ok: true,
-    data: {
-      targetType: body.targetType as ReportTarget,
-      targetId: body.targetId.trim(),
-      reason: body.reason as ReportReason,
-      detail,
-    },
-  };
+  return { ok: true, value: { targetType, targetId: input.targetId, reason: input.reason, detail } };
 }
 
-export type AppealValidation =
-  | { ok: true; data: { reason: string } }
-  | { ok: false; error: string };
-
-export function validateAppeal(input: unknown): AppealValidation {
-  if (!input || typeof input !== "object" || Array.isArray(input))
-    return { ok: false, error: "Send a JSON object." };
-  const body = input as Record<string, unknown>;
-  if (typeof body.reason !== "string")
-    return { ok: false, error: "Explain why the decision should be reconsidered." };
-  const reason = body.reason.trim();
-  if (!reason || reason.length > 2000)
-    return { ok: false, error: "The appeal must be 1-2000 characters." };
-  return { ok: true, data: { reason } };
-}
-
-/** A decision can only be appealed once it has actually been decided. */
-export function canAppeal(status: ReportStatus): boolean {
-  return status === "upheld" || status === "dismissed";
-}
-
-/* ------------------------------------------------------- the review queue -- */
-
-export type QueueItem = {
-  id: string;
-  placeId: string;
-  kind: EvidenceKind;
-  claimedStatus: HalalTaxonomyStatus;
-  relationship: Relationship;
-  incentivized: boolean;
-  createdAt: number;
-  /** Effective expiry of the evidence this submission would replace or extend. */
-  expiresAt: number | null;
-  /** Whether the place already has contradictory current evidence. */
-  conflicting: boolean;
-  /** How many people have this place saved — a proxy for blast radius. */
-  savedCount: number;
-  openReports: number;
-};
-
-export type PrioritizedQueueItem = QueueItem & {
-  priority: number;
-  /** Why this sits where it does, shown in the console. */
-  rationale: string[];
-};
-
-const DAY_MS = 86_400_000;
-
-/**
- * Prioritise expiring, conflicting, high-impact and suspicious claims. The
- * score is deliberately explainable: each contribution is listed alongside it.
- */
-export function prioritizeQueue(
-  items: readonly QueueItem[],
-  now: number = Date.now(),
-): PrioritizedQueueItem[] {
-  return items
-    .map((item) => {
-      let priority = 0;
-      const rationale: string[] = [];
-
-      if (item.conflicting) {
-        priority += 100;
-        rationale.push("Conflicts with current evidence");
-      }
-      if (item.openReports > 0) {
-        priority += 40 + Math.min(item.openReports, 5) * 10;
-        rationale.push(`${item.openReports} open report${item.openReports === 1 ? "" : "s"}`);
-      }
-      if (item.incentivized || item.relationship !== "none") {
-        priority += 35;
-        rationale.push("Declared interest or reward");
-      }
-      if (item.expiresAt !== null) {
-        const daysLeft = Math.floor((item.expiresAt - now) / DAY_MS);
-        if (daysLeft <= 0) {
-          priority += 60;
-          rationale.push("Replaces expired evidence");
-        } else if (daysLeft <= 30) {
-          priority += 30;
-          rationale.push(`Evidence expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`);
-        }
-      }
-      if (item.claimedStatus === "verified" || item.claimedStatus === "not-halal") {
-        priority += 25;
-        rationale.push("High-impact claim");
-      }
-      const impact = Math.min(Math.floor(item.savedCount / 10), 20);
-      if (impact) {
-        priority += impact;
-        rationale.push(`Saved by ${item.savedCount} people`);
-      }
-      const waitingDays = Math.floor((now - item.createdAt) / DAY_MS);
-      if (waitingDays > 0) {
-        priority += Math.min(waitingDays, 20);
-        rationale.push(`Waiting ${waitingDays} day${waitingDays === 1 ? "" : "s"}`);
-      }
-      if (!rationale.length) rationale.push("Routine submission");
-
-      return { ...item, priority, rationale };
-    })
-    .sort((a, b) => b.priority - a.priority || a.createdAt - b.createdAt);
-}
-
-/* ---------------------------------------------------------------- audit -- */
-
-export const AUDIT_ACTIONS = [
-  "evidence.submitted",
-  "evidence.approved",
-  "evidence.rejected",
-  "evidence.superseded",
-  "status.changed",
-  "edit.submitted",
-  "edit.accepted",
-  "edit.rejected",
-  "dish.added",
-  "duplicate.reported",
-  "duplicate.merged",
-  "report.opened",
-  "report.resolved",
-  "appeal.opened",
-  "appeal.resolved",
-  "facts.updated",
-  "event.created",
-  "event.updated",
-  "event.cancelled",
-  "event.restored",
-  "place.listed",
-  "place.rejected",
-  "place.unpublished",
-  "place.restored",
-  "place.pinned",
-  "listing.changed",
-] as const;
-
-export type AuditAction = (typeof AUDIT_ACTIONS)[number];
-
-export type AuditEntry = {
-  actorUserId: string | null;
-  action: AuditAction;
-  targetType: string;
-  targetId: string;
-  reason?: string | null;
-  source?: string | null;
-  before?: unknown;
-  after?: unknown;
-};
-
-/** Ranking- and halal-sensitive actions must always be recorded. */
-export const ALWAYS_AUDITED: ReadonlySet<AuditAction> = new Set([
-  "evidence.approved",
-  "evidence.rejected",
-  "evidence.superseded",
-  "status.changed",
-  "edit.accepted",
-  "edit.rejected",
-  "duplicate.merged",
-  "report.resolved",
-  "appeal.resolved",
-  "facts.updated",
-  "place.listed",
-  "place.rejected",
-  "place.unpublished",
-  "place.restored",
-  "place.pinned",
-]);
-
-export function requiresAudit(action: AuditAction): boolean {
-  return ALWAYS_AUDITED.has(action);
-}
-
-/** Serialise an audit payload without letting one huge blob into the table. */
-export function auditValue(value: unknown, maxLength = 4000): string | null {
-  if (value === undefined || value === null) return null;
-  try {
-    const json = JSON.stringify(value);
-    if (typeof json !== "string") return null;
-    return json.length > maxLength ? json.slice(0, maxLength) : json;
-  } catch {
-    return null;
+/** The one action a moderator takes for each reason, besides Dismiss. */
+export function primaryAction(targetType: ReportTarget, reason: string): string {
+  if (targetType === "place") {
+    if (reason === "wrong-answers") return "reset-checks";
+    if (reason === "closed") return "mark-closed";
+    if (reason === "duplicate") return "merge";
+    if (reason === "wrong-details") return "fix-details";
+    return "hide-place";
   }
+  if (targetType === "comment") return "hide-comment";
+  if (targetType === "check") return "exclude-check";
+  if (targetType === "user") return "suspend-user";
+  return "hide-list";
 }
+
+export const ACTION_LABEL: Record<string, string> = {
+  "reset-checks": "Reset checks",
+  "mark-closed": "Mark closed",
+  merge: "Merge",
+  "fix-details": "Fix details",
+  "hide-place": "Hide place",
+  "hide-comment": "Remove comment",
+  "exclude-check": "Exclude check",
+  "suspend-user": "Suspend",
+  "hide-list": "Make private",
+};

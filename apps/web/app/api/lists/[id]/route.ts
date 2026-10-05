@@ -1,130 +1,42 @@
-import {
-  deleteList,
-  getListForViewer,
-  hasCollaborators,
-  listCollaboratorsOf,
-  listHasPlace,
-  listItems,
-  updateList,
-} from "../../../../src/lib/lists-repository";
-import {
-  canManageList,
-  collaborationConflict,
-  listProgress,
-  validateList,
-} from "@halalfood/core/place-lists";
-import { placeIdParam } from "@halalfood/core/params";
-import { listVisitedPlaceIds } from "../../../../src/lib/visits";
-import { consumePersonalWriteLimits } from "../../../../src/lib/otp-rate-limit";
-import {
-  INVALID_JSON,
-  badRequest,
-  forbidden,
-  json,
-  notFound,
-  optionalUser,
-  readJson,
-  requireUser,
-  spendBudget,
-  unavailable,
-} from "../../../../src/lib/api";
+import { INVALID_JSON, badRequest, json, notFound, optionalUser, readJson, requireUser, unavailable } from "../../../../src/lib/api";
+import { deleteList, getList, parseListFields, updateList } from "../../../../src/lib/lists";
+import { isModerator } from "../../../../src/lib/moderators";
 
-/**
- * A list as the viewer may see it. Private lists belong to their people, a
- * block hides a list both ways and a private account's lists open only for its
- * followers, so all of them read as missing to anyone else.
- */
-export async function GET(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-): Promise<Response> {
-  const listId = placeIdParam((await context.params).id);
-  if (!listId) return badRequest("Invalid list id.");
+type Context = { params: Promise<{ id: string }> };
 
+export async function GET(request: Request, { params }: Context): Promise<Response> {
   try {
-    const viewerId = await optionalUser(request);
-    const access = await getListForViewer(listId, viewerId);
-    if (!access) return notFound("That list could not be found.");
-    const [items, visited, collaborators] = await Promise.all([
-      listItems(listId),
-      viewerId ? listVisitedPlaceIds(viewerId) : Promise.resolve(new Set<string>()),
-      access.role === "owner" || access.role === "editor" || access.role === "invited"
-        ? listCollaboratorsOf(listId)
-        : Promise.resolve([]),
-    ]);
-    return json({
-      list: access.list,
-      owner: access.owner,
-      role: access.role,
-      saved: access.saved,
-      editLinkOn: access.editLinkOn,
-      collaborators: collaborators.map(({ userId: _userId, ...person }) => person),
-      progress: viewerId ? listProgress(items, visited) : null,
-      items,
-    });
+    const list = await getList((await params).id, await optionalUser(request));
+    return list ? json({ list }) : notFound("That list could not be found.");
   } catch {
     return unavailable();
   }
 }
 
-export async function PUT(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-): Promise<Response> {
-  const listId = placeIdParam((await context.params).id);
-  if (!listId) return badRequest("Invalid list id.");
-
-  const outcome = await requireUser(request, "/lists");
+/** Edit title, caption or visibility (owner only). */
+export async function PUT(request: Request, { params }: Context): Promise<Response> {
+  const id = (await params).id;
+  const outcome = await requireUser(request, `/list/${id}`);
   if (!outcome.ok) return outcome.response;
-
   const body = await readJson(request);
   if (body === INVALID_JSON) return badRequest("Send a valid JSON object.");
-  const validation = validateList(body);
-  if (!validation.ok) return badRequest(validation.error);
-
-  const limited = await spendBudget(consumePersonalWriteLimits, outcome.auth);
-  if (limited) return limited;
-
+  const parsed = parseListFields(body, false);
+  if (!parsed.ok) return badRequest(parsed.error);
   try {
-    const access = await getListForViewer(listId, outcome.auth.userId);
-    if (!access) return notFound("That list could not be found.");
-    if (!canManageList(access.role)) return forbidden("That list is not yours to edit.");
-
-    // A group plan and a personal ranking are different things.
-    if (validation.data.ranked && (access.editLinkOn || (await hasCollaborators(listId)))) {
-      const conflict = collaborationConflict({ ranked: true, visibility: validation.data.visibility });
-      return badRequest(
-        `${conflict} Remove the collaborators and turn off the edit link first.`,
-      );
-    }
-    if (
-      validation.data.coverPlaceId &&
-      !(await listHasPlace(listId, validation.data.coverPlaceId))
-    )
-      return badRequest("The cover must be one of the list's places.");
-
-    const updated = await updateList(listId, outcome.auth.userId, validation.data);
-    if (!updated) return forbidden("That list is not yours to edit.");
-    return json({ list: (await getListForViewer(listId, outcome.auth.userId))?.list });
+    const result = await updateList(id, outcome.auth.userId, parsed.fields);
+    return result.ok ? json({ ok: true }) : json({ error: result.error }, { status: result.status });
   } catch {
     return unavailable();
   }
 }
 
-export async function DELETE(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-): Promise<Response> {
-  const listId = placeIdParam((await context.params).id);
-  if (!listId) return badRequest("Invalid list id.");
-
-  const outcome = await requireUser(request, "/lists");
+export async function DELETE(request: Request, { params }: Context): Promise<Response> {
+  const id = (await params).id;
+  const outcome = await requireUser(request, `/list/${id}`);
   if (!outcome.ok) return outcome.response;
-
   try {
-    const deleted = await deleteList(listId, outcome.auth.userId);
-    if (!deleted) return forbidden("That list is not yours to delete.");
-    return json({ deleted: true });
+    const result = await deleteList(id, outcome.auth.userId, await isModerator(outcome.auth.userId));
+    return result.ok ? json({ deleted: true }) : json({ error: result.error }, { status: result.status });
   } catch {
     return unavailable();
   }

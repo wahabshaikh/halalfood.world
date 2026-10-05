@@ -68,6 +68,9 @@ test("save and unsave service handles the happy path without a database", async 
     async remove(userId, placeId) {
       saved.delete(`${userId}:${placeId}`);
     },
+    async savedIds(userId, placeIds) {
+      return new Set(placeIds.filter((placeId) => saved.has(`${userId}:${placeId}`)));
+    },
     async list() {
       return { places: [], total: 0, limit: 200 };
     },

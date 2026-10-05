@@ -1,157 +1,115 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { isEventId } from "@halalfood/core/events";
-import { Badge } from "@halalfood/ui/components/badge";
-import { getEvent } from "../../../src/lib/events-repository";
-import { loadOrDegrade } from "../../../src/lib/load";
-import { canonical, cityName, jsonLdScript, plural } from "../../../src/lib/seo";
-import {
-  Breadcrumbs,
-  Page,
-  PageIntro,
-  PageMain,
-  SiteFooter,
-  SiteHeader,
-  Unavailable,
-} from "../../../src/components/site-chrome";
+import { Location01Icon } from "@hugeicons/core-free-icons";
+import { AppShell } from "../../../src/components/app-shell";
+import { DateBlock, friendsLine, stallsLine } from "../../../src/components/event-bits";
+import { Avatar, Icon, StatusPill, TopBar } from "../../../src/components/kit";
 import { LocalTime } from "../../../src/components/local-time";
-import { Note } from "../../../src/components/section";
-import { TONE_BADGE } from "../../../src/components/status-tone";
-import EventGoing from "./event-going";
+import { getViewerId } from "../../../src/lib/auth-session";
+import { getEvent } from "../../../src/lib/events";
+import { isModerator } from "../../../src/lib/moderators";
+import { cityName } from "../../../src/lib/place-view";
+import { avatarUrl } from "../../../src/lib/profiles";
+import { canonical, jsonLdScript } from "../../../src/lib/seo";
+import { EventActions } from "./event-client";
 
-async function load(raw: string) {
-  if (!isEventId(raw)) return { status: "missing" as const };
-  return loadOrDegrade(() => getEvent(raw.toLowerCase()));
-}
+export const dynamic = "force-dynamic";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}): Promise<Metadata> {
-  const loaded = await load((await params).id);
-  if (loaded.status !== "ok")
-    return { title: "Event not found", robots: { index: false, follow: true } };
-  const event = loaded.data;
+type Props = { params: Promise<{ id: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const event = await getEvent((await params).id, null).catch(() => null);
+  if (!event) return { title: "Event not found", robots: { index: false } };
   return {
     title: event.title,
-    description: `${event.title} at ${event.venue}, ${cityName(event.citySlug)}. ${event.vendorCount} ${plural(event.vendorCount, "vendor")}, each with its own halal status.`,
+    description: `${event.venue}, ${cityName(event.citySlug)}. ${stallsLine(event)}.`,
     alternates: { canonical: `/event/${event.id}` },
-    robots: { index: !event.cancelled, follow: true },
   };
 }
 
-export default async function EventPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const loaded = await load(id);
-  if (loaded.status === "missing") notFound();
-  if (loaded.status === "error")
-    return (
-      <Page>
-        <SiteHeader />
-        <PageMain>
-          <Unavailable retryPath={`/event/${encodeURIComponent(id)}`} />
-        </PageMain>
-        <SiteFooter active="community" />
-      </Page>
-    );
-
-  const event = loaded.data;
-  const trail = [
-    { name: "Halalfood", path: "/" },
-    { name: "Events", path: "/events" },
-    { name: event.title, path: `/event/${event.id}` },
-  ];
-  const listed = event.vendors.filter((vendor) => vendor.status.listed).length;
-
+export default async function EventPage({ params }: Props) {
+  const viewerId = await getViewerId();
+  const event = await getEvent((await params).id, viewerId, { moderator: await isModerator(viewerId) });
+  if (!event) notFound();
+  const friends = friendsLine(event, viewerId);
+  const firstUnchecked = event.stallList.find((stall) => stall.placeId && stall.status.kind !== "verified");
   return (
-    <Page>
+    <AppShell active="explore">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: jsonLdScript({
-            "@context": "https://schema.org",
-            "@type": "Event",
-            name: event.title,
-            startDate: new Date(event.startsAt).toISOString(),
-            ...(event.endsAt ? { endDate: new Date(event.endsAt).toISOString() } : {}),
-            eventStatus: event.cancelled
-              ? "https://schema.org/EventCancelled"
-              : "https://schema.org/EventScheduled",
-            location: { "@type": "Place", name: event.venue, address: event.address ?? cityName(event.citySlug) },
-            url: canonical(`/event/${event.id}`),
-            ...(event.description ? { description: event.description } : {}),
-          }),
+          __html: jsonLdScript([
+            {
+              "@context": "https://schema.org",
+              "@type": "FoodEvent",
+              name: event.title,
+              startDate: new Date(event.startsAt).toISOString(),
+              ...(event.endsAt ? { endDate: new Date(event.endsAt).toISOString() } : {}),
+              eventStatus: event.status === "cancelled" ? "https://schema.org/EventCancelled" : "https://schema.org/EventScheduled",
+              location: { "@type": "Place", name: event.venue, address: event.address ?? cityName(event.citySlug) },
+              url: canonical(`/event/${event.id}`),
+            },
+          ]),
         }}
       />
-      <SiteHeader />
-      <PageMain narrow>
-        <Breadcrumbs trail={trail} />
-        <PageIntro
-          eyebrow={event.cancelled ? "CANCELLED" : event.phase === "live" ? "ON NOW" : "HALAL FOOD EVENT"}
-          title={event.title}
-          lead={
-            <>
-              <LocalTime at={event.startsAt} /> · {event.venue}, {cityName(event.citySlug)}
-            </>
-          }
-        >
-          {event.address && <Note>{event.address}</Note>}
-          {event.description && <p className="max-w-2xl whitespace-pre-line">{event.description}</p>}
-          <EventGoing
-            eventId={event.id}
-            title={event.title}
-            closed={event.cancelled || event.phase === "past"}
-            initialGoing={event.going}
-          />
-        </PageIntro>
-
-        <section aria-labelledby="vendors-title">
-          <h2 id="vendors-title" className="mb-1 text-[22px]">
-            {event.vendorCount} {plural(event.vendorCount, "vendor")}
-          </h2>
-          {event.vendorCount > 0 && (
-            <Note className="mb-3">
-              {listed} of {event.vendorCount} {listed === 1 ? "is" : "are"} listed on halalfood.world with evidence. Each
-              vendor shows its own status.
-            </Note>
-          )}
-          <ul className="divide-y" data-testid="event-vendors">
-            {event.vendors.map((vendor) => (
-              <li key={vendor.id} className="flex items-start justify-between gap-3 py-3.5">
-                <div className="min-w-0">
-                  <strong className="block">
-                    {vendor.placeId ? (
-                      <a href={`/place/${vendor.placeId}`} className="hover:underline">
-                        {vendor.name}
-                      </a>
-                    ) : (
-                      vendor.name
-                    )}
-                  </strong>
-                  {vendor.note && <span className="text-sm text-muted-foreground">{vendor.note}</span>}
-                  {!vendor.status.listed && (
-                    <span className="mt-0.5 block text-[13px] text-muted-foreground">No listing yet</span>
-                  )}
-                </div>
-                <Badge
-                  variant={TONE_BADGE[vendor.status.tone]}
-                  className="shrink-0"
-                  title={vendor.status.note || undefined}
-                >
-                  {vendor.status.label}
-                </Badge>
+      <TopBar back={`/events?city=${event.citySlug}`} />
+      <div className="grid gap-5 px-5 pb-10">
+        <div className="flex items-start gap-4">
+          <DateBlock at={event.startsAt} />
+          <div className="grid gap-1">
+            <h1 className="text-[26px] leading-tight font-black tracking-tight">{event.title}</h1>
+            {event.status === "cancelled" && <span className="w-fit rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-black text-destructive">Cancelled</span>}
+            {event.status === "draft" && <span className="w-fit rounded-full bg-secondary px-2.5 py-0.5 text-xs font-black">Draft</span>}
+          </div>
+        </div>
+        <div className="grid gap-1 text-[15px] font-semibold">
+          <LocalTime at={event.startsAt} />
+          <span className="flex items-center gap-1.5 text-subtle-foreground">
+            <Icon icon={Location01Icon} size={16} />
+            {event.venue}
+            {event.address ? `, ${event.address}` : ""}
+          </span>
+        </div>
+        {event.description && <p className="text-[15px] leading-relaxed">{event.description}</p>}
+        {event.status === "published" && <EventActions eventId={event.id} title={event.title} going={event.goingByMe} signedIn={Boolean(viewerId)} />}
+        {friends && (
+          <div className="flex items-center gap-2.5">
+            <span className="flex">
+              {event.friends.slice(0, 4).map((friend) => (
+                <Avatar key={friend.userId} name={friend.name} seed={friend.userId} src={avatarUrl(friend.avatarKey, friend.handle)} size={28} ring className="-ml-1.5 first:ml-0" />
+              ))}
+            </span>
+            <span className="text-sm font-extrabold">{friends}</span>
+          </div>
+        )}
+        <section aria-labelledby="stalls" className="grid gap-2">
+          <div className="flex items-baseline justify-between">
+            <h2 id="stalls" className="text-[19px] font-black">
+              Stalls
+            </h2>
+            <span className="text-[13px] font-bold text-muted-foreground">{stallsLine(event)}</span>
+          </div>
+          <p className="text-[13px] font-semibold text-muted-foreground">Each stall’s status comes from checks at its own place.</p>
+          <ul className="grid">
+            {event.stallList.map((stall) => (
+              <li key={stall.id}>
+                <a href={stall.placeId ? `/place/${stall.placeId}` : "/add"} className="flex items-center gap-3 border-b border-border/70 py-3 text-foreground">
+                  <span className="grid min-w-0 flex-1 gap-0.5">
+                    <strong className="truncate text-[15px] font-extrabold">{stall.name}</strong>
+                    {stall.note && <span className="truncate text-[13px] font-semibold text-muted-foreground">{stall.note}</span>}
+                  </span>
+                  <StatusPill status={stall.status} short />
+                </a>
               </li>
             ))}
           </ul>
-          {!event.vendorCount && <Note>The vendor list hasn&rsquo;t been published yet.</Note>}
-          <Note className="mt-6">
-            &ldquo;Unverified&rdquo; means nobody has checked that stall on halalfood.world yet. It says nothing either
-            way. If you&rsquo;re there, you can <a href="/add" className="underline">add it</a> and share what you saw.
-          </Note>
+          {firstUnchecked && (
+            <a href={`/place/${firstUnchecked.placeId}/check`} className="mt-2 w-fit text-sm font-extrabold text-foreground underline">
+              Going? Check a stall
+            </a>
+          )}
         </section>
-      </PageMain>
-      <SiteFooter active="community" />
-    </Page>
+      </div>
+    </AppShell>
   );
 }

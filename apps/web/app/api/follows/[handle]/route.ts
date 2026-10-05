@@ -1,59 +1,34 @@
-import { HANDLE_PATTERN, normalizeHandle } from "@halalfood/core/social";
+import { normalizeHandle } from "@halalfood/core/people";
+import { json, notFound, requireUser, spendBudget, unavailable } from "../../../../src/lib/api";
 import { consumePersonalWriteLimits } from "../../../../src/lib/otp-rate-limit";
-import { followUser, unfollowUser } from "../../../../src/lib/social-repository";
-import {
-  badRequest,
-  json,
-  notFound,
-  requireUser,
-  spendBudget,
-  unavailable,
-} from "../../../../src/lib/api";
+import { follow, unfollow } from "../../../../src/lib/people";
 
-function handleOf(raw: string): string | null {
-  const handle = normalizeHandle(decodeURIComponent(raw));
-  return handle && HANDLE_PATTERN.test(handle) ? handle : null;
-}
+type Context = { params: Promise<{ handle: string }> };
 
-/** Follow a diner, or ask to follow when their account is private. */
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ handle: string }> },
-): Promise<Response> {
-  const handle = handleOf((await params).handle);
-  if (!handle) return badRequest("That is not a valid handle.");
+/** Follow someone. Private accounts get a request: `{status: "pending"}`. */
+export async function PUT(request: Request, { params }: Context): Promise<Response> {
+  const handle = normalizeHandle(decodeURIComponent((await params).handle));
+  if (!handle) return notFound("That person could not be found.");
   const outcome = await requireUser(request, `/u/${handle}`);
   if (!outcome.ok) return outcome.response;
   const limited = await spendBudget(consumePersonalWriteLimits, outcome.auth);
   if (limited) return limited;
-
   try {
-    const result = await followUser(outcome.auth.userId, handle);
-    if (!result.ok)
-      return result.reason === "self"
-        ? badRequest("You cannot follow yourself.")
-        : notFound("That diner could not be found.");
-    return json({ handle, status: result.status });
+    const result = await follow(outcome.auth.userId, handle);
+    if (!result.ok) return json({ error: result.error }, { status: result.status });
+    return json({ status: result.status });
   } catch {
     return unavailable();
   }
 }
 
-/** Unfollow, or withdraw a follow request. */
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ handle: string }> },
-): Promise<Response> {
-  const handle = handleOf((await params).handle);
-  if (!handle) return badRequest("That is not a valid handle.");
+export async function DELETE(request: Request, { params }: Context): Promise<Response> {
+  const handle = normalizeHandle(decodeURIComponent((await params).handle));
+  if (!handle) return notFound("That person could not be found.");
   const outcome = await requireUser(request, `/u/${handle}`);
   if (!outcome.ok) return outcome.response;
-  const limited = await spendBudget(consumePersonalWriteLimits, outcome.auth);
-  if (limited) return limited;
-
   try {
-    await unfollowUser(outcome.auth.userId, handle);
-    return json({ handle, status: null });
+    return (await unfollow(outcome.auth.userId, handle)) ? json({ status: null }) : notFound("That person could not be found.");
   } catch {
     return unavailable();
   }

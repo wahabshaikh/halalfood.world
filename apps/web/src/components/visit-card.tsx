@@ -1,230 +1,111 @@
 "use client";
 
 import { useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { BubbleChatIcon, FavouriteIcon } from "@hugeicons/core-free-icons";
-import { Badge } from "@halalfood/ui/components/badge";
-import { Button } from "@halalfood/ui/components/button";
-import { Card } from "@halalfood/ui/components/card";
+import type { PlaceStatus } from "@halalfood/core/halal";
+import type { Verdict } from "@halalfood/core/check";
 import { cn } from "@halalfood/ui/lib/utils";
-import { STATUS_COPY } from "@halalfood/core/halal-taxonomy";
-import { DISH_VERDICT_COPY, VERDICT_COPY } from "@halalfood/core/check-in";
-import { describeHalalCheck, relativeTime } from "@halalfood/core/feed";
-import type { FeedCard } from "../lib/feed-repository";
-import { cityName } from "../lib/seo";
-import { InitialsAvatar, monogram } from "./blocks";
-import { TONE_BADGE } from "./status-tone";
-import { CommunityChain } from "./community-chain";
-import { loginHref, currentReturnPath } from "../lib/signed-out";
+import { Avatar, Icon, StatusPill } from "./kit";
+import { SaveHeart, api, errorText, toast } from "./kit-client";
+import { timeAgo } from "./time-ago";
 
-const VERDICT_TEXT: Record<NonNullable<FeedCard["verdict"]>, string> = {
-  disliked: "text-destructive",
-  okay: "text-warning-foreground",
-  liked: "text-success",
-  favourite: "text-primary",
+export type VisitJson = {
+  checkId: string;
+  author: { userId: string; handle: string | null; name: string; avatarUrl: string | null };
+  place: { id: string; name: string; area: string; status: PlaceStatus };
+  verdict: Verdict | null;
+  note: string | null;
+  dishes: string[];
+  photos: (string | null)[];
+  createdAt: number;
+  likes: number;
+  comments: number;
+  likedByMe: boolean;
+  savedByMe: boolean;
 };
 
-/** Send a signed-out visitor to sign in, then bring them back here. */
-export function goToLogin(reason = "join") {
-  window.location.assign(loginHref(currentReturnPath(), reason));
+export function verbFor(verdict: Verdict | null): string {
+  return verdict === "loved" ? "loved" : verdict === "liked" ? "liked" : "checked";
 }
 
-export function authorName(author: FeedCard["author"]): string {
-  if (author.isYou) return "You";
-  return author.displayName ?? author.handle ?? "A diner";
-}
-
-/**
- * One shared visit: who, where, how it was, what they ordered and any halal
- * check they made. The halal check is labelled as the diner's own observation
- * and the place's status badge comes only from approved evidence, so a popular
- * visit can never make a place look more halal.
- */
-export function VisitCard({
-  card,
-  detail = false,
-}: {
-  card: FeedCard;
-  /** On the visit page the whole card is not a link to itself. */
-  detail?: boolean;
-}) {
-  const [liked, setLiked] = useState(card.liked);
-  const [likes, setLikes] = useState(card.likes);
-  const [busy, setBusy] = useState(false);
-
-  const name = authorName(card.author);
-  const tone = STATUS_COPY[card.place.status].tone;
-  const observation = card.halalCheck ? describeHalalCheck(card.halalCheck) : [];
-
-  async function toggleLike() {
-    if (busy) return;
+export function LikeButton({ checkId, initial, count, className }: { checkId: string; initial: boolean; count: number; className?: string }) {
+  const [liked, setLiked] = useState(initial);
+  const [likes, setLikes] = useState(count);
+  const toggle = async () => {
     const next = !liked;
-    setBusy(true);
     setLiked(next);
-    setLikes((count) => Math.max(0, count + (next ? 1 : -1)));
+    setLikes((value) => value + (next ? 1 : -1));
     try {
-      const response = await fetch(`/api/visits/${card.visitId}/like`, {
-        method: next ? "PUT" : "DELETE",
-        headers: { Accept: "application/json" },
-      });
-      if (response.status === 401) {
-        setLiked(!next);
-        setLikes((count) => Math.max(0, count + (next ? -1 : 1)));
-        goToLogin("like");
-        return;
-      }
-      if (!response.ok) throw new Error();
-      const payload = (await response.json()) as { likes?: number };
-      if (typeof payload.likes === "number") setLikes(payload.likes);
-    } catch {
+      const result = await api<{ likes: number }>(`/api/checks/${checkId}/like`, { method: next ? "PUT" : "DELETE" });
+      setLikes(result.likes);
+    } catch (error) {
       setLiked(!next);
-      setLikes((count) => Math.max(0, count + (next ? -1 : 1)));
-    } finally {
-      setBusy(false);
+      setLikes((value) => value + (next ? -1 : 1));
+      toast(errorText(error));
     }
-  }
-
+  };
   return (
-    <Card className="gap-3.5 px-5 py-5" data-testid="visit-card">
-      <header className="flex items-center gap-3">
-        <InitialsAvatar initials={monogram(name)} size={40} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-bold">
-            {card.author.handle ? (
-              <a href={`/u/${card.author.handle}`} className="hover:underline">
-                {name}
-              </a>
-            ) : (
-              name
-            )}
+    <button
+      type="button"
+      onClick={toggle}
+      aria-pressed={liked}
+      aria-label={liked ? "Unlike" : "Like"}
+      className={cn("inline-flex min-h-10 items-center gap-1.5 rounded-full px-2 text-sm font-extrabold", liked ? "text-primary" : "text-foreground", className)}
+    >
+      <Icon icon={FavouriteIcon} size={20} className={liked ? "[&_path]:fill-current" : undefined} />
+      {likes > 0 && likes}
+    </button>
+  );
+}
+
+export function VisitCard({ visit }: { visit: VisitJson }) {
+  const photo = visit.photos.find(Boolean) ?? null;
+  return (
+    <article className="grid gap-3 border-b border-border/70 py-4 last:border-b-0">
+      <header className="flex items-start gap-3">
+        <a href={visit.author.handle ? `/u/${visit.author.handle}` : "#"} aria-label={visit.author.name}>
+          <Avatar name={visit.author.name} seed={visit.author.userId} src={visit.author.avatarUrl} size={40} />
+        </a>
+        <div className="grid min-w-0 flex-1 gap-0.5">
+          <p className="text-[15px] leading-snug">
+            <strong className="font-black">{visit.author.name}</strong> {verbFor(visit.verdict)}{" "}
+            <a href={`/place/${visit.place.id}`} className="font-black text-foreground">
+              {visit.place.name}
+            </a>
           </p>
-          <p className="text-[13px] text-muted-foreground">
-            {card.verdict && (
-              <span className={cn("font-bold", VERDICT_TEXT[card.verdict])}>
-                {VERDICT_COPY[card.verdict]}
-              </span>
-            )}
-            {card.verdict && " · "}
-            {detail ? (
-              <time dateTime={new Date(card.visitedAt).toISOString()}>
-                {new Date(card.visitedAt).toLocaleDateString(undefined, {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}
-              </time>
-            ) : (
-              <a href={`/visit/${card.visitId}`} className="hover:underline">
-                {relativeTime(card.createdAt)}
-              </a>
-            )}
-          </p>
+          <span className="text-[13px] font-semibold text-muted-foreground">
+            {timeAgo(visit.createdAt)}
+            {visit.place.area ? ` · ${visit.place.area}` : ""}
+          </span>
         </div>
       </header>
-
-      <div className="grid gap-1">
-        <a
-          href={`/place/${encodeURIComponent(card.place.id)}`}
-          className="text-xl leading-tight font-extrabold hover:underline"
-        >
-          {card.place.name}
-        </a>
-        <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>{cityName(card.place.citySlug)}</span>
-          {card.place.status !== "unverified" && (
-            <Badge variant={TONE_BADGE[tone]}>{STATUS_COPY[card.place.status].label}</Badge>
-          )}
-          {card.verified && <Badge variant="muted">Location verified</Badge>}
-          {card.disclosureLabel && <Badge variant="warning">{card.disclosureLabel}</Badge>}
-        </p>
+      <a href={`/visit/${visit.checkId}`} className="grid gap-3 text-foreground">
+        {photo && (
+          // Check photos are served from our own R2 proxy route.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photo} alt={`Photo from ${visit.place.name}`} loading="lazy" className="aspect-[4/3] w-full rounded-2xl object-cover" />
+        )}
+        {visit.note && <p className="text-[15px] leading-relaxed">{visit.note}</p>}
+      </a>
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusPill status={visit.place.status} short />
+        {visit.dishes.map((dish) => (
+          <span key={dish} className="rounded-full bg-secondary px-3 py-1 text-[13px] font-extrabold">
+            {dish}
+          </span>
+        ))}
       </div>
-
-      {card.note && <p className="whitespace-pre-line">{card.note}</p>}
-
-      {card.dishes.length > 0 && (
-        <ul className="flex flex-wrap gap-2" aria-label="What they ordered">
-          {card.dishes.map((dish) => (
-            <li key={dish.name}>
-              <Badge variant={dish.verdict === "avoid" ? "destructive" : "secondary"}>
-                {dish.name}
-                {dish.verdict !== "fine" && ` · ${DISH_VERDICT_COPY[dish.verdict]}`}
-              </Badge>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {card.halalCheck && observation.length > 0 && (
-        <div className="grid gap-1 rounded-xl bg-secondary px-3.5 py-3 text-sm">
-          <p className="font-bold">
-            {card.author.isYou ? "Your" : `${name}’s`} halal check
-            <span className="font-normal text-muted-foreground">
-              {" "}
-              · what {card.author.isYou ? "you" : "they"} noticed
-            </span>
-          </p>
-          <ul className="list-disc pl-5">
-            {observation.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-          <p className="text-[13px] text-muted-foreground">
-            {card.halalCheck.status === "approved"
-              ? "Approved by a moderator."
-              : "Waiting for a moderator. It does not change the place’s status until it is approved."}
-          </p>
-          {card.halalCheck.id && (
-            <CommunityChain
-              targetType="verification"
-              targetId={card.halalCheck.id}
-              own={card.author.isYou || card.halalCheck.status !== "approved"}
-              confirmCount={card.halalCheck.confirmCount}
-              reportCount={card.halalCheck.reportCount}
-              viewerConfirmed={card.halalCheck.viewerConfirmed}
-              reportLabel="Report this check"
-            />
-          )}
-        </div>
-      )}
-
-      {/* Corroborate or flag the check-in itself. Everyone else gets Confirm and
-          Report; on your own visit only the counts show. */}
-      <CommunityChain
-        targetType="check-in"
-        targetId={card.visitId}
-        own={card.author.isYou}
-        confirmCount={card.confirmCount}
-        reportCount={card.reportCount}
-        viewerConfirmed={card.viewerConfirmed}
-        reportLabel="Report this visit"
-      />
-
-      <footer className="flex items-center gap-1 pt-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn("gap-1.5 rounded-full font-bold", liked && "text-primary")}
-          aria-pressed={liked}
-          aria-label={liked ? "Remove your like" : "Like this visit"}
-          disabled={busy}
-          onClick={toggleLike}
-        >
-          <HugeiconsIcon
-            icon={FavouriteIcon}
-            size={20}
-            strokeWidth={liked ? 0 : 2}
-            fill={liked ? "currentColor" : "none"}
-            aria-hidden="true"
-          />
-          {likes}
-        </Button>
-        <Button asChild variant="ghost" size="sm" className="gap-1.5 rounded-full font-bold">
-          <a href={`/visit/${card.visitId}`} aria-label={`${card.comments} comments`}>
-            <HugeiconsIcon icon={BubbleChatIcon} size={20} aria-hidden="true" />
-            {card.comments}
-          </a>
-        </Button>
+      <footer className="-ml-2 flex items-center gap-1">
+        <LikeButton checkId={visit.checkId} initial={visit.likedByMe} count={visit.likes} />
+        <a href={`/visit/${visit.checkId}#comments`} className="inline-flex min-h-10 items-center gap-1.5 rounded-full px-2 text-sm font-extrabold text-foreground" aria-label="Comments">
+          <Icon icon={BubbleChatIcon} size={20} />
+          {visit.comments > 0 && visit.comments}
+        </a>
+        <span className="ml-auto flex items-center gap-1 text-sm font-extrabold">
+          Want to try
+          <SaveHeart placeId={visit.place.id} saved={visit.savedByMe} signedIn label={visit.place.name} />
+        </span>
       </footer>
-    </Card>
+    </article>
   );
 }

@@ -1,43 +1,42 @@
-import { createList, listHub } from "../../../src/lib/lists-repository";
-import { validateList } from "@halalfood/core/place-lists";
+import { placeIdParam } from "@halalfood/core/params";
+import { INVALID_JSON, badRequest, json, readJson, requireUser, spendBudget, unavailable } from "../../../src/lib/api";
+import { createList, myLists, parseListFields } from "../../../src/lib/lists";
+import { isModerator } from "../../../src/lib/moderators";
 import { consumePersonalWriteLimits } from "../../../src/lib/otp-rate-limit";
-import {
-  INVALID_JSON,
-  badRequest,
-  json,
-  readJson,
-  requireUser,
-  spendBudget,
-} from "../../../src/lib/api";
-import { domainFailure } from "../../../src/lib/domain-error";
 
+/** Mine, grouped `{own, planning, saved}`. */
 export async function GET(request: Request): Promise<Response> {
-  const outcome = await requireUser(request, "/lists");
+  const outcome = await requireUser(request, "/saved?tab=lists");
   if (!outcome.ok) return outcome.response;
   try {
-    const hub = await listHub(outcome.auth.userId);
-    // `lists` stays the diner's own, as before; the rest is what sharing added.
-    return json({ lists: hub.mine, ...hub });
-  } catch (error) {
-    return domainFailure("Your lists", error);
+    return json(await myLists(outcome.auth.userId));
+  } catch {
+    return unavailable();
   }
 }
 
+/** Body `{title, kind, visibility?, caption?, placeId?}`. */
 export async function POST(request: Request): Promise<Response> {
-  const outcome = await requireUser(request, "/lists");
+  const outcome = await requireUser(request, "/saved?tab=lists");
   if (!outcome.ok) return outcome.response;
-
   const body = await readJson(request);
   if (body === INVALID_JSON) return badRequest("Send a valid JSON object.");
-  const validation = validateList(body);
-  if (!validation.ok) return badRequest(validation.error);
-
+  const parsed = parseListFields(body, true);
+  if (!parsed.ok) return badRequest(parsed.error);
+  const rawPlace = (body as { placeId?: unknown }).placeId;
+  const placeId = rawPlace ? placeIdParam(String(rawPlace)) : null;
+  if (rawPlace && !placeId) return badRequest("That place id is not valid.");
   const limited = await spendBudget(consumePersonalWriteLimits, outcome.auth);
   if (limited) return limited;
-
   try {
-    return json({ list: await createList(outcome.auth.userId, validation.data) }, { status: 201 });
-  } catch (error) {
-    return domainFailure("Creating a list", error);
+    const result = await createList(
+      outcome.auth.userId,
+      { ...parsed.fields, title: parsed.fields.title!, kind: parsed.fields.kind! },
+      { moderator: await isModerator(outcome.auth.userId), placeId },
+    );
+    if (!result.ok) return json({ error: result.error }, { status: result.status });
+    return json({ id: result.value }, { status: 201 });
+  } catch {
+    return unavailable();
   }
 }
