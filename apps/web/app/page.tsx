@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: { absolute: `${SITE_NAME} — halal places, checked by people who ate there` },
   description:
-    "Find places to eat and see if they’re Muslim-owned, halal certified, and free of pork and alcohol, checked by three people who ate there.",
+    "Find places to eat and see if they’re Muslim-owned, halal certified, and free of pork and alcohol, checked by at least three people who ate there, and by halal certificates and menus.",
   alternates: { canonical: "/" },
 };
 

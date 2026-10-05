@@ -198,6 +198,7 @@ export async function actOnReport(reportId: string, moderatorId: string, input: 
           sql`UPDATE event_vendors SET place_id = ${into} WHERE place_id = ${targetId}`,
           sql`UPDATE OR IGNORE points SET place_id = ${into} WHERE place_id = ${targetId}`,
           sql`UPDATE recs SET place_id = ${into} WHERE place_id = ${targetId}`,
+          sql`UPDATE OR IGNORE place_signals SET place_id = ${into} WHERE place_id = ${targetId}`,
           close("actioned"),
           log({ place: targetId, name: place.name }, { into }),
           sql`DELETE FROM places WHERE id = ${targetId}`,

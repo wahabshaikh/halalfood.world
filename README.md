@@ -158,6 +158,24 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 
 Every write needs a session and spends a per-user and per-IP budget (checks 20 a day, places 10, recs 30, reports 10, comments 100). Reads that show checks apply one visibility rule: unshared checks are the author's alone, nothing crosses a block, and a private account's checks show only to accepted followers. `tests/check-visibility-audit.test.ts` fails if a query over `checks` doesn't say which audience it serves.
 
+## Halal listing import
+
+Map listings are one of the halal signals (see
+[`docs/product/halal-model.md`](docs/product/halal-model.md)). This script
+reads OpenStreetMap's `diet:halal` tag through Overpass around each city's
+listed places, plus Geoapify's halal places when `GEOAPIFY_API_KEY` is set,
+matches them to places by name within 80 m, and recomputes the matched places.
+It uses the same D1 REST environment as the backfill below.
+
+```sh
+npm run signals:listings -w @halalfood/web -- --city london --dry-run
+npm run signals:listings -w @halalfood/web -- --city london
+```
+
+Set `OVERPASS_URL` to use a different Overpass instance. Listings never settle
+a fact or verify a place on their own; a "halal only" listing fills in "No pork"
+only until a check or a menu says otherwise.
+
 ## Google Places coordinate backfill
 
 The server-side client is in `src/lib/google-places.ts` and calls Place

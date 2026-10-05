@@ -183,12 +183,16 @@ export function Meter({ filled, tone, size = "md" }: { filled: 0 | 1 | 2 | 3; to
   );
 }
 
-export function statusSubline(status: PlaceStatus, latest: string | null): string {
-  if (status.kind === "verified")
-    return `3 people checked separately and agree${latest ? ` · latest ${latest}` : ""}`;
+/** `people` is everyone whose latest check counts; three is the minimum, not a cap. */
+export function statusSubline(status: PlaceStatus, latest: string | null, people = 3): string {
+  if (status.kind === "verified") {
+    if (people <= 0) return "Confirmed by reviewed documents";
+    const who = people === 1 ? "1 person checked it" : `${people} people checked separately and agree`;
+    return `${who}${latest ? ` · latest ${latest}` : ""}`;
+  }
   if (status.kind === "checking")
     return status.progress === 2
-      ? "One more matching check makes this Community verified"
+      ? "One more matching check makes this Verified"
       : "Two more matching checks to verify";
   return "Nobody has checked this place. That doesn’t mean it isn’t halal.";
 }
@@ -196,10 +200,13 @@ export function statusSubline(status: PlaceStatus, latest: string | null): strin
 export function StatusCard({
   status,
   latest,
+  people,
   how,
 }: {
   status: PlaceStatus;
   latest: string | null;
+  /** People whose latest check counts. */
+  people?: number;
   /** The "How verification works" trigger. */
   how: ReactNode;
 }) {
@@ -216,7 +223,7 @@ export function StatusCard({
   }[status.kind];
   const icon = status.kind === "verified" ? Tick02Icon : status.kind === "checking" ? Clock01Icon : HelpCircleIcon;
   const title =
-    status.kind === "verified" ? "Community verified" : status.kind === "checking" ? `${status.progress} of 3 checks` : "Not checked yet";
+    status.kind === "verified" ? "Verified" : status.kind === "checking" ? `${status.progress} of 3 checks` : "Not checked yet";
   return (
     <section aria-label="Halal status" className={cn("grid gap-3 rounded-[20px] p-4", tone)}>
       <div className="flex items-center gap-2.5">
@@ -225,7 +232,7 @@ export function StatusCard({
         </span>
         <div className="grid">
           <strong className="text-[17px] font-black">{title}</strong>
-          <span className="text-[13px] font-bold opacity-85">{statusSubline(status, latest)}</span>
+          <span className="text-[13px] font-bold opacity-85">{statusSubline(status, latest, people)}</span>
         </div>
       </div>
       <Meter filled={filled} tone={status.kind} />
@@ -241,7 +248,7 @@ const TONE_DOT: Record<FactTone, string> = {
   unknown: "bg-secondary text-muted-foreground",
 };
 
-export function FactTile({ fact, value }: { fact: Fact; value: Definite | null }) {
+export function FactTile({ fact, value, evidence }: { fact: Fact; value: Definite | null; evidence?: string }) {
   const tone = factTone(fact, value);
   const icon = tone === "unknown" ? HelpCircleIcon : tone === "good" ? Tick02Icon : Cancel01Icon;
   return (
@@ -252,6 +259,7 @@ export function FactTile({ fact, value }: { fact: Fact; value: Definite | null }
       <div className="grid gap-0.5">
         <span className="text-[13px] font-bold text-muted-foreground">{FACT_QUESTION[fact]}</span>
         <strong className="text-base font-black">{factAnswerLabel(fact, value)}</strong>
+        {evidence ? <span className="text-xs font-bold text-muted-foreground">{evidence}</span> : null}
       </div>
     </div>
   );

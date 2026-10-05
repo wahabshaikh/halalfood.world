@@ -5,6 +5,7 @@ import { EmptyState, TopBar } from "../../src/components/kit";
 import { getViewerId } from "../../src/lib/auth-session";
 import { listAllEvents } from "../../src/lib/events";
 import { listOpenReports } from "../../src/lib/moderation";
+import { listPendingEvidence } from "../../src/lib/place-evidence";
 import { isModerator } from "../../src/lib/moderators";
 import { cityName } from "../../src/lib/place-view";
 import { listCities } from "../../src/lib/places";
@@ -23,16 +24,22 @@ export default async function AdminPage() {
     return (
       <AppShell active="you">
         <TopBar back="/me" />
-        <EmptyState title="Moderators only" body="This page is for the people who review reports." />
+        <EmptyState title="Moderators only" body="This page is for the people who review reports and evidence." />
       </AppShell>
     );
   }
-  const [reports, events, cities] = await Promise.all([listOpenReports(), listAllEvents(), listCities({ limit: 2000 })]);
+  const [reports, evidence, events, cities] = await Promise.all([
+    listOpenReports(),
+    listPendingEvidence(),
+    listAllEvents(),
+    listCities({ limit: 2000 }),
+  ]);
   return (
     <AppShell active="you" width="wide">
       <TopBar back="/me" title="Moderation" />
       <AdminConsole
         reports={reports.map((report) => ({ ...report, reasonLabel: REASON_LABEL[report.reason] ?? report.reason }))}
+        evidence={evidence}
         events={events}
         cities={cities.map((city) => ({ slug: city.city_slug, name: cityName(city.city_slug) }))}
       />

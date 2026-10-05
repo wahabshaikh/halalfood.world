@@ -34,8 +34,8 @@ test("photos are ids and the request key is required", () => {
 });
 
 test("outcome copy compares status before and after", () => {
-  assert.match(checkOutcome({ kind: "checking", progress: 2 }, { kind: "verified" }, "Noor"), /is now Community verified/);
-  assert.match(checkOutcome({ kind: "verified" }, { kind: "verified" }, "Noor"), /stays Community verified/);
+  assert.match(checkOutcome({ kind: "checking", progress: 2 }, { kind: "verified" }, "Noor"), /is now Verified/);
+  assert.match(checkOutcome({ kind: "verified" }, { kind: "verified" }, "Noor"), /stays Verified/);
   assert.match(checkOutcome({ kind: "checking", progress: 1 }, { kind: "checking", progress: 2 }, "Noor"), /2 of 3/);
   assert.match(checkOutcome({ kind: "checking", progress: 2 }, { kind: "checking", progress: 1 }, "Noor", { disagreed: true }), /differ/);
   assert.match(checkOutcome({ kind: "checking", progress: 1 }, { kind: "checking", progress: 1 }, "Noor"), /1 of 3/, "agreeing answers never read as a disagreement");

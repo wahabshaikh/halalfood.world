@@ -201,6 +201,12 @@ export const placeStatus = sqliteTable("place_status", {
   alcoholValue: factValue("alcohol_value"),
   alcoholStreak: integer("alcohol_streak").notNull(),
   alcoholSettled: factValue("alcohol_settled"),
+  ownedSources: text("owned_sources").notNull().default(""),
+  certifiedSources: text("certified_sources").notNull().default(""),
+  porkSources: text("pork_sources").notNull().default(""),
+  alcoholSources: text("alcohol_sources").notNull().default(""),
+  disputedFacts: text("disputed_facts").notNull().default(""),
+  listingClaim: text("listing_claim", { enum: ["only", "yes", "no"] }),
   eligibleChecks: integer("eligible_checks").notNull(),
   lastCheckedAt: ms("last_checked_at"),
   verifiedAt: ms("verified_at"),
@@ -278,6 +284,29 @@ export const placePhotos = sqliteTable("place_photos", {
   contentType: text("content_type").notNull(),
   byteSize: integer("byte_size").notNull(),
   createdAt: ms("created_at").notNull(),
+});
+
+/** Evidence besides checks: reviewed certificates and menus, and map listings. */
+export const placeSignals = sqliteTable("place_signals", {
+  id: text("id").primaryKey(),
+  placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+  source: text("source", { enum: ["certificate", "menu", "listing"] }).notNull(),
+  provider: text("provider", { enum: ["osm", "geoapify"] }),
+  externalId: text("external_id"),
+  owned: factValue("owned"),
+  certified: factValue("certified"),
+  pork: factValue("pork"),
+  alcohol: factValue("alcohol"),
+  listingClaim: text("listing_claim", { enum: ["only", "yes", "no"] }),
+  photoId: text("photo_id"),
+  submittedByUserId: text("submitted_by_user_id"),
+  certifier: text("certifier"),
+  expiresAt: ms("expires_at"),
+  reviewStatus: text("review_status", { enum: ["pending", "approved", "rejected"] }).notNull().default("pending"),
+  reviewedByUserId: text("reviewed_by_user_id"),
+  reviewedAt: ms("reviewed_at"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
 });
 
 export const profiles = sqliteTable("profiles", {

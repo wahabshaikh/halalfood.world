@@ -21,11 +21,34 @@ type Report = {
   primaryLabel: string;
 };
 
+type Evidence = {
+  id: string;
+  placeId: string;
+  placeName: string;
+  kind: "certificate" | "menu";
+  answers: Partial<Record<"owned" | "certified" | "pork" | "alcohol", "yes" | "no">>;
+  certifier: string | null;
+  expiresAt: number | null;
+  photoKey: string | null;
+  submittedBy: string | null;
+  createdAt: number;
+};
+
 type EventRow = { id: string; title: string; citySlug: string; venue: string; startsAt: number; status: "draft" | "published" | "cancelled"; stalls: number };
 type City = { slug: string; name: string };
 
-export function AdminConsole({ reports, events, cities }: { reports: Report[]; events: EventRow[]; cities: City[] }) {
-  const [tab, setTab] = useState<"reports" | "events">("reports");
+export function AdminConsole({
+  reports,
+  evidence,
+  events,
+  cities,
+}: {
+  reports: Report[];
+  evidence: Evidence[];
+  events: EventRow[];
+  cities: City[];
+}) {
+  const [tab, setTab] = useState<"reports" | "evidence" | "events">("reports");
   return (
     <div className="grid gap-5 px-5 pb-10">
       <div className="max-w-sm">
@@ -35,12 +58,95 @@ export function AdminConsole({ reports, events, cities }: { reports: Report[]; e
           onChange={setTab}
           options={[
             { value: "reports", label: `Reports${reports.length ? ` · ${reports.length}` : ""}` },
+            { value: "evidence", label: `Evidence${evidence.length ? ` · ${evidence.length}` : ""}` },
             { value: "events", label: "Events" },
           ]}
         />
       </div>
-      {tab === "reports" ? <Reports initial={reports} /> : <Events initial={events} cities={cities} />}
+      {tab === "reports" ? (
+        <Reports initial={reports} />
+      ) : tab === "evidence" ? (
+        <EvidenceQueue initial={evidence} />
+      ) : (
+        <Events initial={events} cities={cities} />
+      )}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+/* Evidence                                                                  */
+/* ------------------------------------------------------------------------ */
+
+const ANSWER_TEXT: Record<string, Record<"yes" | "no", string>> = {
+  owned: { yes: "Muslim-owned", no: "Not Muslim-owned" },
+  certified: { yes: "Halal certified", no: "Not certified" },
+  pork: { yes: "Pork on the menu", no: "No pork on the menu" },
+  alcohol: { yes: "Alcohol on the menu", no: "No alcohol on the menu" },
+};
+
+function EvidenceQueue({ initial }: { initial: Evidence[] }) {
+  const [items, setItems] = useState(initial);
+  if (!items.length) return <p className="py-10 text-center text-sm font-semibold text-muted-foreground">Nothing to review.</p>;
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {items.map((item) => (
+        <EvidenceCard key={item.id} item={item} onDone={() => setItems((current) => current.filter((each) => each.id !== item.id))} />
+      ))}
+    </div>
+  );
+}
+
+function EvidenceCard({ item, onDone }: { item: Evidence; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const decide = async (decision: "approve" | "reject") => {
+    setBusy(true);
+    try {
+      await api(`/api/admin/evidence/${item.id}`, { method: "POST", json: { decision } });
+      toast(decision === "approve" ? "Approved" : "Rejected");
+      onDone();
+    } catch (error) {
+      toast(errorText(error));
+      setBusy(false);
+    }
+  };
+  const photo = item.photoKey ? `/api/photos/${item.photoKey.split("/").map(encodeURIComponent).join("/")}` : null;
+  return (
+    <article className="grid gap-3 rounded-2xl border border-border p-4">
+      <div className="flex items-center gap-2">
+        <span className="rounded-full bg-warning-muted px-2.5 py-0.5 text-xs font-black text-warning-strong">
+          {item.kind === "certificate" ? "Certificate" : "Menu"}
+        </span>
+        <span className="ml-auto text-xs font-bold text-muted-foreground">{timeAgo(item.createdAt)}</span>
+      </div>
+      <a href={`/place/${item.placeId}`} className="text-[15px] font-black text-foreground underline-offset-4 hover:underline">
+        {item.placeName}
+      </a>
+      {photo ? (
+        <a href={photo} target="_blank" rel="noreferrer">
+          {/* Evidence photos are served from our own R2 proxy route. */}
+          <img src={photo} alt={`${item.kind} for ${item.placeName}`} className="max-h-72 w-full rounded-xl object-contain bg-muted" />
+        </a>
+      ) : (
+        <p className="text-sm font-semibold text-muted-foreground">The photo was deleted.</p>
+      )}
+      <ul className="grid gap-0.5 text-sm font-bold">
+        {Object.entries(item.answers).map(([fact, value]) => (
+          <li key={fact}>Says: {ANSWER_TEXT[fact]?.[value as "yes" | "no"] ?? `${fact} ${value}`}</li>
+        ))}
+        {item.certifier && <li>Certified by {item.certifier}</li>}
+        {item.expiresAt && <li>Valid until {new Date(item.expiresAt - 1).toISOString().slice(0, 10)}</li>}
+      </ul>
+      <span className="text-xs font-bold text-muted-foreground">Sent by {item.submittedBy ? `@${item.submittedBy}` : "a deleted account"}</span>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" onClick={() => decide("approve")} disabled={busy || !photo} className={buttonClass("dark", "md")}>
+          Approve
+        </button>
+        <button type="button" onClick={() => decide("reject")} disabled={busy} className={buttonClass("outline", "md")}>
+          Reject
+        </button>
+      </div>
+    </article>
   );
 }
 

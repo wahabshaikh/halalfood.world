@@ -75,7 +75,7 @@ export function cityTitle(slug: string, count: number) {
 
 /** Short status line for share sheets and Open Graph text. */
 export function statusSharePhrase(status: PlaceStatus): string {
-  if (status.kind === "verified") return "Community verified: 3 people checked it and agree";
+  if (status.kind === "verified") return "Verified: every halal fact is confirmed";
   if (status.kind === "checking") return `${status.progress} of 3 community checks so far`;
   return "Not checked yet";
 }
