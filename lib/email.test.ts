@@ -61,10 +61,10 @@ test("production sends through the Email Service binding from the default sender
 });
 
 test("EMAIL_FROM overrides the sender and a single recipient stays a string", async () => {
-  setEnvironment({ ENVIRONMENT: "production", EMAIL_FROM: " team@mail.halalfood.world " });
+  setEnvironment({ ENVIRONMENT: "production", EMAIL_FROM: " team@halalfood.world " });
   const sent = fakeEmail();
   await sendEmail({ ...emailInput, to: " a@example.com " }, { host: PRODUCTION });
-  assert.deepEqual(sent[0]?.from, { email: "team@mail.halalfood.world", name: "halalfood.world" });
+  assert.deepEqual(sent[0]?.from, { email: "team@halalfood.world", name: "halalfood.world" });
   assert.equal(sent[0]?.to, "a@example.com");
 });
 

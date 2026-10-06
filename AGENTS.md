@@ -105,8 +105,8 @@ These are hard rules.
 7. **Test hooks are non-production only**: gate them with `isNonProductionRequest` from `lib/worker-env.ts`
    (backed by `lib/environment.ts`), never a raw hostname check.
 
-There is no feature-flag store yet (mosques.world uses KV flags). Until there is, ship large user-facing changes in
-slices that are safe to release, or gate them to non-production hosts with `isNonProductionRequest`.
+8. **No feature flags.** Everything on `main` is live. Ship complete, releasable slices; work that isn't ready stays
+   on its branch, where its Worker Preview shows it. `isNonProductionRequest` gates test hooks only.
 
 ## Code conventions
 

@@ -1,8 +1,8 @@
 import { readBinding, isNonProductionRequest } from "./worker-env";
 import { requestHostname } from "./request-host";
 
-/** The production sender. Its domain is onboarded in Cloudflare Email Service (docs/deployment.md). */
-export const DEFAULT_EMAIL_FROM = "noreply@mail.halalfood.world";
+/** The production sender, onboarded in Email Service; Email Routing forwards mail to it to the maintainer. */
+export const DEFAULT_EMAIL_FROM = "salam@halalfood.world";
 export const EMAIL_FROM_NAME = "halalfood.world";
 
 /** How long sink rows live; older ones are pruned on each write. */

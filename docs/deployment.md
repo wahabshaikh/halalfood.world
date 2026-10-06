@@ -11,7 +11,7 @@ It serves pages, the JSON API and auth. Everything it binds is declared in [`wra
 | How | `pnpm dev` | [Worker Previews](https://developers.cloudflare.com/workers/previews/) from Workers Builds on every pushed branch | Workers Builds on every push to `main` |
 | Config | top level of `wrangler.jsonc`, local simulators | the `previews` block | top level |
 | D1 / R2 | Miniflare, in `.wrangler/state` | `halalfood-world-preview`, `halalfood-world-evidence-preview` (shared by all Previews) | `halalfood-world-v2`, `halalfood-world-evidence` |
-| Email | sink (`/api/test/emails`) | sink | [Email Service](https://developers.cloudflare.com/email-service/) from `noreply@mail.halalfood.world` |
+| Email | sink (`/api/test/emails`) | sink | [Email Service](https://developers.cloudflare.com/email-service/) from `salam@halalfood.world` |
 | Turnstile | test keys | test keys | production keys (secrets) |
 | Auth secret | development fallback | development fallback unless set | `BETTER_AUTH_SECRET` (required) |
 | Rate-limit namespaces | local | `81101`, `81102` | `81001`, `81002` |
@@ -54,8 +54,9 @@ build and the Playwright suite on every PR. Fork PRs run CI only.
 
 ### One-time setup (Cloudflare dashboard → Workers & Pages → halalfood-world)
 
-1. **Email Service**: onboard `mail.halalfood.world` as a sending domain (Email Service → Email Sending → Onboard
-   domain) and let Cloudflare add its DNS records. Until this is done, production sign-in codes cannot be sent.
+1. **Email Service** (done Oct 6, 2026): `halalfood.world` is a sending domain (DKIM `cf-bounce._domainkey`, return
+   path `cf-bounce.halalfood.world`, DMARC `p=reject`), and Email Routing forwards `salam@halalfood.world` to the
+   maintainer's verified inbox.
 2. **Settings → Builds**: set the build and deploy commands above, then enable **Previews** with preview command
    `pnpm cf:preview`. Delete the old "Deploy non-production branches" trigger (`npx wrangler versions upload`).
 3. The build token needs **D1: Edit** for the migration steps. If a build fails with an authorization error on
@@ -118,7 +119,7 @@ pnpm deploy                # build + production (prefer Workers Builds, which al
 |---|---|---|
 | `DB` (D1) | `halalfood-world-v2` | `halalfood-world-preview` |
 | `HALAL_EVIDENCE_R2` (R2) | `halalfood-world-evidence` | `halalfood-world-evidence-preview` |
-| `EMAIL` (Email Service) | `noreply@mail.halalfood.world` | none |
+| `EMAIL` (Email Service) | `salam@halalfood.world` | none |
 | `GOOGLE_SEARCH_ANON`, `GOOGLE_SEARCH_USER` | namespaces 81001, 81002 | 81101, 81102 |
 | `ASSETS` | static files | same |
 

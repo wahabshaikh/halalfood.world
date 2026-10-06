@@ -10,8 +10,8 @@ Work in this order. Each step lists where the pattern already exists; copy it ra
 1. **Read the spec.** `docs/spec/simplified-community-spec.md` (screens, data, API, build order) and
    `docs/spec/halal-model.md` (how status is computed). If the ask conflicts with the spec, follow the ask and
    update the spec in the same PR. Never let a social feature feed halal status.
-2. **Release plan.** There is no flag store yet. Ship in slices that are safe to release on their own, or gate a
-   new screen to non-production hosts with `isNonProductionRequest` until it's ready, and say so in the PR.
+2. **Slice it.** There are no feature flags: what merges to `main` is live. Plan slices that are each complete
+   and safe to release; keep unfinished work on the branch (its Worker Preview shows it).
 3. **Data.** If it needs storage, use the `d1-migration` skill (additive SQL + `lib/db/schema.ts`).
 4. **Rules in `lib/core/`** when they're pure (validation, scoring, status), I/O in `lib/<area>.ts`. Tests beside
    them cover the happy path, edge cases, visibility (who can see it) and limits.

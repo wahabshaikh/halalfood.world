@@ -25,8 +25,8 @@
   "vars": {
     "ENVIRONMENT": "production",
     "BETTER_AUTH_URL": "https://halalfood.world",
-    // Sender for sign-in codes; the domain is onboarded in Cloudflare Email Service.
-    "EMAIL_FROM": "noreply@mail.halalfood.world",
+    // Sender for sign-in codes (Email Service). Email Routing forwards replies to salam@ to the maintainer.
+    "EMAIL_FROM": "salam@halalfood.world",
     // Public DSN (it also ships in the browser bundle). Do not also set this
     // name with `wrangler secret put`; a var and a secret conflict on deploy.
     "SENTRY_DSN": "https://628e981cc4682959d5a7b79f0b73ecea@o4512156631171073.ingest.us.sentry.io/4512190880284672",
@@ -46,7 +46,7 @@
   ],
   "r2_buckets": [{ "binding": "HALAL_EVIDENCE_R2", "bucket_name": "halalfood-world-evidence" }],
   // Cloudflare Email Service. Only production sends mail; every other host writes to the email sink.
-  "send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["noreply@mail.halalfood.world"] }],
+  "send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["salam@halalfood.world"] }],
   // Per-location burst limits for paid Places Text Search. namespace_id is an account-wide integer:
   // 81001 is anonymous (per IP), 81002 is signed-in (per user).
   "ratelimits": [
@@ -64,7 +64,7 @@
     "vars": {
       "ENVIRONMENT": "preview",
       "BETTER_AUTH_URL": "https://halalfood.world",
-      "EMAIL_FROM": "noreply@mail.halalfood.world",
+      "EMAIL_FROM": "salam@halalfood.world",
       "SENTRY_DSN": "https://628e981cc4682959d5a7b79f0b73ecea@o4512156631171073.ingest.us.sentry.io/4512190880284672",
       // Previews share one Google budget; keep it small.
       "GOOGLE_SEARCH_DAILY_CAP": "100",
