@@ -108,7 +108,7 @@ async function handle(request: Request): Promise<Response> {
   }
 
   try {
-    const auth = await createAuth();
+    const auth = await createAuth(new URL(request.url).origin);
     return await auth.handler(request);
   } catch {
     return unavailable();

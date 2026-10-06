@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "vinext dev --port 5173 --hostname 127.0.0.1",
-    "build": "vinext build",
+    "build": "tsx scripts/check-build-env.ts && vinext build",
     "start": "vinext start",
     "deploy": "vinext build && wrangler deploy",
     "deploy:preview": "vinext build && wrangler preview",

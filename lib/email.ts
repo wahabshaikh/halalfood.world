@@ -1,17 +1,12 @@
+import { readBinding, isNonProductionRequest } from "./worker-env";
 import { requestHostname } from "./request-host";
-import { isPreviewDeployment, readWorkerEnv } from "./worker-env";
 
-const RESEND_EMAILS_URL = "https://api.resend.com/emails";
+/** The production sender. Its domain is onboarded in Cloudflare Email Service (docs/deployment.md). */
+export const DEFAULT_EMAIL_FROM = "noreply@mail.halalfood.world";
+export const EMAIL_FROM_NAME = "halalfood.world";
 
-/**
- * Preview versions (`ENVIRONMENT=preview` on a `*.workers.dev` host) inherit `RESEND_API_KEY` through `--keep-vars`. Mail is sent
- * on those hosts only when this separate key is set. Otherwise the OTP is
- * logged and Resend is not called.
- */
-export const PREVIEW_RESEND_API_KEY_NAME = "PREVIEW_RESEND_API_KEY";
-
-/** The preferred sender once halalfood.world is verified in Resend. */
-export const DEFAULT_EMAIL_FROM = "noreply@halalfood.world";
+/** How long sink rows live; older ones are pruned on each write. */
+export const EMAIL_SINK_TTL_MS = 24 * 60 * 60 * 1000;
 
 export interface SendEmailInput {
   to: string | string[];
@@ -25,14 +20,11 @@ export interface SendEmailResult {
 }
 
 export interface SendEmailOptions {
-  /** Request host. A preview version on `*.workers.dev` does not send through `RESEND_API_KEY`. */
+  /** Request host. Non-production hosts (lib/environment.ts) write to the sink instead of sending. */
   host?: string | null;
 }
 
-export type EmailErrorCode =
-  | "CONFIGURATION_ERROR"
-  | "INVALID_INPUT"
-  | "PROVIDER_ERROR";
+export type EmailErrorCode = "CONFIGURATION_ERROR" | "INVALID_INPUT" | "PROVIDER_ERROR";
 
 /** An operational error that callers can handle without exposing provider details. */
 export class EmailError extends Error {
@@ -46,44 +38,37 @@ export class EmailError extends Error {
   }
 }
 
-interface ResendResponse {
-  id?: unknown;
-  name?: unknown;
-  message?: unknown;
+/** The subset of the `send_email` binding (Cloudflare Email Service) this module uses. */
+export interface EmailBinding {
+  send(message: {
+    from: string | { email: string; name?: string };
+    to: string | string[];
+    subject: string;
+    html?: string;
+    text?: string;
+  }): Promise<{ messageId: string }>;
 }
 
-function parseResponse(body: string): ResendResponse | undefined {
-  if (!body) return undefined;
-  try {
-    const parsed: unknown = JSON.parse(body);
-    if (parsed && typeof parsed === "object")
-      return parsed as ResendResponse;
-  } catch {
-    // Resend errors are still reported generically when the response is not JSON.
-  }
-  return undefined;
+/** The subset of D1 the sink uses. */
+export interface SinkDatabase {
+  prepare(query: string): {
+    bind(...values: unknown[]): { run(): Promise<unknown>; all<T>(): Promise<{ results?: T[] }> };
+  };
+  batch(statements: unknown[]): Promise<unknown>;
 }
 
-function normalizedRecipients(to: SendEmailInput["to"]): string | string[] {
+export type SinkedEmail = { id: string; to: string; subject: string; text: string; html: string | null; createdAt: number };
+
+function recipients(to: SendEmailInput["to"]): string[] {
   const values = Array.isArray(to) ? to : [to];
-  if (
-    values.length === 0 ||
-    values.some((value) => typeof value !== "string" || value.trim() === "")
-  ) {
-    throw new EmailError(
-      "INVALID_INPUT",
-      "At least one recipient email address is required",
-    );
+  if (values.length === 0 || values.some((value) => typeof value !== "string" || value.trim() === "")) {
+    throw new EmailError("INVALID_INPUT", "At least one recipient email address is required");
   }
-
-  const recipients = values.map((value) => value.trim());
-  return Array.isArray(to) ? recipients : recipients[0];
+  return values.map((value) => value.trim());
 }
 
 function validateInput(input: SendEmailInput) {
-  if (!input || typeof input !== "object") {
-    throw new EmailError("INVALID_INPUT", "Email input is required");
-  }
+  if (!input || typeof input !== "object") throw new EmailError("INVALID_INPUT", "Email input is required");
   if (typeof input.subject !== "string" || input.subject.trim() === "") {
     throw new EmailError("INVALID_INPUT", "Email subject is required");
   }
@@ -95,112 +80,87 @@ function validateInput(input: SendEmailInput) {
   }
 }
 
-function logPreviewEmail(input: SendEmailInput, host: string): void {
-  const to = Array.isArray(input.to) ? input.to.join(", ") : input.to;
-  console.info(
-    `[preview-mail] ${host} did not send email to ${to}. Subject: ${input.subject}\n${input.text}`,
+/** Write one message per recipient to the sink and prune old rows. */
+export async function writeToSink(
+  database: SinkDatabase,
+  input: SendEmailInput,
+  host: string,
+  now = Date.now(),
+): Promise<SendEmailResult> {
+  const id = crypto.randomUUID();
+  const statements = recipients(input.to).map((to, index) =>
+    database
+      .prepare(`INSERT INTO email_sink (id, to_address, subject, text, html, host, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .bind(index === 0 ? id : crypto.randomUUID(), to.toLowerCase(), input.subject, input.text, input.html, host, now),
   );
+  statements.push(database.prepare(`DELETE FROM email_sink WHERE created_at < ?`).bind(now - EMAIL_SINK_TTL_MS));
+  await database.batch(statements);
+  return { id: `sink:${id}` };
 }
 
-async function deliverWithResend(
-  input: SendEmailInput,
-  apiKey: string,
-): Promise<SendEmailResult> {
-  const from = process.env.EMAIL_FROM?.trim() || DEFAULT_EMAIL_FROM;
-  const to = normalizedRecipients(input.to);
+/** Newest first; `to` narrows to one recipient. */
+export async function readSink(database: SinkDatabase, to: string | null, limit = 10): Promise<SinkedEmail[]> {
+  const where = to ? "WHERE to_address = ?" : "";
+  const values = to ? [to.trim().toLowerCase(), limit] : [limit];
+  const rows = await database
+    .prepare(`SELECT id, to_address AS "to", subject, text, html, created_at AS createdAt FROM email_sink ${where} ORDER BY created_at DESC LIMIT ?`)
+    .bind(...values)
+    .all<SinkedEmail>();
+  return rows.results ?? [];
+}
 
-  let response: Response;
+async function fromAddress(): Promise<string> {
+  const configured = await readBinding<string>("EMAIL_FROM");
+  const value = typeof configured === "string" ? configured.trim() : process.env.EMAIL_FROM?.trim();
+  return value || DEFAULT_EMAIL_FROM;
+}
+
+/** Send through the Email Service binding. */
+export async function deliver(binding: EmailBinding, input: SendEmailInput, from: string): Promise<SendEmailResult> {
+  const to = recipients(input.to);
   try {
-    response = await fetch(RESEND_EMAILS_URL, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from,
-        to,
-        subject: input.subject,
-        html: input.html,
-        text: input.text,
-      }),
+    const result = await binding.send({
+      from: { email: from, name: EMAIL_FROM_NAME },
+      to: Array.isArray(input.to) ? to : to[0],
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
     });
-  } catch {
-    throw new EmailError(
-      "PROVIDER_ERROR",
-      "Unable to reach the email provider",
-    );
+    if (!result || typeof result.messageId !== "string" || !result.messageId) {
+      throw new EmailError("PROVIDER_ERROR", "Email provider returned an invalid response");
+    }
+    return { id: result.messageId };
+  } catch (error) {
+    if (error instanceof EmailError) throw error;
+    const detail = error instanceof Error ? error.message.slice(0, 200) : "Request was rejected";
+    throw new EmailError("PROVIDER_ERROR", `Email provider rejected the request: ${detail}`);
   }
-
-  let rawBody = "";
-  try {
-    rawBody = await response.text();
-  } catch {
-    throw new EmailError(
-      "PROVIDER_ERROR",
-      "Email provider returned an unreadable response",
-      response.status,
-    );
-  }
-
-  const payload = parseResponse(rawBody);
-  if (!response.ok) {
-    const providerMessage =
-      payload && typeof payload.message === "string"
-        ? payload.message.slice(0, 200)
-        : "Request was rejected";
-    throw new EmailError(
-      "PROVIDER_ERROR",
-      `Email provider rejected the request: ${providerMessage}`,
-      response.status,
-    );
-  }
-
-  if (!payload || typeof payload.id !== "string" || payload.id.trim() === "") {
-    throw new EmailError(
-      "PROVIDER_ERROR",
-      "Email provider returned an invalid response",
-      response.status,
-    );
-  }
-
-  return { id: payload.id };
 }
 
 /**
- * Send one low-volume transactional email through Resend's REST API.
+ * Send one low-volume transactional email through Cloudflare Email Service (the `EMAIL` binding).
  *
- * This deliberately uses the platform fetch API so it can run in a Cloudflare
- * Worker without Node-only HTTP or SDK dependencies.
- *
- * On a preview version served from `*.workers.dev` (see `isPreviewDeployment`)
- * the production `RESEND_API_KEY` is not used. The production Worker on its
- * own workers.dev URLs still sends normally and never logs the message.
- * The message is logged (including a sign-in OTP in the text body) unless
- * `PREVIEW_RESEND_API_KEY` is set.
+ * On a non-production host (localhost or a Worker Preview, see `lib/environment.ts`) nothing is sent:
+ * the message, including a sign-in code, goes to the `email_sink` table, readable at
+ * `GET /api/test/emails?to=`. Previews have no `EMAIL` binding at all, so they cannot send even by
+ * mistake.
  */
-export async function sendEmail(
-  input: SendEmailInput,
-  options?: SendEmailOptions,
-): Promise<SendEmailResult> {
+export async function sendEmail(input: SendEmailInput, options?: SendEmailOptions): Promise<SendEmailResult> {
   validateInput(input);
 
-  if (await isPreviewDeployment(options?.host)) {
-    const previewKey = await readWorkerEnv(PREVIEW_RESEND_API_KEY_NAME);
-    if (!previewKey) {
-      logPreviewEmail(input, requestHostname(options?.host));
-      return { id: "preview-not-sent" };
+  if (await isNonProductionRequest(options?.host)) {
+    const database = await readBinding<SinkDatabase>("DB");
+    const host = requestHostname(options?.host);
+    if (!database) {
+      console.info(`[email-sink] ${host}: ${input.subject}\n${input.text}`);
+      return { id: "sink:logged" };
     }
-    return deliverWithResend(input, previewKey);
+    return writeToSink(database, input, host);
   }
 
-  const apiKey = await readWorkerEnv("RESEND_API_KEY");
-  if (!apiKey) {
-    throw new EmailError(
-      "CONFIGURATION_ERROR",
-      "Email provider is not configured",
-    );
+  const binding = await readBinding<EmailBinding>("EMAIL");
+  if (!binding || typeof binding.send !== "function") {
+    throw new EmailError("CONFIGURATION_ERROR", "Email provider is not configured");
   }
-  return deliverWithResend(input, apiKey);
+  return deliver(binding, input, await fromAddress());
 }

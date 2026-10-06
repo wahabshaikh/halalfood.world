@@ -1,8 +1,4 @@
-/**
- * Preview detection uses the request host. Workers Builds previews set
- * `BETTER_AUTH_URL` to https://halalfood.world, so that variable cannot tell
- * a preview request from production.
- */
+/** The request's hostname, lowercased, without port or brackets. Environment checks live in `environment.ts`. */
 export function requestHostname(value: string | null | undefined): string {
   const raw = value?.trim().toLowerCase() ?? "";
   if (!raw) return "";
@@ -30,11 +26,4 @@ export function hostFromRequest(request: Request): string {
     // Some test requests use a relative URL. The Host header is the fallback.
   }
   return requestHostname(request.headers.get("host"));
-}
-
-/** True only for `*.workers.dev`. `halalfood.world` is never a preview host. */
-export function isPreviewHost(value: string | null | undefined): boolean {
-  const host = requestHostname(value);
-  if (!host || host === "halalfood.world" || host.endsWith(".halalfood.world")) return false;
-  return host.endsWith(".workers.dev");
 }

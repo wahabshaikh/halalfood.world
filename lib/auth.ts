@@ -4,7 +4,8 @@ import { emailOTP } from "better-auth/plugins";
 import { database } from "@/lib/db";
 import { authSchema } from "@/lib/db/schema";
 import { sendEmail } from "./email";
-import { hostFromRequest } from "./request-host";
+import { hostFromRequest, requestHostname } from "./request-host";
+import { isNonProductionRequest } from "./worker-env";
 import {
   SESSION_COOKIE_CACHE_SECONDS,
   SESSION_EXPIRES_IN_SECONDS,
@@ -15,17 +16,43 @@ function environmentValue(name: string): string {
   return process.env[name]?.trim() || "";
 }
 
-function authBaseUrl(): string {
-  const configured = environmentValue("BETTER_AUTH_URL");
-  if (!configured) throw new Error("BETTER_AUTH_URL is not configured");
-  return configured.replace(/\/$/, "");
+/**
+ * Used only on non-production hosts (localhost and Worker Previews) when no BETTER_AUTH_SECRET is set,
+ * so sign-in works there without secrets. Production refuses to start without its own secret.
+ */
+export const DEVELOPMENT_AUTH_SECRET = "halalfood-world-development-only-auth-secret-0000";
+
+/** `https://host` for a deployed host, `http://` for localhost. */
+export function originFromHost(host: string): string {
+  const name = requestHostname(host);
+  const local = name === "localhost" || name === "127.0.0.1" || name === "::1";
+  return `${local ? "http" : "https"}://${host}`;
 }
 
-function isSecureEnvironment(baseURL: string): boolean {
-  return (
-    environmentValue("NODE_ENV") === "production" ||
-    baseURL.startsWith("https://")
-  );
+export type AuthSettings = { baseURL: string; secret: string; secureCookies: boolean };
+
+/**
+ * Production uses BETTER_AUTH_URL and BETTER_AUTH_SECRET and refuses to start without them. A
+ * non-production host (lib/environment.ts) uses its own origin, so a Preview's cookies and origin checks
+ * match the Preview URL, and falls back to a development secret.
+ */
+export async function authSettings(origin?: string | null): Promise<AuthSettings> {
+  const nonProduction = origin ? await isNonProductionRequest(origin) : false;
+  const configuredSecret = environmentValue("BETTER_AUTH_SECRET");
+  if (nonProduction && origin) {
+    const baseURL = new URL(origin).origin;
+    return { baseURL, secret: configuredSecret || DEVELOPMENT_AUTH_SECRET, secureCookies: baseURL.startsWith("https://") };
+  }
+
+  const configured = environmentValue("BETTER_AUTH_URL");
+  if (!configured) throw new Error("BETTER_AUTH_URL is not configured");
+  const baseURL = configured.replace(/\/$/, "");
+  if (!configuredSecret) throw new Error("BETTER_AUTH_SECRET is not configured");
+  if (configuredSecret.length < 32) throw new Error("BETTER_AUTH_SECRET must be at least 32 characters");
+  if (environmentValue("NODE_ENV") === "production" && !baseURL.startsWith("https://"))
+    throw new Error("BETTER_AUTH_URL must use HTTPS in production");
+  const secureCookies = environmentValue("NODE_ENV") === "production" || baseURL.startsWith("https://");
+  return { baseURL, secret: configuredSecret, secureCookies };
 }
 
 function otpEmail(otp: string) {
@@ -48,20 +75,11 @@ function otpEmail(otp: string) {
 
 /**
  * Build Better Auth per request so Worker environment bindings are read at
- * request time and the D1/Drizzle connection stays request-scoped.
+ * request time and the D1/Drizzle connection stays request-scoped. Pass the
+ * request's origin so non-production hosts get their own base URL.
  */
-export async function createAuth() {
-  const baseURL = authBaseUrl();
-  const secret = environmentValue("BETTER_AUTH_SECRET");
-  if (!secret) throw new Error("BETTER_AUTH_SECRET is not configured");
-  if (secret.length < 32)
-    throw new Error("BETTER_AUTH_SECRET must be at least 32 characters");
-  if (
-    environmentValue("NODE_ENV") === "production" &&
-    !baseURL.startsWith("https://")
-  )
-    throw new Error("BETTER_AUTH_URL must use HTTPS in production");
-  const secureCookies = isSecureEnvironment(baseURL);
+export async function createAuth(origin?: string | null) {
+  const { baseURL, secret, secureCookies } = await authSettings(origin);
 
   return betterAuth({
     database: drizzleAdapter(await database(), {

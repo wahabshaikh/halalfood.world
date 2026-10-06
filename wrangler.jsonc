@@ -1,37 +1,32 @@
+// One Worker serves the whole app (pages, API and auth); see docs/deployment.md.
+//
+// Top-level settings are production (halalfood.world). The `previews` block is what every
+// Worker Preview (`wrangler preview`, one per branch via Workers Builds) runs with. Previews do not inherit
+// anything from the top level, so every binding the code reads is declared again there, pointed
+// at preview resources.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "halalfood-world",
+  "account_id": "fbc18389ee167dc62b75c26c811e3e13",
   "compatibility_date": "2026-09-13",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
-  // Custom entry wraps vinext/server/fetch-handler with Sentry. The build emits
-  // the bundled file as `main` in dist/server/wrangler.json.
+  "compatibility_flags": ["nodejs_compat"],
+  // Custom entry wraps vinext/server/fetch-handler with Sentry.
   "main": "./worker/index.ts",
+  "upload_source_maps": true,
+  // Workers Logs. head_sampling_rate 1 keeps every request until traffic is high enough to sample.
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+
+  // workers.dev URLs stay on for Worker Previews. The production Worker's own workers.dev and Version
+  // URLs still count as production (lib/environment.ts), because ENVIRONMENT is "production" here.
   "preview_urls": true,
-  "assets": {
-    "directory": "dist/client",
-    "not_found_handling": "none",
-    "binding": "ASSETS"
-  },
-  "r2_buckets": [
-    {
-      "binding": "HALAL_EVIDENCE_R2",
-      "bucket_name": "halalfood-world-evidence"
-    }
-  ],
-  "d1_databases": [
-    {
-      "binding": "DB",
-      // Production D1 since the 0001_baseline cutover (Oct 5, 2026). The deploy
-      // gate reads this name and id. Rollback: docs/ROLLBACK.md.
-      "database_name": "halalfood-world-v2",
-      "database_id": "889b19af-2870-45b4-b6ee-92c3686010f0",
-      "migrations_dir": "migrations"
-    }
-  ],
+  "assets": { "directory": "dist/client", "not_found_handling": "none", "binding": "ASSETS" },
+  "cache": { "enabled": true },
+
   "vars": {
+    "ENVIRONMENT": "production",
     "BETTER_AUTH_URL": "https://halalfood.world",
+    // Sender for sign-in codes; the domain is onboarded in Cloudflare Email Service.
+    "EMAIL_FROM": "noreply@mail.halalfood.world",
     // Public DSN (it also ships in the browser bundle). Do not also set this
     // name with `wrangler secret put`; a var and a secret conflict on deploy.
     "SENTRY_DSN": "https://628e981cc4682959d5a7b79f0b73ecea@o4512156631171073.ingest.us.sentry.io/4512190880284672",
@@ -40,34 +35,55 @@
     // Global uncached Place Details calls per UTC day. Cache hits do not count.
     "GOOGLE_DETAILS_DAILY_CAP": "1000"
   },
-  // Per-location burst limits for paid Places Text Search. namespace_id is an
-  // account-wide integer: 81001 is anonymous (per IP), 81002 is signed-in
-  // (per user). Preview uploads rewrite these so they do not share counters.
-  "ratelimits": [
+  "d1_databases": [
     {
-      "name": "GOOGLE_SEARCH_ANON",
-      "namespace_id": "81001",
-      "simple": {
-        "limit": 5,
-        "period": 60
-      }
-    },
-    {
-      "name": "GOOGLE_SEARCH_USER",
-      "namespace_id": "81002",
-      "simple": {
-        "limit": 20,
-        "period": 60
-      }
+      "binding": "DB",
+      // Production D1 since the 0001_baseline cutover (Oct 5, 2026). Rollback: docs/ROLLBACK.md.
+      "database_name": "halalfood-world-v2",
+      "database_id": "889b19af-2870-45b4-b6ee-92c3686010f0",
+      "migrations_dir": "migrations"
     }
   ],
-  "cache": {
-    "enabled": true
-  },
-  // Workers Logs. head_sampling_rate 1 keeps every request until launch
-  // traffic is high enough to sample. A later deploy keeps this setting.
-  "observability": {
-    "enabled": true,
-    "head_sampling_rate": 1
+  "r2_buckets": [{ "binding": "HALAL_EVIDENCE_R2", "bucket_name": "halalfood-world-evidence" }],
+  // Cloudflare Email Service. Only production sends mail; every other host writes to the email sink.
+  "send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["noreply@mail.halalfood.world"] }],
+  // Per-location burst limits for paid Places Text Search. namespace_id is an account-wide integer:
+  // 81001 is anonymous (per IP), 81002 is signed-in (per user).
+  "ratelimits": [
+    { "name": "GOOGLE_SEARCH_ANON", "namespace_id": "81001", "simple": { "limit": 5, "period": 60 } },
+    { "name": "GOOGLE_SEARCH_USER", "namespace_id": "81002", "simple": { "limit": 20, "period": 60 } }
+  ],
+
+  // Worker Previews. Never add routes, crons, queue consumers or send_email here.
+  //
+  // Previews hold their own secrets (`wrangler preview base-config secret put …`), never production's.
+  // Sign-in on a Preview uses Turnstile's test keys, a development auth secret when none is set, and the
+  // email sink (/api/test/emails), so a Preview needs no secrets to work.
+  "previews": {
+    "observability": { "enabled": true },
+    "vars": {
+      "ENVIRONMENT": "preview",
+      "BETTER_AUTH_URL": "https://halalfood.world",
+      "EMAIL_FROM": "noreply@mail.halalfood.world",
+      "SENTRY_DSN": "https://628e981cc4682959d5a7b79f0b73ecea@o4512156631171073.ingest.us.sentry.io/4512190880284672",
+      // Previews share one Google budget; keep it small.
+      "GOOGLE_SEARCH_DAILY_CAP": "100",
+      "GOOGLE_DETAILS_DAILY_CAP": "100"
+    },
+    // Shared by all Previews. Migrations: `pnpm db:migrate:preview`.
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "halalfood-world-preview",
+        "database_id": "c5d8e0ff-c001-48b8-8545-49861227c16f",
+        "migrations_dir": "migrations"
+      }
+    ],
+    "r2_buckets": [{ "binding": "HALAL_EVIDENCE_R2", "bucket_name": "halalfood-world-evidence-preview" }],
+    // Separate namespaces so preview and E2E traffic never spends production's per-IP budgets.
+    "ratelimits": [
+      { "name": "GOOGLE_SEARCH_ANON", "namespace_id": "81101", "simple": { "limit": 5, "period": 60 } },
+      { "name": "GOOGLE_SEARCH_USER", "namespace_id": "81102", "simple": { "limit": 20, "period": 60 } }
+    ]
   }
 }

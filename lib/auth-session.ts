@@ -1,4 +1,4 @@
-import { createAuth } from "./auth";
+import { createAuth, originFromHost } from "./auth";
 
 export type RequestAuth =
   | { status: "authenticated"; userId: string }
@@ -6,7 +6,7 @@ export type RequestAuth =
   | { status: "unavailable" };
 
 async function lookupSession(request: Request) {
-  const auth = await createAuth();
+  const auth = await createAuth(new URL(request.url).origin);
   return auth.api.getSession({
     headers: request.headers,
     query: { disableCookieCache: true },
@@ -52,9 +52,11 @@ export async function looksSignedIn(): Promise<boolean> {
 export async function getViewerId(): Promise<string | null> {
   try {
     const { headers } = await import("next/headers");
-    const auth = await createAuth();
+    const requestHeaders = await headers();
+    const host = requestHeaders.get("host");
+    const auth = await createAuth(host ? originFromHost(host) : null);
     const result = await auth.api.getSession({
-      headers: await headers(),
+      headers: requestHeaders,
       query: { disableCookieCache: true },
     });
     const userId = result?.user?.id;

@@ -70,6 +70,8 @@ export function createTestDatabase() {
   };
   return {
     sqlite,
+    /** The raw D1-shaped binding, for code that calls prepare()/batch() directly. */
+    binding,
     db: drizzle(binding as unknown as Parameters<typeof drizzle>[0], { schema }),
   };
 }

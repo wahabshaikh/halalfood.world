@@ -21,7 +21,7 @@ import {
   type GoogleSearchRateLimiter,
 } from "./google-search-guard";
 import { searchGooglePlaces } from "./google-places";
-import { parseWranglerJsonc } from "./preview-bindings";
+import { readWranglerConfig } from "./wrangler-config";
 import { GET as googleSearchGet } from "@/app/api/places/google-search/route";
 import { createTestDatabase } from "@/lib/testing/sqlite-d1";
 
@@ -408,7 +408,7 @@ test("the D1 daily counter stops at the cap and resets the next UTC day", async 
 });
 
 test("wrangler declares a lower anonymous rate limit and the daily cap var", () => {
-  const config = parseWranglerJsonc(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
+  const config = readWranglerConfig();
   const anon = config.ratelimits?.find((entry) => entry.name === "GOOGLE_SEARCH_ANON");
   const user = config.ratelimits?.find((entry) => entry.name === "GOOGLE_SEARCH_USER");
   assert.equal(anon?.namespace_id, GOOGLE_SEARCH_ANON_NAMESPACE);
