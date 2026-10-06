@@ -7,7 +7,7 @@ export const D1_BINDING_NAME = "DB";
  * Resolve the D1 binding through `cloudflare:workers` rather than a fetch
  * handler parameter, so any module can reach it. The dynamic import fails
  * closed under plain Node (tests, scripts, local builds), matching the
- * pattern already used for the R2 binding in src/lib/r2.ts.
+ * pattern already used for the R2 binding in lib/r2.ts.
  */
 async function d1Binding(): Promise<Parameters<typeof drizzle>[0] | null> {
   try {

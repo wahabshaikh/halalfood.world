@@ -2,7 +2,7 @@
  * D1, unlike Neon, has no connection string reachable from a plain Node
  * script: the binding only exists inside a Worker. Ops CLIs run outside the
  * Worker, so this talks to Cloudflare's D1 REST API directly with an API
- * token instead of importing `src/db`.
+ * token instead of importing `lib/db`.
  */
 
 export type D1RestRow = Record<string, unknown>;

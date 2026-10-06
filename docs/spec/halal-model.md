@@ -1,7 +1,7 @@
 # The halal model
 
 How halalfood.world decides what to show about a place. The code is
-[`packages/core/src/halal.ts`](../../packages/core/src/halal.ts); the full
+[`lib/core/halal.ts`](../../lib/core/halal.ts); the full
 product spec is [`simplified-community-spec.md`](simplified-community-spec.md).
 Where the two differ, this page and the code are current: community checks are
 one source of evidence among several, and "Community verified" is now "Verified".

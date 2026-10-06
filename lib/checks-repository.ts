@@ -3,7 +3,7 @@
  * and map listings (`place_signals`) are the others. Writing a check stores it
  * with its dishes and photos, recomputes the place's `place_status`
  * projection from every source, records any change, and awards points
- * (spec §2, §10; docs/product/halal-model.md).
+ * (spec §2, §10; docs/spec/halal-model.md).
  */
 import { sql, type SQL } from "drizzle-orm";
 import {

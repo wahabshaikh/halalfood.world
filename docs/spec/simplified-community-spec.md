@@ -9,6 +9,10 @@ The app has not launched, so this is a rebuild in place:
 - **No redirects.** Removed URLs return 404.
 - **No data migration** for user-generated content. The database is recreated from a new baseline schema. The only data carried over is the `places` listing rows (see [§4.4](#44-reset-and-seed)).
 
+> **Paths in this document predate the October 2026 flatten** into one package. Read `apps/web/<x>` as `<x>`,
+> `apps/web/src/lib` as `lib`, `apps/web/src/components` as `components/hf`, `apps/web/tests` as `lib/*.test.ts`
+> or `tests/`, `packages/core/src` as `lib/core`, and `packages/ui/src/components` as `components/ui`.
+
 ---
 
 ## Contents
@@ -678,7 +682,7 @@ Delete these as part of the phase that replaces them. Run `npm run typecheck` af
 
 **Tests:** delete the tests of deleted modules (in `packages/core/tests` and `apps/web/tests`). Rewrite the launch-gate tests (`launch-blockers`, `launch-gate`, `launch-ready`, `trust-lifecycle`) against the new rules.
 
-**Docs:** replace `docs/product/trust-platform.md` and `docs/product/evidence-first-halal-status.md` with a short `docs/product/halal-model.md` that restates [§1](#1-product-rules)–[§2](#2-halal-status-the-algorithm). Update the README's Routes table and feature paragraphs.
+**Docs:** replace `docs/spec/trust-platform.md` and `docs/spec/evidence-first-halal-status.md` with a short `docs/spec/halal-model.md` that restates [§1](#1-product-rules)–[§2](#2-halal-status-the-algorithm). Update the README's Routes table and feature paragraphs.
 
 ---
 

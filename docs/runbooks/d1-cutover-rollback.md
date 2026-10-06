@@ -19,7 +19,7 @@ npx wrangler d1 export halalfood-world-v2 --remote --output=halalfood-world-v2-$
 
 ## 1. Put the old Worker version back (minutes)
 
-Version 5a6e0488 carries its own binding to `halalfood-world`, so redeploying it restores the old site and the old database together. Run from `apps/web` with a Workers deploy token:
+Version 5a6e0488 carries its own binding to `halalfood-world`, so redeploying it restores the old site and the old database together. Run from the repo root with a Workers deploy token:
 
 ```sh
 npx wrangler rollback 5a6e0488-c120-4106-9e7d-736a83bb0a4b --name halalfood-world \
@@ -38,23 +38,23 @@ curl -s 'https://halalfood.world/api/places/search?q=samad&limit=1'   # old API 
 
 ## 2. Stop main from redeploying the new code
 
-Until main is reverted, the next merge redeploys the redesign against v2. Revert the cutover PR's `apps/web/wrangler.jsonc` change, which points the `DB` binding back at the old database:
+Until main is reverted, the next merge redeploys the redesign against v2. Revert the cutover PR's `wrangler.jsonc` change, which points the `DB` binding back at the old database:
 
 ```jsonc
 "database_name": "halalfood-world",
 "database_id": "3e4b080f-0559-4235-9923-2d6e4dec528f",
 ```
 
-Also restore `PRODUCTION_D1_ID`/`PRODUCTION_D1_NAME` in `apps/web/src/lib/preview-bindings.ts`, and the database name in `apps/web/package.json` (`db:migrate:remote`) and `apps/web/scripts/apply-d1-migrations.ts`. The simplest way is `git revert <cutover merge sha>`.
+Since the repo was flattened, `wrangler.jsonc` is the only place that names the production database (`db:migrate:remote` and `cf:deploy` go through the `DB` binding). Point it back by hand rather than with `git revert`, which no longer applies cleanly.
 
-The redesign's code (#92) only works against the baseline schema. A main build that has the old database but #92's code is refused by the deploy gate, because `0001_baseline.sql` would show as pending on `halalfood-world`. That refusal is correct: do not apply the baseline to the old database (it fails with `table "user" already exists`, and forcing it destroys the rollback). A full rollback of main therefore means reverting #92 as well:
+The redesign's code (#92) only works against the baseline schema. Workers Builds deploys `main` with `pnpm cf:deploy`, which applies pending migrations before `wrangler deploy`. On `halalfood-world` the baseline is pending, its first statement fails with `table "user" already exists`, and the deploy stops there. Do not let it get that far, and never force the baseline onto the old database: it destroys the rollback. Before merging a rollback, change the production build's deploy command to `pnpm exec wrangler deploy` (no migrations) and put it back afterwards. A full rollback of main therefore means reverting #92 as well:
 
 ```sh
 git revert --no-edit <cutover merge sha>
 git revert --no-edit c35beb7   # #92, the redesign
 ```
 
-Open a PR and squash-merge it once Workers Builds is green. The gate then sees no pending migrations on `halalfood-world` and deploys.
+Open a PR and squash-merge it once CI is green.
 
 ## 3. If the old database itself needs restoring
 

@@ -73,7 +73,7 @@ const DEFAULTS: BackfillOptions = {
 };
 
 function usage() {
-  console.log(`Usage: npm run backfill:places -- [options]
+  console.log(`Usage: pnpm backfill:places [options]
 
 Options:
   --dry-run             fetch and report coordinates without writing rows

@@ -1,8 +1,8 @@
 /**
  * Carry the `places` listing rows across the baseline reset (spec §4.4).
  *
- *   npx tsx scripts/places-seed.ts export seed/places.jsonl   # before the reset
- *   npx tsx scripts/places-seed.ts import seed/places.jsonl   # after 0001_baseline
+ *   pnpm places:export seed/places.jsonl   # before the reset
+ *   pnpm places:import seed/places.jsonl   # after 0001_baseline
  *
  * Both talk to the remote D1 database named by CLOUDFLARE_D1_DATABASE_ID via the
  * REST API. Only listed rows and the columns the new schema keeps are carried;

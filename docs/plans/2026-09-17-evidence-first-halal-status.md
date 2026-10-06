@@ -6,7 +6,7 @@
 >
 > **Tech Stack:** TypeScript, React 19, vinext/Next-compatible server components and route handlers, Drizzle raw SQL over Cloudflare D1, Node test runner with `tsx`, CSS.
 >
-> **Spec:** `docs/product/evidence-first-halal-status.md`
+> **Spec:** `docs/spec/evidence-first-halal-status.md`
 
 ## Global constraints
 

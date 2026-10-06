@@ -3,7 +3,7 @@
  *
  * 1. A fact is one of four questions: Muslim-owned, Halal certified, Serves
  *    pork, Serves alcohol.
- * 2. Evidence comes from four sources (docs/product/halal-model.md):
+ * 2. Evidence comes from four sources (docs/spec/halal-model.md):
  *    - community checks: a fact settles when at least three of the newest
  *      definite answers agree, and the count keeps growing past three;
  *    - a halal certificate, reviewed by a moderator and not expired, settles

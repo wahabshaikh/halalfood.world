@@ -1,0 +1,21 @@
+name: Bug report
+description: Something on halalfood.world is broken or wrong.
+labels: [bug]
+body:
+  - type: input
+    id: url
+    attributes:
+      label: Page
+      description: The URL where it happened.
+      placeholder: https://halalfood.world/place/...
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: iPhone 15, Safari

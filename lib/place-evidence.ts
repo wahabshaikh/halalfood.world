@@ -1,5 +1,5 @@
 /**
- * Evidence besides checks (docs/product/halal-model.md): people send a photo
+ * Evidence besides checks (docs/spec/halal-model.md): people send a photo
  * of a halal certificate or a menu, a moderator reviews it, and once approved
  * it counts toward the place's halal status. Map listings are imported by
  * `scripts/import-listing-signals.ts` and land here already approved.

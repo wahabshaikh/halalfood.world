@@ -1,12 +1,12 @@
 /**
- * Import map listings' halal tags as a signal (docs/product/halal-model.md).
+ * Import map listings' halal tags as a signal (docs/spec/halal-model.md).
  *
  * For each city, read every OpenStreetMap feature tagged `diet:halal` around
  * our listed places through Overpass, and Geoapify's halal places when
  * GEOAPIFY_API_KEY is set. Each listing that matches a place by name within
  * 80 m is stored in `place_signals` and the place's status is recomputed.
  *
- *   npm run signals:listings -- [--city london] [--dry-run]
+ *   pnpm signals:listings [--city london] [--dry-run]
  *
  * Needs CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID and
  * CLOUDFLARE_API_TOKEN, like the other ops scripts. A recompute's statements

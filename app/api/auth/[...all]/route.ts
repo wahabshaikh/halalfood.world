@@ -83,7 +83,7 @@ async function handle(request: Request): Promise<Response> {
         );
         if (!decision.allowed) return rateLimited(decision.retryAfterMs);
       } catch {
-        // A failed counter check must never fall through and burn a Resend send.
+        // A failed counter check must never fall through and send another email.
         return unavailable();
       }
     }

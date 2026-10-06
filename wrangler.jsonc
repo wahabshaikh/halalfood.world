@@ -38,7 +38,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      // Production D1 since the 0001_baseline cutover (Oct 5, 2026). Rollback: docs/ROLLBACK.md.
+      // Production D1 since the 0001_baseline cutover (Oct 5, 2026). Rollback: docs/runbooks/d1-cutover-rollback.md.
       "database_name": "halalfood-world-v2",
       "database_id": "889b19af-2870-45b4-b6ee-92c3686010f0",
       "migrations_dir": "migrations"

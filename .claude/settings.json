@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install *)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm test:coverage *)",
+      "Bash(pnpm build *)",
+      "Bash(pnpm e2e *)",
+      "Bash(pnpm e2e:smoke *)",
+      "Bash(pnpm verify *)",
+      "Bash(pnpm verify:e2e *)",
+      "Bash(pnpm shot *)",
+      "Bash(pnpm auth:session *)",
+      "Bash(pnpm db:migrate:local *)",
+      "Bash(pnpm db:seed:local *)",
+      "Bash(pnpm exec vitest *)",
+      "Bash(pnpm exec playwright test *)",
+      "Bash(pnpm exec tsc *)",
+      "Bash(pnpm exec eslint *)",
+      "Bash(pnpm exec prettier --check *)",
+      "Bash(pnpm exec wrangler d1 migrations apply DB --local *)",
+      "Bash(pnpm exec wrangler d1 migrations list DB --local *)",
+      "Bash(pnpm exec wrangler d1 execute DB --local *)"
+    ],
+    "ask": [
+      "Bash(pnpm deploy *)",
+      "Bash(pnpm run deploy *)",
+      "Bash(pnpm db:migrate:remote *)",
+      "Bash(pnpm run db:migrate:remote *)",
+      "Bash(wrangler deploy *)",
+      "Bash(npx wrangler deploy *)",
+      "Bash(pnpm exec wrangler deploy *)",
+      "Bash(wrangler versions deploy *)",
+      "Bash(pnpm exec wrangler versions deploy *)",
+      "Bash(* --remote)",
+      "Bash(* --remote *)",
+      "Bash(* secret put *)",
+      "Bash(* secret bulk *)",
+      "Bash(* secret delete *)",
+      "Bash(* d1 time-travel restore *)",
+      "Bash(git push * main)",
+      "Bash(git push --force *)",
+      "Bash(pnpm deploy:preview *)",
+      "Bash(pnpm cf:deploy *)",
+      "Bash(pnpm cf:preview *)",
+      "Bash(pnpm db:migrate:preview *)",
+      "Bash(wrangler preview *)",
+      "Bash(pnpm exec wrangler preview *)",
+      "Bash(* wrangler rollback *)",
+      "Bash(wrangler rollback *)",
+      "Bash(* versions upload *)",
+      "Bash(pnpm backfill:places *)",
+      "Bash(pnpm signals:listings *)",
+      "Bash(pnpm places:import *)",
+      "Bash(pnpm places:export *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}
