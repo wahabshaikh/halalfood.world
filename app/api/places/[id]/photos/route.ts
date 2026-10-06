@@ -7,7 +7,6 @@ import {
   retryAfterSeconds,
 } from "@/lib/otp-rate-limit";
 import {
-  deletePlacePhotoForUser,
   d1PlacePhotoRepository,
   registerPlacePhotoForUser,
   type PlacePhoto,
@@ -55,13 +54,6 @@ function invalidPlace() {
 function notFound() {
   return Response.json(
     { error: "That halal place could not be found." },
-    { status: 404, headers: noStore() },
-  );
-}
-
-function photoNotFound() {
-  return Response.json(
-    { error: "Your halal place photo could not be found." },
     { status: 404, headers: noStore() },
   );
 }

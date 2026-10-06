@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import {
   canonical,
@@ -97,7 +97,7 @@ test("addresses skip missing parts without leaving stray separators", () => {
 });
 
 test("JSON-LD carries the community status as properties, never as a rating", () => {
-  const data = placeJsonLd(place, { status: verified, facts }) as Record<string, any>;
+  const data = placeJsonLd(place, { status: verified, facts }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.equal(data["@type"], "Restaurant");
   assert.equal(data.url, "https://halalfood.world/place/" + place.id);
   assert.equal(data.geo.latitude, place.lat);

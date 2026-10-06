@@ -36,10 +36,14 @@ function browserStorages(): Storage[] {
   const list: Storage[] = [];
   try {
     list.push(window.sessionStorage);
-  } catch {}
+  } catch {
+    // Storage is unavailable (private mode, blocked cookies).
+  }
   try {
     list.push(window.localStorage);
-  } catch {}
+  } catch {
+    // Storage is unavailable (private mode, blocked cookies).
+  }
   return list;
 }
 

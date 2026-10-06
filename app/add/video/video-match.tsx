@@ -98,7 +98,6 @@ export function VideoMatch() {
       {found && (
         <section className="flex items-center gap-3 rounded-2xl border border-border p-3">
           {found.link.thumbnailUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={found.link.thumbnailUrl} alt="" referrerPolicy="no-referrer" className="size-16 shrink-0 rounded-xl object-cover" />
           ) : (
             <span className="size-16 shrink-0 rounded-xl bg-foreground/85" />

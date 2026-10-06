@@ -180,7 +180,6 @@ export function HandleField({
     }, 300);
     return () => window.clearTimeout(timer);
     // onCheck is a setter from the parent; the value drives the check.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, original]);
   return (
     <label className="grid gap-1.5">

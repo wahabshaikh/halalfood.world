@@ -1,4 +1,4 @@
-import { afterEach, test } from "node:test";
+import { afterEach, test } from "vitest";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
@@ -8,7 +8,6 @@ import {
   normalizeEmail,
   OTP_RATE_LIMITS,
   retryAfterSeconds,
-  consumeOtpVerificationLimits,
   type OtpRateLimitRule,
   type OtpRateLimitState,
   type OtpRateLimitStore,

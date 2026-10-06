@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import { test } from "vitest";
 import { presentHttpFailure } from "./failure-copy";
 import { d1GoogleSearchBudget, parseGoogleSearchDailyCap } from "./google-search-budget";
 import {

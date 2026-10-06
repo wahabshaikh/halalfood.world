@@ -55,7 +55,6 @@ export function InboxView({ tab: initialTab, activity: initialActivity, recs: in
     const timer = window.setTimeout(() => void api("/api/inbox/read", { method: "POST", json: { ids } }).catch(() => {}), 1500);
     return () => window.clearTimeout(timer);
     // Only when the tab changes; the dots stay until the next visit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
   const answer = async (item: Activity, accept: boolean) => {

@@ -70,7 +70,6 @@ export default async function ListPage({ params }: Props) {
       <Page className="md:pt-6">
         <div className="relative -mx-5 -mt-4 h-[200px] overflow-hidden bg-secondary md:mx-0 md:mt-0 md:h-[260px] md:rounded-[20px]">
           {cover ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={photoUrl(cover.photoKey) ?? ""} alt="" className="size-full object-cover" />
           ) : (
             <PlaceArt name={list.title} seed={list.id} className="size-full" rounded="rounded-none" textSize="text-5xl" />

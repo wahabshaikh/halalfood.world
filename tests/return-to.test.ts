@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import test from "node:test";
+import { test } from "vitest";
 import { loginHref, safeReturnPath, signInAgainUrl, signedOutLoginPath } from "@/lib/signed-out";
 
 function returnToOf(href: string): string | null {
@@ -76,7 +76,7 @@ function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return name === "node_modules" ? [] : sources(path);
-    return /\.(ts|tsx)$/.test(name) ? [path] : [];
+    return /\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
   });
 }
 

@@ -131,7 +131,6 @@ export default async function PlacePage({ params }: Props) {
             <div className={cn("relative h-[250px] overflow-hidden bg-secondary", thumbs.length > 0 ? "md:h-[400px]" : "md:h-[320px]")}>
               {hero ? (
                 // Place photos are served from our own R2 proxy route.
-                // eslint-disable-next-line @next/next/no-img-element
                 <img src={hero} alt={`Photo of ${place.name}`} className="size-full object-cover" />
               ) : (
                 <PlaceArt name={place.name} seed={place.id} className="size-full" rounded="rounded-none" textSize="text-5xl" />
@@ -140,7 +139,6 @@ export default async function PlacePage({ params }: Props) {
             {thumbs.length > 0 && (
               <div className={cn("hidden gap-2 md:grid md:h-[400px]", thumbs.length > 1 ? "grid-rows-2" : "grid-rows-1")}>
                 {thumbs.map((src, index) => (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img key={index} src={src ?? ""} alt="" loading="lazy" className="size-full min-h-0 object-cover" />
                 ))}
               </div>
@@ -206,7 +204,6 @@ export default async function PlacePage({ params }: Props) {
               {photos.length ? (
                 <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-3">
                   {photos.slice(0, 8).map((photo) => (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img key={photo.id} src={photoUrl(photo.r2Key) ?? ""} alt="" loading="lazy" className="aspect-square w-full rounded-[14px] object-cover" />
                   ))}
                 </div>
@@ -227,7 +224,6 @@ export default async function PlacePage({ params }: Props) {
                     >
                       <span className="relative flex h-[180px] items-center justify-center overflow-hidden rounded-[14px] bg-foreground/85 text-background">
                         {video.thumbnailUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img src={video.thumbnailUrl} alt="" loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 size-full object-cover opacity-80" />
                         )}
                         <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="relative">

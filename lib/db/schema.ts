@@ -6,7 +6,6 @@ import {
   index,
   primaryKey,
 } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
 
 /** Better Auth's core SQLite tables. Keep these names aligned with auth.ts. */
 export const authUser = sqliteTable("user", {

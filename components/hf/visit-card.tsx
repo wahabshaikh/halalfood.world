@@ -82,7 +82,6 @@ export function VisitCard({ visit }: { visit: VisitJson }) {
       <a href={`/visit/${visit.checkId}`} className="grid gap-3 text-foreground">
         {photo && (
           // Check photos are served from our own R2 proxy route.
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={photo} alt={`Photo from ${visit.place.name}`} loading="lazy" className="aspect-[4/3] w-full rounded-2xl object-cover md:aspect-[16/9]" />
         )}
         {visit.note && <p className="text-[15px] leading-relaxed">{visit.note}</p>}

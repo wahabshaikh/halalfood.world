@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { matchPlacesForCaption } from "@/lib/media-match-repository";
 import { createTestDatabase } from "@/lib/testing/sqlite-d1";

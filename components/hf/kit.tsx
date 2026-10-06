@@ -379,7 +379,6 @@ export function Avatar({
     >
       {src ? (
         // Avatars are served from our own R2 proxy route.
-        // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt="" className="size-full object-cover" />
       ) : (
         initialsOf(name)
@@ -431,7 +430,6 @@ export function PlaceArt({
     >
       {src ? (
         // Place photos are served from our own R2 proxy route.
-        // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt="" className="size-full object-cover" loading="lazy" />
       ) : (
         initialsOf(name)

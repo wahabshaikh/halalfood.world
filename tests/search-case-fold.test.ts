@@ -4,7 +4,7 @@
  * cases, so either spelling finds both kinds of stored name.
  */
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { searchPlaces } from "@/lib/places";

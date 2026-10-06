@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { test } from "node:test";
+import { test } from "vitest";
 import {
   SESSION_COOKIE_CACHE_SECONDS,
   SESSION_EXPIRES_IN_SECONDS,

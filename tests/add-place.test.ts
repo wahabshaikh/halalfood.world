@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { addPlaceFromGoogle, cityFromFormattedAddress } from "@/lib/google-place-submission";
 import type { GooglePlaceDetailsResult } from "@/lib/google-places";

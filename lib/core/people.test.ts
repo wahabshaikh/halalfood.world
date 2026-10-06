@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { decideFollow, handleFromEmail, validateBio, validateDisplayName, validateHandle } from "./people";
 
 test("handles are 3–30 of a-z, 0-9, _ and .", () => {

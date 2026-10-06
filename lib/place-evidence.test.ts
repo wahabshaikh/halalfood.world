@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { validateCheck, type CheckInput } from "@/lib/core/check";
 import { createCheck, recomputePlaceStatus } from "./checks-repository";

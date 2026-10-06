@@ -135,7 +135,7 @@ export default function LoginForm({
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileReset, setTurnstileReset] = useState(0);
   const [turnstileError, setTurnstileError] = useState("");
-  const [status, setStatus] = useState("");
+  const [, setStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [turnstileSize, setTurnstileSize] = useState<"compact" | "normal" | null>(null);

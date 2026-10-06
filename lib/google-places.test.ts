@@ -1,4 +1,4 @@
-import { afterEach, test } from "node:test";
+import { afterEach, test } from "vitest";
 import assert from "node:assert/strict";
 import {
   GOOGLE_PLACES_COORDINATE_FIELD_MASK,

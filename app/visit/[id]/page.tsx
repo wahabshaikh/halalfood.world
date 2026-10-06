@@ -67,7 +67,6 @@ export default async function VisitPage({ params }: Props) {
           {photos.length > 0 && (
             <div className="flex snap-x gap-2 overflow-x-auto [scrollbar-width:none]">
               {photos.map((src) => (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img key={src} src={src} alt={`Photo from ${visit.place.name}`} className="aspect-[4/3] w-full shrink-0 snap-center rounded-2xl object-cover" />
               ))}
             </div>

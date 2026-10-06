@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { leaderboard } from "./community";
 import { getEvent, listEvents, parseEventInput, saveEvent, setGoing } from "./events";

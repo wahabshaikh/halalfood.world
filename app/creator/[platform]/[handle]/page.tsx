@@ -50,7 +50,6 @@ export default async function CreatorPage(props: Props) {
               <a key={place.placeId} href={`/place/${place.placeId}`} className="grid gap-1.5 text-foreground">
                 <span className="relative flex aspect-[3/4] items-center justify-center overflow-hidden rounded-2xl bg-foreground/85 text-background">
                   {place.thumbnailUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={place.thumbnailUrl} alt="" loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 size-full object-cover" />
                   )}
                 </span>

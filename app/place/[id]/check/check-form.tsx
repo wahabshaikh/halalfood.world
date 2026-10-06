@@ -260,7 +260,6 @@ export function CheckForm({ placeId, placeName, isPrivate }: { placeId: string; 
         {photos.length > 0 && (
           <div className="flex gap-2">
             {photos.map((photo) => (
-              // eslint-disable-next-line @next/next/no-img-element
               <img key={photo.id} src={photo.url} alt="" className="size-16 rounded-xl object-cover" />
             ))}
           </div>

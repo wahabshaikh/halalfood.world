@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { buildFoodPassport, buildMilestones, type PassportCheck } from "./food-passport";
 
 const check = (placeId: string, citySlug: string, cuisines: string[], country: string | null = "India"): PassportCheck => ({
