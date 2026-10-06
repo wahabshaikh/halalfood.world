@@ -31,6 +31,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
     <span className="inline-flex items-center gap-1.5">
       <BrandMark size={compact ? 30 : 34} />
       <span
+        data-wordmark
         className={cn(
           "font-black tracking-tighter text-brand",
           compact ? "text-lg" : "text-xl",

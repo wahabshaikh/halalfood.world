@@ -16,9 +16,15 @@
   // Workers Logs. head_sampling_rate 1 keeps every request until traffic is high enough to sample.
   "observability": { "enabled": true, "head_sampling_rate": 1 },
 
-  // workers.dev URLs stay on for Worker Previews. The production Worker's own workers.dev and Version
-  // URLs still count as production (lib/environment.ts), because ENVIRONMENT is "production" here.
+  // Production is served only on its custom domains. `preview_urls` keeps workers.dev URLs for Worker Previews
+  // (and production Version URLs, which lib/environment.ts still treats as production because ENVIRONMENT is
+  // "production").
+  "workers_dev": false,
   "preview_urls": true,
+  "routes": [
+    { "pattern": "halalfood.world", "custom_domain": true },
+    { "pattern": "www.halalfood.world", "custom_domain": true }
+  ],
   "assets": { "directory": "dist/client", "not_found_handling": "none", "binding": "ASSETS" },
   "cache": { "enabled": true },
 

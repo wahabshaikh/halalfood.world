@@ -17,6 +17,28 @@ changing behaviour, and update it in the same PR when behaviour changes. Environ
 rollback are in [`docs/deployment.md`](docs/deployment.md); human contributor setup is in
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+## Stack (identical in mosques.world and halalfood.world)
+
+Both repos share one stack, layout and workflow; keep them in step (same versions of every shared package, same
+config conventions). When you change one of these here, make the same change in the sibling repo.
+
+| Layer | Choice |
+| --- | --- |
+| Runtime | One Cloudflare Worker, `compatibility_date` 2026-09-13, `nodejs_compat`, Workers Logs, source maps |
+| Framework | vinext (Next.js App Router API on Vite 8), React 19, `proxy.ts` for request handling |
+| Data | D1 + Drizzle ORM (hand-written SQL migrations), R2 for media |
+| Auth | Better Auth email one-time codes, Turnstile, Workers Rate Limiting |
+| Email | Cloudflare Email Service `send_email` binding from `salam@<domain>`; Email Routing forwards `salam@` to the maintainer; non-production hosts write to an email sink instead |
+| UI | Tailwind CSS 4 (`@tailwindcss/vite`), shadcn/ui on `radix-ui`, self-hosted Fontsource fonts, MapLibre GL 6 |
+| Observability | Sentry (`@sentry/cloudflare`), DataFast analytics |
+| Environments | Local (Miniflare), Worker Previews per branch (`previews` block, own D1/R2/rate limits, no email binding), production; `lib/environment.ts` decides |
+| Delivery | Workers Builds: `pnpm build`, `pnpm cf:preview` on branches, `pnpm cf:deploy` (Time Travel bookmark → migrations → deploy) on `main` |
+| Tooling | pnpm 10, Node 22, TypeScript 5.9, ESLint 9, Vitest 3 with a coverage gate, Playwright with axe, GitHub Actions CI |
+| Release | No feature flags: what merges to `main` is live |
+
+Product-specific on purpose: mosques.world adds KV, Queues, Images, Workers AI, prayer-time and i18n libraries and
+lucide icons; halalfood.world adds Crisp chat, Hugeicons and Google Places search.
+
 ## Commands
 
 pnpm only (never npm or yarn). Node 22.

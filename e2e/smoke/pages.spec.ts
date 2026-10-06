@@ -1,4 +1,14 @@
-import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { expect, test, type Page } from "@playwright/test";
+
+/**
+ * Serious and critical accessibility violations, as mosques.world checks. The logo wordmark is excluded:
+ * text that is part of a logo has no contrast requirement (WCAG 1.4.3), and its brand orange is fixed.
+ */
+async function seriousViolations(page: Page) {
+  const results = await new AxeBuilder({ page }).exclude("[data-wordmark]").analyze();
+  return results.violations.filter((item) => item.impact === "serious" || item.impact === "critical").map((item) => `${item.id}: ${item.help}`);
+}
 
 const pages = ["/", "/cities", "/map", "/search?q=seed", "/community", "/events", "/login"];
 
@@ -12,6 +22,11 @@ for (const path of pages) {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     expect(overflow, `${path} scrolls sideways`).toBe(false);
     expect(errors, `${path} threw in the browser`).toEqual([]);
+  });
+
+  test(`${path} has no serious accessibility violations`, async ({ page }) => {
+    await page.goto(path);
+    expect(await seriousViolations(page)).toEqual([]);
   });
 }
 

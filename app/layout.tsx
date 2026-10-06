@@ -3,6 +3,8 @@ import { bakedSentryEnvironment } from "@/lib/sentry-options";
 import { DataFastAnalytics } from "@/components/hf/datafast-analytics";
 import { SITE_NAME, SITE_URL, OG_IMAGE, TWITTER_SITE } from "@/lib/seo";
 import { CrispChat } from "@/components/hf/crisp-chat";
+// Self-hosted (Fontsource), as in mosques.world: no third-party font request.
+import "@fontsource-variable/nunito-sans/opsz.css";
 import "./globals.css";
 
 const TITLE = "halalfood.world — a community map of places people eat";

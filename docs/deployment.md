@@ -52,18 +52,21 @@ uploaded.
 Builds posts the Preview URL on the pull request. GitHub Actions (`ci.yml`) runs lint, typecheck, unit tests, the
 build and the Playwright suite on every PR. Fork PRs run CI only.
 
-### One-time setup (Cloudflare dashboard → Workers & Pages → halalfood-world)
+### Account setup (applied through the Cloudflare API on Oct 6, 2026)
 
-1. **Email Service** (done Oct 6, 2026): `halalfood.world` is a sending domain (DKIM `cf-bounce._domainkey`, return
-   path `cf-bounce.halalfood.world`, DMARC `p=reject`), and Email Routing forwards `salam@halalfood.world` to the
+1. **Email Service**: `halalfood.world` is a sending domain (DKIM `cf-bounce._domainkey`, return path
+   `cf-bounce.halalfood.world`, DMARC `p=reject`), and Email Routing forwards `salam@halalfood.world` to the
    maintainer's verified inbox.
-2. **Settings → Builds**: set the build and deploy commands above, then enable **Previews** with preview command
-   `pnpm cf:preview`. Delete the old "Deploy non-production branches" trigger (`npx wrangler versions upload`).
-3. The build token needs **D1: Edit** for the migration steps. If a build fails with an authorization error on
-   `d1 migrations apply`, pick an API token under **Settings → Builds → API token** that has Workers Scripts: Edit
-   and D1: Edit.
-4. **Settings → Domains**: keep the Preview `workers.dev` URL on.
-5. Remove the `RESEND_API_KEY` and `PREVIEW_RESEND_API_KEY` secrets once production mail is confirmed working.
+2. **Builds**: build `pnpm build`, deploy `pnpm cf:deploy`, Previews on with `pnpm cf:preview`; the legacy
+   `wrangler versions upload` trigger was migrated to Previews. The build token is the one mosques.world uses
+   (Workers Scripts: Edit, D1: Edit).
+3. **Domains**: `halalfood.world` and `www.halalfood.world` are custom domains (declared in `wrangler.jsonc`;
+   `www` 308s to the apex in `proxy.ts`). The production `workers.dev` URL is off; Preview URLs stay on.
+4. **Old databases deleted**: the nine `halalfood-world-pr-*` databases from the old preview workflow and the
+   pre-cutover `halalfood-world`.
+
+Still to do after this merges and production mail is confirmed: remove the `RESEND_API_KEY` and
+`PREVIEW_RESEND_API_KEY` secrets and Resend's DNS records (`send.halalfood.world`, `resend._domainkey`).
 
 ## Secrets
 
