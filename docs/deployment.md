@@ -30,6 +30,9 @@ crons. Previews hold their own secrets, never production's. `lib/wrangler-config
 `previews` block ever shares a D1 database, R2 bucket, KV namespace or rate-limit namespace with production, or
 gains an email binding, queue, route or cron.
 
+Anyone with a Preview URL can use its test hooks (open a session as any account, read sink mail for an address), so
+the preview database must only ever hold test data: never copy production rows into it.
+
 All Previews share one D1 database. Migrations are additive (see [AGENTS.md](../AGENTS.md)), so a PR that adds one
 can apply it to the shared database without breaking other Previews.
 
@@ -61,7 +64,7 @@ build and the Playwright suite on every PR. Fork PRs run CI only.
    `wrangler versions upload` trigger was migrated to Previews. The build token is the one mosques.world uses
    (Workers Scripts: Edit, D1: Edit).
 3. **Domains**: `halalfood.world` and `www.halalfood.world` are custom domains (declared in `wrangler.jsonc`;
-   `www` 308s to the apex in `proxy.ts`). The production `workers.dev` URL is off; Preview URLs stay on.
+   `www` 308s to the apex in `worker/index.ts`, API included). The production `workers.dev` URL is off; Preview URLs stay on.
 4. **Old databases deleted**: the nine `halalfood-world-pr-*` databases from the old preview workflow and the
    pre-cutover `halalfood-world`.
 

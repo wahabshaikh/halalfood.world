@@ -7,13 +7,6 @@ import { trackAICrawlerRequest } from "@datafast/ai-crawl";
 import { withVisitorHeaders } from "@/lib/visitor-location";
 
 export function proxy(request: NextRequest, event: NextFetchEvent) {
-  // One canonical host, as mosques.world does.
-  if (request.nextUrl.hostname === "www.halalfood.world") {
-    const url = request.nextUrl.clone();
-    url.hostname = "halalfood.world";
-    return NextResponse.redirect(url, 308);
-  }
-
   trackAICrawlerRequest(request, event, {
     websiteId: "dfid_ZgOOfrW4AAKMqIY9gqUEs",
   });

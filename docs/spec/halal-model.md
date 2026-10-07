@@ -22,7 +22,7 @@ one source of evidence among several, and "Community verified" is now "Verified"
 | Community checks | all four | the check is eligible (below) | yes, at 3 or more matching answers |
 | Halal certificate | `certified` = yes | a moderator approves the photo, and it hasn't expired | yes |
 | Menu | `pork`, `alcohol` | a moderator approves the photo | yes, for the answers it shows |
-| Map listing (OpenStreetMap via Overpass, Geoapify) | `pork` = no when the listing says halal "only" | imported by `npm run signals:listings` | no, context only |
+| Map listing (OpenStreetMap via Overpass, Geoapify) | `pork` = no when the listing says halal "only" | imported by `pnpm signals:listings` | no, context only |
 
 Certificates and menus live in `place_signals`. People send them from the place
 page: the photo goes through the normal photo upload, then
@@ -30,7 +30,7 @@ page: the photo goes through the normal photo upload, then
 `/admin` (the Evidence tab), which audits the decision and recomputes the place.
 
 Map listings are imported per city by
-[`scripts/import-listing-signals.ts`](../../apps/web/scripts/import-listing-signals.ts).
+[`scripts/import-listing-signals.ts`](../../scripts/import-listing-signals.ts).
 It reads OpenStreetMap's `diet:halal` tag (`only`, `yes`, `limited`, `no`)
 through Overpass, plus Geoapify's `halal` and `halal.only` places when
 `GEOAPIFY_API_KEY` is set, and matches each one to a listed place by name

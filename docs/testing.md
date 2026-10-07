@@ -40,7 +40,7 @@ Two test-only endpoints answer on `localhost`, `127.0.0.1` and Worker Preview ho
 - `POST /api/test/session` `{ email, name?, onboarded?, moderator?, ageDays? }` creates the account if needed,
   applies the fields, opens a real Better Auth session and sets its cookie. Accounts default to 2 days old, since
   checks only count from accounts at least a day old. Use it for everything that isn't the sign-in UI itself.
-- `GET /api/test/emails?to=<email>` returns the newest mail sent to that address from the `email_sink` table.
+- `GET /api/test/emails?to=<email>` (`to` is required) returns the newest mail sent to that address from the `email_sink` table.
   The sign-in test reads the 6-digit code from it.
 
 In specs, use the helpers in `e2e/support/helpers.ts`:

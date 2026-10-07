@@ -31,7 +31,7 @@ account before scaling.
 ## Halal listing import
 
 Map listings are one of the halal signals (see
-[`docs/product/halal-model.md`](docs/product/halal-model.md)). This script
+[`docs/spec/halal-model.md`](spec/halal-model.md)). This script
 reads OpenStreetMap's `diet:halal` tag through Overpass around each city's
 listed places, plus Geoapify's halal places when `GEOAPIFY_API_KEY` is set,
 matches them to places by name within 80 m, and recomputes the matched places.
