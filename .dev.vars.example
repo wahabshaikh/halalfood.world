@@ -1,0 +1,23 @@
+# Local secrets for `pnpm dev`. Copy to .dev.vars (git-ignored) and fill in what you need.
+# Everything is optional locally: without a value the feature is off or uses a local fallback.
+# Production and Preview values live in Cloudflare (`wrangler secret put`,
+# `wrangler preview base-config secret put`), never in this repo. See docs/deployment.md.
+
+# Signs sessions. Localhost and Previews fall back to a fixed development secret.
+BETTER_AUTH_SECRET=
+
+# Google Places (add a place, Google search on /add). Without it the add flow falls back to
+# manual entry and listed places. GOOGLE_MAPS_API_KEY is accepted as a fallback name.
+GOOGLE_PLACES_API_KEY=
+
+# Turnstile. Localhost and Previews always use Cloudflare's test keys, so these are production-only.
+# TURNSTILE_SITE_KEY=
+# TURNSTILE_SECRET_KEY=
+
+# Optional. Overrides the public SENTRY_DSN var in wrangler.jsonc for local Workers.
+# Do not store SENTRY_DSN with `wrangler secret put`; a secret and a var of the same name conflict.
+# SENTRY_DSN=
+# NEXT_PUBLIC_SENTRY_DSN=
+
+# Listing import (pnpm signals:listings). Optional: without it only OpenStreetMap is used.
+# GEOAPIFY_API_KEY=

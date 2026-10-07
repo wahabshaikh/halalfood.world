@@ -1,8 +1,0 @@
-# Optional Sentry DSN. Both names are public (the browser bundle includes the DSN).
-# Do not store SENTRY_DSN with `wrangler secret put`; a secret and a wrangler
-# var of the same name conflict on deploy. The deployed Worker var lives in
-# wrangler.jsonc. Set SENTRY_DSN here only to override that value locally.
-# Set NEXT_PUBLIC_SENTRY_DSN to override the browser DSN at build time.
-# Leave both unset to keep the committed Worker var and its browser fallback.
-# SENTRY_DSN=
-# NEXT_PUBLIC_SENTRY_DSN=
