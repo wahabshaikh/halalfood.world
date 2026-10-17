@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Icon, buttonClass } from "@/components/hf/kit";
 import { Segmented, api, errorText, toast } from "@/components/hf/kit-client";
 import { timeAgo } from "@/components/hf/time-ago";
+import { CertifierQueue, type CertSourceState, type PendingCertChange } from "./certifier-queue";
 
 type Report = {
   id: string;
@@ -42,16 +43,20 @@ export function AdminConsole({
   evidence,
   events,
   cities,
+  certChanges,
+  certSources,
 }: {
   reports: Report[];
   evidence: Evidence[];
   events: EventRow[];
   cities: City[];
+  certChanges: PendingCertChange[];
+  certSources: CertSourceState[];
 }) {
-  const [tab, setTab] = useState<"reports" | "evidence" | "events">("reports");
+  const [tab, setTab] = useState<"reports" | "evidence" | "events" | "certifiers">("reports");
   return (
     <div className="grid gap-5">
-      <div className="max-w-sm">
+      <div className="max-w-lg">
         <Segmented
           label="Moderation"
           value={tab}
@@ -60,6 +65,7 @@ export function AdminConsole({
             { value: "reports", label: `Reports${reports.length ? ` · ${reports.length}` : ""}` },
             { value: "evidence", label: `Evidence${evidence.length ? ` · ${evidence.length}` : ""}` },
             { value: "events", label: "Events" },
+            { value: "certifiers", label: `Certifiers${certChanges.length ? ` · ${certChanges.length}` : ""}` },
           ]}
         />
       </div>
@@ -67,8 +73,10 @@ export function AdminConsole({
         <Reports initial={reports} />
       ) : tab === "evidence" ? (
         <EvidenceQueue initial={evidence} />
-      ) : (
+      ) : tab === "events" ? (
         <Events initial={events} cities={cities} />
+      ) : (
+        <CertifierQueue initial={certChanges} sources={certSources} />
       )}
     </div>
   );

@@ -10,7 +10,19 @@ async function seriousViolations(page: Page) {
   return results.violations.filter((item) => item.impact === "serious" || item.impact === "critical").map((item) => `${item.id}: ${item.help}`);
 }
 
-const pages = ["/", "/cities", "/map", "/search?q=seed", "/community", "/events", "/login"];
+const pages = [
+  "/",
+  "/cities",
+  "/map",
+  "/search?q=seed",
+  "/community",
+  "/events",
+  "/login",
+  "/certifiers",
+  "/certifiers/country/indonesia",
+  "/certifiers/anic-halal-authority",
+  "/certifiers/alerts",
+];
 
 for (const path of pages) {
   test(`${path} renders without errors or horizontal overflow @smoke`, async ({ page }) => {

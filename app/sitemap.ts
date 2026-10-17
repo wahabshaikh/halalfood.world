@@ -14,6 +14,7 @@ export default async function sitemap() {
     { path: "/sitemaps/core/sitemap.xml" },
     { path: "/sitemaps/cities/sitemap.xml" },
     { path: "/sitemaps/social/sitemap.xml" },
+    { path: "/sitemaps/certifiers/sitemap.xml" },
   ];
   try {
     for (const id of placeChunkIds(await countPlaces()))

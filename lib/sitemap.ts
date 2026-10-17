@@ -30,7 +30,7 @@ export function placeChunkIds(totalPlaces: number) {
   return Array.from({ length: placeChunkCount(totalPlaces) }, (_, id) => id);
 }
 
-const escapeXml = (value: string) =>
+export const escapeXml = (value: string) =>
   value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
