@@ -14,8 +14,13 @@ test("Turnstile uses the compact widget on narrow viewports", () => {
     assert.equal(turnstileWidgetSize(width), "normal", String(width));
   }
 
-  const form = readFileSync(new URL("../app/login/login-form.tsx", import.meta.url), "utf8");
-  assert.match(form, /size,/);
-  assert.match(form, /turnstileWidgetSize/);
-  assert.match(form, /max-w-full/);
+  // The widget is shared by sign-in and certifier alerts; both pick its size from the viewport.
+  const widget = readFileSync(new URL("../components/hf/turnstile-check.tsx", import.meta.url), "utf8");
+  assert.match(widget, /size,/);
+  assert.match(widget, /max-w-full/);
+  for (const path of ["../app/login/login-form.tsx", "../app/certifiers/alerts/alerts-form.tsx"]) {
+    const form = readFileSync(new URL(path, import.meta.url), "utf8");
+    assert.match(form, /turnstileWidgetSize/, path);
+    assert.match(form, /<TurnstileCheck/, path);
+  }
 });

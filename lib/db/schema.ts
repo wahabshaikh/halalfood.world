@@ -5,6 +5,7 @@ import {
   text,
   index,
   primaryKey,
+  uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
 /** Better Auth's core SQLite tables. Keep these names aligned with auth.ts. */
@@ -515,3 +516,163 @@ export const reports = sqliteTable("reports", {
   createdAt: ms("created_at").notNull(),
   updatedAt: ms("updated_at").notNull(),
 });
+
+/* Halal certifiers directory (migrations/0004_certifiers.sql, docs/spec/certifiers.md). */
+
+export const certAuthority = sqliteTable("cert_authority", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  shortName: text("short_name").notNull(),
+  countryCodes: text("country_codes").notNull(),
+  website: text("website"),
+  notesMd: text("notes_md"),
+  updatedAt: ms("updated_at").notNull(),
+});
+
+export const certifier = sqliteTable(
+  "certifier",
+  {
+    id: text("id").primaryKey(),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    countryCode: text("country_code"),
+    city: text("city"),
+    address: text("address"),
+    website: text("website"),
+    email: text("email"),
+    logoR2Key: text("logo_r2_key"),
+    claimedByUserId: text("claimed_by_user_id").references(() => authUser.id, { onDelete: "set null" }),
+    featuredUntil: ms("featured_until"),
+    createdAt: ms("created_at").notNull(),
+    updatedAt: ms("updated_at").notNull(),
+  },
+  (table) => [index("certifier_country_idx").on(table.countryCode)],
+);
+
+export const certifierAlias = sqliteTable(
+  "certifier_alias",
+  {
+    certifierId: text("certifier_id").notNull().references(() => certifier.id),
+    aliasNorm: text("alias_norm").notNull(),
+    authorityId: text("authority_id").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.aliasNorm, table.authorityId] }), index("certifier_alias_certifier_idx").on(table.certifierId)],
+);
+
+export const certifierSlugHistory = sqliteTable("certifier_slug_history", {
+  oldSlug: text("old_slug").primaryKey(),
+  certifierId: text("certifier_id").notNull().references(() => certifier.id),
+  createdAt: ms("created_at").notNull(),
+});
+
+export const certSource = sqliteTable("cert_source", {
+  id: text("id").primaryKey(),
+  authorityId: text("authority_id").notNull().references(() => certAuthority.id),
+  url: text("url").notNull(),
+  kind: text("kind", { enum: ["html_table", "pdf", "json", "manual"] }).notNull(),
+  parser: text("parser").notNull(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  lastCheckedAt: ms("last_checked_at"),
+  lastOkAt: ms("last_ok_at"),
+  lastError: text("last_error"),
+  needsLook: integer("needs_look", { mode: "boolean" }).notNull().default(false),
+});
+
+export const recognition = sqliteTable(
+  "recognition",
+  {
+    id: text("id").primaryKey(),
+    certifierId: text("certifier_id").notNull().references(() => certifier.id),
+    authorityId: text("authority_id").notNull().references(() => certAuthority.id),
+    status: text("status", { enum: ["recognised", "expired", "suspended", "removed", "pending"] }).notNull(),
+    scopes: text("scopes").notNull(),
+    scopesRaw: text("scopes_raw"),
+    sourceRef: text("source_ref"),
+    sourceKey: text("source_key"),
+    sourceStatus: text("source_status"),
+    validFrom: text("valid_from"),
+    validUntil: text("valid_until"),
+    firstSeenAt: ms("first_seen_at").notNull(),
+    lastSeenAt: ms("last_seen_at").notNull(),
+    lastCheckedAt: ms("last_checked_at").notNull(),
+    updatedAt: ms("updated_at").notNull(),
+    sourceId: text("source_id").notNull().references(() => certSource.id),
+  },
+  (table) => [
+    uniqueIndex("recognition_certifier_id_authority_id_unique").on(table.certifierId, table.authorityId),
+    index("recognition_authority_idx").on(table.authorityId, table.status),
+    index("recognition_source_key_idx").on(table.sourceId, table.sourceKey),
+  ],
+);
+
+export const scope = sqliteTable("scope", {
+  code: text("code").primaryKey(),
+  label: text("label").notNull(),
+});
+
+export const scopeMap = sqliteTable(
+  "scope_map",
+  {
+    authorityId: text("authority_id").notNull(),
+    raw: text("raw").notNull(),
+    scopeCode: text("scope_code").notNull().references(() => scope.code),
+  },
+  (table) => [primaryKey({ columns: [table.authorityId, table.raw] })],
+);
+
+export const certSnapshot = sqliteTable(
+  "cert_snapshot",
+  {
+    id: text("id").primaryKey(),
+    sourceId: text("source_id").notNull().references(() => certSource.id),
+    fetchedAt: ms("fetched_at").notNull(),
+    httpStatus: integer("http_status"),
+    contentHash: text("content_hash").notNull(),
+    r2Key: text("r2_key").notNull(),
+    rowCount: integer("row_count"),
+    parseOk: integer("parse_ok", { mode: "boolean" }).notNull(),
+    error: text("error"),
+  },
+  (table) => [index("cert_snapshot_source_idx").on(table.sourceId, table.fetchedAt)],
+);
+
+export const certChange = sqliteTable(
+  "cert_change",
+  {
+    id: text("id").primaryKey(),
+    recognitionId: text("recognition_id"),
+    certifierId: text("certifier_id").notNull().references(() => certifier.id),
+    authorityId: text("authority_id").notNull().references(() => certAuthority.id),
+    kind: text("kind", {
+      enum: ["added", "removed", "scope_added", "scope_removed", "date_changed", "renamed", "expired", "status_changed"],
+    }).notNull(),
+    beforeJson: text("before_json"),
+    afterJson: text("after_json"),
+    snapshotId: text("snapshot_id").notNull().references(() => certSnapshot.id),
+    detectedAt: ms("detected_at").notNull(),
+    reviewState: text("review_state", { enum: ["pending", "published", "rejected"] }).notNull().default("pending"),
+    reviewedBy: text("reviewed_by"),
+    publishedAt: ms("published_at"),
+  },
+  (table) => [
+    index("cert_change_review_idx").on(table.reviewState, table.detectedAt),
+    index("cert_change_certifier_idx").on(table.certifierId, table.publishedAt),
+    index("cert_change_published_idx").on(table.reviewState, table.publishedAt),
+  ],
+);
+
+export const certAlertSub = sqliteTable(
+  "cert_alert_sub",
+  {
+    id: text("id").primaryKey(),
+    email: text("email").notNull(),
+    userId: text("user_id").references(() => authUser.id, { onDelete: "set null" }),
+    filterJson: text("filter_json").notNull(),
+    frequency: text("frequency", { enum: ["instant", "weekly"] }).notNull(),
+    confirmedAt: ms("confirmed_at"),
+    unsubscribedAt: ms("unsubscribed_at"),
+    providerContactId: text("provider_contact_id"),
+    createdAt: ms("created_at").notNull(),
+  },
+  (table) => [index("cert_alert_sub_email_idx").on(table.email)],
+);

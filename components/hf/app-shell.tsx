@@ -79,6 +79,9 @@ export function AppShell({
           <div className="mx-auto flex max-w-6xl flex-wrap gap-x-6 gap-y-1 page-x py-6 text-sm text-muted-foreground">
             <span>© {new Date().getFullYear()} halalfood.world</span>
             <span>Place details from Google</span>
+            <a href="/certifiers" className="font-semibold underline-offset-4 hover:text-foreground hover:underline">
+              For exporters
+            </a>
           </div>
         </footer>
       )}

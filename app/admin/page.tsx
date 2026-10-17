@@ -11,6 +11,9 @@ import { cityName } from "@/lib/place-view";
 import { listCities } from "@/lib/places";
 import { REASON_LABEL } from "@/lib/core/moderation";
 import { loginHref } from "@/lib/signed-out";
+import { CHANGE_LABEL, changeSentence } from "@/lib/certifiers/display";
+import { importingCountryForAuthority } from "@/lib/certifiers/importing";
+import { listPendingChanges, listSources } from "@/lib/certifiers/repository";
 import { AdminConsole } from "./admin-console";
 
 export const dynamic = "force-dynamic";
@@ -30,12 +33,15 @@ export default async function AdminPage() {
       </AppShell>
     );
   }
-  const [reports, evidence, events, cities] = await Promise.all([
+  const [reports, evidence, events, cities, certChanges, certSources] = await Promise.all([
     listOpenReports(),
     listPendingEvidence(),
     listAllEvents(),
     listCities({ limit: 2000 }),
+    listPendingChanges(),
+    listSources(),
   ]);
+  const shortName = (id: string) => importingCountryForAuthority(id)?.authorityShort ?? id;
   return (
     <AppShell active="you">
       <Page>
@@ -45,6 +51,25 @@ export default async function AdminPage() {
           evidence={evidence}
           events={events}
           cities={cities.map((city) => ({ slug: city.city_slug, name: cityName(city.city_slug) }))}
+          certChanges={certChanges.map((change) => ({
+            id: change.id,
+            kindLabel: CHANGE_LABEL[change.kind],
+            certifierName: change.certifierName,
+            certifierSlug: change.certifierSlug,
+            authority: shortName(change.authorityId),
+            sentence: changeSentence(change.kind, change.before, change.after, shortName(change.authorityId)),
+            detectedAt: change.detectedAt,
+            sourceUrl: change.sourceUrl,
+          }))}
+          certSources={certSources.map((source) => ({
+            id: source.id,
+            authority: shortName(source.authorityId),
+            url: source.url,
+            lastOkAt: source.lastOkAt,
+            lastCheckedAt: source.lastCheckedAt,
+            needsLook: source.needsLook,
+            lastError: source.lastError,
+          }))}
         />
       </Page>
     </AppShell>

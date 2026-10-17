@@ -775,3 +775,29 @@ export async function consumeContributionLimits(
     now,
   );
 }
+
+/** Certifier alert sign-ups are anonymous, so the budget is per email address and per IP, like sign-in codes. */
+export const CERT_ALERT_RATE_LIMITS = {
+  signupEmail: { windowMs: 24 * 60 * 60 * 1000, maxCount: 5, cooldownMs: 10 * 1000 },
+  signupIp: { windowMs: 24 * 60 * 60 * 1000, maxCount: 20, cooldownMs: 5 * 1000 },
+} as const;
+
+export async function consumeCertAlertSignupLimits(
+  email: string,
+  ip: string,
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [emailKey, ipKey] = await Promise.all([
+    identifierKey("cert-alert:signup:email", email),
+    identifierKey("cert-alert:signup:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: emailKey, rule: CERT_ALERT_RATE_LIMITS.signupEmail },
+      { key: ipKey, rule: CERT_ALERT_RATE_LIMITS.signupIp },
+    ],
+    store,
+    now,
+  );
+}

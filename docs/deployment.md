@@ -111,6 +111,24 @@ pnpm deploy                # build + production (prefer Workers Builds, which al
 `vinext build` writes the deployable config to `dist/server/wrangler.json` and points Wrangler at it through
 `.wrangler/deploy/config.json`, so `wrangler deploy` and `wrangler preview` must run after a build.
 
+## Cron: certifier check
+
+`worker/index.ts` exports a `scheduled()` handler that runs `runCertifierChecks()` (`lib/certifiers/check.ts`), which
+re-reads BPJPH's list and records any change ([spec](spec/certifiers.md)). **No trigger is configured yet**, so it
+never runs on its own; moderators can run it from `/admin` (Certifiers tab) or `POST /api/certifiers/check`. To turn
+on the daily check in production, add this at the top level of `wrangler.jsonc` (never in `previews`:
+`lib/wrangler-config.test.ts` forbids crons there):
+
+```jsonc
+  // Daily re-check of the official halal certifier lists (lib/certifiers/check.ts), 02:00 UTC.
+  "triggers": { "crons": ["0 2 * * *"] },
+```
+
+For hourly BPJPH checks during the first weeks after 17 Oct 2026, use `["0 * * * *"]` and switch back later. Each run
+fetches 7 pages with a 1 s pause, stores them in R2 and logs one `certifier-check` line to Workers Logs; a failed or
+suspicious run is also sent to Sentry as a warning. Test a trigger locally with
+`pnpm exec wrangler dev --test-scheduled` and `curl "http://localhost:8787/__scheduled?cron=0+2+*+*+*"`.
+
 ## Rollback
 
 - Code: `pnpm exec wrangler rollback` (or pick a version under **Deployments** in the dashboard). Rolling back to

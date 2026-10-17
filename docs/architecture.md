@@ -44,7 +44,13 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/events`, `/event/[id]` | – | Halal food events and their stalls. |
 | `/creator/[platform]/[handle]` | – | Places from a creator's videos. |
 | `/me`, `/me/settings`, `/me/privacy` | ✓ | You (Passport, Checks, Lists), Settings, Privacy & people. |
-| `/admin` | moderator | Reports and Events. |
+| `/admin` | moderator | Reports, Evidence, Events and Certifiers (pending official-list changes, run the check). |
+| `/certifiers` | – | For exporters: halal certification bodies accepted by importing countries, searchable by name or alias ([spec](spec/certifiers.md)). Linked from the footer. |
+| `/certifiers/country/[country]`, `/certifiers/country/indonesia.csv` | – | One authority's full list (only `indonesia`, BPJPH, so far): sortable, filterable table, Dataset JSON-LD, and the CSV. |
+| `/certifiers/[slug]` | – | One certifier: recognitions per authority, change history, Organization JSON-LD. Old slugs 308. |
+| `/certifiers/from/[country]` | – | Certifiers based in one country (`/certifiers/from/australia`). |
+| `/certifiers/changes`, `/certifiers/changes.xml` | – | Published changes to the official lists, and their Atom feed. |
+| `/certifiers/alerts`, `/certifiers/methodology`, `/certifiers/guides/indonesia-halal-import-rules-2026` | – | Alert sign-up (Turnstile), how the data is checked, and the Indonesia guide. |
 
 ### API
 
@@ -67,6 +73,9 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `POST /api/reports` | Report a place, check, comment, person or list. |
 | `GET /api/admin/reports`, `POST /api/admin/reports/[id]`, `GET/POST /api/admin/events`, `GET/PUT/DELETE /api/admin/events/[id]` | Moderation. Every action writes `audit_log`. |
 | `/api/auth/*`, `POST /api/admin/email/healthcheck` | Better Auth; the optional email smoke check. |
+| `GET /api/certifiers` (`?country=AU`), `GET /api/certifiers/[slug]` | Read-only certifier directory: recognitions with status, scopes, official date, registration number, official list and last check; a renamed slug 308s. |
+| `POST /api/certifiers/alerts` | Alert sign-up `{email, authorities?, certifiers?, scopes?, turnstileToken}`. Anonymous: Turnstile, then 5 a day per email (10 s cooldown) and 20 per IP. Stored unconfirmed and weekly; no email is sent yet. |
+| `POST /api/certifiers/check`, `GET /api/admin/certifier-changes`, `POST /api/admin/certifier-changes/[id]` | Moderators: run the official-list check now; list and approve or reject pending changes. Runs and decisions write `audit_log`. |
 
 Every write needs a session and spends a per-user and per-IP budget (checks 20 a day, places 10, recs 30, reports 10, comments 100). Reads that show checks apply one visibility rule: unshared checks are the author's alone, nothing crosses a block, and a private account's checks show only to accepted followers. `tests/check-visibility-audit.test.ts` fails if a query over `checks` doesn't say which audience it serves.
 
@@ -173,6 +182,7 @@ City and place pages distinguish a missing row (a real 404) from an unreachable 
 | `/sitemaps/cities/sitemap.xml` | One entry per distinct `city_slug`, capped at 2,000. |
 | `/sitemaps/places/sitemap/N.xml` | Places, 5,000 per file, from an id-ordered scan so chunk boundaries stay stable. |
 | `/sitemaps/social/sitemap.xml` | Public lists, public profiles with a shared check, and upcoming events. |
+| `/sitemaps/certifiers/sitemap.xml` | The certifier directory; `lastmod` is the last real data change, never the last check. |
 
 `robots.txt` disallows `/api/`, `/search` and the signed-in screens (`/me`, `/saved`, `/inbox`, `/friends`, `/admin`, `/welcome`, `/add`, `/login`). Place, city, list and profile pages render the viewer's saves and friends on the server, so only `/cities` and the sitemaps are cached at the edge.
 
@@ -196,3 +206,6 @@ pnpm exec wrangler r2 bucket create halalfood-world-evidence
 ```
 
 Place photos and profile photos are uploaded straight to the Worker (multipart, JPEG, PNG or WebP, 8 MB for places and 2 MB for profiles), checked by content type and file signature, and stored under account-hashed keys (`photos/…`, `avatars/…`). They are served through `GET /api/photos/[...key]` and `GET /api/avatars/[handle]`. Deleting an account deletes its photos.
+
+The certifier check stores each official-list page it reads under `certifier-sources/<authority>/<YYYY-MM-DD>/page-N.html`
+in the same bucket (a same-day re-check overwrites that day's pages). These are never served publicly.
