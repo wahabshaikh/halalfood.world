@@ -44,9 +44,6 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
-      crisp-sdk-web:
-        specifier: ^1.2.1
-        version: 1.2.1
       datafast:
         specifier: ^3.0.18
         version: 3.0.18(react@19.3.0)
@@ -2984,9 +2981,6 @@ packages:
   cors@2.8.6:
     resolution: {integrity: sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==}
     engines: {node: '>= 0.10'}
-
-  crisp-sdk-web@1.2.1:
-    resolution: {integrity: sha512-tp62o82QktRiaGqFQLuRNRwndN/+VIY/mOQVeKnA2nKHn9wTFAzdRXTT5pBbxgLKcvT5uryfd9eL/u7s1N7yEA==}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -7787,8 +7781,6 @@ snapshots:
     dependencies:
       object-assign: 4.1.1
       vary: 1.1.2
-
-  crisp-sdk-web@1.2.1: {}
 
   cross-spawn@7.0.6:
     dependencies:

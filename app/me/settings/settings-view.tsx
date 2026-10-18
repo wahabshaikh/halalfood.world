@@ -7,6 +7,7 @@ import { Icon, buttonClass } from "@/components/hf/kit";
 import { Sheet, api, errorText, toast, useSheet } from "@/components/hf/kit-client";
 import { AvatarPicker, FilterChecklist, HandleField, TextField, type HandleCheck } from "@/components/hf/people-client";
 import { SignOutButton } from "@/components/hf/sign-out-button";
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/lib/seo";
 import { clearLocalAccountState } from "@/lib/sign-out";
 import { forgetSignedIn } from "@/lib/signed-out";
 
@@ -107,6 +108,10 @@ export function SettingsView({
           Email
           <span className="truncate text-sm font-semibold text-muted-foreground">{email}</span>
         </div>
+        <a href={SUPPORT_MAILTO} className={rowClass}>
+          Support
+          <span className="truncate text-sm font-semibold text-muted-foreground">{SUPPORT_EMAIL}</span>
+        </a>
         <SignOutButton className={rowClass} />
         <button type="button" onClick={deleteSheet.show} className={`${rowClass} text-destructive`}>
           Delete account

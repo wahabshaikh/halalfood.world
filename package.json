@@ -51,7 +51,6 @@
     "better-auth": "^1.7.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "crisp-sdk-web": "^1.2.1",
     "datafast": "^3.0.18",
     "drizzle-orm": "^0.45.3",
     "maplibre-gl": "^6.12.0",

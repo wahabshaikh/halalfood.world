@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import {
   AddSquareIcon,
-  Compass01Icon,
   FavouriteIcon,
+  Home01Icon,
   UserCircleIcon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
@@ -13,8 +13,8 @@ import { Icon } from "./kit";
 
 export type TabKey = "explore" | "friends" | "add" | "saved" | "you";
 
-const TABS: { key: TabKey; label: string; href: string; icon: typeof Compass01Icon }[] = [
-  { key: "explore", label: "Explore", href: "/", icon: Compass01Icon },
+const TABS: { key: TabKey; label: string; href: string; icon: typeof Home01Icon }[] = [
+  { key: "explore", label: "Explore", href: "/", icon: Home01Icon },
   { key: "friends", label: "Friends", href: "/friends", icon: UserGroupIcon },
   { key: "add", label: "Add", href: "/add", icon: AddSquareIcon },
   { key: "saved", label: "Saved", href: "/saved", icon: FavouriteIcon },

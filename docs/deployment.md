@@ -58,8 +58,16 @@ build and the Playwright suite on every PR. Fork PRs run CI only.
 ### Account setup (applied through the Cloudflare API on Oct 6, 2026)
 
 1. **Email Service**: `halalfood.world` is a sending domain (DKIM `cf-bounce._domainkey`, return path
-   `cf-bounce.halalfood.world`, DMARC `p=reject`), and Email Routing forwards `salam@halalfood.world` to the
-   maintainer's verified inbox.
+   `cf-bounce.halalfood.world`, DMARC `p=reject`), and Email Routing forwards `salam@halalfood.world` and
+   `support@halalfood.world` to the maintainer's verified inbox (support replaces the old Crisp widget).
+   To (re)create the support rule once a destination address is verified:
+
+   ```sh
+   pnpm exec wrangler email routing rules create halalfood.world \
+     --name "Forward support@" \
+     --match-type literal --match-field to --match-value support@halalfood.world \
+     --action-type forward --action-value <verified-destination-email>
+   ```
 2. **Builds**: build `pnpm build`, deploy `pnpm cf:deploy`, Previews on with `pnpm cf:preview`; the legacy
    `wrangler versions upload` trigger was migrated to Previews. The build token is the one mosques.world uses
    (Workers Scripts: Edit, D1: Edit).
