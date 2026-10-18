@@ -23,11 +23,18 @@ one source of evidence among several, and "Community verified" is now "Verified"
 | Halal certificate | `certified` = yes | a moderator approves the photo, and it hasn't expired | yes |
 | Menu | `pork`, `alcohol` | a moderator approves the photo | yes, for the answers it shows |
 | Map listing (OpenStreetMap via Overpass, Geoapify) | `pork` = no when the listing says halal "only" | imported by `pnpm signals:listings` | no, context only |
+| Web source (Halal Food Scout) | any of the four, each with the https page that says it | written by `upsert_place` | no, context only |
 
 Certificates and menus live in `place_signals`. People send them from the place
 page: the photo goes through the normal photo upload, then
 `POST /api/places/[id]/evidence` queues it. Moderators approve or reject it on
 `/admin` (the Evidence tab), which audits the decision and recomputes the place.
+
+Web sources live in `place_claims` (source `scout`): one claim per place and fact, with its URL, certifier (for
+certified = yes) and date. Halal Food Scout writes them through `upsert_place`'s attributes. "Unknown" is never stored.
+Scout only writes a claim when no community check or approved document answers the fact, and a newer Scout claim
+replaces its older one ([architecture](../architecture.md#scout-attributes)). The place page links "Web source" on each
+fact a claim backs.
 
 Map listings are imported per city by
 [`scripts/import-listing-signals.ts`](../../scripts/import-listing-signals.ts).
@@ -57,7 +64,7 @@ more and any approved, unexpired certificate or menu that answers the fact.
 
 - If they all agree, the fact is **settled** on that value.
 - If they disagree, the fact is **disputed**: it shows the newest settling answer but isn't settled until they agree again.
-- If nothing settles it, the value is the community value, or else the map listing's.
+- If nothing settles it, the value is the community value, or else a web source's, or else the map listing's. A web source cites a page for that very fact, so it outranks a listing.
 
 Each fact records which sources back its value, so the place page can say how
 it is known: "7 people · Halal certificate", or "Sources disagree".
@@ -66,7 +73,7 @@ A place is:
 
 - **Verified** when all four facts are settled;
 - **n of 3 checks** when anyone has checked it or a document settled a fact: n is the lowest streak among facts that have a value (a settled fact counts as 3), no more than the number of people who checked, clamped to 1–2;
-- **Not checked yet** otherwise. A map listing alone never moves a place off this. It never means "not halal".
+- **Not checked yet** otherwise. A map listing or web source alone never moves a place off this. It never means "not halal".
 
 Filters match a fact's current value, settled or not; a place with no value for that fact is left out. The Verified filter needs all four settled.
 

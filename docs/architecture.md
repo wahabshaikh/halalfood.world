@@ -93,7 +93,7 @@ over 256 KB get 413.
 | --- | --- |
 | `find_place` | Read-only. Ranked candidates for `name` near `lat`/`lng` (`radius_m`, default 300, max 2000) and/or in `city`, optionally by `google_place_id`. Each has `id`, `name`, `address`, `city`, `country`, `lat`, `lng`, `distance_m`, `url`, `score`, `matched_by` and `listing_status`. |
 | `upsert_creator` / `upsert_creators` | An unclaimed, claimable creator profile at `/u/<handle>` from a YouTube channel (`handle`, `channel_id`, `display_name`, `bio`, `avatar_url`, `banner_url`, `channel_url`, `subscriber_count`). |
-| `upsert_place` / `upsert_places` | Match first, else list a new place (`name`, `address`, `city`, `country`, `lat`, `lng`, optional `google_place_id`, `website`, `cuisine`, and `google_types` / `description` for the filters only). |
+| `upsert_place` / `upsert_places` | Match first, else list a new place (`name`, `address`, `city`, `country`, optional `lat` + `lng`, `google_place_id`, `website`, `cuisine`, `force_new`, the four [sourced attributes](#scout-attributes), and `google_types` / `description` for the filters only). Returns `location` and, when attributes were sent, `attributes`. |
 | `add_verification` / `add_verifications` | A creator (`@handle` or channel id) showed `place_id` in a video (`video_url`, `timestamp` as `83` or `"1:23"`, `date` as an ISO date, optional `title`). |
 | `remove_verification` | By `id`, or by `creator` + `place_id` + `video_url`. Removing one that isn't there returns `removed: false`. |
 
@@ -120,6 +120,60 @@ approximate coordinates). At a score of 0.85 or more a candidate is the same pla
 shared name in the same city without a matching street is never enough (chains). New places go live at once as Not
 checked yet, the same as a person adding one from Google Maps (#58's hold-for-review was retired in the four-fact
 redesign); they have no submitter, no points and no check.
+
+A match needs a name similarity of at least 0.8 however close the two are: location and street address add at most
+0.25 on top of `0.75 × name`. One name *starting with* the other is a branch suffix and scores 0.9 ("Slam Burger" →
+"Slamburger Halal Luton"); a name that only *contains* or *ends with* the other scores on shared words instead. That
+keeps a stall named after its host venue ("Oklahoma Burgers - Kingsbridge Food Hall") from matching the venue
+("Kingsbridge Food Hall"), which used to score 0.93.
+
+**`force_new`.** `force_new: true` (per item in `upsert_places`) skips matching and always lists a new place, for the
+cases the ranking still gets wrong. It can't create a second row with the same city, name and street address (the
+`places_city_name_address_unique_idx` index) or an already-listed Google id: that returns
+`{ ok: false, error: "duplicate_place", existing_place_id }` rather than a 500 or a silent match. Change the name or
+address, or use `existing_place_id`.
+
+**Coordinates.** `lat` and `lng` are optional but go together. Without them, matching uses the city plus street
+address path, and a new place (or a matched place that has no coordinates) is geocoded once
+([`lib/scout/geocode.ts`](../lib/scout/geocode.ts)) with the Google key add-a-place search already uses
+(`GOOGLE_PLACES_API_KEY` / `GOOGLE_MAPS_API_KEY`; no new secret, service or binding). A `google_place_id` is looked up with
+Place Details (`formattedAddress,location`, on the `details:` daily cap); otherwise street, city and country go to Text
+Search (on the search daily cap). Each call reserves one unit of the same D1 caps (`GOOGLE_*_DAILY_CAP`) first, so
+Scout shares add-a-place's budget and can't exceed it. The answer is trusted only when
+([`lib/core/geocode-confidence.ts`](../lib/core/geocode-confidence.ts)): there is a result with valid coordinates; no
+other result is more than 1 km from the first; the first result's address names the city as whole words; and, when a
+country was sent, the address's last part is that country (names plus a few short forms: UK, GB, USA, UAE, …).
+Otherwise, or with no key, no budget or a provider error, the place is stored **without coordinates**. Coordinates are
+never guessed (no city centre). Such a place is listed on its city page and in search, has no map pin, no distance and
+no Nearby, its Directions link searches Google Maps by name and address, and its page says "Location pending". Sending
+`lat`/`lng` later fills the blank. The result says which path ran: `location` is `provided`, `geocoded`, `existing` (a
+matched place kept the coordinates it had) or `null`, and `geocode` gives the reason for `null` (`not_configured`,
+`budget_exhausted`, `provider_error`, `no_result`, `ambiguous`, `wrong_city`, `wrong_country`).
+
+<a id="scout-attributes"></a>**Attributes.** `upsert_place` takes four optional sourced attributes, each
+`{ value: "yes" | "no" | "unknown", source_url }` (`source_url` an https URL, required for yes and no):
+`halal_certified` (plus `certifier_name`, only with yes), `muslim_owned`, `no_pork` and `no_alcohol`. They map onto
+the four facts: `halal_certified` → `certified`, `muslim_owned` → `owned`, `no_pork: yes` → `pork = no` (and no → yes),
+`no_alcohol: yes` → `alcohol = no` (and no → yes). Each is stored as a web claim in `place_claims` (source `scout`, one
+row per place and fact, with its URL, certifier and date), the same kind of evidence as a map listing: it fills a
+fact's value only when no community check or approved document answers it, never settles a fact and never moves a
+place off Not checked yet ([halal model](spec/halal-model.md)). The merge rule (`planClaim` in
+[`lib/core/place-claims.ts`](../lib/core/place-claims.ts)), per fact, on create and on match:
+
+| Sent | Outcome in `attributes` |
+| --- | --- |
+| left out | nothing changes, not listed |
+| `unknown` | `cleared` when Scout had a claim for that fact (it is deleted), else `unchanged`. Never stored, never stored as "no". |
+| yes/no while community checks or an approved certificate or menu answer the fact (or it is disputed) | `kept_existing`: nothing is written |
+| yes/no otherwise | `set` (no Scout claim before), `updated` (replaces Scout's older claim: newer wins), `unchanged` (same value, URL and certifier) |
+
+A map listing is not protected: a claim that cites a page outranks it. Moderators set no halal facts on places
+directly (fix-details edits name, address, phone and website), so checks and reviewed documents are the only values
+Scout must not override. Every write recomputes `place_status` with `recomputePlaceStatus`, so the filter chips
+(Halal certified, Muslim-owned, No pork, No alcohol) follow, and a moderator merge moves claims to the kept place.
+The place page links "Web source" on each fact a claim backs, with the certifier. `no_alcohol: no` (serves alcohol)
+doesn't refuse a restaurant: serving alcohol is a fact, and only alcohol-led places (pubs, bars, …) are refused, by
+name and types.
 
 **Ingest filters.** `upsert_place` refuses, and `add_verification` refuses for an existing place that fails:
 Ahmadiyya places (Ahmadiyya, Qadiani, Lahori Ahmadiyya, Baitul Futuh, Jalsa Salana, …; "Ahmadi" only beside a
@@ -240,7 +294,7 @@ The limiter fails closed if D1 is unavailable, so a provider outage cannot turn 
 
 ## Schema
 
-The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. Later migrations add `place_signals` (0002), the email sink (0003) and `creator_profiles` / `creator_verifications` (0004, Halal Food Scout). `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
+The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. Later migrations add `place_signals` (0002), the email sink (0003), `creator_profiles` / `creator_verifications` (0004, Halal Food Scout) and `place_claims` (0005, Scout's sourced web claims). `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
 
 Do not apply production migrations by splitting a file into statements: `wrangler d1 execute --command` treats a leading `--` comment as a flag, and a semicolon inside a comment is not a statement boundary.
 

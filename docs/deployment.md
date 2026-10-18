@@ -89,7 +89,7 @@ pnpm exec wrangler preview secret put GOOGLE_PLACES_API_KEY --name my-branch
 |---|---|---|---|
 | `BETTER_AUTH_SECRET` | required | optional | Non-production hosts fall back to a development secret. At least 32 characters. |
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | required | not used | Secrets even though the site key reaches the browser: a plain var of the same name would replace the secret. Previews use test keys. |
-| `GOOGLE_PLACES_API_KEY` (or `GOOGLE_MAPS_API_KEY`) | optional | optional | Add-a-place search. Previews have their own daily caps (`GOOGLE_*_DAILY_CAP`). |
+| `GOOGLE_PLACES_API_KEY` (or `GOOGLE_MAPS_API_KEY`) | optional | optional | Add-a-place search, and geocoding Scout places sent without coordinates (Text Search, or Place Details for a Google id). Both spend the same daily caps (`GOOGLE_*_DAILY_CAP`); Previews have their own. Unset: Scout stores such places without coordinates. |
 | `EMAIL_HEALTHCHECK_ENABLED`, `EMAIL_HEALTHCHECK_TOKEN`, `EMAIL_HEALTHCHECK_TO` | optional | not used | See [operations.md](operations.md#email-healthcheck). |
 | `MCP_ADMIN_SECRET` | optional | optional | Halal Food Scout's bearer token for `/api/mcp` ([architecture](architecture.md#halal-food-scout-admin-mcp)). At least 32 random characters (`openssl rand -hex 32 \| tr -d '\n' \| pnpm exec wrangler secret put MCP_ADMIN_SECRET`). Unset or shorter: the endpoint answers 503. Use a different value on Previews. Rotate by putting a new value and updating the bot. |
 
