@@ -326,6 +326,38 @@ export const profiles = sqliteTable("profiles", {
   updatedAt: ms("updated_at").notNull(),
 });
 
+/** A creator's channel (migrations/0004_creator_scout.sql). The profile row is the public face. */
+export const creatorProfiles = sqliteTable("creator_profiles", {
+  userId: userRef("user_id").primaryKey(),
+  platform: text("platform", { enum: ["youtube"] }).notNull().default("youtube"),
+  channelId: text("channel_id").notNull(),
+  channelHandle: text("channel_handle").notNull(),
+  channelUrl: text("channel_url").notNull(),
+  avatarUrl: text("avatar_url"),
+  bannerUrl: text("banner_url"),
+  subscriberCount: integer("subscriber_count"),
+  source: text("source").notNull().default("scout"),
+  claimedAt: ms("claimed_at"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});
+
+/** A creator showed a place in a video. Context only: it never feeds halal status. */
+export const creatorVerifications = sqliteTable("creator_verifications", {
+  id: text("id").primaryKey(),
+  creatorUserId: userRef("creator_user_id").notNull(),
+  placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+  platform: text("platform", { enum: ["youtube"] }).notNull().default("youtube"),
+  videoId: text("video_id").notNull(),
+  videoUrl: text("video_url").notNull(),
+  timestampSeconds: integer("timestamp_seconds"),
+  videoDate: text("video_date"),
+  mediaLinkId: text("media_link_id"),
+  source: text("source").notNull().default("scout"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});
+
 export const follows = sqliteTable(
   "follows",
   {
