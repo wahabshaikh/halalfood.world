@@ -37,3 +37,14 @@ INSERT OR IGNORE INTO place_claims (id, place_id, source, fact, value, source_ur
 -- page and in search, no map pin, "Location pending" on its page.
 INSERT OR IGNORE INTO places (id, name, city_slug, street_address, address_locality, address_country, maps_url, lat, lng, created_at, updated_at) VALUES ('00000000-0000-4000-8000-000000000009', 'Seed Pending Pin Cafe', 'london', '5 Old Montague Street, London', 'London', 'GB', 'https://www.google.com/maps/search/?api=1&query=Seed%20Pending%20Pin%20Cafe%2C%205%20Old%20Montague%20Street%2C%20London', NULL, NULL, 1790000000000, 1790000000000);
 INSERT OR IGNORE INTO place_status (place_id, updated_at) VALUES ('00000000-0000-4000-8000-000000000009', 1790000000000);
+
+-- Places from the halalfoodnear.me import (migrations/0007_place_provenance.sql): the bulk insert's exact created_at and
+-- no submitter. The seed runs after migrations, so it sets what 0007's backfill would: import_source on both, and
+-- import_verified_at where there is evidence the place exists. Seed Imported Diner has none, so it shows "Unverified"
+-- and is noindexed; Seed Imported Grill has a Scout certified claim with its source, so it is verified (and still
+-- "Not checked yet": existence is not a halal status).
+INSERT OR IGNORE INTO places (id, name, city_slug, street_address, address_locality, address_country, lat, lng, import_source, created_at, updated_at) VALUES ('00000000-0000-4000-8000-000000000010', 'Seed Imported Diner', 'london', '17 Fieldgate Street, London', 'London', 'GB', 51.5162, -0.0668, 'halalfoodnear.me', 1789282699475, 1789282699475);
+INSERT OR IGNORE INTO place_status (place_id, updated_at) VALUES ('00000000-0000-4000-8000-000000000010', 1789282699475);
+INSERT OR IGNORE INTO places (id, name, city_slug, street_address, address_locality, address_country, lat, lng, import_source, import_verified_at, created_at, updated_at) VALUES ('00000000-0000-4000-8000-000000000011', 'Seed Imported Grill', 'london', '62 New Road, London', 'London', 'GB', 51.5158, -0.0652, 'halalfoodnear.me', 1790000000000, 1789282699475, 1789282699475);
+INSERT OR IGNORE INTO place_status (place_id, certified_value, certified_sources, updated_at) VALUES ('00000000-0000-4000-8000-000000000011', 'yes', 'scout', 1790000000000);
+INSERT OR IGNORE INTO place_claims (id, place_id, source, fact, value, source_url, certifier, created_at, updated_at) VALUES ('00000000-0000-4000-8000-0000000d0005', '00000000-0000-4000-8000-000000000011', 'scout', 'certified', 'yes', 'https://example.com/seed-imported-grill/halal', 'HMC', 1790000000000, 1790000000000);
