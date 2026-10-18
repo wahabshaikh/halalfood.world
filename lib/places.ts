@@ -158,7 +158,8 @@ export type CreatePlaceInput = {
   servesCuisine: string[];
   lat: number | null;
   lng: number | null;
-  submittedByUserId: string;
+  /** Null for places the Scout importer lists (lib/scout/places.ts). */
+  submittedByUserId: string | null;
 };
 
 /** Statements that list a new place and its unchecked status row. */

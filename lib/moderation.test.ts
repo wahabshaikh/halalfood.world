@@ -68,11 +68,15 @@ test("merging moves checks into the kept place and deletes the duplicate", async
   const { sqlite, db, place } = await verified();
   const keep = addPlace(sqlite, { name: "Noor Grill House" });
   sqlite.prepare(`INSERT INTO saved_places (user_id, place_id, created_at) VALUES ('a', ?, 1)`).run(place);
+  sqlite
+    .prepare(`INSERT INTO creator_verifications (id, creator_user_id, place_id, video_id, video_url, created_at, updated_at) VALUES ('cv1', 'a', ?, 'dQw4w9WgXcQ', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 1, 1)`)
+    .run(place);
   const id = report(sqlite, "place", place, "duplicate");
   assert.deepEqual(await actOnReport(id, "mod", { action: "merge", intoPlaceId: keep }, db), { ok: true });
   assert.equal(await getPlaceById(place, db), null);
   assert.equal((await getPlaceById(keep, db))?.card.status.kind, "verified");
   assert.ok(sqlite.prepare(`SELECT 1 FROM saved_places WHERE user_id = 'a' AND place_id = ?`).get(keep));
+  assert.ok(sqlite.prepare(`SELECT 1 FROM creator_verifications WHERE id = 'cv1' AND place_id = ?`).get(keep));
 });
 
 test("fix details and mark closed edit the place", async () => {
