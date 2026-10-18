@@ -13,7 +13,10 @@ import { normalizeText } from "./media-match";
 
 export const DEFAULT_RADIUS_METERS = 300;
 export const MAX_RADIUS_METERS = 2000;
-/** At or above this a candidate is the same place: upsert_place returns it instead of creating one. */
+/**
+ * At or above this a candidate is the same place: upsert_place returns it instead of creating one. Location and
+ * address add at most 0.25, so a match needs a name similarity of at least 0.8 however close the two are.
+ */
 export const SAME_PLACE_SCORE = 0.85;
 
 /** Words that say what a venue is, not which one it is. */
@@ -104,7 +107,10 @@ export function nameSimilarity(a: string, b: string): number {
   const rightWords = new Set(words(b));
   const sameWords = leftWords.size > 0 && leftWords.size === rightWords.size && [...leftWords].every((word) => rightWords.has(word));
   if (sameWords) return 0.95;
-  if (Math.min(left.length, right.length) >= 5 && (left.includes(right) || right.includes(left))) return 0.9;
+  // One name starting with the other is a branch suffix ("Slam Burger" → "Slamburger Halal Luton"). A name
+  // that only ends with or contains the other is usually a stall inside a venue ("Oklahoma Burgers at Kingsbridge
+  // Food Hall" vs "Kingsbridge Food Hall"): that falls through to shared words, which can't reach SAME_PLACE_SCORE.
+  if (Math.min(left.length, right.length) >= 5 && (left.startsWith(right) || right.startsWith(left))) return 0.9;
   if (!leftWords.size || !rightWords.size) return 0;
   const shared = [...leftWords].filter((word) => rightWords.has(word)).length;
   return Math.round(((2 * shared) / (leftWords.size + rightWords.size)) * 0.85 * 100) / 100;

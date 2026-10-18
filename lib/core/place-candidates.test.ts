@@ -108,3 +108,18 @@ test("ranking orders by score, then distance, dedupes and limits", () => {
   assert.deepEqual(ranked.map((r) => r.id), ["same", "other", "far"]);
   assert.equal(rankCandidates(query(), rows, 1).length, 1);
 });
+
+test("a stall named after its host venue never matches the venue, however close (Oklahoma Burgers regression)", () => {
+  const hall = { id: "hall", name: "Kingsbridge Food Hall", citySlug: "london", streetAddress: "1 Kingsbridge Rd, London", addressLocality: "London", lat: 51.5, lng: -0.1, googlePlaceId: null };
+  for (const name of ["Oklahoma Burgers - Kingsbridge Food Hall", "Oklahoma Burgers at Kingsbridge Food Hall", "Oklahoma Burgers"]) {
+    const query = { name, city: "London", citySlug: "london", address: "1 Kingsbridge Rd, London", location: { lat: 51.5, lng: -0.1 }, radiusMeters: 300 };
+    const ranked = rankCandidates(query, [hall]);
+    assert.ok((ranked[0]?.score ?? 0) < SAME_PLACE_SCORE, `${name}: ${ranked[0]?.score}`);
+  }
+  // The stall's own row still matches its own name, and a branch suffix still counts.
+  const stall = { ...hall, id: "stall", name: "Oklahoma Burgers at Kingsbridge Food Hall" };
+  const query = { name: "Oklahoma Burgers", city: "London", citySlug: "london", address: "1 Kingsbridge Rd, London", location: { lat: 51.5, lng: -0.1 }, radiusMeters: 300 };
+  assert.equal(rankCandidates(query, [hall, stall])[0]?.id, "stall");
+  assert.ok(rankCandidates(query, [stall])[0]!.score >= SAME_PLACE_SCORE);
+  assert.equal(nameSimilarity("Kingsbridge Food Hall", "Oklahoma Burgers Kingsbridge Food Hall") < 0.8, true);
+});
