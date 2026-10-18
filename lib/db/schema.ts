@@ -308,6 +308,19 @@ export const placeSignals = sqliteTable("place_signals", {
   updatedAt: ms("updated_at").notNull(),
 });
 
+/** Sourced web claims, one per place, fact and source (migrations/0005_place_claims.sql). */
+export const placeClaims = sqliteTable("place_claims", {
+  id: text("id").primaryKey(),
+  placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+  source: text("source", { enum: ["scout"] }).notNull(),
+  fact: text("fact", { enum: ["owned", "certified", "pork", "alcohol"] }).notNull(),
+  value: text("value", { enum: ["yes", "no"] }).notNull(),
+  sourceUrl: text("source_url").notNull(),
+  certifier: text("certifier"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});
+
 export const profiles = sqliteTable("profiles", {
   userId: userRef("user_id").primaryKey(),
   handle: text("handle").notNull(),
