@@ -6,6 +6,7 @@ import { placeIdParam } from "@/lib/core/params";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/hf/app-shell";
 import { AddToListButton } from "@/components/hf/list-sheets";
+import { DirectionsButton } from "@/components/hf/directions-button";
 import { Avatar, AvatarStack, FactTile, Icon, LinkButton, Page, PlaceArt, SectionTitle, StatusCard, StatusPill, buttonClass } from "@/components/hf/kit";
 import { getViewerId } from "@/lib/auth-session";
 import { listPlaceNotes, topDishes } from "@/lib/checks-repository";
@@ -91,7 +92,7 @@ export default async function PlacePage({ params }: Props) {
   const hero = photos[0] ? photoUrl(photos[0].r2Key) : null;
   const signedIn = Boolean(viewerId);
   const actions = [
-    directions && { href: directions, label: "Directions", icon: Navigation03Icon, primary: true },
+    ((place.lat !== null && place.lng !== null) || place.street_address || directions) && { href: directions ?? "", label: "Directions", icon: Navigation03Icon, primary: true },
     phone && { href: phone, label: "Call", icon: Call02Icon, primary: false },
     website && { href: website, label: "Website", icon: Globe02Icon, primary: false },
   ].filter(Boolean) as { href: string; label: string; icon: typeof Call02Icon; primary: boolean }[];
@@ -330,7 +331,9 @@ export default async function PlacePage({ params }: Props) {
 
             {actions.length > 0 && (
               <div className={cn("grid gap-2 max-lg:order-4", actions.length === 1 ? "grid-cols-1" : "grid-cols-2")}>
-                {actions.map((action) => (
+                {actions.map((action) => action.primary ? (
+                  <DirectionsButton key={action.label} place={{ name: place.name, lat: place.lat, lng: place.lng, address: place.street_address, mapsUrl: directions }} className={cn(actions.length === 3 && "col-span-2")} />
+                ) : (
                   <a
                     key={action.label}
                     href={action.href}
