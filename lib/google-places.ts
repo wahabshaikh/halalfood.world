@@ -51,6 +51,7 @@ export const GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK = [
   "places.displayName",
   "places.formattedAddress",
   "places.location",
+  "places.types",
 ].join(",");
 
 export type GooglePlaceLocation = {
@@ -64,6 +65,7 @@ export type GooglePlaceCoordinates = {
 };
 
 export type GooglePlaceDetails = {
+  types?: string[];
   id?: string;
   /** Google resource name, for example `places/ChIJ...`. */
   name?: string;
@@ -134,6 +136,7 @@ export type GooglePlaceSearchSuggestion = {
   displayName: string;
   formattedAddress: string;
   location: GooglePlaceLocation | null;
+  types?: string[];
 };
 
 export type GooglePlaceSearchResult =
@@ -251,6 +254,7 @@ function parsePlace(value: unknown): GooglePlaceDetails | null {
   const location = parseLocation(payload.location);
 
   return {
+    ...(Array.isArray(payload.types) ? { types: payload.types.filter((type): type is string => typeof type === "string") } : {}),
     ...(stringValue(payload.id) ? { id: payload.id as string } : {}),
     ...(stringValue(payload.name) ? { name: payload.name as string } : {}),
     ...(displayName
@@ -293,6 +297,7 @@ function parseSearchSuggestion(
     displayName,
     formattedAddress,
     location: place?.location ?? null,
+    ...(place?.types ? { types: place.types } : {}),
   };
 }
 

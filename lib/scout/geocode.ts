@@ -10,12 +10,12 @@
  * it doesn't, or there is no key, no budget or no answer, the place gets no
  * coordinates: never a guess.
  */
-import { judgeGeocode, geocodeQuery, type GeocodeCandidate, type GeocodeRejection } from "@/lib/core/geocode-confidence";
+import { judgeGeocode, geocodeQuery, hasStreetAddress, type GeocodeCandidate, type GeocodeRejection } from "@/lib/core/geocode-confidence";
 import { getGooglePlaceDetails, searchGooglePlaces } from "@/lib/google-places";
 import { d1GoogleSearchBudget } from "@/lib/google-search-budget";
 import type { ScoutDeps } from "./deps";
 
-export type GeocodeFailure = "not_configured" | "budget_exhausted" | "provider_error" | GeocodeRejection;
+export type GeocodeFailure = "no_street_address" | "not_configured" | "budget_exhausted" | "provider_error" | GeocodeRejection;
 
 export type Geocoded = { ok: true; lat: number; lng: number; via: "google_place_id" | "text_search" } | { ok: false; reason: GeocodeFailure };
 
@@ -23,6 +23,7 @@ export type GeocodeInput = { address: string; city: string; country?: string | n
 
 /** Geocode one place, spending at most one Google call. */
 export async function geocodePlace(deps: ScoutDeps, input: GeocodeInput): Promise<Geocoded> {
+  if (!hasStreetAddress(input)) return { ok: false, reason: "no_street_address" };
   const apiKey = deps.google?.apiKey;
   if (!deps.google || !apiKey) return { ok: false, reason: "not_configured" };
   const now = new Date(deps.now());
@@ -31,10 +32,10 @@ export async function geocodePlace(deps: ScoutDeps, input: GeocodeInput): Promis
 
   if (input.googlePlaceId) {
     if (!(await budget.tryConsume(deps.google.detailsCap, now, "details").catch(() => false))) return { ok: false, reason: "budget_exhausted" };
-    const details = await getGooglePlaceDetails(input.googlePlaceId, { apiKey, fieldMask: "formattedAddress,location" });
+    const details = await getGooglePlaceDetails(input.googlePlaceId, { apiKey, fieldMask: "formattedAddress,location,types" });
     if (!details.ok) return { ok: false, reason: "provider_error" };
     const candidates: GeocodeCandidate[] = details.coordinates
-      ? [{ formattedAddress: details.place.formattedAddress ?? "", ...details.coordinates }]
+      ? [{ formattedAddress: details.place.formattedAddress ?? "", types: details.place.types, ...details.coordinates }]
       : [];
     return verdict(candidates, expected, "google_place_id");
   }
@@ -43,7 +44,7 @@ export async function geocodePlace(deps: ScoutDeps, input: GeocodeInput): Promis
   const found = await searchGooglePlaces(geocodeQuery({ address: input.address, city: input.city, country: input.country }), { apiKey });
   if (!found.ok) return { ok: false, reason: "provider_error" };
   const candidates = found.places.flatMap((place) =>
-    place.location ? [{ formattedAddress: place.formattedAddress, lat: place.location.latitude, lng: place.location.longitude }] : [],
+    place.location ? [{ formattedAddress: place.formattedAddress, types: place.types, lat: place.location.latitude, lng: place.location.longitude }] : [],
   );
   return verdict(candidates, expected, "text_search");
 }

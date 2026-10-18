@@ -5,11 +5,12 @@
  * The rule, on Google's results in its own order:
  *
  * 1. No result with valid coordinates: `no_result`.
- * 2. Another result more than AMBIGUOUS_SPREAD_METERS from the first:
+ * 2. Missing types, area types or route-only precision: `not_street_level`.
+ * 3. Another result more than AMBIGUOUS_SPREAD_METERS from the first:
  *    `ambiguous`. The address could be in two places, so we don't pick one.
- * 3. The first result's address doesn't name the city (whole words, accents
+ * 4. The first result's address doesn't name the city (whole words, accents
  *    and case ignored): `wrong_city`.
- * 4. A country was sent and the address's last part is a different country
+ * 5. A country was sent and the address's last part is a different country
  *    (names and a few common short forms: UK, GB, USA, UAE, …): `wrong_country`.
  *
  * Otherwise the first result's coordinates are used. A failure means no
@@ -20,9 +21,9 @@ import { distanceMeters, type LatLng } from "./place-candidates";
 
 export const AMBIGUOUS_SPREAD_METERS = 1000;
 
-export type GeocodeCandidate = { formattedAddress: string; lat: number; lng: number };
+export type GeocodeCandidate = { formattedAddress: string; lat: number; lng: number; types?: readonly string[] };
 
-export type GeocodeRejection = "no_result" | "ambiguous" | "wrong_city" | "wrong_country";
+export type GeocodeRejection = "not_street_level" | "no_result" | "ambiguous" | "wrong_city" | "wrong_country";
 
 export type GeocodeVerdict = ({ ok: true } & LatLng) | { ok: false; reason: GeocodeRejection };
 
@@ -54,11 +55,37 @@ function valid(candidate: GeocodeCandidate): boolean {
   return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0);
 }
 
+/** Conservative address heuristic: a house number or street word beyond city/country/postcode. */
+export function hasStreetAddress(input: { address: string; city: string; country?: string | null }): boolean {
+  let address = normalizeText(input.address);
+  const areas = [input.city, input.country ?? "", ...COUNTRY_GROUPS.flat()];
+  for (const area of areas) {
+    const normalized = normalizeText(area);
+    if (normalized) address = (` ${address} `).split(` ${normalized} `).join(" ").trim();
+  }
+  // Postcodes are not house numbers. Prefer false negatives to invented map pins.
+  address = address.replace(/\b[a-z]{1,2}\d[a-z\d]?\s*\d[a-z]{2}\b/gi, " ").replace(/\b\d{5,6}(?: \d{4})?\b/g, " ");
+  const country = normalizeText(input.country ?? "");
+  if (["australia", "au", "austria", "at", "new zealand", "nz", "belgium", "denmark", "norway", "switzerland", "south africa"].includes(country))
+    address = address.replace(/\b\d{4}\b/g, " ");
+  address = address.replace(/\b\d{4}\s*[a-z]{2}\b/gi, " ");
+  const house = /\b\d{1,4}[a-z]?\b/i.test(address) && /\p{L}{4,}/u.test(address);
+  return house || /\b(street|st|road|rd|avenue|ave|lane|ln|drive|dr|boulevard|blvd|way|rue|strasse|calle|jalan|marg)\b/i.test(address);
+}
+
+/** Area and route results never identify a venue, even with a convincing formatted address. */
+export function hasStreetLevelTypes(types: readonly string[] | undefined): boolean {
+  if (!types?.length) return false;
+  if (types.some((type) => /^(locality|sublocality.*|administrative_area_level_.*|postal_code.*|postal_town|country|political|colloquial_area|neighborhood|route)$/.test(type))) return false;
+  return types.some((type) => !["point_of_interest", "geocode"].includes(type));
+}
+
 /** Apply the rule above. */
 export function judgeGeocode(results: readonly GeocodeCandidate[], expected: { city: string; country?: string | null }): GeocodeVerdict {
   const usable = results.filter(valid);
   const [top] = usable;
   if (!top) return { ok: false, reason: "no_result" };
+  if (!hasStreetLevelTypes(top.types)) return { ok: false, reason: "not_street_level" };
   if (usable.slice(1).some((other) => distanceMeters(top, other) > AMBIGUOUS_SPREAD_METERS)) return { ok: false, reason: "ambiguous" };
   if (!namesCity(top.formattedAddress, expected.city)) return { ok: false, reason: "wrong_city" };
   if (expected.country) {
