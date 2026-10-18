@@ -47,7 +47,7 @@ and the launch report's P0 list.
 | Points | `points` ledger, kinds `check` 3, `place-added` 5, `helped-verify` 10 (CHECK-constrained, can't be widened without a rebuild), city leaderboard `/community` |
 | Moderation | `reports`, `moderators`, `audit_log`, `/admin` (Reports, Evidence, Events) |
 | Limits | Per user per day: checks 20, places 10, recs 30, reports 10, comments 100 |
-| In flight elsewhere (do not touch) | Engineering Lead: scraped listings labelled **Unverified** + noindex. Menu storage + `menu_check` + logo. PR #112 certifiers (registry data). PR #118 Scout geocode. PR #119 Whop city sponsorships |
+| In flight elsewhere (do not touch) | Engineering Lead: PR #121 scraped listings labelled **Unverified** + noindex + out of sitemap (migration 0007). PR #122 menus as data, `menu_check`, logos (migration 0008). PR #118 Scout geocoder. PR #119 Whop city sponsorships. PR #112 certifiers (registry data) |
 
 Data reality (launch report): 7,677 listed places, all scraped from halalfoodnear.me, 0 `verified`, 3 users.
 The trust layer has to make an **Unverified** listing turn trusted through real contributions.
@@ -144,8 +144,8 @@ certificates) · Local guide (25 accepted contributions in one city) · Founding
 
 ## 3. Data model changes
 
-All additive, following the AGENTS.md rules. Migration numbers are whatever is next on `main` at merge time (EL menu/logo
-and PR #112 will take some numbers first). Drizzle schema in `lib/db/schema.ts` kept in sync.
+All additive, following the AGENTS.md rules. **New migrations are numbered from `0009` onward** (0007 = PR #121, 0008 = PR #122).
+Renumber at merge time if `main` has moved on. Drizzle schema in `lib/db/schema.ts` kept in sync.
 
 | Migration | Tables / columns | Notes |
 | --- | --- | --- |
@@ -166,7 +166,7 @@ and PR #112 will take some numbers first). Drizzle schema in `lib/db/schema.ts` 
 | `member_api_keys` | `id, user_id, name, prefix (first 8), key_hash (SHA-256), scopes ('read','write'), last_used_at, created_at, revoked_at` | Member MCP. The key is shown once and never stored in plain text |
 | `profiles` add columns | `maps_app ('google','apple','auto') DEFAULT 'auto'` | Directions preference, kept in localStorage for signed-out visitors |
 
-Menus and logos: **owned by the EL PR** (menu storage, `menu_check`, `places.logo_key`). This spec only *feeds* them
+Menus and logos: **owned by EL PR #122** (menu storage, `menu_check`, `places.logo_key`). This spec only *feeds* them
 (menu photo upload → extraction → EL's menu table) and reads `menu_check` for the alcohol and pork badges.
 
 ---
