@@ -128,9 +128,11 @@ export async function profileHandleForChannel(platform: string, channelHandle: s
   return row?.handle ?? null;
 }
 
-/** "Mar 2026" for a YYYY-MM-DD video date. */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "Mar 2026" for a YYYY-MM-DD video date. Spelled out here: ICU versions disagree on "Sep" and "Sept". */
 export function videoMonth(date: string | null): string | null {
-  if (!date) return null;
-  const at = Date.parse(`${date}T00:00:00Z`);
-  return Number.isNaN(at) ? null : new Date(at).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
+  const match = date ? /^(\d{4})-(\d{2})-\d{2}$/.exec(date) : null;
+  const month = match ? MONTHS[Number(match[2]) - 1] : undefined;
+  return match && month ? `${month} ${match[1]}` : null;
 }

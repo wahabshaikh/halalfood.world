@@ -218,7 +218,7 @@ export default async function PlacePage({ params }: Props) {
             {creators.length > 0 && (
               <section aria-labelledby="creators" className="grid gap-3 max-lg:order-9">
                 <SectionTitle id="creators">From creators</SectionTitle>
-                <ul className="grid gap-1 md:grid-cols-2 md:gap-x-8">
+                <ul className="grid gap-1 md:max-w-xl">
                   {creators.map((creator) => (
                     <li key={creator.id} className="flex min-h-11 items-center gap-3 border-b border-border/70 py-2.5">
                       <a href={`/u/${creator.handle}`} className="shrink-0" aria-label={`${creator.displayName} on halalfood.world`}>

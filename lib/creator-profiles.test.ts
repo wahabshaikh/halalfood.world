@@ -90,6 +90,8 @@ test("the creator page finds the profile for a YouTube channel handle", async ()
 
 test("video months read like a date", () => {
   assert.equal(videoMonth("2026-03-04"), "Mar 2026");
+  assert.equal(videoMonth("2026-09-01"), "Sep 2026");
+  assert.equal(videoMonth("2026-13-01"), null);
   assert.equal(videoMonth(null), null);
   assert.equal(videoMonth("nope"), null);
 });

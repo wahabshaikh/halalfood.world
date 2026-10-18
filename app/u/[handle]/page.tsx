@@ -135,7 +135,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
                 <p className="text-[15px] font-extrabold">Unclaimed. Is this you?</p>
                 <p className="text-[13px] font-semibold text-subtle-foreground">
                   This profile was made from @{channel.channelHandle}’s public YouTube channel.{" "}
-                  <a href={claimHref(profile.handle)} className="font-extrabold text-primary underline-offset-2 hover:underline">
+                  <a href={claimHref(profile.handle)} className="font-extrabold text-foreground underline underline-offset-2">
                     Claim it
                   </a>
                 </p>
