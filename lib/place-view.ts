@@ -37,7 +37,7 @@ export type PlaceCard = {
 export const PLACE_CARD_COLUMNS = sql.raw(`
   p.id, p.name, p.city_slug, p.serves_cuisine, p.address_locality, p.street_address,
   p.lat, p.lng, s.status, s.progress, s.owned_value, s.certified_value, s.pork_value,
-  s.alcohol_value,
+  s.alcohol_value, p.logo_url,
   (SELECT ph.r2_key FROM place_photos ph WHERE ph.place_id = p.id ORDER BY ph.created_at DESC LIMIT 1) AS photo_key
 `);
 

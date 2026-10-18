@@ -34,8 +34,8 @@ import {
   parseCapturedAt,
   parseMenuSourceType,
   sameMenu,
-  type Menu,
   type MenuCheckStatus,
+  type MenuSource,
 } from "@/lib/core/menus";
 import { httpsSourceUrl, type ClaimOutcome } from "@/lib/core/place-claims";
 import { runBatch } from "@/lib/checks-repository";
@@ -137,7 +137,7 @@ export type SetPlaceLogoResult = { ok: true; result: "set" | "updated" | "unchan
 
 type StoredItem = { id: string; position: number; section: string | null; name: string; description: string | null; price: number; currency: string };
 
-async function storedMenu(deps: ScoutDeps, placeId: string): Promise<(Menu & { capturedAt: number; items: StoredItem[] }) | null> {
+async function storedMenu(deps: ScoutDeps, placeId: string): Promise<{ capturedAt: number; items: StoredItem[]; sources: MenuSource[] } | null> {
   const [menu] = await deps.db.all<{ captured_at: number }>(sql`SELECT captured_at FROM place_menus WHERE place_id = ${placeId}`);
   if (!menu) return null;
   const [items, sources] = await Promise.all([
