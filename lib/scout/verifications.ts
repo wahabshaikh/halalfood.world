@@ -5,7 +5,9 @@
  * mirrored as a `place_media_links` row so the place's Videos strip and the
  * creator page pick the video up. Removing a verification removes only the
  * media link it added. A verification is context, never evidence: it does not
- * touch checks, place_signals or place_status (docs/spec/halal-model.md).
+ * touch checks, place_signals or place_status (docs/spec/halal-model.md). It
+ * does show the place exists, so both writes recompute an imported place's
+ * "Unverified" label (lib/provenance.ts).
  */
 import { sql } from "drizzle-orm";
 import { z } from "zod";
@@ -20,6 +22,7 @@ import {
 import { placeIdParam } from "@/lib/core/params";
 import { runBatch } from "@/lib/checks-repository";
 import { parseCuisines } from "@/lib/place-view";
+import { recomputePlaceVerification } from "@/lib/provenance";
 import { findCreator, isClaimedCreator } from "./creators";
 import type { ScoutDeps } from "./deps";
 import { rejectionFor, type Rejection } from "./places";
@@ -168,6 +171,7 @@ export async function addVerification(deps: ScoutDeps, input: AddVerificationInp
   ]);
   const row = await verificationByKey(deps, creator.user_id, placeId, videoId);
   if (!row) throw new Error("creator verification was not written");
+  await recomputePlaceVerification(placeId, deps.db, now);
   return { ok: true, result: row.id === id ? "created" : "matched", verification: summary(deps, creator.handle, row) };
 }
 
@@ -199,5 +203,6 @@ export async function removeVerification(deps: ScoutDeps, input: RemoveVerificat
     sql`DELETE FROM creator_verifications WHERE id = ${row.id}`,
     ...(row.media_link_id ? [sql`DELETE FROM place_media_links WHERE id = ${row.media_link_id}`] : []),
   ]);
+  await recomputePlaceVerification(row.place_id, deps.db, deps.now());
   return { ok: true, removed: true, id: row.id };
 }
