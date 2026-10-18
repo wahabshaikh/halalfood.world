@@ -28,6 +28,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | --- | --- | --- |
 | `/`, `/city/[slug]` | – | Explore: city switcher, search, This week in {city}, Guides & lists, filter chips and places. |
 | `/cities` | – | Choose a city. |
+| `/connect` | – | Connect Claude, ChatGPT or Cursor to the public read-only member MCP endpoint. Noindex until write tools ship. |
 | `/search` | – | Places, people, lists and cities. |
 | `/map` | – | The map, with the same filters as Explore. |
 | `/place/[id]` | – | A place: status, the four facts, actions, friends, dishes, photos, videos, notes, nearby. |
