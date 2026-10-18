@@ -44,7 +44,8 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/events`, `/event/[id]` | – | Halal food events and their stalls. |
 | `/creator/[platform]/[handle]` | – | Places from a creator's videos; links to `/u/<handle>` when the channel has a creator profile. |
 | `/me`, `/me/settings`, `/me/privacy` | ✓ | You (Passport, Checks, Lists), Settings, Privacy & people. |
-| `/admin` | moderator | Reports and Events. |
+| `/admin` | moderator | Reports, Evidence, Events and Sponsors. |
+| `/sponsor`, `/sponsor/[citySlug]`, `/sponsor/thanks` | – / form ✓ / ✓ | Sponsor a city: the offer and which cities are open; one city's form, card preview and Whop checkout; the return page after paying. |
 
 ### API
 
@@ -66,6 +67,8 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `GET /api/community`, `GET /api/events`, `GET /api/events/[id]`, `PUT/DELETE /api/events/[id]/going`, `GET /api/creators/[platform]/[handle]` | Community and events. |
 | `POST /api/reports` | Report a place, check, comment, person or list. |
 | `GET /api/admin/reports`, `POST /api/admin/reports/[id]`, `GET/POST /api/admin/events`, `GET/PUT/DELETE /api/admin/events/[id]` | Moderation. Every action writes `audit_log`. |
+| `GET/POST /api/sponsorships` | Mine; start a city sponsorship (`{citySlug, name, tagline?, linkUrl}`) and get the Whop `checkoutUrl`. 409 when the city is sponsored or held, 503 without Whop keys. 10 a day per person. |
+| `POST /api/webhooks/whop`, `POST /api/admin/sponsorships/[id]` | Whop webhooks (signed with `WHOP_WEBHOOK_SECRET`); a moderator taking a sponsor card down or restoring it (`{action: "remove" \| "restore"}`, audited). |
 | `/api/auth/*`, `POST /api/admin/email/healthcheck` | Better Auth; the optional email smoke check. |
 | `POST /api/mcp` (`GET`/`DELETE` 405) | Halal Food Scout's admin MCP endpoint. Bearer `MCP_ADMIN_SECRET`; see [below](#halal-food-scout-admin-mcp). |
 
@@ -255,6 +258,27 @@ curl -s https://halalfood.world/api/mcp -H "Authorization: Bearer $MCP_ADMIN_SEC
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
+## City sponsorships (Whop)
+
+One sponsor per city at a time, $49 every 30 days, sold through [Whop](https://whop.com). Rules in
+[`lib/core/sponsorship.ts`](../lib/core/sponsorship.ts), D1 in [`lib/sponsorships.ts`](../lib/sponsorships.ts), Whop calls in
+[`lib/whop.ts`](../lib/whop.ts), tables `city_sponsorships` and `whop_webhook_events` (`migrations/0007_city_sponsorships.sql`).
+
+1. A signed-in buyer writes a card (name ≤ 60, one line ≤ 120, an https link) on `/sponsor/[citySlug]`. `POST /api/sponsorships`
+   stores a `pending` row, which holds the city for an hour, and creates a Whop checkout configuration with an inline monthly
+   plan and `metadata.sponsorship_id`. The browser goes to Whop's `purchase_url`; Whop returns it to `/sponsor/thanks?id=`.
+2. Whop's `payment.succeeded` webhook makes the row `active` for 30 days from the payment (or from the end of another paid
+   sponsor's window in the same city, so two cards never show at once). Each renewal payment extends it by 30 days.
+   `membership.deactivated` stops renewing: the card stays up until the paid window ends. A succeeded refund
+   (`refund.created`/`refund.updated`) sets `refunded` and hides it at once.
+3. Webhooks are verified (Standard Webhooks HMAC-SHA256, keyed with the literal `ws_…` secret, 5-minute tolerance) and
+   deduplicated by `webhook-id`. Unknown sponsorships are recorded and answered 200 so Whop stops retrying.
+4. The live card (`status = 'active'`, `starts_at <= now < active_until`) shows on `/city/[slug]` after Guides & lists and
+   before the places. Moderators can take one down from `/admin` → Sponsors; refunds are issued in Whop.
+
+The card never touches checks, status, filters or ordering (spec §1 rule 9). Deleting the buyer's account keeps the paid
+sponsorship with `user_id` set to NULL. Whop holds the buyer's billing details; D1 stores only Whop ids.
+
 ## Sign-in, Turnstile and limits
 
 The `/login` page renders a Cloudflare Turnstile widget, then uses the Better Auth `emailOTP` plugin to request and verify a 6-digit sign-in code. The client uses `emailOTPClient`; successful verification creates a database-backed Better Auth session and secure, HTTP-only cookie. OTP mail is sent only through `lib/email.ts` (Cloudflare Email Service, from `EMAIL_FROM`), with both text and HTML bodies. On localhost and Worker Previews it goes to the email sink instead (see [testing.md](testing.md)).
@@ -354,7 +378,7 @@ City and place pages distinguish a missing row (a real 404) from an unreachable 
 
 | Child | Contents |
 | --- | --- |
-| `/sitemaps/core/sitemap.xml` | Home, the city directory, events and community. |
+| `/sitemaps/core/sitemap.xml` | Home, the city directory, events, community and Sponsor a city. |
 | `/sitemaps/cities/sitemap.xml` | One entry per distinct `city_slug`, capped at 2,000. |
 | `/sitemaps/places/sitemap/N.xml` | Places, 5,000 per file, from an id-ordered scan so chunk boundaries stay stable. |
 | `/sitemaps/social/sitemap.xml` | Public lists, public profiles with a shared check, and upcoming events. |
