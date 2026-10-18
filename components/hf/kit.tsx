@@ -3,7 +3,7 @@
  * Server-safe: nothing here uses hooks. Interactive pieces live in
  * kit-client.tsx.
  */
-import type { ComponentProps, ReactNode } from "react";
+import { Fragment, type ComponentProps, type ReactNode } from "react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
@@ -18,6 +18,7 @@ import {
   factTags,
   factTone,
   FACT_QUESTION,
+  SOURCE_LABEL,
   statusLabel,
   type Definite,
   type Fact,
@@ -293,7 +294,41 @@ const TONE_DOT: Record<FactTone, string> = {
   unknown: "bg-secondary text-muted-foreground",
 };
 
-export function FactTile({ fact, value, evidence }: { fact: Fact; value: Definite | null; evidence?: string }) {
+/** "7 people · Web source", with the web source linked to the page that makes the claim. */
+function Evidence({ evidence, webSource }: { evidence: string; webSource?: { url: string; certifier: string | null } }) {
+  if (!webSource) return <>{evidence}</>;
+  const parts = evidence.split(" · ");
+  return (
+    <>
+      {parts.map((part, index) => (
+        <Fragment key={part}>
+          {index > 0 && " · "}
+          {part === SOURCE_LABEL.scout ? (
+            <a href={webSource.url} target="_blank" rel="noopener noreferrer nofollow" className="underline underline-offset-2 hover:text-foreground">
+              {part}
+              {webSource.certifier ? ` (${webSource.certifier})` : ""}
+            </a>
+          ) : (
+            part
+          )}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+export function FactTile({
+  fact,
+  value,
+  evidence,
+  webSource,
+}: {
+  fact: Fact;
+  value: Definite | null;
+  evidence?: string;
+  /** The page behind a Halal Food Scout claim, when that claim backs `value`. */
+  webSource?: { url: string; certifier: string | null };
+}) {
   const tone = factTone(fact, value);
   const icon = tone === "unknown" ? HelpCircleIcon : tone === "good" ? Tick02Icon : Cancel01Icon;
   return (
@@ -304,7 +339,11 @@ export function FactTile({ fact, value, evidence }: { fact: Fact; value: Definit
       <div className="grid gap-0.5">
         <span className="text-[13px] font-bold text-muted-foreground">{FACT_QUESTION[fact]}</span>
         <strong className="text-base font-black">{factAnswerLabel(fact, value)}</strong>
-        {evidence ? <span className="text-xs font-bold text-muted-foreground">{evidence}</span> : null}
+        {evidence ? (
+          <span className="text-xs font-bold text-muted-foreground">
+            <Evidence evidence={evidence} webSource={webSource} />
+          </span>
+        ) : null}
       </div>
     </div>
   );

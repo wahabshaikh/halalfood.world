@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "vitest";
 import { recomputePlaceStatus } from "@/lib/checks-repository";
 import { explorePlaces, getPlaceById } from "@/lib/places";
@@ -876,4 +878,15 @@ test("attribute inputs are validated: https sources, a source for yes/no, a cert
   const bar = await call(environment, "upsert_place", place({ name: "The Kings Arms Pub", no_alcohol: { value: "yes", source_url: HALAL_PAGE } }));
   assert.equal(bar.body.error, "rejected");
   assert.equal(count(sqlite, "SELECT count(*) AS n FROM place_claims"), 4);
+});
+
+test("the seed's Scout-claimed places carry the status recomputePlaceStatus gives them", async () => {
+  const { deps, sqlite } = setup();
+  sqlite.exec(readFileSync(join(import.meta.dirname, "../../seed/local.sql"), "utf8"));
+  const columns = "status, progress, owned_value, certified_value, pork_value, alcohol_value, owned_settled, certified_settled, pork_settled, alcohol_settled, owned_sources, certified_sources, pork_sources, alcohol_sources";
+  for (const id of ["00000000-0000-4000-8000-000000000007", "00000000-0000-4000-8000-000000000008"]) {
+    const seeded = { ...(sqlite.prepare(`SELECT ${columns} FROM place_status WHERE place_id = ?`).get(id) as object) };
+    await recomputePlaceStatus(id, deps.db, NOW);
+    assert.deepEqual({ ...(sqlite.prepare(`SELECT ${columns} FROM place_status WHERE place_id = ?`).get(id) as object) }, seeded, id);
+  }
 });

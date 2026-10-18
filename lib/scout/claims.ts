@@ -70,8 +70,7 @@ export const claimAttributesInput = {
   no_alcohol: attribute("no_alcohol"),
 };
 
-const claimAttributesObject = z.object(claimAttributesInput);
-export type ClaimAttributesInput = z.infer<typeof claimAttributesObject>;
+export type ClaimAttributesInput = { [K in keyof typeof claimAttributesInput]?: z.infer<(typeof claimAttributesInput)[K]> };
 
 /** Per attribute sent, what happened to it. Attributes left out are left out here too. */
 export type ClaimOutcomes = Partial<Record<ClaimAttribute, ClaimOutcome>>;
