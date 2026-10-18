@@ -9,7 +9,7 @@ import { discoveryBboxExceedsCap, type DiscoveryBbox } from "@/lib/core/discover
 import { cn } from "@/lib/utils";
 import type { ExploreItem } from "@/lib/explore";
 import { formatDistance, photoUrl } from "@/lib/place-view";
-import { Avatar, Icon, PlaceArt, StatusPill } from "@/components/hf/kit";
+import { Avatar, Icon, PlaceArt, StatusPill, UnverifiedChip } from "@/components/hf/kit";
 import { FilterChips, api, errorText, storeFilters, toast } from "@/components/hf/kit-client";
 import { PlaceRow } from "@/components/hf/place-row";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -373,6 +373,7 @@ export default function MapView({
               </span>
               <span className="flex flex-wrap items-center gap-2">
                 <StatusPill status={current.status} />
+                {current.unverified && <UnverifiedChip />}
                 {current.friend && <span className="text-xs font-bold text-foreground/85">{current.friend.line}</span>}
               </span>
             </a>
