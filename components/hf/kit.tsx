@@ -13,6 +13,7 @@ import {
   Clock01Icon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
+import { httpsLogoUrl } from "@/lib/core/menus";
 import {
   factAnswerLabel,
   factTags,
@@ -444,11 +445,12 @@ export function AvatarStack({ people, size = 32 }: { people: { name: string; see
   );
 }
 
-/** A place's photo, or its initials on a stable colour. */
+/** A place's photo, else its logo, else its initials on a stable colour. */
 export function PlaceArt({
   name,
   seed,
   src,
+  logo,
   className,
   rounded = "rounded-2xl",
   textSize = "text-xl",
@@ -456,11 +458,21 @@ export function PlaceArt({
   name: string;
   seed: string;
   src?: string | null;
+  /** The restaurant's own logo, an external https image. Anything else is ignored. */
+  logo?: string | null;
   className?: string;
   rounded?: string;
   textSize?: string;
 }) {
   const [bg, ink] = artPair(seed);
+  const logoUrl = src ? null : httpsLogoUrl(logo);
+  if (logoUrl)
+    return (
+      <span className={cn("flex shrink-0 items-center justify-center overflow-hidden border border-border bg-white p-1.5", rounded, className)} aria-hidden="true">
+        {/* Linked from the restaurant's site, never fetched by us; no referrer leaves the page. */}
+        <img src={logoUrl} alt="" loading="lazy" referrerPolicy="no-referrer" data-place-logo="" className="size-full object-contain" />
+      </span>
+    );
   return (
     <span
       className={cn("flex shrink-0 items-center justify-center overflow-hidden font-black", rounded, textSize, className)}

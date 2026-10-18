@@ -4,6 +4,7 @@
  */
 import { sql, type SQL } from "drizzle-orm";
 import { displayCuisines } from "@/lib/core/listing-visibility";
+import { httpsLogoUrl } from "@/lib/core/menus";
 import {
   FACTS,
   parseDefinite,
@@ -28,6 +29,8 @@ export type PlaceCard = {
   status: PlaceStatus;
   facts: FactValues;
   photoKey: string | null;
+  /** The restaurant's own https logo (Halal Food Scout), shown when there is no photo. Absent in older cached reads. */
+  logoUrl?: string | null;
 };
 
 /** Columns for `SELECT … FROM places p JOIN place_status s ON s.place_id = p.id`. */
@@ -91,6 +94,7 @@ export function toPlaceCard(row: Record<string, unknown>): PlaceCard {
     status: parseStatus(row.status, row.progress),
     facts,
     photoKey: typeof row.photo_key === "string" ? row.photo_key : null,
+    logoUrl: httpsLogoUrl(row.logo_url),
   };
 }
 

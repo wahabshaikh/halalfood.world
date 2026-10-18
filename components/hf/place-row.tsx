@@ -14,6 +14,7 @@ export function PlaceRow({ place, signedIn, compact = false }: { place: ExploreI
           name={place.name}
           seed={place.id}
           src={photoUrl(place.photoKey)}
+          logo={place.logoUrl}
           className={compact ? "size-[52px]" : "size-[72px]"}
           rounded={compact ? "rounded-[14px]" : "rounded-2xl"}
           textSize={compact ? "text-base" : "text-xl"}
