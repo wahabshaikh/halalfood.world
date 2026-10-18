@@ -66,11 +66,11 @@ export function seedStatements(places: SeedPlace[], now = Date.now()): { sql: st
   const out: { sql: string; params: unknown[] }[] = [];
   for (let start = 0; start < places.length; start += BATCH) {
     const chunk = places.slice(start, start + BATCH);
-    const columns = [...SEED_COLUMNS, "listing_status", "updated_at"];
+    const columns = [...SEED_COLUMNS, "listing_status", "updated_at", "location_source"];
     const row = `(${columns.map(() => "?").join(", ")})`;
     out.push({
       sql: `INSERT OR IGNORE INTO places (${columns.join(", ")}) VALUES ${chunk.map(() => row).join(", ")}`,
-      params: chunk.flatMap((place) => [...SEED_COLUMNS.map((column) => place[column]), "listed", now]),
+      params: chunk.flatMap((place) => [...SEED_COLUMNS.map((column) => place[column]), "listed", now, place.lat !== null && place.lng !== null ? "import" : null]),
     });
     out.push({
       sql: `INSERT OR IGNORE INTO place_status (place_id, status, progress, eligible_checks, updated_at) VALUES ${chunk

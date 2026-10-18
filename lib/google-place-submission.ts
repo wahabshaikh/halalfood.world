@@ -151,7 +151,7 @@ export async function addPlaceFromGoogle(
 
   const id = crypto.randomUUID();
   const statements = [
-    ...createPlaceStatements({ ...listing, submittedByUserId: userId }, id, now),
+    ...createPlaceStatements({ ...listing, locationSource: "google", submittedByUserId: userId }, id, now),
     awardPoints(userId, "place-added", id, listing.citySlug, null, now),
   ];
   let hasCheck = false;

@@ -47,7 +47,7 @@ async function updatePlaceCoordinatesIfMissing(
 
   const rows = await queryD1<{ id: string }>(
     `UPDATE places
-     SET lat = ?, lng = ?
+     SET lat = ?, lng = ?, location_source = 'import'
      WHERE id = ?
        AND google_place_id = ?
        AND listing_status = 'listed'
