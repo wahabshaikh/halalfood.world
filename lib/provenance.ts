@@ -64,6 +64,15 @@ export async function recomputePlaceVerification(
   return { imported: true, verifiedAt: next, changed: true };
 }
 
+/** Whether a place is an imported one nobody has verified yet: the Worker's X-Robots-Tag lookup. */
+export async function isUnverifiedPlace(placeId: string, client: Client = database()): Promise<boolean> {
+  const db = await client;
+  const rows = await db.all<{ unverified: number }>(sql`
+    SELECT 1 AS unverified FROM places WHERE id = ${placeId} AND import_source IS NOT NULL AND import_verified_at IS NULL LIMIT 1
+  `);
+  return rows.length > 0;
+}
+
 async function countEligibleChecks(db: DatabaseClient, placeId: string): Promise<number> {
   // check-visibility: status — counts checks toward existence; nothing about authors leaves this function.
   const rows = await db.all<Record<string, unknown>>(sql`

@@ -10,7 +10,7 @@ import { createCheck } from "./checks-repository";
 import { actOnReport } from "./moderation";
 import { reviewEvidence, submitEvidence, upsertListingSignal, validateEvidence } from "./place-evidence";
 import { countPlaces, explorePlaces, getPlaceById, listPlaceRefs } from "./places";
-import { recomputePlaceVerification } from "./provenance";
+import { isUnverifiedPlace, recomputePlaceVerification } from "./provenance";
 import { applyClaims } from "./scout/claims";
 import { upsertCreator } from "./scout/creators";
 import type { ScoutDeps } from "./scout/deps";
@@ -320,4 +320,15 @@ test("cards carry the label, and the sitemap leaves unverified imports out", asy
   } finally {
     delete env.DB;
   }
+});
+
+test("isUnverifiedPlace answers the Worker's noindex lookup", async () => {
+  const { sqlite, db, imported } = world();
+  const label = imported();
+  const plain = addPlace(sqlite, { name: "Plain", city: "london" });
+  assert.equal(await isUnverifiedPlace(label, db), true);
+  assert.equal(await isUnverifiedPlace(plain, db), false);
+  assert.equal(await isUnverifiedPlace("00000000-0000-4000-8000-00000000ffff", db), false);
+  await createCheck("a", label, answers(), db, NOW);
+  assert.equal(await isUnverifiedPlace(label, db), false);
 });
