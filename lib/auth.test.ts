@@ -283,3 +283,17 @@ test("auth OTP requests reject missing Turnstile configuration before Better Aut
     error: "Sign-in is temporarily unavailable. Please try again.",
   });
 });
+
+test("nobody can request or use a sign-in code for an unclaimed creator's placeholder email", async () => {
+  for (const path of ["email-otp/send-verification-otp", "sign-in/email-otp", "email-otp/check-verification-otp"]) {
+    const response = await authPost(
+      new Request(`https://halalfood.world/api/auth/${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.8", "x-turnstile-token": "token" },
+        body: JSON.stringify({ email: "Creator-0f1e@Unclaimed.Invalid", type: "sign-in", otp: "123456" }),
+      }),
+    );
+    assert.equal(response.status, 400, path);
+    assert.deepEqual(await response.json(), { error: "That email address can’t be used to sign in." });
+  }
+});

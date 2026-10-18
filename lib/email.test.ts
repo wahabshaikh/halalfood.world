@@ -93,6 +93,16 @@ test("input is validated before anything is sent", async () => {
   assert.equal(sent.length, 0);
 });
 
+test("placeholder .invalid addresses never get mail, not even in the sink", async () => {
+  setEnvironment({ ENVIRONMENT: "production" });
+  const sent = fakeEmail();
+  await assert.rejects(sendEmail({ ...emailInput, to: "creator-1@unclaimed.invalid" }, { host: PRODUCTION }), /never receive mail/);
+  await assert.rejects(sendEmail({ ...emailInput, to: ["ops@example.com", "deleted-1@deleted.invalid"] }, { host: PRODUCTION }), /never receive mail/);
+  const database = createTestDatabase();
+  await assert.rejects(writeToSink(database.binding as unknown as SinkDatabase, { ...emailInput, to: "creator-1@unclaimed.invalid" }, "localhost"), /never receive mail/);
+  assert.equal(sent.length, 0);
+});
+
 test("a Worker Preview writes to the sink and never calls the binding", async () => {
   setEnvironment({ ENVIRONMENT: "preview" });
   const sent = fakeEmail();
