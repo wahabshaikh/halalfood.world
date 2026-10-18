@@ -8,20 +8,24 @@
  * 2. Missing types, area types or route-only precision: `not_street_level`.
  * 3. Another result more than AMBIGUOUS_SPREAD_METERS from the first:
  *    `ambiguous`. The address could be in two places, so we don't pick one.
- * 4. The first result's address doesn't name the city (whole words, accents
- *    and case ignored): `wrong_city`.
- * 5. A country was sent and the address's last part is a different country
- *    (names and a few common short forms: UK, GB, USA, UAE, …): `wrong_country`.
+ * 4. Neither structured city/area names, formatted city text nor proximity
+ *    within 40 km of the known city centre matches: `wrong_city`.
+ * 5. A supplied country doesn't match the structured country (ISO/name), or
+ *    any formatted-address part when that component is absent: `wrong_country`.
  *
  * Otherwise the first result's coordinates are used. A failure means no
  * coordinates, never a guess such as a city centre.
  */
+import cityCoords from "@/lib/data/city_coords.json";
+import { slugifyCity } from "./place-submission";
 import { normalizeText } from "./media-match";
 import { distanceMeters, type LatLng } from "./place-candidates";
 
 export const AMBIGUOUS_SPREAD_METERS = 1000;
 
-export type GeocodeCandidate = { formattedAddress: string; lat: number; lng: number; types?: readonly string[] };
+export const CITY_METRO_RADIUS_METERS = 40_000;
+export type GeocodeAddressComponent = { longText?: string; shortText?: string; types?: readonly string[] };
+export type GeocodeCandidate = { formattedAddress: string; lat: number; lng: number; types?: readonly string[]; addressComponents?: readonly GeocodeAddressComponent[] };
 
 export type GeocodeRejection = "not_street_level" | "no_result" | "ambiguous" | "wrong_city" | "wrong_country";
 
@@ -35,19 +39,63 @@ const COUNTRY_GROUPS: readonly string[][] = [
   ["turkey", "turkiye", "tr"],
   ["netherlands", "the netherlands", "holland", "nl"],
   ["czechia", "czech republic", "cz"],
+  ["japan", "jp", "日本"],
+  ["canada", "ca"],
+  ["germany", "de", "deutschland"],
 ];
 
+function geographicText(value: string): string {
+  return value.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+function countryName(value: string): string {
+  const normalized = geographicText(value);
+  if (/^[a-z]{2}$/.test(normalized)) {
+    try {
+      return geographicText(new Intl.DisplayNames(["en"], { type: "region" }).of(normalized.toUpperCase()) ?? normalized);
+    } catch { /* Explicit country groups also work on runtimes without region display names. */ }
+  }
+  return normalized;
+}
+
 function sameCountry(a: string, b: string): boolean {
-  const left = normalizeText(a);
-  const right = normalizeText(b);
+  const left = geographicText(a);
+  const right = geographicText(b);
   if (!left || !right) return false;
-  if (left === right) return true;
+  if (left === right || countryName(left) === countryName(right)) return true;
   return COUNTRY_GROUPS.some((group) => group.includes(left) && group.includes(right));
 }
 
 function namesCity(address: string, city: string): boolean {
   const wanted = normalizeText(city);
   return Boolean(wanted) && ` ${normalizeText(address)} `.includes(` ${wanted} `);
+}
+
+function cityName(value: string): string {
+  const normalized = geographicText(value).replace(/ (city|ku|shi|ward)$/, "");
+  return ["東京", "東京都"].includes(normalized) ? "tokyo" : normalized;
+}
+
+function matchesCity(candidate: GeocodeCandidate, city: string): boolean {
+  const wanted = cityName(city);
+  const named = candidate.addressComponents?.some((component) =>
+    component.types?.some((type) => /^(locality|postal_town|administrative_area_level_[123]|sublocality.*|neighborhood|colloquial_area)$/.test(type)) &&
+    [component.longText, component.shortText].some((text) => text && wanted && ` ${cityName(text)} `.includes(` ${wanted} `)),
+  );
+  const centre = (cityCoords as Record<string, LatLng>)[slugifyCity(city)];
+  return Boolean(named) || namesCity(candidate.formattedAddress, city) || Boolean(centre && distanceMeters(candidate, centre) <= CITY_METRO_RADIUS_METERS);
+}
+
+function matchesCountry(candidate: GeocodeCandidate, country: string): boolean {
+  const components = candidate.addressComponents?.filter((component) => component.types?.includes("country"));
+  if (components?.length) return components.some((component) =>
+    [component.shortText, component.longText].some((text) => text && sameCountry(text, country)),
+  );
+  // Country-first Japanese addresses and country-last Western addresses are both common.
+  return candidate.formattedAddress.split(/[,、，]/).flatMap((part) => [part, ...part.split(/[-−–—]/)]).some((part) => {
+    const text = geographicText(part).split(" ").filter((word) => !/\d/.test(word)).join(" ");
+    return sameCountry(text, country);
+  });
 }
 
 function valid(candidate: GeocodeCandidate): boolean {
@@ -87,14 +135,8 @@ export function judgeGeocode(results: readonly GeocodeCandidate[], expected: { c
   if (!top) return { ok: false, reason: "no_result" };
   if (!hasStreetLevelTypes(top.types)) return { ok: false, reason: "not_street_level" };
   if (usable.slice(1).some((other) => distanceMeters(top, other) > AMBIGUOUS_SPREAD_METERS)) return { ok: false, reason: "ambiguous" };
-  if (!namesCity(top.formattedAddress, expected.city)) return { ok: false, reason: "wrong_city" };
-  if (expected.country) {
-    // "7 Boundary St, London E2 7JE, UK", "Sheikh Zayed Rd - Dubai - United Arab Emirates": the country is the last
-    // part; words with digits in it are a postcode.
-    const last = top.formattedAddress.split(/,| - /).pop() ?? "";
-    const country = normalizeText(last).split(" ").filter((word) => !/\d/.test(word)).join(" ");
-    if (!sameCountry(country, expected.country)) return { ok: false, reason: "wrong_country" };
-  }
+  if (!matchesCity(top, expected.city)) return { ok: false, reason: "wrong_city" };
+  if (expected.country && !matchesCountry(top, expected.country)) return { ok: false, reason: "wrong_country" };
   return { ok: true, lat: top.lat, lng: top.lng };
 }
 
