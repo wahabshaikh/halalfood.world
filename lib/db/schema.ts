@@ -174,6 +174,7 @@ export const places = sqliteTable("places", {
   servesCuisine: text("serves_cuisine", { mode: "json" }).notNull().$type<string[]>(),
   lat: real("lat"),
   lng: real("lng"),
+  locationSource: text("location_source", { enum: ["scout", "geocoded", "google", "community", "import", "listing"] }),
   submittedByUserId: text("submitted_by_user_id"),
   listingStatus: text("listing_status", { enum: ["listed", "hidden", "closed"] }).notNull().default("listed"),
   googleDetailsSnapshot: text("google_details_snapshot"),

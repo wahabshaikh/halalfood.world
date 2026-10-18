@@ -93,7 +93,7 @@ over 256 KB get 413.
 | --- | --- |
 | `find_place` | Read-only. Ranked candidates for `name` near `lat`/`lng` (`radius_m`, default 300, max 2000) and/or in `city`, optionally by `google_place_id`. Each has `id`, `name`, `address`, `city`, `country`, `lat`, `lng`, `distance_m`, `url`, `score`, `matched_by` and `listing_status`. |
 | `upsert_creator` / `upsert_creators` | An unclaimed, claimable creator profile at `/u/<handle>` from a YouTube channel (`handle`, `channel_id`, `display_name`, `bio`, `avatar_url`, `banner_url`, `channel_url`, `subscriber_count`). |
-| `upsert_place` / `upsert_places` | Match first, else list a new place (`name`, `address`, `city`, `country`, optional `lat` + `lng`, `google_place_id`, `website`, `cuisine`, `force_new`, the four [sourced attributes](#scout-attributes), and `google_types` / `description` for the filters only). Returns `location` and, when attributes were sent, `attributes`. |
+| `upsert_place` / `upsert_places` | Match first, else list a new place (`name`, `address`, `city`, `country`, optional `lat` + `lng`, `google_place_id`, `website`, `cuisine`, `force_new`, the four [sourced attributes](#scout-attributes), and `google_types` / `description` for the filters only). Returns `location` and, when attributes were sent, `attributes`.  Coordinate repairs: `relocate`, optional `place_id`; returns `relocated` with previous/current or `relocate_refused`. |
 | `add_verification` / `add_verifications` | A creator (`@handle` or channel id) showed `place_id` in a video (`video_url`, `timestamp` as `83` or `"1:23"`, `date` as an ISO date, optional `title`). |
 | `remove_verification` | By `id`, or by `creator` + `place_id` + `video_url`. Removing one that isn't there returns `removed: false`. |
 
@@ -116,7 +116,7 @@ URLs on YouTube's image hosts (`yt3.ggpht.com`, `yt3.googleusercontent.com`, `i.
 (`instr()`, never `LIKE`: D1 caps LIKE patterns at 50 bytes) inside the radius's bounding box or in the same city.
 They are scored by name similarity with either distance or city plus street address (older rows may have
 approximate coordinates). At a score of 0.85 or more a candidate is the same place: `upsert_place` returns
-`result: "matched"` and only fills that place's empty columns (country, city, coordinates, website, Google id). A
+`result: "matched"` and fills that place's empty columns (country, city, coordinates, website, Google id), with guarded Scout coordinate repairs described below. A
 shared name in the same city without a matching street is never enough (chains). New places go live at once as Not
 checked yet, the same as a person adding one from Google Maps (#58's hold-for-review was retired in the four-fact
 redesign); they have no submitter, no points and no check.
@@ -133,22 +133,55 @@ cases the ranking still gets wrong. It can't create a second row with the same c
 `{ ok: false, error: "duplicate_place", existing_place_id }` rather than a 500 or a silent match. Change the name or
 address, or use `existing_place_id`.
 
-**Coordinates.** `lat` and `lng` are optional but go together. Without them, matching uses the city plus street
-address path, and a new place (or a matched place that has no coordinates) is geocoded once
-([`lib/scout/geocode.ts`](../lib/scout/geocode.ts)) with the Google key add-a-place search already uses
-(`GOOGLE_PLACES_API_KEY` / `GOOGLE_MAPS_API_KEY`; no new secret, service or binding). A `google_place_id` is looked up with
-Place Details (`formattedAddress,location`, on the `details:` daily cap); otherwise street, city and country go to Text
-Search (on the search daily cap). Each call reserves one unit of the same D1 caps (`GOOGLE_*_DAILY_CAP`) first, so
-Scout shares add-a-place's budget and can't exceed it. The answer is trusted only when
-([`lib/core/geocode-confidence.ts`](../lib/core/geocode-confidence.ts)): there is a result with valid coordinates; no
-other result is more than 1 km from the first; the first result's address names the city as whole words; and, when a
-country was sent, the address's last part is that country (names plus a few short forms: UK, GB, USA, UAE, …).
-Otherwise, or with no key, no budget or a provider error, the place is stored **without coordinates**. Coordinates are
-never guessed (no city centre). Such a place is listed on its city page and in search, has no map pin, no distance and
-no Nearby, its Directions link searches Google Maps by name and address, and its page says "Location pending". Sending
-`lat`/`lng` later fills the blank. The result says which path ran: `location` is `provided`, `geocoded`, `existing` (a
-matched place kept the coordinates it had) or `null`, and `geocode` gives the reason for `null` (`not_configured`,
-`budget_exhausted`, `provider_error`, `no_result`, `ambiguous`, `wrong_city`, `wrong_country`).
+**Coordinates.** `lat` and `lng` are optional but must be sent together. Without explicit coordinates,
+[`hasStreetAddress`](../lib/core/geocode-confidence.ts) requires a house number (1–4 digits, optional letter)
+with a remaining word of at least four letters, or a street word beyond the city, country and postcode.
+UK, Dutch, 5–6 digit and common country-specific four-digit postcodes are stripped. The conservative vocabulary includes street/st,
+road/rd, avenue/ave, lane/ln, drive/dr, boulevard/blvd, way, rue, strasse, calle, jalan and marg.
+Other numberless addresses can be false negatives: send confirmed coordinates instead. City-only inputs return
+`location: "null", geocode: "no_street_address"` without a Google call or budget reservation.
+
+Otherwise [`lib/scout/geocode.ts`](../lib/scout/geocode.ts) uses the existing Google key and daily caps.
+A `google_place_id` uses Place Details (`formattedAddress,location,types`, `details:` cap); otherwise the address,
+city and country use Text Search (`places.id,places.displayName,places.formattedAddress,places.location,places.types`,
+search cap). Each request reserves one unit first. Adding types keeps Details at Essentials and Text Search at its
+existing Pro tier; no contact/hours/Enterprise fields are requested
+([Google field/SKU table](https://developers.google.com/maps/documentation/places/web-service/data-fields), checked 2026-10-18).
+The top usable result must have types with venue/street precision. Any locality, sublocality*, administrative_area_level_*,
+postal_code*, postal_town, country, political, colloquial_area or neighborhood type rejects it as `not_street_level`.
+All route results are rejected, even with a number in the formatted address: a road centre is not a venue pin.
+Missing/empty types and generic point_of_interest/geocode alone also fail. Street_address, premise,
+establishment and venue types (such as restaurant) qualify. The existing checks still apply: valid coordinates,
+no other usable result more than 1 km away, whole-word city match, and a matching country when supplied.
+
+Failures on new/unlocated places store null coordinates: listed in city/search, without map pin, distance or Nearby,
+with name/address Directions and "Location pending". Reasons are `no_street_address`, `not_street_level`,
+`not_configured`, `budget_exhausted`, `provider_error`, `no_result`, `ambiguous`, `wrong_city`, `wrong_country`.
+Failures when correcting a located place keep its pin and return `existing` with the failure reason.
+
+`places.location_source` records `scout` (explicit Scout coordinates), `geocoded` (Scout server geocode),
+`google` (Google add-a-place), or `import` (seed/coordinate backfills). `community` and `listing` are valid protected
+sources reserved for coordinate writers: current community/owner/moderator edits and listing-signal imports do not
+write coordinates. Migration 0006 only adds the nullable column, with **no backfill**: all old rows remain NULL
+(unknown/protected), since no-submitter rows include imports.
+
+On match, a wholly absent coordinate pair can be filled. Partial protected pairs keep their existing coordinate. Existing `scout`/`geocoded` pins can be corrected with explicit
+coordinates or a street address that passes geocode confidence. An explicit Scout pin whose stored address is already
+street-level requires `relocate: true` before replacing it with a geocode; a fresh geocode alone cannot prove it more
+precise. `relocate: true` (also per item in `upsert_places`) overrides that comparison, never confidence or protected
+sources. `community`, `google`, `import`, `listing` and unknown sources stay protected. The sole legacy exception:
+explicit relocation of an unknown-source, no-submitter place with a Scout **creation** audit (`mcp:scout`,
+`listing.changed`, target `listing/directory`, JSON `change: place-added`, `placeId` equal to this place).
+Claims/verifications do not prove creation. Missing audit means protected. A conditional write checks the old pin
+and source again, so a concurrent change wins. Corrections update the street address when street-level, preserve
+`city_slug`/URL refresh coordinate Directions links and bump the listing cache version.
+
+Results use `location: provided | geocoded | existing | null | relocated`. `relocated` includes `previous` and
+`current` (`{lat, lng, source}`); refused corrections return `existing` and `relocate_refused` (`protected_source`,
+`no_street_address`, `not_more_precise`, `location_changed`, or the geocode failure).
+For a precise repair when the new address would defeat normal matching, send `place_id` (existing UUID) with
+`relocate: true`, without `force_new`; an unknown id fails instead of creating a row. Normal matching is unchanged.
+See the [candidate SQL and repair runbook](runbooks/scout-relocate.md).
 
 <a id="scout-attributes"></a>**Attributes.** `upsert_place` takes four optional sourced attributes, each
 `{ value: "yes" | "no" | "unknown", source_url }` (`source_url` an https URL, required for yes and no):

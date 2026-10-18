@@ -7,14 +7,14 @@
  * lib/core/place-candidates.ts ranks them.
  *
  * upsert_place treats a candidate at SAME_PLACE_SCORE or above as the place,
- * fills only its empty columns, and otherwise lists a new place at once as
+ * fills its empty columns and repairs eligible Scout pins, or lists a new place at once as
  * "Not checked yet", the same as a person adding one from Google Maps (the
  * pending-review hold from #58 was retired with the four-fact redesign).
  * Scout-created places carry no submitter, no points and no check.
  *
  * lat/lng are optional. Without them, matching uses the city and street
  * address, and a new place (or a matched one with no coordinates) is
- * geocoded once through ./geocode.ts. When that isn't confident the place is
+ * geocoded through ./geocode.ts. Eligible Scout pins can also be relocated. When that isn't confident the place is
  * stored without coordinates: it is listed on its city page and in search,
  * but has no map pin, distance or Nearby, and its page says the location is
  * pending. Coordinates are never guessed. `location` in the result says which
@@ -32,6 +32,9 @@
  */
 import { sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
+import { placeIdParam } from "@/lib/core/params";
+import { hasStreetAddress } from "@/lib/core/geocode-confidence";
+import { locationSource, type LocationSource } from "@/lib/core/location-source";
 import { ingestRejection } from "@/lib/core/ingest-filters";
 import {
   clampRadius,
@@ -95,23 +98,27 @@ export const upsertPlaceInput = z.object({
   lat: z.number().min(-90).max(90).optional().describe("Send with lng. Without both, the place is geocoded from address, city and country."),
   lng: z.number().min(-180).max(180).optional(),
   google_place_id: googlePlaceId.optional(),
+  place_id: z.string().trim().refine((value) => Boolean(placeIdParam(value)), "Send a valid place id.").optional().describe("Exact existing place to repair; requires relocate: true and cannot be combined with force_new."),
+  relocate: z.boolean().optional().describe("Explicitly replace a Scout pin, including an unknown-source legacy pin only when its Scout creation audit exists. Protected sources are never overwritten."),
   force_new: z.boolean().optional().describe("Skip matching and always list a new place, e.g. a stall inside a food hall that matched the hall."),
   website: z.string().trim().max(500).optional().describe("https URL of the place's own site."),
   cuisine: z.union([text(60), z.array(text(60)).max(8)]).optional(),
   google_types: z.array(text(60)).max(30).optional().describe("Google place types, if known: used only by the ingest filters (bar, pub, …)."),
   description: z.string().max(2000).optional().describe("Used only by the ingest filters; not stored."),
   ...claimAttributesInput,
-}).refine((value) => (value.lat === undefined) === (value.lng === undefined), { message: "Send lat and lng together, or neither." });
+}).refine((value) => (value.lat === undefined) === (value.lng === undefined), { message: "Send lat and lng together, or neither." }).refine((value) => !value.place_id || (value.relocate === true && !value.force_new), { message: "place_id requires relocate: true without force_new." });
 export type UpsertPlaceInput = z.infer<typeof upsertPlaceInput>;
 
 /**
  * Where the place's coordinates came from in this call: the input, Google, the
  * matched row (untouched), or nowhere (stored without them).
  */
-export type LocationOutcome = "provided" | "geocoded" | "existing" | "null";
-type Located = { location: LocationOutcome; geocode?: GeocodeFailure };
+export type LocationOutcome = "provided" | "geocoded" | "existing" | "null" | "relocated";
+type LocationSnapshot = { lat: number | null; lng: number | null; source: LocationSource | null };
+type Located = { location: LocationOutcome; geocode?: GeocodeFailure; previous?: LocationSnapshot; current?: LocationSnapshot; relocate_refused?: "protected_source" | "no_street_address" | "not_more_precise" | "location_changed" | GeocodeFailure };
 
 type PlaceRow = CandidateRow & {
+  locationSource: LocationSource | null;
   addressCountry: string | null;
   listingStatus: string;
   website: string | null;
@@ -130,7 +137,7 @@ export type PlaceSummary = {
   url: string;
 };
 
-export type FoundPlace = PlaceSummary & { score: number; distance_m: number | null; matched_by: RankedCandidate<PlaceRow>["matchedBy"] };
+export type FoundPlace = PlaceSummary & { score: number; distance_m: number | null; matched_by: RankedCandidate<PlaceRow>["matchedBy"] | "place_id" };
 
 export type Rejection = { ok: false; error: "rejected"; rejected: "ahmadiyya" | "alcohol_led"; reason: string; message: string };
 export type PlaceFailure = { ok: false; error: string; message: string } | Rejection;
@@ -144,6 +151,7 @@ export type UpsertPlaceResult =
 function toRow(row: Record<string, unknown>): PlaceRow {
   const num = (value: unknown) => (value === null || value === undefined ? null : Number(value));
   return {
+    locationSource: locationSource(row.location_source),
     id: String(row.id),
     name: String(row.name),
     citySlug: String(row.city_slug),
@@ -174,7 +182,7 @@ export function placeSummary(origin: string, row: PlaceRow): PlaceSummary {
 }
 
 const COLUMNS = sql`p.id, p.name, p.city_slug, p.street_address, p.address_locality, p.address_country, p.lat, p.lng,
-  p.google_place_id, p.listing_status, p.website`;
+  p.google_place_id, p.listing_status, p.website, p.location_source`;
 
 async function candidateRows(deps: ScoutDeps, query: PlaceQuery): Promise<PlaceRow[]> {
   const terms = nameSearchTerms(query.name);
@@ -249,7 +257,7 @@ async function placeById(deps: ScoutDeps, id: string): Promise<PlaceRow | null> 
 }
 
 /** Fill a matched place's empty columns. Never overwrites what is there. */
-async function fillBlanks(deps: ScoutDeps, place: PlaceRow, input: UpsertPlaceInput, website: string | null, coordinates: LatLng | null): Promise<string[]> {
+async function fillBlanks(deps: ScoutDeps, place: PlaceRow, input: UpsertPlaceInput, website: string | null): Promise<string[]> {
   const filled: string[] = [];
   const sets: SQL[] = [];
   if (!place.addressCountry) {
@@ -259,10 +267,6 @@ async function fillBlanks(deps: ScoutDeps, place: PlaceRow, input: UpsertPlaceIn
   if (!place.addressLocality) {
     sets.push(sql`address_locality = ${input.city}`);
     filled.push("city");
-  }
-  if ((place.lat === null || place.lng === null) && coordinates) {
-    sets.push(sql`lat = ${coordinates.lat}, lng = ${coordinates.lng}`);
-    filled.push("lat", "lng");
   }
   if (!place.website && website) {
     sets.push(sql`website = ${website}`);
@@ -293,17 +297,61 @@ export async function upsertPlace(deps: ScoutDeps, input: UpsertPlaceInput): Pro
   const geocode = () => geocodePlace(deps, { address: input.address, city: input.city, country: input.country, googlePlaceId: input.google_place_id });
 
   const matched = async (row: PlaceRow, by: FoundPlace["matched_by"], score: number): Promise<UpsertPlaceResult> => {
-    // A matched place with coordinates keeps them; one without gets the input's, or Google's.
+    const missing = row.lat === null || row.lng === null;
+    const owned = row.locationSource === "scout" || row.locationSource === "geocoded";
+    // Claims/verifications can be attached to imported or community places too.
+    const [legacy] = input.relocate && row.locationSource === null && !missing
+      ? await deps.db.all<{ id: string }>(sql`
+          SELECT p.id FROM places p WHERE p.id = ${row.id} AND p.submitted_by_user_id IS NULL
+          AND EXISTS (SELECT 1 FROM audit_log a WHERE a.actor_user_id = 'mcp:scout'
+            AND a.action = 'listing.changed' AND a.target_type = 'listing' AND a.target_id = 'directory'
+            AND json_valid(a.after_value)
+            AND json_extract(a.after_value, '$.change') = 'place-added'
+            AND json_extract(a.after_value, '$.placeId') = p.id) LIMIT 1
+        `) : [];
+    const permitted = (row.lat === null && row.lng === null) || owned || Boolean(legacy);
+    const precise = Boolean(provided) || hasStreetAddress(input);
     let located: Located = { location: "existing" };
     let coordinates: LatLng | null = null;
-    if (row.lat === null || row.lng === null) {
-      if (provided) [coordinates, located] = [provided, { location: "provided" }];
-      else {
+    let source: LocationSource | null = null;
+    if (!permitted) located.relocate_refused = "protected_source";
+    else if (!missing && !precise) located.relocate_refused = "no_street_address";
+    else {
+      if (provided) {
+        coordinates = provided;
+        source = "scout";
+        located = { location: "provided" };
+      } else {
         const found = await geocode();
-        [coordinates, located] = found.ok ? [found, { location: "geocoded" }] : [null, { location: "null", geocode: found.reason }];
+        if (found.ok) {
+          coordinates = found;
+          source = "geocoded";
+          located = { location: "geocoded" };
+        } else located = missing ? { location: "null", geocode: found.reason } : { location: "existing", geocode: found.reason, relocate_refused: found.reason };
+      }
+      // Explicit coordinates establish precision; geocoding repairs a city-only
+      // address or an earlier geocode. Replacing an explicit Scout pin with a
+      // geocode of an already street-level address needs the deliberate override.
+      if (coordinates && !missing && !input.relocate && !provided && row.locationSource === "scout" && hasStreetAddress({ address: row.streetAddress, city: row.addressLocality ?? input.city, country: row.addressCountry })) {
+        coordinates = null;
+        located = { location: "existing", relocate_refused: "not_more_precise" };
       }
     }
-    const filled = await fillBlanks(deps, row, input, website, coordinates);
+    const filled = await fillBlanks(deps, row, input, website);
+    if (coordinates) {
+      const updated = await deps.db.all<{ id: string }>(sql`
+        UPDATE places SET lat = ${coordinates.lat}, lng = ${coordinates.lng}, location_source = ${source},
+          street_address = ${hasStreetAddress(input) ? input.address.replace(/\s+/g, " ") : row.streetAddress},
+          maps_url = ${row.googlePlaceId ? googlePlaceMapsUrl(row.googlePlaceId) : `https://www.google.com/maps/search/?api=1&query=${coordinates.lat},${coordinates.lng}`}, updated_at = ${deps.now()}
+        WHERE id = ${row.id} AND lat IS ${row.lat} AND lng IS ${row.lng} AND location_source IS ${row.locationSource} AND street_address IS ${row.streetAddress}
+        RETURNING id
+      `);
+      if (!updated.length) {
+        coordinates = null;
+        located = { location: "existing", relocate_refused: "location_changed" };
+      } else if (missing) filled.push("lat", "lng");
+      else located = { location: "relocated", previous: { lat: row.lat, lng: row.lng, source: row.locationSource }, current: { lat: coordinates.lat, lng: coordinates.lng, source } };
+    }
     const claims = await applyClaims(deps, row.id, input);
     // Claims move a place in and out of filtered listings.
     if (claims.changed || coordinates)
@@ -329,6 +377,12 @@ export async function upsertPlace(deps: ScoutDeps, input: UpsertPlaceInput): Pro
         }
       : null;
   };
+
+  if (input.place_id) {
+    const row = await placeById(deps, placeIdParam(input.place_id)!);
+    if (!row) return { ok: false, error: "place_not_found", message: "That place is no longer listed. Check the place id." };
+    return matched(row, "place_id", 1);
+  }
 
   if (input.force_new) {
     const taken = await duplicate();
@@ -367,6 +421,7 @@ export async function upsertPlace(deps: ScoutDeps, input: UpsertPlaceInput): Pro
             : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coordinates ? `${coordinates.lat},${coordinates.lng}` : `${name}, ${address}, ${input.city}, ${input.country}`)}`,
           googlePlaceId: input.google_place_id ?? null,
           servesCuisine,
+          locationSource: coordinates ? provided ? "scout" : "geocoded" : null,
           lat: coordinates?.lat ?? null,
           lng: coordinates?.lng ?? null,
           submittedByUserId: null,

@@ -1,4 +1,5 @@
 import { sql, type SQL } from "drizzle-orm";
+import { locationSource, type LocationSource } from "@/lib/core/location-source";
 import { citySlugParam } from "@/lib/core/params";
 import {
   FACTS,
@@ -169,6 +170,7 @@ function placeEvidence(row: Record<string, unknown>): Record<Fact, string> {
 }
 
 export type CreatePlaceInput = {
+  locationSource?: LocationSource | null;
   name: string;
   citySlug: string;
   streetAddress: string;
@@ -188,12 +190,13 @@ export function createPlaceStatements(input: CreatePlaceInput, id: string, now: 
   return [
     sql`INSERT INTO places (
       id, name, city_slug, street_address, address_locality, address_country, maps_url,
-      google_place_id, serves_cuisine, lat, lng, submitted_by_user_id, listing_status,
+      google_place_id, serves_cuisine, lat, lng, location_source, submitted_by_user_id, listing_status,
       created_at, updated_at
     ) VALUES (
       ${id}, ${input.name}, ${input.citySlug}, ${input.streetAddress}, ${input.addressLocality},
       ${input.addressCountry}, ${input.mapsUrl}, ${input.googlePlaceId},
       ${JSON.stringify(input.servesCuisine)}, ${input.lat}, ${input.lng},
+      ${input.lat !== null && input.lng !== null ? locationSource(input.locationSource) : null},
       ${input.submittedByUserId}, 'listed', ${now}, ${now}
     )`,
     sql`INSERT INTO place_status (place_id, status, progress, eligible_checks, updated_at)
@@ -463,7 +466,7 @@ export async function updatePlaceCoordinatesIfMissing(
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return false;
   const db = await database();
   const rows = await db.all<{ id: string }>(sql`
-    UPDATE places SET lat = ${lat}, lng = ${lng}, updated_at = ${Date.now()}
+    UPDATE places SET lat = ${lat}, lng = ${lng}, location_source = 'import', updated_at = ${Date.now()}
     WHERE id = ${id} AND google_place_id = ${googlePlaceId} AND listing_status = 'listed'
       AND (lat IS NULL OR lng IS NULL)
     RETURNING id

@@ -907,7 +907,7 @@ function googleDeps(s: ReturnType<typeof setup>, respond: () => Response | Promi
   return { deps: { ...s.deps, google: { apiKey: "test-key", searchCap: 10, detailsCap: 10 } } satisfies ScoutDeps, calls };
 }
 const googleJson = (value: unknown) => new Response(JSON.stringify(value), { status: 200 });
-const DISHOOM_RESULT = { places: [{ id: "ChIJdishoom1", displayName: { text: "Dishoom" }, formattedAddress: "7 Boundary St, London E2 7JE, UK", location: { latitude: 51.5245, longitude: -0.0768 } }] };
+const DISHOOM_RESULT = { places: [{ types: ["establishment"], id: "ChIJdishoom1", displayName: { text: "Dishoom" }, formattedAddress: "7 Boundary St, London E2 7JE, UK", location: { latitude: 51.5245, longitude: -0.0768 } }] };
 
 test("without lat/lng and without a Google key, a place is listed with no coordinates, never guessed ones", async () => {
   const { deps, sqlite } = setup();
@@ -1015,4 +1015,142 @@ test("force_new is per item in a batch", async () => {
   });
   assert.deepEqual(out.body.results.map((r: { result?: string; error?: string }) => r.result ?? r.error), ["created", "duplicate_place", "matched"]);
   assert.equal(count(sqlite, "SELECT count(*) AS n FROM places"), 1);
+});
+
+test("city-only MCP input leaves location pending", async () => {
+  const { environment, sqlite } = mcpEnv();
+  const out = await call(environment, "upsert_place", noCoords({ address: "London, United Kingdom" }));
+  assert.equal(out.body.location, "null");
+  assert.equal(out.body.geocode, "no_street_address");
+  assert.equal((sqlite.prepare("SELECT location_source FROM places").get() as { location_source: unknown }).location_source, null);
+});
+
+test("Scout sources relocate with a street address or explicit coordinates and keep city identity", async () => {
+  for (const source of ["scout", "geocoded"]) {
+    const s = setup();
+    const created = await upsertPlace(s.deps, place({ google_place_id: "ChIJdishoom1" }));
+    assert.ok(created.ok);
+    s.sqlite.prepare("UPDATE places SET location_source = ?, street_address = 'London', city_slug = 'greater-london' WHERE id = ?").run(source, created.place.id);
+    const good = googleDeps(s, () => googleJson(DISHOOM_RESULT.places[0]));
+    const result = await call({ secret: SECRET, deps: async () => good.deps }, "upsert_place", noCoords({ google_place_id: "ChIJdishoom1" }));
+    assert.equal(result.body.location, "relocated");
+    assert.deepEqual(result.body.previous, { ...LONDON, source });
+    assert.deepEqual(result.body.current, { lat: 51.5245, lng: -0.0768, source: "geocoded" });
+    const row = s.sqlite.prepare("SELECT * FROM places WHERE id = ?").get(created.place.id) as Record<string, unknown>;
+    assert.equal(row.city_slug, "greater-london");
+    assert.equal(row.street_address, place().address);
+    assert.equal(row.location_source, "geocoded");
+    assert.ok(count(s.sqlite, "SELECT count(*) AS n FROM audit_log WHERE actor_user_id = 'mcp:scout'") >= 2);
+    const forced = await upsertPlace(good.deps, place({ address: "London", google_place_id: "ChIJdishoom1", relocate: true }));
+    assert.ok(forced.ok);
+    assert.equal(forced.location, "relocated");
+    assert.equal(forced.current?.source, "scout");
+    vi.unstubAllGlobals();
+  }
+});
+
+test("protected sources refuse relocation; a Scout creation audit is required for legacy unknown sources", async () => {
+  for (const source of ["community", "google", "import", "listing", null]) {
+    const s = setup();
+    const id = addPlace(s.sqlite, { name: place().name, city: "london", googlePlaceId: "ChIJdishoom1" });
+    s.sqlite.prepare("UPDATE places SET location_source = ? WHERE id = ?").run(source, id);
+    for (const relocate of [false, true]) {
+      const out = await call({ secret: SECRET, deps: async () => s.deps }, "upsert_place", place({ google_place_id: "ChIJdishoom1", relocate }));
+      assert.equal(out.body.location, "existing");
+      assert.equal(out.body.relocate_refused, "protected_source");
+      assert.equal((out.body.place as { lat: number }).lat, 19.06);
+    }
+  }
+  const s = setup();
+  const created = await upsertPlace(s.deps, place({ google_place_id: "ChIJdishoom1" }));
+  assert.ok(created.ok);
+  s.sqlite.prepare("UPDATE places SET location_source = NULL WHERE id = ?").run(created.place.id);
+  const refused = await upsertPlace(s.deps, place({ google_place_id: "ChIJdishoom1" }));
+  assert.ok(refused.ok && refused.location === "existing");
+  const forced = await upsertPlace(s.deps, place({ google_place_id: "ChIJdishoom1", relocate: true }));
+  assert.ok(forced.ok && forced.location === "relocated");
+  assert.equal(forced.previous?.source, null);
+});
+
+test("location sources describe explicit and geocoded creation", async () => {
+  const s = setup();
+  const first = await upsertPlace(s.deps, place());
+  assert.ok(first.ok);
+  assert.equal((s.sqlite.prepare("SELECT location_source FROM places WHERE id = ?").get(first.place.id) as { location_source: string }).location_source, "scout");
+  const good = googleDeps(s, () => googleJson(DISHOOM_RESULT));
+  const second = await upsertPlace(good.deps, noCoords({ force_new: true, name: "Another Cafe" }));
+  assert.ok(second.ok);
+  assert.equal((s.sqlite.prepare("SELECT location_source FROM places WHERE id = ?").get(second.place.id) as { location_source: string }).location_source, "geocoded");
+  vi.unstubAllGlobals();
+});
+
+test("explicit relocation targets a legacy city pin by id without weakening chain matching", async () => {
+  const s = setup();
+  const first = await upsertPlace(s.deps, noCoords({ address: "London" }));
+  assert.ok(first.ok);
+  const out = await call({ secret: SECRET, deps: async () => s.deps }, "upsert_places", { places: [place({ place_id: first.place.id, relocate: true })] });
+  const results = out.body.results as { location: string; place: { id: string } }[];
+  assert.equal(results[0]?.location, "provided");
+  assert.equal(results[0]?.place.id, first.place.id);
+  assert.equal(count(s.sqlite, "SELECT count(*) AS n FROM places"), 1);
+});
+
+test("forced relocation still requires trusted coordinates and refreshes coordinate Directions", async () => {
+  const s = setup();
+  const created = await upsertPlace(s.deps, place());
+  assert.ok(created.ok);
+  const street = googleDeps(s, () => googleJson(DISHOOM_RESULT));
+  const ordinary = await upsertPlace(street.deps, noCoords());
+  assert.ok(ordinary.ok && ordinary.location === "existing");
+  assert.equal(ordinary.relocate_refused, "not_more_precise");
+  const forced = await upsertPlace(street.deps, noCoords({ place_id: created.place.id, relocate: true }));
+  assert.ok(forced.ok && forced.location === "relocated");
+  const maps = (s.sqlite.prepare("SELECT maps_url FROM places WHERE id = ?").get(created.place.id) as { maps_url: string }).maps_url;
+  assert.ok(maps.includes("51.5245,-0.0768") || maps.includes("51.5245%2C-0.0768"));
+  const city = await upsertPlace(street.deps, noCoords({ address: "London", place_id: created.place.id, relocate: true }));
+  assert.ok(city.ok && city.location === "existing");
+  assert.equal(city.relocate_refused, "no_street_address");
+  const bad = googleDeps(s, () => googleJson({ places: [{ ...DISHOOM_RESULT.places[0], types: ["locality"] }] }));
+  const refused = await upsertPlace(bad.deps, noCoords({ place_id: created.place.id, relocate: true }));
+  assert.ok(refused.ok && refused.location === "existing");
+  assert.equal(refused.geocode, "not_street_level");
+  assert.equal(refused.place.lat, 51.5245);
+  vi.unstubAllGlobals();
+});
+
+test("a concurrent protected location change wins over in-flight geocoding", async () => {
+  const s = setup();
+  const first = await upsertPlace(s.deps, place());
+  assert.ok(first.ok);
+  const google = googleDeps(s, () => {
+    s.sqlite.prepare("UPDATE places SET lat = 51.6, location_source = 'community' WHERE id = ?").run(first.place.id);
+    return googleJson(DISHOOM_RESULT);
+  });
+  const out = await upsertPlace(google.deps, noCoords({ place_id: first.place.id, relocate: true }));
+  assert.ok(out.ok && out.location === "existing");
+  assert.equal(out.relocate_refused, "location_changed");
+  assert.equal(out.place.lat, 51.6);
+  vi.unstubAllGlobals();
+});
+
+test("repair ids are validated and never create a replacement row", async () => {
+  const { environment, sqlite } = mcpEnv();
+  for (const input of [place({ place_id: "invalid", relocate: true }), place({ place_id: crypto.randomUUID() }), place({ place_id: crypto.randomUUID(), relocate: true, force_new: true })]) {
+    assert.equal((await call(environment, "upsert_place", input)).isError, true);
+  }
+  const out = await call(environment, "upsert_place", place({ place_id: crypto.randomUUID(), relocate: true }));
+  assert.equal(out.body.error, "place_not_found");
+  assert.equal(count(sqlite, "SELECT count(*) AS n FROM places"), 0);
+});
+
+test("partial protected coordinate pairs keep their existing coordinate and source", async () => {
+  for (const source of ["community", "google", "import", "listing", null]) {
+    const s = setup();
+    const id = addPlace(s.sqlite, { lat: null, googlePlaceId: "ChIJdishoom1" });
+    s.sqlite.prepare("UPDATE places SET location_source = ? WHERE id = ?").run(source, id);
+    const out = await upsertPlace(s.deps, place({ place_id: id, relocate: true }));
+    assert.ok(out.ok && out.location === "existing");
+    assert.equal(out.relocate_refused, "protected_source");
+    assert.deepEqual({ ...s.sqlite.prepare("SELECT lat, lng, location_source FROM places WHERE id = ?").get(id) }, { lat: null, lng: 72.83, location_source: source });
+  }
 });

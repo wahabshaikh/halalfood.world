@@ -42,11 +42,12 @@ test("a new place goes live at once, and answers count as check 1", async () => 
   assert.ok(result.ok);
   if (!result.ok) return;
   assert.equal(result.status, "checking");
-  const place = sqlite.prepare(`SELECT name, city_slug, listing_status, lat FROM places WHERE id = ?`).get(result.id) as Record<string, unknown>;
+  const place = sqlite.prepare(`SELECT name, city_slug, listing_status, lat, location_source FROM places WHERE id = ?`).get(result.id) as Record<string, unknown>;
   assert.equal(place.name, "Zaitoon Kitchen");
   assert.equal(place.city_slug, "mumbai");
   assert.equal(place.listing_status, "listed");
   assert.equal(place.lat, 19.05);
+  assert.equal(place.location_source, "google");
   const points = sqlite.prepare(`SELECT kind FROM points WHERE user_id = 'adder' ORDER BY kind`).all() as { kind: string }[];
   assert.deepEqual(points.map((row) => row.kind), ["check", "place-added"]);
 });
