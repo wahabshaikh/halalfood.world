@@ -585,3 +585,18 @@ export const whopWebhookEvents = sqliteTable("whop_webhook_events", {
   type: text("type").notNull(),
   receivedAt: ms("received_at").notNull(),
 });
+
+export const whopMemberships = sqliteTable("whop_memberships", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => authUser.id, { onDelete: "set null" }),
+  whopUserId: text("whop_user_id"),
+  productId: text("product_id"),
+  planId: text("plan_id"),
+  status: text("status").notNull(),
+  cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" }).notNull(),
+  currentPeriodEnd: ms("current_period_end"),
+  manageUrl: text("manage_url"),
+  eventAt: ms("event_at").notNull(),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});
