@@ -71,6 +71,19 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 
 Every write needs a session and spends a per-user and per-IP budget (checks 20 a day, places 10, recs 30, reports 10, comments 100). Reads that show checks apply one visibility rule: unshared checks are the author's alone, nothing crosses a block, and a private account's checks show only to accepted followers. `tests/check-visibility-audit.test.ts` fails if a query over `checks` doesn't say which audience it serves.
 
+#### Member MCP (public, read-only)
+
+`POST /api/mcp/member` is the public member MCP endpoint (`halalfood-world`), separate from Scout.
+It needs no session or admin token and exposes only `search_places` (query 1–64 characters, optional city slug,
+limit 1–10, default 10) and `get_place` (place id). Both reuse the public listed-place read paths and return only
+id, name, city slug, area, cuisine, halal status, the four facts and a canonical place URL. City prioritizes
+results rather than filtering them. No people, check authors, emails or Google snapshots are exposed.
+The transport is stateless JSON-RPC over POST; GET/DELETE return 405, bodies over 64 KB return 413 (including
+streamed bodies), and all responses use `Cache-Control: no-store`. Halal status comes from community checks
+and reviewed documents; bulk scraping is prohibited. Reads are limited per client IP by the `MEMBER_MCP_READ_LIMITER`
+binding (60 a minute, namespaces 81004 / preview 81104); over it the endpoint answers 429.
+See [member-mcp.md](member-mcp.md) for client setup.
+
 ## Halal Food Scout (admin MCP)
 
 Halal Food Scout is a bot that finds halal food YouTube creators and records which places they verify in their
