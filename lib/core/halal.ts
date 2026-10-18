@@ -3,15 +3,16 @@
  *
  * 1. A fact is one of four questions: Muslim-owned, Halal certified, Serves
  *    pork, Serves alcohol.
- * 2. Evidence comes from four sources (docs/spec/halal-model.md):
+ * 2. Evidence comes from five sources (docs/spec/halal-model.md):
  *    - community checks: a fact settles when at least three of the newest
  *      definite answers agree, and the count keeps growing past three;
  *    - a halal certificate, reviewed by a moderator and not expired, settles
  *      "Halal certified";
  *    - a menu, reviewed by a moderator, settles "Serves pork" and "Serves
  *      alcohol" for the answers it shows;
- *    - map listings (OpenStreetMap through Overpass, Geoapify) supply a value
- *      when nothing else does, but never settle a fact on their own.
+ *    - web claims from Halal Food Scout (a value with its source URL) and map
+ *      listings (OpenStreetMap through Overpass, Geoapify) supply a value when
+ *      no check or document does, but never settle a fact on their own.
  * 3. When settling sources disagree the fact is disputed, not settled.
  * 4. A place is Verified when all four facts are settled.
  *
@@ -30,7 +31,7 @@ export type Definite = "yes" | "no";
 /** The fewest matching community answers that settle a fact. More keep counting. */
 export const MATCHES_TO_SETTLE = 3;
 
-export const SOURCES = ["community", "certificate", "menu", "listing"] as const;
+export const SOURCES = ["community", "certificate", "menu", "listing", "scout"] as const;
 export type Source = (typeof SOURCES)[number];
 
 /** Sources a moderator reviews before they count. Each settles the facts it answers. */
@@ -42,6 +43,7 @@ export const SOURCE_FACTS: Record<Exclude<Source, "community">, readonly Fact[]>
   certificate: ["certified"],
   menu: ["pork", "alcohol"],
   listing: ["pork"],
+  scout: FACTS,
 };
 
 /** What a map listing says about halal food, from OpenStreetMap's `diet:halal`. */
@@ -84,12 +86,12 @@ export function factState(answersNewestFirst: readonly Answer[]): FactState {
   return { value, streak, settled: streak >= MATCHES_TO_SETTLE };
 }
 
-/** Evidence other than community checks: an approved document or a map listing. */
+/** Evidence other than community checks: an approved document, a map listing or a web claim. */
 export type Signal = {
   source: Exclude<Source, "community">;
   fact: Fact;
   value: Definite;
-  /** When it was approved (documents) or fetched (listings). */
+  /** When it was approved (documents), fetched (listings) or last written (web claims). */
   at: number;
   /** Certificates lapse; an expired one stops counting. */
   expiresAt?: number | null;
@@ -113,7 +115,8 @@ function latestSignals(signals: readonly Signal[], fact: Fact, now: number): Sig
  * Settling sources are three or more agreeing checks and moderator-reviewed
  * documents. If they all agree the fact is settled; if they disagree it is
  * disputed and takes the newest settling answer. With nothing settling, the
- * community value wins over a listing.
+ * community value wins, then a web claim (it cites a page for this fact),
+ * then a listing. Neither a web claim nor a listing ever settles a fact.
  */
 export function resolveFact(
   community: FactState,
@@ -138,7 +141,11 @@ export function resolveFact(
     settled = !disputed;
     value = [...settling].sort((a, b) => b.at - a.at)[0].value;
   } else {
-    value = community.value ?? live.find((signal) => signal.source === "listing")?.value ?? null;
+    value =
+      community.value ??
+      live.find((signal) => signal.source === "scout")?.value ??
+      live.find((signal) => signal.source === "listing")?.value ??
+      null;
   }
 
   const sources = SOURCES.filter((source) => {
@@ -151,8 +158,8 @@ export function resolveFact(
 
 export function placeStatus(facts: Facts, eligibleCheckCount: number): PlaceStatus {
   if (FACTS.every((fact) => facts[fact].settled)) return { kind: "verified" };
-  // A listing alone never moves a place off "Not checked yet"; checks and
-  // reviewed documents do.
+  // A listing or web claim alone never moves a place off "Not checked yet";
+  // checks and reviewed documents do.
   const reviewed = FACTS.some((fact) => facts[fact].settled);
   if (eligibleCheckCount <= 0 && !reviewed) return { kind: "unchecked" };
   // A fact settled by a document counts as fully checked here.
@@ -336,6 +343,7 @@ export const SOURCE_LABEL: Record<Source, string> = {
   certificate: "Halal certificate",
   menu: "Menu",
   listing: "Map listing",
+  scout: "Web source",
 };
 
 /** Store a fact's sources as a comma list, and read them back leniently. */

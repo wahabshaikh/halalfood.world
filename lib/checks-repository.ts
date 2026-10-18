@@ -1,6 +1,7 @@
 /**
  * Checks are the main input to halal status; reviewed certificates and menus
- * and map listings (`place_signals`) are the others. Writing a check stores it
+ * and map listings (`place_signals`) and Scout's web claims (`place_claims`)
+ * are the others. Writing a check stores it
  * with its dishes and photos, recomputes the place's `place_status`
  * projection from every source, records any change, and awards points
  * (spec §2, §10; docs/spec/halal-model.md).
@@ -20,6 +21,7 @@ import {
   type Signal,
 } from "@/lib/core/halal";
 import type { CheckInput, Verdict } from "@/lib/core/check";
+import { parseStoredClaim } from "@/lib/core/place-claims";
 import { POINTS, pointDay } from "@/lib/core/points";
 import { database } from "@/lib/db";
 
@@ -111,7 +113,8 @@ export type SignalsForStatus = { signals: Signal[]; listingClaim: ListingClaim |
 
 /**
  * Approved evidence besides checks, one `Signal` per fact each row answers.
- * Pending and rejected documents never count.
+ * Pending and rejected documents never count. Web claims count as written:
+ * like listings, they never settle a fact (lib/core/halal.ts).
  */
 export async function loadSignalsForStatus(db: DatabaseClient, placeId: string): Promise<SignalsForStatus> {
   const rows = await db.all<Record<string, unknown>>(sql`
@@ -135,6 +138,13 @@ export async function loadSignalsForStatus(db: DatabaseClient, placeId: string):
       listingClaim = claim;
       listingAt = at;
     }
+  }
+  const claims = await db.all<Record<string, unknown>>(sql`
+    SELECT fact, value, source_url, certifier, updated_at FROM place_claims WHERE place_id = ${placeId} AND source = 'scout'
+  `);
+  for (const row of claims) {
+    const claim = parseStoredClaim(row);
+    if (claim) signals.push({ source: "scout", fact: claim.fact, value: claim.value, at: Number(row.updated_at) });
   }
   return { signals, listingClaim };
 }

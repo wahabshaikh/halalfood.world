@@ -225,3 +225,35 @@ test("listing claims and source lists", () => {
   assert.deepEqual(parseSources("menu,bogus,community"), ["community", "menu"]);
   assert.deepEqual(parseSources(null), []);
 });
+
+test("resolveFact: a web claim fills in a value, outranks a listing, and never settles", () => {
+  const scout = signal("scout", "pork", "no");
+  const alone = resolveFact(factState([]), null, [scout], "pork", NOW);
+  assert.deepEqual(alone, { value: "no", streak: 0, settled: false, sources: ["scout"], disputed: false });
+  assert.equal(factEvidence(alone), "Web source");
+  const overListing = resolveFact(factState([]), null, [signal("listing", "pork", "yes"), scout], "pork", NOW);
+  assert.equal(overListing.value, "no");
+  assert.deepEqual(overListing.sources, ["scout"]);
+  const agreeing = resolveFact(factState([]), null, [signal("listing", "pork", "no"), scout], "pork", NOW);
+  assert.deepEqual(agreeing.sources, ["listing", "scout"]);
+  // One person's check beats it, and so does a reviewed document.
+  const outvoted = resolveFact(factState(["yes"]), NOW, [scout], "pork", NOW);
+  assert.equal(outvoted.value, "yes");
+  assert.deepEqual(outvoted.sources, ["community"]);
+  const menu = resolveFact(factState([]), null, [scout, signal("menu", "pork", "yes")], "pork", NOW);
+  assert.deepEqual({ value: menu.value, settled: menu.settled, disputed: menu.disputed }, { value: "yes", settled: true, disputed: false });
+});
+
+test("deriveStatus: web claims on all four facts leave a place unchecked", () => {
+  const claims = [signal("scout", "owned", "yes"), signal("scout", "certified", "yes"), signal("scout", "pork", "no"), signal("scout", "alcohol", "no")];
+  const result = deriveStatus([], claims, NOW);
+  assert.deepEqual(result.status, { kind: "unchecked" });
+  assert.equal(Object.values(result.facts).some((fact) => fact.settled), false);
+  const { owned, certified, pork, alcohol } = result.facts;
+  const filterable = { status: result.status.kind, owned: owned.value, certified: certified.value, pork: pork.value, alcohol: alcohol.value };
+  assert.equal(matchesFilters(filterable, ["owned", "certified", "no-pork", "no-alcohol"]), true);
+  assert.equal(matchesFilters(filterable, ["verified"]), false);
+  // With one person checking, progress still follows people, not claims.
+  assert.deepEqual(deriveStatus([check("a")], claims, NOW).status, { kind: "checking", progress: 1 });
+  assert.deepEqual(deriveStatus([check("a"), check("b"), check("c")], claims, NOW).status, { kind: "verified" });
+});

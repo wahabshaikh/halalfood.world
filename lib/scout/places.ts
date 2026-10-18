@@ -11,6 +11,24 @@
  * "Not checked yet", the same as a person adding one from Google Maps (the
  * pending-review hold from #58 was retired with the four-fact redesign).
  * Scout-created places carry no submitter, no points and no check.
+ *
+ * lat/lng are optional. Without them, matching uses the city and street
+ * address, and a new place (or a matched one with no coordinates) is
+ * geocoded once through ./geocode.ts. When that isn't confident the place is
+ * stored without coordinates: it is listed on its city page and in search,
+ * but has no map pin, distance or Nearby, and its page says the location is
+ * pending. Coordinates are never guessed. `location` in the result says which
+ * happened.
+ *
+ * `force_new` skips matching, for a stall inside a food hall that the
+ * matcher would otherwise take for the hall. It still can't create a second
+ * row with the same city, name and street address, or the same Google id:
+ * that returns `duplicate_place` with the existing id.
+ *
+ * Both paths then apply the optional sourced attributes (halal_certified,
+ * muslim_owned, no_pork, no_alcohol) as web claims (./claims.ts): they fill
+ * facts nobody has answered, replace Scout's own older claims, and never
+ * override community checks or approved certificates and menus.
  */
 import { sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
@@ -24,6 +42,7 @@ import {
   SAME_PLACE_SCORE,
   boundingBox,
   type CandidateRow,
+  type LatLng,
   type PlaceQuery,
   type RankedCandidate,
 } from "@/lib/core/place-candidates";
@@ -34,7 +53,9 @@ import { publishListingChange } from "@/lib/listing-cache";
 import { cityName } from "@/lib/place-view";
 import { createPlaceStatements, findPlaceByGoogleId } from "@/lib/places";
 import { containsText } from "@/lib/text-search";
+import { applyClaims, claimAttributesInput, type ClaimOutcomes } from "./claims";
 import type { ScoutDeps } from "./deps";
+import { geocodePlace, type GeocodeFailure } from "./geocode";
 
 /** Rows read per lookup before ranking. */
 const CANDIDATE_ROWS = 200;
@@ -71,15 +92,24 @@ export const upsertPlaceInput = z.object({
   address: text(200).describe("Full street address, e.g. 7 Boundary St, London E2 7JE."),
   city: text(80),
   country: text(80),
-  lat: z.number().min(-90).max(90),
-  lng: z.number().min(-180).max(180),
+  lat: z.number().min(-90).max(90).optional().describe("Send with lng. Without both, the place is geocoded from address, city and country."),
+  lng: z.number().min(-180).max(180).optional(),
   google_place_id: googlePlaceId.optional(),
+  force_new: z.boolean().optional().describe("Skip matching and always list a new place, e.g. a stall inside a food hall that matched the hall."),
   website: z.string().trim().max(500).optional().describe("https URL of the place's own site."),
   cuisine: z.union([text(60), z.array(text(60)).max(8)]).optional(),
   google_types: z.array(text(60)).max(30).optional().describe("Google place types, if known: used only by the ingest filters (bar, pub, …)."),
   description: z.string().max(2000).optional().describe("Used only by the ingest filters; not stored."),
-});
+  ...claimAttributesInput,
+}).refine((value) => (value.lat === undefined) === (value.lng === undefined), { message: "Send lat and lng together, or neither." });
 export type UpsertPlaceInput = z.infer<typeof upsertPlaceInput>;
+
+/**
+ * Where the place's coordinates came from in this call: the input, Google, the
+ * matched row (untouched), or nowhere (stored without them).
+ */
+export type LocationOutcome = "provided" | "geocoded" | "existing" | "null";
+type Located = { location: LocationOutcome; geocode?: GeocodeFailure };
 
 type PlaceRow = CandidateRow & {
   addressCountry: string | null;
@@ -106,8 +136,9 @@ export type Rejection = { ok: false; error: "rejected"; rejected: "ahmadiyya" | 
 export type PlaceFailure = { ok: false; error: string; message: string } | Rejection;
 
 export type UpsertPlaceResult =
-  | { ok: true; result: "created"; place: PlaceSummary }
-  | { ok: true; result: "matched"; place: PlaceSummary; matched_by: FoundPlace["matched_by"]; score: number; filled: string[] }
+  | ({ ok: true; result: "created"; place: PlaceSummary; attributes: ClaimOutcomes } & Located)
+  | ({ ok: true; result: "matched"; place: PlaceSummary; matched_by: FoundPlace["matched_by"]; score: number; filled: string[]; attributes: ClaimOutcomes } & Located)
+  | { ok: false; error: "duplicate_place"; message: string; existing_place_id: string }
   | PlaceFailure;
 
 function toRow(row: Record<string, unknown>): PlaceRow {
@@ -218,7 +249,7 @@ async function placeById(deps: ScoutDeps, id: string): Promise<PlaceRow | null> 
 }
 
 /** Fill a matched place's empty columns. Never overwrites what is there. */
-async function fillBlanks(deps: ScoutDeps, place: PlaceRow, input: UpsertPlaceInput, website: string | null): Promise<string[]> {
+async function fillBlanks(deps: ScoutDeps, place: PlaceRow, input: UpsertPlaceInput, website: string | null, coordinates: LatLng | null): Promise<string[]> {
   const filled: string[] = [];
   const sets: SQL[] = [];
   if (!place.addressCountry) {
@@ -229,8 +260,8 @@ async function fillBlanks(deps: ScoutDeps, place: PlaceRow, input: UpsertPlaceIn
     sets.push(sql`address_locality = ${input.city}`);
     filled.push("city");
   }
-  if (place.lat === null || place.lng === null) {
-    sets.push(sql`lat = ${input.lat}, lng = ${input.lng}`);
+  if ((place.lat === null || place.lng === null) && coordinates) {
+    sets.push(sql`lat = ${coordinates.lat}, lng = ${coordinates.lng}`);
     filled.push("lat", "lng");
   }
   if (!place.website && website) {
@@ -258,22 +289,67 @@ export async function upsertPlace(deps: ScoutDeps, input: UpsertPlaceInput): Pro
   const website = httpsWebsite(input.website);
   if (website === "invalid") return { ok: false, error: "invalid_website", message: "Websites must be https URLs." };
 
-  const matched = async (row: PlaceRow, by: FoundPlace["matched_by"], score: number): Promise<UpsertPlaceResult> => ({
-    ok: true,
-    result: "matched",
-    place: placeSummary(deps.origin, row),
-    matched_by: by,
-    score,
-    filled: await fillBlanks(deps, row, input, website),
-  });
+  const provided: LatLng | null = input.lat !== undefined && input.lng !== undefined ? { lat: input.lat, lng: input.lng } : null;
+  const geocode = () => geocodePlace(deps, { address: input.address, city: input.city, country: input.country, googlePlaceId: input.google_place_id });
 
-  if (input.google_place_id) {
-    const byGoogle = await findPlaceByGoogleId(input.google_place_id, deps.db);
-    const row = byGoogle ? await placeById(deps, byGoogle.id) : null;
-    if (row) return matched(row, "google_place_id", 1);
+  const matched = async (row: PlaceRow, by: FoundPlace["matched_by"], score: number): Promise<UpsertPlaceResult> => {
+    // A matched place with coordinates keeps them; one without gets the input's, or Google's.
+    let located: Located = { location: "existing" };
+    let coordinates: LatLng | null = null;
+    if (row.lat === null || row.lng === null) {
+      if (provided) [coordinates, located] = [provided, { location: "provided" }];
+      else {
+        const found = await geocode();
+        [coordinates, located] = found.ok ? [found, { location: "geocoded" }] : [null, { location: "null", geocode: found.reason }];
+      }
+    }
+    const filled = await fillBlanks(deps, row, input, website, coordinates);
+    const claims = await applyClaims(deps, row.id, input);
+    // Claims move a place in and out of filtered listings.
+    if (claims.changed || coordinates)
+      await publishListingChange({ actorUserId: "mcp:scout", change: "place-claims", placeId: row.id, citySlug: row.citySlug }, deps.db).catch(() => null);
+    return { ok: true, result: "matched", place: placeSummary(deps.origin, (await placeById(deps, row.id)) ?? row), matched_by: by, score, filled, attributes: claims.outcomes, ...located };
+  };
+
+  const name = input.name.replace(/\s+/g, " ");
+  const address = input.address.replace(/\s+/g, " ");
+  const duplicate = async (): Promise<UpsertPlaceResult | null> => {
+    const [row] = await deps.db.all<{ id: string }>(sql`
+      SELECT id FROM places
+      WHERE (city_slug = ${citySlug} AND name = ${name} AND street_address = ${address})
+        ${input.google_place_id ? sql`OR google_place_id = ${input.google_place_id}` : sql``}
+      LIMIT 1
+    `);
+    return row
+      ? {
+          ok: false,
+          error: "duplicate_place",
+          existing_place_id: row.id,
+          message: "force_new: a place with this city, name and street address (or this Google id) is already listed. Use existing_place_id, or change the name or address.",
+        }
+      : null;
+  };
+
+  if (input.force_new) {
+    const taken = await duplicate();
+    if (taken) return taken;
+  } else {
+    if (input.google_place_id) {
+      const byGoogle = await findPlaceByGoogleId(input.google_place_id, deps.db);
+      const row = byGoogle ? await placeById(deps, byGoogle.id) : null;
+      if (row) return matched(row, "google_place_id", 1);
+    }
+    const [best] = await rankedPlaces(deps, placeQuery(input), 1);
+    if (best && best.score >= SAME_PLACE_SCORE) return matched(best, best.matchedBy, best.score);
   }
-  const [best] = await rankedPlaces(deps, placeQuery(input), 1);
-  if (best && best.score >= SAME_PLACE_SCORE) return matched(best, best.matchedBy, best.score);
+
+  let coordinates = provided;
+  let located: Located = { location: provided ? "provided" : "null" };
+  if (!provided) {
+    const found = await geocode();
+    if (found.ok) [coordinates, located] = [{ lat: found.lat, lng: found.lng }, { location: "geocoded" }];
+    else located = { location: "null", geocode: found.reason };
+  }
 
   const id = crypto.randomUUID();
   const now = deps.now();
@@ -281,18 +357,18 @@ export async function upsertPlace(deps: ScoutDeps, input: UpsertPlaceInput): Pro
     await runBatch(deps.db, [
       ...createPlaceStatements(
         {
-          name: input.name.replace(/\s+/g, " "),
+          name,
           citySlug,
-          streetAddress: input.address.replace(/\s+/g, " "),
+          streetAddress: address,
           addressLocality: input.city,
           addressCountry: input.country,
           mapsUrl: input.google_place_id
             ? googlePlaceMapsUrl(input.google_place_id)
-            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${input.lat},${input.lng}`)}`,
+            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coordinates ? `${coordinates.lat},${coordinates.lng}` : `${name}, ${address}, ${input.city}, ${input.country}`)}`,
           googlePlaceId: input.google_place_id ?? null,
           servesCuisine,
-          lat: input.lat,
-          lng: input.lng,
+          lat: coordinates?.lat ?? null,
+          lng: coordinates?.lng ?? null,
           submittedByUserId: null,
         },
         id,
@@ -303,18 +379,15 @@ export async function upsertPlace(deps: ScoutDeps, input: UpsertPlaceInput): Pro
   } catch (error) {
     if (!/unique/i.test(error instanceof Error ? error.message : String(error))) throw error;
     // Same city, name and street, or the same Google id, written a moment ago.
-    const [raced] = await deps.db.all<{ id: string }>(sql`
-      SELECT id FROM places
-      WHERE (city_slug = ${citySlug} AND name = ${input.name} AND street_address = ${input.address})
-        ${input.google_place_id ? sql`OR google_place_id = ${input.google_place_id}` : sql``}
-      LIMIT 1
-    `);
-    const row = raced ? await placeById(deps, raced.id) : null;
+    const taken = await duplicate();
+    if (taken && input.force_new) return taken;
+    const row = taken && !taken.ok && "existing_place_id" in taken ? await placeById(deps, taken.existing_place_id) : null;
     if (row) return matched(row, input.google_place_id && row.googlePlaceId === input.google_place_id ? "google_place_id" : "name_and_address", 1);
     throw error;
   }
+  const { outcomes: attributes } = await applyClaims(deps, id, input);
   // New places change city counts and sitemaps; never fail the write over it.
   await publishListingChange({ actorUserId: "mcp:scout", change: "place-added", placeId: id, citySlug }, deps.db).catch(() => null);
   const row = await placeById(deps, id);
-  return { ok: true, result: "created", place: placeSummary(deps.origin, row!) };
+  return { ok: true, result: "created", place: placeSummary(deps.origin, row!), attributes, ...located };
 }

@@ -172,15 +172,23 @@ export default async function PlacePage({ params }: Props) {
             <div className="grid gap-1.5 max-lg:order-1">
               <h1 className="text-[28px] leading-tight font-black tracking-tight md:text-[38px]">{place.name}</h1>
               <p className="text-[15px] font-semibold text-muted-foreground md:text-base">{where}</p>
+              {(place.lat === null || place.lng === null) && (
+                <p className="text-[13px] font-semibold text-muted-foreground">Location pending: this place isn’t on the map yet.</p>
+              )}
             </div>
 
             <section aria-labelledby="facts" className="grid gap-3 max-lg:order-3">
               <SectionTitle id="facts">Halal facts</SectionTitle>
               <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3 lg:grid-cols-2">
                 {FACTS.map((fact) => (
-                  <FactTile key={fact} fact={fact} value={place.card.facts[fact]} evidence={place.evidence[fact]} />
+                  <FactTile key={fact} fact={fact} value={place.card.facts[fact]} evidence={place.evidence[fact]} webSource={place.web_sources[fact]} />
                 ))}
               </div>
+              {Object.keys(place.web_sources).length > 0 && (
+                <p className="text-[13px] leading-relaxed font-semibold text-muted-foreground">
+                  A web source is what a page online says, not a check. People who eat here settle each answer.
+                </p>
+              )}
               {place.listing_claim && (
                 <p className="text-[13px] leading-relaxed font-semibold text-muted-foreground">{LISTING_NOTE[place.listing_claim]}</p>
               )}

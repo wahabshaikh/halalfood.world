@@ -32,7 +32,10 @@ records halal food YouTube creators (as unclaimed profiles at `/u/<handle>`) and
 videos. Every request needs `Authorization: Bearer <MCP_ADMIN_SECRET>`; without the secret on the Worker it answers
 503. Tools: `find_place`, `upsert_creator(s)`, `upsert_place(s)`, `add_verification(s)`, `remove_verification`;
 batches take up to 25 items and writes are limited to 300 a minute per token. Creator verifications never change a
-place's halal status. Connect with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote):
+place's halal status. `upsert_place` also takes sourced attributes (`halal_certified`, `muslim_owned`, `no_pork`,
+`no_alcohol`), stored as web claims that fill unanswered facts but never settle one or override people; it geocodes a
+place sent without `lat`/`lng` within the Google daily cap (or stores it without coordinates), and `force_new` skips
+matching for food-hall stalls. Connect with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote):
 
 ```sh
 export MCP_ADMIN_SECRET=…   # from your secret store, never committed

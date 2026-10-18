@@ -10,6 +10,7 @@ import {
   type Filter,
   type ListingClaim,
 } from "@/lib/core/halal";
+import { parseStoredClaim } from "@/lib/core/place-claims";
 import { database } from "@/lib/db";
 import { listingCachedRead } from "./listing-cache";
 import { loadOrDegrade, type Loaded } from "./load";
@@ -58,7 +59,11 @@ export type PlaceDetail = {
   evidence: Record<Fact, string>;
   /** What map listings say about halal food here, as context. */
   listing_claim: ListingClaim | null;
+  /** The web page behind each fact whose current value comes from a Halal Food Scout claim. */
+  web_sources: Partial<Record<Fact, WebSource>>;
 };
+
+export type WebSource = { url: string; certifier: string | null };
 
 export type City = {
   city_slug: string;
@@ -98,6 +103,9 @@ export async function getPlaceById(id: string, client: Client = database()): Pro
   const row = rows[0];
   if (!row) return null;
   const card = toPlaceCard(row);
+  const claims = await db.all<Record<string, unknown>>(sql`
+    SELECT fact, value, source_url, certifier FROM place_claims WHERE place_id = ${id} AND source = 'scout'
+  `);
   return {
     id: card.id,
     name: card.name,
@@ -130,7 +138,20 @@ export async function getPlaceById(id: string, client: Client = database()): Pro
     eligible_checks: num(row.eligible_checks) ?? 0,
     evidence: placeEvidence(row),
     listing_claim: parseListingClaim(row.listing_claim),
+    web_sources: webSources(row, claims),
   };
+}
+
+/** Only claims that back what the page shows: one that checks or documents overrule stays out of sight. */
+function webSources(row: Record<string, unknown>, claims: Record<string, unknown>[]): Partial<Record<Fact, WebSource>> {
+  const out: Partial<Record<Fact, WebSource>> = {};
+  for (const claimRow of claims) {
+    const claim = parseStoredClaim(claimRow);
+    if (!claim || row[`${claim.fact}_value`] !== claim.value) continue;
+    if (!parseSources(row[`${claim.fact}_sources`]).includes("scout")) continue;
+    out[claim.fact] = { url: claim.sourceUrl, certifier: claim.certifier };
+  }
+  return out;
 }
 
 function placeEvidence(row: Record<string, unknown>): Record<Fact, string> {

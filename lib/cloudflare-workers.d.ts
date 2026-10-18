@@ -12,6 +12,9 @@ declare module "cloudflare:workers" {
     GOOGLE_SEARCH_USER?: {
       limit(options: { key: string }): Promise<{ success: boolean }>;
     };
+    /** Places search and Scout geocoding. Unset: neither calls Google. */
+    GOOGLE_PLACES_API_KEY?: string;
+    GOOGLE_MAPS_API_KEY?: string;
     /** Halal Food Scout's bearer secret for /api/mcp. Unset or under 32 characters: the endpoint is off. */
     MCP_ADMIN_SECRET?: string;
     MCP_WRITE_LIMITER?: {

@@ -303,7 +303,7 @@ function parseSearchSuggestion(
  */
 export async function getGooglePlaceDetails(
   placeId: string,
-  options: { fieldMask?: string } = {},
+  options: { fieldMask?: string; apiKey?: string | null } = {},
 ): Promise<GooglePlaceDetailsResult> {
   const normalizedPlaceId = placeId.trim();
   if (!normalizedPlaceId) {
@@ -314,7 +314,7 @@ export async function getGooglePlaceDetails(
     };
   }
 
-  const apiKey = getGooglePlacesApiKey();
+  const apiKey = options.apiKey !== undefined ? options.apiKey : getGooglePlacesApiKey();
   if (!apiKey) {
     return {
       ok: false,
@@ -400,6 +400,8 @@ export async function getGooglePlaceDetails(
 export type GoogleSearchArea = {
   near?: { lat: number; lng: number } | null;
   bbox?: { west: number; south: number; east: number; north: number } | null;
+  /** The key to use instead of the Worker's, for callers that already read it. */
+  apiKey?: string | null;
 };
 
 /** Bias actually sent to Google. A bbox rectangle wins over a point. */
@@ -448,7 +450,7 @@ export async function searchGooglePlaces(
     };
   }
 
-  const apiKey = getGooglePlacesApiKey();
+  const apiKey = options.apiKey !== undefined ? options.apiKey : getGooglePlacesApiKey();
   if (!apiKey) {
     return {
       ok: false,
