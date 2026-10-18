@@ -380,6 +380,11 @@ points economics, moderation, certificates, auth, data policy, pricing or deleti
 | N-9 | `docs/member-mcp.md` + `/connect` stub page (read tools only) | NO-BRAINER | Page explains how to add the MCP URL to Claude, ChatGPT and Cursor. Linked from the footer. noindex until write tools ship |
 | N-10 | Fix "Washington Dc"-style casing in `/community` city chips | NO-BRAINER | Covered by N-2 (the same formatter). Snapshot test |
 
+**Status, 18 Oct:**
+- Opened as draft PRs: N-1 #123, N-5 #124, N-6 #125, N-8 #126, N-9 #127 (merge after #126), N-4 #128.
+- Waiting until #121 merges, because both edit `lib/place-view.ts` and `lib/seo.ts`: N-2, N-3, N-10.
+- Waiting until #121 and #122 merge, because all three edit the place page: N-7.
+
 ### 10b. Phase 1: MVP
 
 | ID | Item | Tag | Acceptance criteria |
