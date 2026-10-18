@@ -332,3 +332,20 @@ test("isUnverifiedPlace answers the Worker's noindex lookup", async () => {
   await createCheck("a", label, answers(), db, NOW);
   assert.equal(await isUnverifiedPlace(label, db), false);
 });
+
+test("removing a creator verification keeps a place verified while a counted check remains", async () => {
+  const { sqlite, db, imported, verifiedAt, deps } = world();
+  addUser(sqlite, "fresh", "fresh", NOW - 1000);
+  const place = imported();
+  await createCheck("fresh", place, answers(), db, NOW - 10);
+  await upsertCreator(deps, { handle: "@halalfoodie", channel_id: "UC_x5XG1OV2P6uZZ5FSM9Ttw", display_name: "Halal Foodie" });
+  const added = await addVerification(deps, { creator: "@halalfoodie", place_id: place, video_url: "https://youtu.be/dQw4w9WgXcQ" });
+  assert.ok(added.ok);
+  await createCheck("a", place, answers(), db, NOW - 5);
+  assert.equal(verifiedAt(place), NOW, "the first time it was verified is kept");
+  await removeVerification(deps, { id: added.verification.id });
+  assert.equal(verifiedAt(place), NOW);
+  // check-visibility: status — the test excludes the only counted check.
+  sqlite.prepare(`UPDATE checks SET excluded = 1 WHERE user_id = 'a'`).run();
+  assert.deepEqual(await recomputePlaceVerification(place, db, NOW + 1), { imported: true, verifiedAt: null, changed: true });
+});
