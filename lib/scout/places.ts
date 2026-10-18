@@ -11,6 +11,11 @@
  * "Not checked yet", the same as a person adding one from Google Maps (the
  * pending-review hold from #58 was retired with the four-fact redesign).
  * Scout-created places carry no submitter, no points and no check.
+ *
+ * Both paths then apply the optional sourced attributes (halal_certified,
+ * muslim_owned, no_pork, no_alcohol) as web claims (./claims.ts): they fill
+ * facts nobody has answered, replace Scout's own older claims, and never
+ * override community checks or approved certificates and menus.
  */
 import { sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
@@ -34,6 +39,7 @@ import { publishListingChange } from "@/lib/listing-cache";
 import { cityName } from "@/lib/place-view";
 import { createPlaceStatements, findPlaceByGoogleId } from "@/lib/places";
 import { containsText } from "@/lib/text-search";
+import { applyClaims, claimAttributesInput, type ClaimOutcomes } from "./claims";
 import type { ScoutDeps } from "./deps";
 
 /** Rows read per lookup before ranking. */
@@ -78,6 +84,7 @@ export const upsertPlaceInput = z.object({
   cuisine: z.union([text(60), z.array(text(60)).max(8)]).optional(),
   google_types: z.array(text(60)).max(30).optional().describe("Google place types, if known: used only by the ingest filters (bar, pub, …)."),
   description: z.string().max(2000).optional().describe("Used only by the ingest filters; not stored."),
+  ...claimAttributesInput,
 });
 export type UpsertPlaceInput = z.infer<typeof upsertPlaceInput>;
 
@@ -106,8 +113,8 @@ export type Rejection = { ok: false; error: "rejected"; rejected: "ahmadiyya" | 
 export type PlaceFailure = { ok: false; error: string; message: string } | Rejection;
 
 export type UpsertPlaceResult =
-  | { ok: true; result: "created"; place: PlaceSummary }
-  | { ok: true; result: "matched"; place: PlaceSummary; matched_by: FoundPlace["matched_by"]; score: number; filled: string[] }
+  | { ok: true; result: "created"; place: PlaceSummary; attributes: ClaimOutcomes }
+  | { ok: true; result: "matched"; place: PlaceSummary; matched_by: FoundPlace["matched_by"]; score: number; filled: string[]; attributes: ClaimOutcomes }
   | PlaceFailure;
 
 function toRow(row: Record<string, unknown>): PlaceRow {
@@ -258,14 +265,14 @@ export async function upsertPlace(deps: ScoutDeps, input: UpsertPlaceInput): Pro
   const website = httpsWebsite(input.website);
   if (website === "invalid") return { ok: false, error: "invalid_website", message: "Websites must be https URLs." };
 
-  const matched = async (row: PlaceRow, by: FoundPlace["matched_by"], score: number): Promise<UpsertPlaceResult> => ({
-    ok: true,
-    result: "matched",
-    place: placeSummary(deps.origin, row),
-    matched_by: by,
-    score,
-    filled: await fillBlanks(deps, row, input, website),
-  });
+  const matched = async (row: PlaceRow, by: FoundPlace["matched_by"], score: number): Promise<UpsertPlaceResult> => {
+    const filled = await fillBlanks(deps, row, input, website);
+    const claims = await applyClaims(deps, row.id, input);
+    // Claims move a place in and out of filtered listings.
+    if (claims.changed)
+      await publishListingChange({ actorUserId: "mcp:scout", change: "place-claims", placeId: row.id, citySlug: row.citySlug }, deps.db).catch(() => null);
+    return { ok: true, result: "matched", place: placeSummary(deps.origin, row), matched_by: by, score, filled, attributes: claims.outcomes };
+  };
 
   if (input.google_place_id) {
     const byGoogle = await findPlaceByGoogleId(input.google_place_id, deps.db);
@@ -313,8 +320,9 @@ export async function upsertPlace(deps: ScoutDeps, input: UpsertPlaceInput): Pro
     if (row) return matched(row, input.google_place_id && row.googlePlaceId === input.google_place_id ? "google_place_id" : "name_and_address", 1);
     throw error;
   }
+  const { outcomes: attributes } = await applyClaims(deps, id, input);
   // New places change city counts and sitemaps; never fail the write over it.
   await publishListingChange({ actorUserId: "mcp:scout", change: "place-added", placeId: id, citySlug }, deps.db).catch(() => null);
   const row = await placeById(deps, id);
-  return { ok: true, result: "created", place: placeSummary(deps.origin, row!) };
+  return { ok: true, result: "created", place: placeSummary(deps.origin, row!), attributes };
 }

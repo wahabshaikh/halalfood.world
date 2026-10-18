@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { addPlace, addProfile, addUser, createTestDatabase } from "@/lib/testing/sqlite-d1";
+import { recomputePlaceStatus } from "@/lib/checks-repository";
+import { explorePlaces, getPlaceById } from "@/lib/places";
+import { addPlace, addProfile, addUser, createTestDatabase, DAY } from "@/lib/testing/sqlite-d1";
 import { readWranglerConfig } from "@/lib/wrangler-config";
 import { ADMIN_SECRET_MIN, adminSecret, checkAdminToken, timingSafeEqualString } from "./auth";
 import { KeyedLock, MAX_BATCH, mapBounded } from "./batch";
@@ -703,4 +705,175 @@ test("the route reads the secret, limiter, database and origin from the Worker",
   } finally {
     for (const key of ["DB", "MCP_ADMIN_SECRET", "MCP_WRITE_LIMITER"]) delete bindings[key];
   }
+});
+
+/* ------------------------------------------------------- place attributes */
+
+const HALAL_PAGE = "https://www.dishoom.com/halal";
+const allFour = {
+  halal_certified: { value: "yes", source_url: HALAL_PAGE, certifier_name: "HMC" },
+  muslim_owned: { value: "yes", source_url: "https://www.dishoom.com/about" },
+  no_pork: { value: "yes", source_url: "https://www.dishoom.com/menu" },
+  no_alcohol: { value: "yes", source_url: "https://www.dishoom.com/menu" },
+} as const;
+
+type StatusRow = Record<string, string | number | null>;
+const statusOf = (sqlite: ReturnType<typeof setup>["sqlite"], id: string) => sqlite.prepare(`SELECT * FROM place_status WHERE place_id = ?`).get(id) as StatusRow;
+
+function addCheck(sqlite: ReturnType<typeof setup>["sqlite"], userId: string, placeId: string, answers: Partial<Record<"owned" | "certified" | "pork" | "alcohol", string | null>>) {
+  addUser(sqlite, userId, userId, NOW - 30 * DAY);
+  const { owned = null, certified = null, pork = null, alcohol = null } = answers;
+  sqlite
+    .prepare(`INSERT INTO checks (id, user_id, place_id, owned, certified, pork, alcohol, shared, excluded, idempotency_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)`)
+    .run(crypto.randomUUID(), userId, placeId, owned, certified, pork, alcohol, crypto.randomUUID(), NOW - DAY);
+}
+
+test("upsert_place stores sourced attributes as web claims on create; they drive the filters but never the status", async () => {
+  const { deps, sqlite } = setup();
+  const result = await upsertPlace(deps, place(allFour));
+  assert.ok(result.ok && result.result === "created");
+  assert.deepEqual(result.attributes, { halal_certified: "set", muslim_owned: "set", no_pork: "set", no_alcohol: "set" });
+  const status = statusOf(sqlite, result.place.id);
+  assert.deepEqual(
+    [status.status, status.owned_value, status.certified_value, status.pork_value, status.alcohol_value],
+    ["unchecked", "yes", "yes", "no", "no"],
+  );
+  for (const fact of ["owned", "certified", "pork", "alcohol"]) {
+    assert.equal(status[`${fact}_settled`], null, fact);
+    assert.equal(status[`${fact}_sources`], "scout", fact);
+  }
+  assert.equal(count(sqlite, "SELECT count(*) AS n FROM place_claims WHERE source = 'scout'"), 4);
+  assert.equal(count(sqlite, "SELECT count(*) AS n FROM place_signals"), 0);
+
+  const listed = await explorePlaces({ citySlug: "london", filters: ["owned", "certified", "no-pork", "no-alcohol"] }, deps.db);
+  assert.deepEqual(listed.places.map((p) => p.id), [result.place.id]);
+  assert.equal((await explorePlaces({ citySlug: "london", filters: ["verified"] }, deps.db)).total, 0);
+
+  const detail = await getPlaceById(result.place.id, deps.db);
+  assert.equal(detail?.evidence.certified, "Web source");
+  assert.deepEqual(detail?.web_sources.certified, { url: HALAL_PAGE, certifier: "HMC" });
+  assert.deepEqual(detail?.web_sources.pork, { url: "https://www.dishoom.com/menu", certifier: null });
+});
+
+test("unknown is no claim: it stays unknown, never no, and withdraws Scout's earlier claim", async () => {
+  const { deps, sqlite } = setup();
+  const created = await upsertPlace(deps, place({ muslim_owned: { value: "unknown" }, no_alcohol: { value: "no", source_url: "https://www.dishoom.com/drinks" } }));
+  assert.ok(created.ok);
+  assert.deepEqual(created.attributes, { muslim_owned: "unchanged", no_alcohol: "set" });
+  let status = statusOf(sqlite, created.place.id);
+  assert.equal(status.owned_value, null);
+  assert.equal(status.alcohol_value, "yes");
+  assert.equal(count(sqlite, "SELECT count(*) AS n FROM place_claims WHERE fact = 'owned'"), 0);
+  // Serving alcohol is a fact about a restaurant, not a reason to refuse it.
+  assert.equal(created.result, "created");
+
+  const again = await upsertPlace(deps, place({ no_alcohol: { value: "unknown" } }));
+  assert.ok(again.ok && again.result === "matched");
+  assert.deepEqual(again.attributes, { no_alcohol: "cleared" });
+  status = statusOf(sqlite, created.place.id);
+  assert.equal(status.alcohol_value, null);
+  assert.equal(status.alcohol_sources, "");
+  const detail = await getPlaceById(created.place.id, deps.db);
+  assert.equal(detail?.card.facts.alcohol, null);
+  assert.deepEqual(detail?.web_sources, {});
+});
+
+test("a newer Scout write replaces Scout's older claim; the same claim again is unchanged", async () => {
+  const { deps, sqlite } = setup();
+  const first = await upsertPlace(deps, place({ no_pork: { value: "yes", source_url: "https://www.dishoom.com/menu" } }));
+  assert.ok(first.ok);
+  const same = await upsertPlace(deps, place({ no_pork: { value: "yes", source_url: "https://www.dishoom.com/menu" } }));
+  assert.ok(same.ok && same.result === "matched");
+  assert.deepEqual(same.attributes, { no_pork: "unchanged" });
+  const flipped = await upsertPlace(deps, place({ no_pork: { value: "no", source_url: "https://www.dishoom.com/menu-2" } }));
+  assert.ok(flipped.ok);
+  assert.deepEqual(flipped.attributes, { no_pork: "updated" });
+  assert.equal(statusOf(sqlite, first.place.id).pork_value, "yes");
+  const row = sqlite.prepare(`SELECT value, source_url FROM place_claims WHERE place_id = ? AND fact = 'pork'`).get(first.place.id);
+  assert.deepEqual({ ...(row as object) }, { value: "yes", source_url: "https://www.dishoom.com/menu-2" });
+  assert.equal(count(sqlite, "SELECT count(*) AS n FROM place_claims"), 1);
+  // Attributes left out are left alone.
+  const silent = await upsertPlace(deps, place());
+  assert.ok(silent.ok);
+  assert.deepEqual(silent.attributes, {});
+  assert.equal(statusOf(sqlite, first.place.id).pork_value, "yes");
+});
+
+test("community checks and approved documents are never overridden; a map listing is", async () => {
+  const { deps, sqlite } = setup();
+  const id = addPlace(sqlite, { name: "Dishoom Shoreditch", city: "london", lat: LONDON.lat, lng: LONDON.lng });
+  addCheck(sqlite, "u1", id, { owned: "no" });
+  sqlite
+    .prepare(`INSERT INTO place_signals (id, place_id, source, certified, review_status, reviewed_at, created_at, updated_at) VALUES (?, ?, 'certificate', 'no', 'approved', ?, ?, ?)`)
+    .run(crypto.randomUUID(), id, NOW - DAY, NOW - DAY, NOW - DAY);
+  sqlite
+    .prepare(`INSERT INTO place_signals (id, place_id, source, provider, external_id, pork, listing_claim, review_status, created_at, updated_at) VALUES (?, ?, 'listing', 'osm', 'node/1', 'no', 'only', 'approved', ?, ?)`)
+    .run(crypto.randomUUID(), id, NOW - DAY, NOW - DAY);
+  await recomputePlaceStatus(id, deps.db, NOW);
+  const before = statusOf(sqlite, id);
+  assert.deepEqual([before.owned_value, before.certified_value, before.pork_value], ["no", "no", "no"]);
+
+  const result = await upsertPlace(deps, place({ ...allFour, no_pork: { value: "no", source_url: "https://www.dishoom.com/menu" } }));
+  assert.ok(result.ok && result.result === "matched");
+  assert.equal(result.place.id, id);
+  assert.deepEqual(result.attributes, { halal_certified: "kept_existing", muslim_owned: "kept_existing", no_pork: "set", no_alcohol: "set" });
+  const after = statusOf(sqlite, id);
+  assert.equal(after.owned_value, "no");
+  assert.equal(after.owned_sources, "community");
+  assert.equal(after.certified_value, "no");
+  assert.equal(after.certified_settled, "no");
+  assert.equal(after.pork_value, "yes");
+  assert.equal(after.pork_sources, "scout");
+  assert.equal(after.alcohol_value, "no");
+  assert.equal(count(sqlite, "SELECT count(*) AS n FROM place_claims WHERE fact IN ('owned', 'certified')"), 0);
+  // A Scout claim that was written before a person answered gives way to them.
+  addCheck(sqlite, "u2", id, { alcohol: "yes" });
+  await recomputePlaceStatus(id, deps.db, NOW);
+  assert.equal(statusOf(sqlite, id).alcohol_value, "yes");
+  assert.equal((await getPlaceById(id, deps.db))?.web_sources.alcohol, undefined);
+});
+
+test("Scout claims never move a status up: unchecked stays unchecked, n of 3 stays n of 3", async () => {
+  const { deps, sqlite } = setup();
+  const id = addPlace(sqlite, { name: "Dishoom Shoreditch", city: "london", lat: LONDON.lat, lng: LONDON.lng });
+  const all = { owned: "yes", certified: "yes", pork: "no", alcohol: "no" };
+  addCheck(sqlite, "a", id, all);
+  addCheck(sqlite, "b", id, all);
+  await recomputePlaceStatus(id, deps.db, NOW);
+  const before = statusOf(sqlite, id);
+  assert.deepEqual([before.status, before.progress], ["checking", 2]);
+  const result = await upsertPlace(deps, place(allFour));
+  assert.ok(result.ok);
+  assert.deepEqual(result.attributes, { halal_certified: "kept_existing", muslim_owned: "kept_existing", no_pork: "kept_existing", no_alcohol: "kept_existing" });
+  assert.deepEqual(statusOf(sqlite, id), before);
+
+  // Even claims on every fact of an unanswered place leave it Not checked yet, with nothing settled.
+  const other = await upsertPlace(deps, place({ name: "Tayyabs", address: "83-89 Fieldgate St, London E1 1JU", lat: 51.5172, lng: -0.0635, ...allFour }));
+  assert.ok(other.ok && other.result === "created");
+  const status = statusOf(sqlite, other.place.id);
+  assert.deepEqual([status.status, status.progress, status.eligible_checks, status.verified_at], ["unchecked", 0, 0, null]);
+  assert.equal(count(sqlite, "SELECT count(*) AS n FROM place_status_changes WHERE place_id = ?", other.place.id), 0);
+  assert.equal(count(sqlite, "SELECT count(*) AS n FROM points"), 0);
+});
+
+test("attribute inputs are validated: https sources, a source for yes/no, a certifier only with yes", async () => {
+  const { environment, sqlite } = mcpEnv();
+  const cases: [Record<string, unknown>, RegExp][] = [
+    [{ halal_certified: { value: "yes", source_url: "http://example.com" } }, /https URLs/],
+    [{ no_pork: { value: "yes" } }, /needs a source_url/],
+    [{ halal_certified: { value: "no", source_url: HALAL_PAGE, certifier_name: "HMC" } }, /certifier_name only goes with value yes/],
+    [{ muslim_owned: { value: "maybe", source_url: HALAL_PAGE } }, /muslim_owned/],
+  ];
+  for (const [attributes, message] of cases) {
+    const out = await call(environment, "upsert_place", place(attributes as Partial<UpsertPlaceInput>));
+    assert.equal(out.isError, true, JSON.stringify(attributes));
+    assert.match(out.text, message);
+  }
+  assert.equal(count(sqlite, "SELECT count(*) AS n FROM places"), 0);
+  const ok = await call(environment, "upsert_places", { places: [place(allFour)] });
+  assert.deepEqual(ok.body.results[0].attributes, { halal_certified: "set", muslim_owned: "set", no_pork: "set", no_alcohol: "set" });
+  // An alcohol-led place is still refused, whatever its attributes say.
+  const bar = await call(environment, "upsert_place", place({ name: "The Kings Arms Pub", no_alcohol: { value: "yes", source_url: HALAL_PAGE } }));
+  assert.equal(bar.body.error, "rejected");
+  assert.equal(count(sqlite, "SELECT count(*) AS n FROM place_claims"), 4);
 });

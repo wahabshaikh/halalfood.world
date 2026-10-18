@@ -100,7 +100,7 @@ export function planClaim(incoming: IncomingClaim, existing: StoredClaim | null,
 }
 
 /** Read a stored row leniently: anything that isn't one of the four facts with yes/no is skipped. */
-export function parseStoredClaim(row: { fact: unknown; value: unknown; source_url: unknown; certifier?: unknown }): StoredClaim | null {
+export function parseStoredClaim(row: Record<string, unknown>): StoredClaim | null {
   const fact = FACTS.find((name) => name === row.fact);
   if (!fact || (row.value !== "yes" && row.value !== "no") || typeof row.source_url !== "string") return null;
   return { fact, value: row.value, sourceUrl: row.source_url, certifier: typeof row.certifier === "string" ? row.certifier : null };
