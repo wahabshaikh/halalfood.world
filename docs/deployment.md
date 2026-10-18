@@ -14,7 +14,7 @@ It serves pages, the JSON API and auth. Everything it binds is declared in [`wra
 | Email | sink (`/api/test/emails`) | sink | [Email Service](https://developers.cloudflare.com/email-service/) from `salam@halalfood.world` |
 | Turnstile | test keys | test keys | production keys (secrets) |
 | Auth secret | development fallback | development fallback unless set | `BETTER_AUTH_SECRET` (required) |
-| Rate-limit namespaces | local | `81101`, `81102` | `81001`, `81002` |
+| Rate-limit namespaces | local | `81101`, `81102`, `81103` | `81001`, `81002`, `81003` |
 | `ENVIRONMENT` | `production` (localhost is still non-production) | `preview` | `production` |
 
 `lib/environment.ts` decides whether a request is non-production: localhost, or a `*.workers.dev` host on a
@@ -91,6 +91,7 @@ pnpm exec wrangler preview secret put GOOGLE_PLACES_API_KEY --name my-branch
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | required | not used | Secrets even though the site key reaches the browser: a plain var of the same name would replace the secret. Previews use test keys. |
 | `GOOGLE_PLACES_API_KEY` (or `GOOGLE_MAPS_API_KEY`) | optional | optional | Add-a-place search. Previews have their own daily caps (`GOOGLE_*_DAILY_CAP`). |
 | `EMAIL_HEALTHCHECK_ENABLED`, `EMAIL_HEALTHCHECK_TOKEN`, `EMAIL_HEALTHCHECK_TO` | optional | not used | See [operations.md](operations.md#email-healthcheck). |
+| `MCP_ADMIN_SECRET` | optional | optional | Halal Food Scout's bearer token for `/api/mcp` ([architecture](architecture.md#halal-food-scout-admin-mcp)). At least 32 random characters (`openssl rand -hex 32 \| tr -d '\n' \| pnpm exec wrangler secret put MCP_ADMIN_SECRET`). Unset or shorter: the endpoint answers 503. Use a different value on Previews. Rotate by putting a new value and updating the bot. |
 
 `SENTRY_DSN` is a public var in `wrangler.jsonc`, not a secret: do not also `wrangler secret put` it (a var and a
 secret with the same name conflict on deploy). The browser SDK reads `NEXT_PUBLIC_SENTRY_DSN` at build time and
@@ -127,6 +128,7 @@ pnpm deploy                # build + production (prefer Workers Builds, which al
 | `HALAL_EVIDENCE_R2` (R2) | `halalfood-world-evidence` | `halalfood-world-evidence-preview` |
 | `EMAIL` (Email Service) | `salam@halalfood.world` | none |
 | `GOOGLE_SEARCH_ANON`, `GOOGLE_SEARCH_USER` | namespaces 81001, 81002 | 81101, 81102 |
+| `MCP_WRITE_LIMITER` (Scout writes, 300 per 60 s per token) | namespace 81003 | 81103 |
 | `ASSETS` | static files | same |
 
 The pre-cutover database `halalfood-world` is kept untouched for rollback and is bound by nothing.

@@ -8,7 +8,7 @@ in [spec/](spec/README.md).
 
 **How a place gets verified.** People who eat somewhere answer four questions: Is it Muslim-owned? Is it halal certified? Does it serve pork? Does it serve alcohol? Each answer is Yes, No or Not sure. A fact is settled when the three most recent definite answers from different accounts agree, and a place is **Community verified** when all four facts are settled. Until then it shows "n of 3 checks" or "Not checked yet" (which never means "not halal"). A check counts the moment it is sent, a person's latest check at a place is the only one that counts, and an account must be 24 hours old before its checks count. The rules live in [`lib/core/halal.ts`](lib/core/halal.ts) and [`docs/spec/halal-model.md`](spec/halal-model.md); the full design is [`docs/spec/simplified-community-spec.md`](spec/simplified-community-spec.md).
 
-**Everything social is context, never evidence.** Follows, the Friends feed, likes, comments, lists, recs, events, points and creator videos help people decide where to eat, but none of them can change a place's status. Places can only be added from a Google Maps result and go live at once, with the adder's answers as the first check. Moderators act on reports and nothing else.
+**Everything social is context, never evidence.** Follows, the Friends feed, likes, comments, lists, recs, events, points, creator videos and creator verifications help people decide where to eat, but none of them can change a place's status. Places can only be added from a Google Maps result and go live at once, with the adder's answers as the first check. Moderators act on reports and nothing else.
 
 ## Styling and icons
 
@@ -39,10 +39,10 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/list/[id]` | visibility | A ranked list, a plan with friends, or a guide. |
 | `/friends`, `/visit/[id]` | ✓ / visibility | The Friends feed and one visit with likes and comments. |
 | `/inbox` | ✓ | Activity and Recs. |
-| `/u/[handle]`, `/invite/[handle]` | visibility / – | Someone's profile; an invite landing. |
+| `/u/[handle]`, `/invite/[handle]` | visibility / – | Someone's profile; an invite landing. A creator profile adds the YouTube channel, subscribers, banner, "Verified in videos" and, while unclaimed, "Unclaimed. Is this you? Claim it". |
 | `/community` | – | The points leaderboard per city, this week or all time. |
 | `/events`, `/event/[id]` | – | Halal food events and their stalls. |
-| `/creator/[platform]/[handle]` | – | Places from a creator's videos. |
+| `/creator/[platform]/[handle]` | – | Places from a creator's videos; links to `/u/<handle>` when the channel has a creator profile. |
 | `/me`, `/me/settings`, `/me/privacy` | ✓ | You (Passport, Checks, Lists), Settings, Privacy & people. |
 | `/admin` | moderator | Reports and Events. |
 
@@ -67,8 +67,106 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `POST /api/reports` | Report a place, check, comment, person or list. |
 | `GET /api/admin/reports`, `POST /api/admin/reports/[id]`, `GET/POST /api/admin/events`, `GET/PUT/DELETE /api/admin/events/[id]` | Moderation. Every action writes `audit_log`. |
 | `/api/auth/*`, `POST /api/admin/email/healthcheck` | Better Auth; the optional email smoke check. |
+| `POST /api/mcp` (`GET`/`DELETE` 405) | Halal Food Scout's admin MCP endpoint. Bearer `MCP_ADMIN_SECRET`; see [below](#halal-food-scout-admin-mcp). |
 
 Every write needs a session and spends a per-user and per-IP budget (checks 20 a day, places 10, recs 30, reports 10, comments 100). Reads that show checks apply one visibility rule: unshared checks are the author's alone, nothing crosses a block, and a private account's checks show only to accepted followers. `tests/check-visibility-audit.test.ts` fails if a query over `checks` doesn't say which audience it serves.
+
+## Halal Food Scout (admin MCP)
+
+Halal Food Scout is a bot that finds halal food YouTube creators and records which places they verify in their
+videos. It talks to `POST /api/mcp`, a [Model Context Protocol](https://modelcontextprotocol.io) server over
+Streamable HTTP (JSON-RPC over POST, stateless: a fresh server per request, no sessions; `GET` and `DELETE` answer
+405). It uses `@modelcontextprotocol/server` 2.0 (`createMcpHandler`), the same SDK as deen.page's MCP server. The
+code is in [`lib/scout/`](../lib/scout); the pure rules in [`lib/core/creators.ts`](../lib/core/creators.ts),
+[`lib/core/place-candidates.ts`](../lib/core/place-candidates.ts) and
+[`lib/core/ingest-filters.ts`](../lib/core/ingest-filters.ts).
+
+**Auth.** Every request, including `initialize` and `tools/list`, needs `Authorization: Bearer <MCP_ADMIN_SECRET>`.
+The secret is a Worker secret of at least 32 characters. Unset or shorter: every request gets **503** ("the Scout
+endpoint is off"), never an open endpoint. A missing or wrong token gets **401** with `WWW-Authenticate: Bearer`.
+The token is compared in constant time (both sides hashed with SHA-256 first) and never logged or echoed. Bodies
+over 256 KB get 413.
+
+**Tools.** Every tool returns one text item holding JSON. Failures set `isError` and carry `{ ok: false, error, message }`.
+
+| Tool | What it does |
+| --- | --- |
+| `find_place` | Read-only. Ranked candidates for `name` near `lat`/`lng` (`radius_m`, default 300, max 2000) and/or in `city`, optionally by `google_place_id`. Each has `id`, `name`, `address`, `city`, `country`, `lat`, `lng`, `distance_m`, `url`, `score`, `matched_by` and `listing_status`. |
+| `upsert_creator` / `upsert_creators` | An unclaimed, claimable creator profile at `/u/<handle>` from a YouTube channel (`handle`, `channel_id`, `display_name`, `bio`, `avatar_url`, `banner_url`, `channel_url`, `subscriber_count`). |
+| `upsert_place` / `upsert_places` | Match first, else list a new place (`name`, `address`, `city`, `country`, `lat`, `lng`, optional `google_place_id`, `website`, `cuisine`, and `google_types` / `description` for the filters only). |
+| `add_verification` / `add_verifications` | A creator (`@handle` or channel id) showed `place_id` in a video (`video_url`, `timestamp` as `83` or `"1:23"`, `date` as an ISO date, optional `title`). |
+| `remove_verification` | By `id`, or by `creator` + `place_id` + `video_url`. Removing one that isn't there returns `removed: false`. |
+
+**Creators.** A creator is an ordinary `user` + `profiles` row plus a `creator_profiles` row (channel id, channel
+handle and URL, avatar and banner URLs, subscribers, `claimed_at`). The profile handle is the YouTube handle,
+lowercased without `@`; a handle our rules can't hold (hyphens, reserved words, under 3 characters) fails with
+`invalid_handle` rather than becoming a different handle. The channel id is the identity: a known channel is
+updated, and its profile handle follows a new YouTube handle only when that handle is free (`handle_kept`
+otherwise). The `user.email` is `creator-<user id>@unclaimed.invalid`; the auth route refuses sign-in codes for any
+`.invalid` address and `lib/email.ts` refuses to mail one, so nobody can sign in as an unclaimed creator. Unclaimed
+creators have no `onboarded_at`, which keeps them out of people search and follow suggestions. A profile is
+**claimed** when `claimed_at` is set or its user has a real email; Scout never writes to a claimed profile or to a
+handle that belongs to someone who signed up (`result: "claimed"`), and refuses verifications for them
+(`creator_claimed`). Avatars and banners are stored as external URLs and rendered as-is, never fetched: only https
+URLs on YouTube's image hosts (`yt3.ggpht.com`, `yt3.googleusercontent.com`, `i.ytimg.com`,
+`lh3.googleusercontent.com`) are kept. Claiming is a follow-up: today "Claim it" opens an email to
+`salam@halalfood.world`, and a moderator sets `claimed_at` and the real email by hand.
+
+**Places.** Candidates come from one query: places whose name contains one of the query's distinctive words
+(`instr()`, never `LIKE`: D1 caps LIKE patterns at 50 bytes) inside the radius's bounding box or in the same city.
+They are scored by name similarity with either distance or city plus street address (older rows may have
+approximate coordinates). At a score of 0.85 or more a candidate is the same place: `upsert_place` returns
+`result: "matched"` and only fills that place's empty columns (country, city, coordinates, website, Google id). A
+shared name in the same city without a matching street is never enough (chains). New places go live at once as Not
+checked yet, the same as a person adding one from Google Maps (#58's hold-for-review was retired in the four-fact
+redesign); they have no submitter, no points and no check.
+
+**Ingest filters.** `upsert_place` refuses, and `add_verification` refuses for an existing place that fails:
+Ahmadiyya places (Ahmadiyya, Qadiani, Lahori Ahmadiyya, Baitul Futuh, Jalsa Salana, …; "Ahmadi" only beside a
+community word such as Muslim, Jamaat or mosque, because it is also a common surname) and alcohol-led places (the
+same `hiddenListingReason` rule that hides pubs, bars, breweries and wine bars). The answer is
+`{ ok: false, error: "rejected", rejected: "ahmadiyya" | "alcohol_led", reason }`.
+
+**Verifications are context, not evidence.** `creator_verifications` holds one row per creator, place and video
+(a unique index makes `add_verification` idempotent). Adding one also adds the video to `place_media_links` (unless
+a person linked it already), so the place's Videos and the creator page show it; removing one deletes only the link
+it added. The place page shows "Verified by <creator> in a video" under **From creators** and the profile shows
+**Verified in videos**. Neither touches checks, `place_signals` or `place_status` (AGENTS.md rule 4,
+[halal model](spec/halal-model.md)). A moderator merge moves verifications to the kept place.
+
+**Volume and limits.** Batch tools take at most 25 items and run 5 at a time; items that share a key (channel or
+handle; city or Google id; creator) run one after another, so a batch can't duplicate itself. Each item returns in
+input order with an `index`, plus a `summary` count. Writes spend the Workers Rate Limiting binding
+`MCP_WRITE_LIMITER` (300 per 60 s per token, keyed `mcp-write:<first 16 hex of the token's SHA-256>`), one unit per
+item; items over it come back `rate_limited`. The binding counts per Cloudflare location, so it guards against a
+runaway bot rather than enforcing an exact quota. `find_place` is not rate limited. Without the binding (unit tests,
+`pnpm dev`) writes are not limited.
+
+**Connecting a client.** With [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), keeping the secret in an
+environment variable rather than the config file:
+
+```json
+{
+  "mcpServers": {
+    "halalfood-scout": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://halalfood.world/api/mcp", "--header", "Authorization: Bearer ${MCP_ADMIN_SECRET}"],
+      "env": { "MCP_ADMIN_SECRET": "<from your secret store>" }
+    }
+  }
+}
+```
+
+Some clients split arguments on spaces; mcp-remote's documented workaround is no space after the colon and the
+whole value in the variable: `"--header", "Authorization:${AUTH_HEADER}"` with `"AUTH_HEADER": "Bearer <secret>"`.
+Locally, put `MCP_ADMIN_SECRET` in `.dev.vars` and use `http://127.0.0.1:5173/api/mcp` (add `--allow-http`). A
+quick check without a client:
+
+```sh
+curl -s https://halalfood.world/api/mcp -H "Authorization: Bearer $MCP_ADMIN_SECRET" \
+  -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
 
 ## Sign-in, Turnstile and limits
 
@@ -142,7 +240,7 @@ The limiter fails closed if D1 is unavailable, so a provider outage cannot turn 
 
 ## Schema
 
-The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
+The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. Later migrations add `place_signals` (0002), the email sink (0003) and `creator_profiles` / `creator_verifications` (0004, Halal Food Scout). `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
 
 Do not apply production migrations by splitting a file into statements: `wrangler d1 execute --command` treats a leading `--` comment as a flag, and a semicolon inside a comment is not a statement boundary.
 

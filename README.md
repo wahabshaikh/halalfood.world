@@ -25,6 +25,22 @@ pnpm dev             # http://127.0.0.1:5173
 No Cloudflare account or secrets are needed: sign-in works locally, and the email code lands in a local sink
 (`/api/test/emails`).
 
+## Halal Food Scout (admin MCP)
+
+`POST /api/mcp` is an admin-only [MCP](https://modelcontextprotocol.io) server for Halal Food Scout, a bot that
+records halal food YouTube creators (as unclaimed profiles at `/u/<handle>`) and the places they verify in their
+videos. Every request needs `Authorization: Bearer <MCP_ADMIN_SECRET>`; without the secret on the Worker it answers
+503. Tools: `find_place`, `upsert_creator(s)`, `upsert_place(s)`, `add_verification(s)`, `remove_verification`;
+batches take up to 25 items and writes are limited to 300 a minute per token. Creator verifications never change a
+place's halal status. Connect with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote):
+
+```sh
+export MCP_ADMIN_SECRET=…   # from your secret store, never committed
+npx -y mcp-remote https://halalfood.world/api/mcp --header "Authorization: Bearer ${MCP_ADMIN_SECRET}"
+```
+
+Details, input fields and limits: [architecture](docs/architecture.md#halal-food-scout-admin-mcp).
+
 ## Docs
 
 - [Contributing](CONTRIBUTING.md) and [agent instructions](AGENTS.md)
