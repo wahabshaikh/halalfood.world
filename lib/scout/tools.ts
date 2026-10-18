@@ -91,7 +91,7 @@ export function registerScoutTools(server: McpServer, context: ScoutContext) {
     return [`ch:${item.channel_id}`, ...(handle.ok ? [`h:${handle.handle}`] : [])];
   };
   // Same city, one at a time: a batch can't list the same place twice.
-  const placeKeys = (item: UpsertPlaceInput) => [`city:${slugifyCity(item.city)}`, ...(item.google_place_id ? [`g:${item.google_place_id}`] : [])];
+  const placeKeys = (item: UpsertPlaceInput) => [...(item.place_id ? [`p:${item.place_id}`] : []), `city:${slugifyCity(item.city)}`, ...(item.google_place_id ? [`g:${item.google_place_id}`] : [])];
   const verificationKeys = (item: AddVerificationInput) => [`cr:${item.creator.trim().replace(/^@/, "").toLowerCase()}`];
 
   server.registerTool(
@@ -143,19 +143,20 @@ export function registerScoutTools(server: McpServer, context: ScoutContext) {
       title: "Find or list a place",
       description:
         "Match first (Google place id, then the find_place ranking within 300 m and the city); a match at same_place_score or above " +
-        "returns result: matched and only fills the place's empty columns. Otherwise lists a new place at once as Not checked yet. " +
+        "returns result: matched, fills empty columns and repairs eligible Scout coordinates. Otherwise lists a new place at once as Not checked yet. " +
         "force_new: true skips matching (a stall inside a food hall that matched the hall); an identical city + name + street address, " +
         "or a Google id already listed, returns error: duplicate_place with existing_place_id. " +
         "lat/lng are optional: without them the place is geocoded once from address, city and country (or its google_place_id) with " +
         "halalfood.world's Google key and daily cap, and stored without coordinates when that isn't confident (no map pin until fixed; " +
-        "never a guessed point). location says provided, geocoded, existing (a matched place kept its own) or null, with geocode giving the reason. " +
+        "never a guessed point). location says provided, geocoded, existing, relocated (with previous/current) or null, with geocode giving the reason. " +
         "Optional sourced attributes halal_certified (with certifier_name), muslim_owned, no_pork and no_alcohol, each " +
         "{ value: yes | no | unknown, source_url: https URL, required for yes/no }, are stored as web claims: they fill facts nobody has answered " +
         "and replace Scout's own earlier claims, never override community checks or approved certificates and menus, and \"unknown\" withdraws Scout's earlier claim. " +
         "The result's attributes says per attribute sent: set, updated, unchanged, kept_existing or cleared. " +
         "Refuses Ahmadiyya places and alcohol-led places (pubs, bars, breweries, wine bars) with error: rejected and a reason; " +
         "no_alcohol: no (serves alcohol) alone is not a reason to refuse a restaurant. " +
-        "Never settles a fact or changes a place's Verified / n of 3 checks status.",
+        "Never settles a fact or changes a place's Verified / n of 3 checks status." +
+        " relocate: true explicitly repairs an eligible Scout pin; place_id targets an existing row when correcting its address would defeat matching. Protected sources cannot be relocated.",
       inputSchema: upsertPlaceInput,
       annotations: WRITE,
     },
