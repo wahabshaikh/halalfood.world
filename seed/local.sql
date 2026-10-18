@@ -37,3 +37,7 @@ INSERT OR IGNORE INTO place_claims (id, place_id, source, fact, value, source_ur
 -- page and in search, no map pin, "Location pending" on its page.
 INSERT OR IGNORE INTO places (id, name, city_slug, street_address, address_locality, address_country, maps_url, lat, lng, created_at, updated_at) VALUES ('00000000-0000-4000-8000-000000000009', 'Seed Pending Pin Cafe', 'london', '5 Old Montague Street, London', 'London', 'GB', 'https://www.google.com/maps/search/?api=1&query=Seed%20Pending%20Pin%20Cafe%2C%205%20Old%20Montague%20Street%2C%20London', NULL, NULL, 1790000000000, 1790000000000);
 INSERT OR IGNORE INTO place_status (place_id, updated_at) VALUES ('00000000-0000-4000-8000-000000000009', 1790000000000);
+
+-- A paid city sponsor for Mumbai (lib/sponsorships.ts), live until 2100, so the Explore card and the "already
+-- sponsored" state show locally. London stays open so the sponsor form can be tried.
+INSERT OR IGNORE INTO city_sponsorships (id, city_slug, user_id, sponsor_name, tagline, link_url, status, renews, whop_checkout_id, whop_membership_id, whop_payment_id, starts_at, active_until, created_at, updated_at) VALUES ('00000000-0000-4000-8000-0000000e0001', 'mumbai', NULL, 'Seed Sponsor', 'Halal catering across Mumbai', 'https://sponsor.example.com/', 'active', 1, 'ch_seed', 'mem_seed', 'pay_seed', 1790000000000, 4102444800000, 1790000000000, 1790000000000);
