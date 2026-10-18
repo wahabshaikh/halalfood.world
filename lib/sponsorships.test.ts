@@ -154,3 +154,19 @@ test("deleting the buyer's account keeps the paid sponsorship without linking ba
   assert.ok(await liveSponsor("mumbai", db, NOW + 1));
   assert.equal((await listSponsorshipsForAdmin(db, NOW + 1))[0].buyer, null);
 });
+
+
+test("renewal can resume only for an active sponsorship", async () => {
+  const { db, row } = world();
+  const started = await startSponsorship("a", input(), db, NOW);
+  const id = started.ok ? started.id : "";
+  await applyWhopEvent("pay", paid(id, NOW), db, NOW);
+  await applyWhopEvent("stop", { type: "membership.deactivated", membershipId: "mem_1", sponsorshipId: null }, db, NOW);
+  assert.equal(row(id).renews, 0);
+  await applyWhopEvent("resume", { type: "membership.renewing", membershipId: "mem_1", sponsorshipId: null }, db, NOW);
+  assert.equal(row(id).renews, 1);
+  await applyWhopEvent("refund", { type: "refund", paymentId: `pay-${NOW}`, membershipId: null }, db, NOW);
+  await applyWhopEvent("late-resume", { type: "membership.renewing", membershipId: "mem_1", sponsorshipId: id }, db, NOW);
+  assert.equal(row(id).renews, 0);
+  assert.equal(row(id).status, "refunded");
+});

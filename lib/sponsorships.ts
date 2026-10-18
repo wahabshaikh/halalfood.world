@@ -176,10 +176,10 @@ export async function applyWhopEvent(webhookId: string, event: WhopEvent, client
     ]);
     return "applied";
   }
-  if (event.type === "membership.deactivated") {
+  if (event.type === "membership.deactivated" || event.type === "membership.renewing") {
     await runBatch(db, [
-      sql`UPDATE city_sponsorships SET renews = 0, updated_at = ${now}
-          WHERE whop_membership_id = ${event.membershipId} OR (${event.sponsorshipId} IS NOT NULL AND id = ${event.sponsorshipId})`,
+      sql`UPDATE city_sponsorships SET renews = ${event.type === "membership.renewing" ? 1 : 0}, updated_at = ${now}
+          WHERE status = 'active' AND (whop_membership_id = ${event.membershipId} OR (${event.sponsorshipId} IS NOT NULL AND id = ${event.sponsorshipId}))`,
       record,
     ]);
     return "applied";

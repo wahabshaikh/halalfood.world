@@ -112,3 +112,28 @@ test("parseWhopEvent: reads the events we act on and ignores the rest", () => {
   assert.deepEqual(parseWhopEvent({ type: "dispute.created" }, NOW), { type: "ignored", name: "dispute.created" });
   assert.deepEqual(parseWhopEvent("nonsense", NOW), { type: "ignored", name: "unknown" });
 });
+
+
+test("current Whop payloads use flat payment ids and exclude newsletter payments", () => {
+  const refund = parseWhopEvent({ type: "refund.updated", data: { payment_id: "pay_flat", status: "succeeded" } }, NOW);
+  assert.deepEqual(refund, { type: "refund", paymentId: "pay_flat", membershipId: null });
+  assert.equal(parseWhopEvent({ type: "payment.succeeded", data: { id: "pay_n", metadata: { kind: "newsletter", sponsorship_id: "s1" } } }, NOW).type, "ignored");
+  const paid = parseWhopEvent({ type: "payment.succeeded", data: { id: "pay_s", membership_id: "mem_s" } }, NOW);
+  assert.equal(paid.type === "payment.succeeded" && paid.membershipId, "mem_s");
+});
+
+test("membership updates stop and resume sponsorship renewals", () => {
+  for (const type of ["membership.updated", "membership.deactivated", "membership.cancel_at_period_end_changed"]) {
+    for (const status of ["canceled", "completed", "expired", "unresolved"]) {
+      assert.equal(parseWhopEvent({ type, data: { id: "mem_s", status } }, NOW).type, "membership.deactivated");
+    }
+    assert.equal(parseWhopEvent({ type, data: { id: "mem_s", status: "active", cancel_at_period_end: true } }, NOW).type, "membership.deactivated");
+  }
+  for (const status of ["active", "trialing"]) {
+    assert.deepEqual(parseWhopEvent({ type: "membership.updated", data: { id: "mem_s", status, cancel_at_period_end: false, metadata: { sponsorship_id: "s1" } } }, NOW), {
+      type: "membership.renewing", membershipId: "mem_s", sponsorshipId: "s1",
+    });
+  }
+  assert.equal(parseWhopEvent({ type: "membership.updated", data: { id: "mem_s", status: "past_due" } }, NOW).type, "ignored");
+  assert.equal(parseWhopEvent({ type: "membership.updated", data: {} }, NOW).type, "ignored");
+});

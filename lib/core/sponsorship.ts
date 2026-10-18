@@ -142,7 +142,7 @@ export function paidWindow(row: SponsorshipState, others: SponsorshipState[], pa
 /** The Whop events this app acts on, reduced to what the handler needs. */
 export type WhopEvent =
   | { type: "payment.succeeded"; paymentId: string; sponsorshipId: string | null; checkoutId: string | null; membershipId: string | null; paidAt: number }
-  | { type: "membership.deactivated"; membershipId: string; sponsorshipId: string | null }
+  | { type: "membership.deactivated" | "membership.renewing"; membershipId: string; sponsorshipId: string | null }
   | { type: "refund"; paymentId: string | null; membershipId: string | null }
   | { type: "ignored"; name: string };
 
@@ -161,7 +161,7 @@ export function parseWhopEvent(body: unknown, now: number): WhopEvent {
   const data = obj(event.data);
   if (name === "payment.succeeded") {
     const paymentId = str(data.id);
-    if (!paymentId) return { type: "ignored", name };
+    if (!paymentId || obj(data.metadata).kind === "newsletter") return { type: "ignored", name };
     return {
       type: name,
       paymentId,
@@ -171,17 +171,22 @@ export function parseWhopEvent(body: unknown, now: number): WhopEvent {
       paidAt: time(data.paid_at, time(event.timestamp, now)),
     };
   }
-  if (name === "membership.deactivated") {
+  if (["membership.activated", "membership.updated", "membership.deactivated", "membership.cancel_at_period_end_changed"].includes(name)) {
     const membershipId = str(data.id);
     if (!membershipId) return { type: "ignored", name };
-    return { type: name, membershipId, sponsorshipId: str(obj(data.metadata).sponsorship_id) };
+    if (obj(data.metadata).kind === "newsletter") return { type: "ignored", name };
+    const status = str(data.status);
+    const stop = name === "membership.deactivated" || ["canceled", "completed", "expired", "unresolved"].includes(status ?? "") || data.cancel_at_period_end === true;
+    const resume = (status === "active" || status === "trialing") && data.cancel_at_period_end === false;
+    if (!stop && !resume) return { type: "ignored", name };
+    return { type: stop ? "membership.deactivated" : "membership.renewing", membershipId, sponsorshipId: str(obj(data.metadata).sponsorship_id) };
   }
   if (name === "refund.created" || name === "refund.updated") {
     // Act once the money has gone back; a pending refund arrives again as refund.updated.
     const status = str(data.status);
     if (status && status !== "succeeded") return { type: "ignored", name };
     const payment = obj(data.payment);
-    const paymentId = str(payment.id);
+    const paymentId = str(data.payment_id) ?? str(payment.id);
     const membershipId = str(obj(payment.membership).id);
     if (!paymentId && !membershipId) return { type: "ignored", name };
     return { type: "refund", paymentId, membershipId };
