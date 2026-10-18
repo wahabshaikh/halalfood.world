@@ -26,6 +26,11 @@ GOOGLE_PLACES_API_KEY=
 # WHOP_API_KEY=
 # WHOP_COMPANY_ID=
 # WHOP_WEBHOOK_SECRET=
+# WHOP_SPONSOR_PRODUCT_ID=
+
+# Newsletter on Whop (/newsletter). Plan id enables subscriptions with WHOP_API_KEY; product id enables access checks.
+# WHOP_NEWSLETTER_PLAN_ID=
+# WHOP_NEWSLETTER_PRODUCT_ID=
 
 # Halal Food Scout's admin MCP endpoint (/api/mcp). At least 32 random characters
 # (`openssl rand -hex 32`). Empty means the endpoint answers 503 to everyone.

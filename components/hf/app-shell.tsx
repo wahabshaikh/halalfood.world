@@ -80,6 +80,7 @@ export function AppShell({
           <div className="mx-auto flex max-w-6xl flex-wrap gap-x-6 gap-y-1 page-x py-6 text-sm text-muted-foreground">
             <span>© {new Date().getFullYear()} halalfood.world</span>
             <span>Place details from Google</span>
+            <a href="/newsletter" className="hover:text-foreground">Newsletter</a>
             <a href="/sponsor" className="hover:text-foreground">
               Sponsor a city
             </a>
