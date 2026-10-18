@@ -53,7 +53,7 @@ import { slugifyCity } from "@/lib/core/place-submission";
 import { runBatch } from "@/lib/checks-repository";
 import { googlePlaceMapsUrl } from "@/lib/google-places";
 import { publishListingChange } from "@/lib/listing-cache";
-import { cityName } from "@/lib/place-view";
+import { cityName, parseCuisines } from "@/lib/place-view";
 import { createPlaceStatements, findPlaceByGoogleId } from "@/lib/places";
 import { containsText } from "@/lib/text-search";
 import { applyClaims, claimAttributesInput, type ClaimOutcomes } from "./claims";
@@ -234,6 +234,28 @@ export async function findPlace(deps: ScoutDeps, input: FindPlaceInput): Promise
 export function rejectionFor(input: { name: string; description?: string | null; types?: readonly string[] }): Rejection | null {
   const rejection = ingestRejection(input);
   return rejection ? { ok: false, error: "rejected", ...rejection, message: rejection.reason } : null;
+}
+
+/** A listed place that Scout attaches something to (a verification, a menu, a logo). */
+export type TargetPlace = { id: string; name: string; citySlug: string };
+
+/**
+ * Resolve a tool's place_id the same way for every tool that attaches to a
+ * place: a valid id, a place that exists, isn't alcohol-led or Ahmadiyya, and
+ * is listed.
+ */
+export async function targetPlace(deps: ScoutDeps, rawId: string): Promise<{ ok: true; place: TargetPlace } | PlaceFailure> {
+  const placeId = placeIdParam(rawId);
+  if (!placeId) return { ok: false, error: "invalid_place_id", message: "place_id is the id from find_place or upsert_place." };
+  const [place] = await deps.db.all<{ id: string; name: string; city_slug: string; serves_cuisine: unknown; listing_status: string }>(sql`
+    SELECT id, name, city_slug, serves_cuisine, listing_status FROM places WHERE id = ${placeId} LIMIT 1
+  `);
+  if (!place) return { ok: false, error: "place_not_found", message: "No place has that id." };
+  const rejected = rejectionFor({ name: place.name, types: parseCuisines(place.serves_cuisine) });
+  if (rejected) return rejected;
+  if (place.listing_status !== "listed")
+    return { ok: false, error: "place_not_listed", message: `That place is ${place.listing_status}, so Scout can't add to it.` };
+  return { ok: true, place: { id: place.id, name: place.name, citySlug: place.city_slug } };
 }
 
 function cuisines(value: UpsertPlaceInput["cuisine"]): string[] {
