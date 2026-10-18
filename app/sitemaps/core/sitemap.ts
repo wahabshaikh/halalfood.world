@@ -7,5 +7,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: canonical("/cities"), changeFrequency: "weekly", priority: 0.8 },
     { url: canonical("/events"), changeFrequency: "daily", priority: 0.6 },
     { url: canonical("/community"), changeFrequency: "weekly", priority: 0.5 },
+    { url: canonical("/sponsor"), changeFrequency: "monthly", priority: 0.3 },
   ];
 }
