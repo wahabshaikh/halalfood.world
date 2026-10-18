@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { bakedSentryEnvironment } from "@/lib/sentry-options";
 import { DataFastAnalytics } from "@/components/hf/datafast-analytics";
 import { SITE_NAME, SITE_URL, OG_IMAGE, TWITTER_SITE } from "@/lib/seo";
-import { CrispChat } from "@/components/hf/crisp-chat";
 // Self-hosted (Fontsource), as in mosques.world: no third-party font request.
 import "@fontsource-variable/nunito-sans/opsz.css";
 import "./globals.css";
@@ -96,7 +95,6 @@ export default function RootLayout({
       <body>
         {children}
         <DataFastAnalytics />
-        <CrispChat />
       </body>
     </html>
   );

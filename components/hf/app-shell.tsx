@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Search01Icon } from "@hugeicons/core-free-icons";
+import { SUPPORT_MAILTO } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { Logo } from "./brand";
 import { Icon } from "./kit";
@@ -79,6 +80,9 @@ export function AppShell({
           <div className="mx-auto flex max-w-6xl flex-wrap gap-x-6 gap-y-1 page-x py-6 text-sm text-muted-foreground">
             <span>© {new Date().getFullYear()} halalfood.world</span>
             <span>Place details from Google</span>
+            <a href={SUPPORT_MAILTO} className="hover:text-foreground">
+              Support
+            </a>
           </div>
         </footer>
       )}

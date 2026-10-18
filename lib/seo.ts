@@ -10,6 +10,9 @@ export const SITE_NAME = "halalfood.world";
 export const OG_IMAGE = "/og.png";
 export const ADD_OG_IMAGE = "/add-og.png";
 export const TWITTER_SITE = "@iwahabshaikh";
+/** Public support inbox (email only; Email Routing forwards it to the maintainer). */
+export const SUPPORT_EMAIL = "support@halalfood.world";
+export const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}`;
 
 
 export function canonical(path = "/") {
