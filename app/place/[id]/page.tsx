@@ -6,11 +6,13 @@ import { placeIdParam } from "@/lib/core/params";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/hf/app-shell";
 import { AddToListButton } from "@/components/hf/list-sheets";
-import { AvatarStack, FactTile, Icon, LinkButton, Page, PlaceArt, SectionTitle, StatusCard, StatusPill, buttonClass } from "@/components/hf/kit";
+import { Avatar, AvatarStack, FactTile, Icon, LinkButton, Page, PlaceArt, SectionTitle, StatusCard, StatusPill, buttonClass } from "@/components/hf/kit";
 import { getViewerId } from "@/lib/auth-session";
 import { listPlaceNotes, topDishes } from "@/lib/checks-repository";
 import { decoratePlaces } from "@/lib/explore";
 import { creatorPath, d1MediaLinkRepository } from "@/lib/media-links";
+import { formatVideoTimestamp } from "@/lib/core/creators";
+import { placeCreatorVerifications, videoMonth } from "@/lib/creator-profiles";
 import { d1PlacePhotoRepository } from "@/lib/place-photos";
 import { cityName, photoUrl } from "@/lib/place-view";
 import { getPlaceById, nearbyPlaces } from "@/lib/places";
@@ -62,7 +64,7 @@ export default async function PlacePage({ params }: Props) {
   if (!place) notFound();
   const viewerId = await getViewerId();
   const status = place.card.status;
-  const [[card], dishes, photos, videos, notes, nearby] = await Promise.all([
+  const [[card], dishes, photos, videos, notes, nearby, creators] = await Promise.all([
     decoratePlaces(viewerId, [place.card]),
     topDishes(place.id).catch(() => []),
     d1PlacePhotoRepository().list(place.id, viewerId).catch(() => []),
@@ -71,6 +73,7 @@ export default async function PlacePage({ params }: Props) {
     place.lat !== null && place.lng !== null
       ? nearbyPlaces({ lat: place.lat, lng: place.lng }, { excludeId: place.id, limit: 4 }).catch(() => [])
       : Promise.resolve([]),
+    placeCreatorVerifications(place.id).catch(() => []),
   ]);
   const city = cityName(place.city_slug);
   const where = [place.card.cuisine, place.street_address].filter(Boolean).join(" · ");
@@ -211,6 +214,44 @@ export default async function PlacePage({ params }: Props) {
                 <p className="text-sm text-muted-foreground">No photos yet.</p>
               )}
             </section>
+
+            {creators.length > 0 && (
+              <section aria-labelledby="creators" className="grid gap-3 max-lg:order-9">
+                <SectionTitle id="creators">From creators</SectionTitle>
+                <ul className="grid gap-1 md:max-w-xl">
+                  {creators.map((creator) => (
+                    <li key={creator.id} className="flex min-h-11 items-center gap-3 border-b border-border/70 py-2.5">
+                      <a href={`/u/${creator.handle}`} className="shrink-0" aria-label={`${creator.displayName} on halalfood.world`}>
+                        <Avatar name={creator.displayName} seed={creator.handle} src={creator.avatarUrl} size={40} />
+                      </a>
+                      <span className="grid min-w-0 flex-1">
+                        <span className="truncate text-[15px] font-semibold">
+                          Verified by{" "}
+                          <a href={`/u/${creator.handle}`} className="font-extrabold text-foreground">
+                            {creator.displayName}
+                          </a>{" "}
+                          in a video
+                        </span>
+                        <span className="truncate text-[13px] font-semibold text-muted-foreground">
+                          {[`@${creator.handle}`, creator.timestampSeconds ? `at ${formatVideoTimestamp(creator.timestampSeconds)}` : null, videoMonth(creator.videoDate)]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      </span>
+                      <a
+                        href={creator.videoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="inline-flex min-h-11 shrink-0 items-center rounded-full border border-input px-3.5 text-[13px] font-extrabold text-foreground"
+                      >
+                        Watch
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[13px] font-semibold text-muted-foreground">A video is taste, not a halal check. The status above comes from people who eat here.</p>
+              </section>
+            )}
 
             {videos.length > 0 && (
               <section aria-labelledby="videos" className="grid gap-3 max-lg:order-9">

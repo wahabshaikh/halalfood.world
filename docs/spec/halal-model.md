@@ -72,7 +72,8 @@ Filters match a fact's current value, settled or not; a place with no value for 
 
 ## What can't change a status
 
-Likes, follows, lists, recs, RSVPs, points, creator videos, "How was it?" verdicts and dishes are context. They help people choose where to eat and never touch the status. Nobody can pay to change a status or a ranking.
+Likes, follows, lists, recs, RSVPs, points, creator videos, creator verifications ("Verified by <creator> in a
+video", recorded by Halal Food Scout), "How was it?" verdicts and dishes are context. They help people choose where to eat and never touch the status. Nobody can pay to change a status or a ranking.
 
 ## The safety net
 

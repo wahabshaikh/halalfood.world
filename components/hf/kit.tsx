@@ -378,8 +378,8 @@ export function Avatar({
       aria-hidden="true"
     >
       {src ? (
-        // Avatars are served from our own R2 proxy route.
-        <img src={src} alt="" className="size-full object-cover" />
+        // Our own R2 proxy route, or a creator's YouTube avatar (lib/core/creators.ts allows only YouTube's image hosts).
+        <img src={src} alt="" referrerPolicy="no-referrer" className="size-full object-cover" />
       ) : (
         initialsOf(name)
       )}

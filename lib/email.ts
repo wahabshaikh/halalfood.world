@@ -1,3 +1,4 @@
+import { isUndeliverableEmail } from "./core/creators";
 import { readBinding, isNonProductionRequest } from "./worker-env";
 import { requestHostname } from "./request-host";
 
@@ -64,7 +65,10 @@ function recipients(to: SendEmailInput["to"]): string[] {
   if (values.length === 0 || values.some((value) => typeof value !== "string" || value.trim() === "")) {
     throw new EmailError("INVALID_INPUT", "At least one recipient email address is required");
   }
-  return values.map((value) => value.trim());
+  const trimmed = values.map((value) => value.trim());
+  // Unclaimed creators and deleted accounts carry `.invalid` placeholders (lib/core/creators.ts).
+  if (trimmed.some(isUndeliverableEmail)) throw new EmailError("INVALID_INPUT", "That address can never receive mail");
+  return trimmed;
 }
 
 function validateInput(input: SendEmailInput) {

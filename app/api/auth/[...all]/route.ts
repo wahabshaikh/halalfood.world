@@ -1,4 +1,5 @@
 import { createAuth } from "@/lib/auth";
+import { isUndeliverableEmail } from "@/lib/core/creators";
 import {
   consumeOtpRequestLimits,
   consumeOtpVerificationLimits,
@@ -55,8 +56,19 @@ function rateLimited(retryAfterMs: number) {
   );
 }
 
+/** Unclaimed creator profiles and deleted accounts have `.invalid` placeholder emails: nobody signs in as them. */
+function reservedEmail() {
+  return Response.json(
+    { error: "That email address can’t be used to sign in." },
+    { status: 400, headers: { "Cache-Control": "no-store" } },
+  );
+}
+
 async function handle(request: Request): Promise<Response> {
   const path = endpointPath(request);
+  if (request.method === "POST" && (path === SEND_OTP_PATH || VERIFY_OTP_PATHS.has(path))) {
+    if (isUndeliverableEmail((await readJson(request)).email)) return reservedEmail();
+  }
   if (request.method === "POST" && path === SEND_OTP_PATH) {
     const body = await readJson(request);
     const token =

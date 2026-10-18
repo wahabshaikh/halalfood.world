@@ -21,3 +21,7 @@ GOOGLE_PLACES_API_KEY=
 
 # Listing import (pnpm signals:listings). Optional: without it only OpenStreetMap is used.
 # GEOAPIFY_API_KEY=
+
+# Halal Food Scout's admin MCP endpoint (/api/mcp). At least 32 random characters
+# (`openssl rand -hex 32`). Empty means the endpoint answers 503 to everyone.
+MCP_ADMIN_SECRET=
