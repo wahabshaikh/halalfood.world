@@ -372,6 +372,8 @@ The design canvas is the reference for each screen. This section adds the data s
 
 A live query, debounced 200 ms. Blank shows the suggestions `biryani`, `shawarma`, `@{a followee}`, `{a city}`. Sections in order: Places, People, Lists & guides, Cities, each shown only if non-empty. With no results: "Nothing listed yet" plus Add a place.
 
+Place search recognises the longest known city name at the start or end of the query and restricts results to that city. A city alone returns its places. The remaining query (or the whole query when no city matches) requires each of its first four words to match a place's name, cuisine, address or checked dish names, using literal `instr()` matching. Single-word searches without a city keep their existing matching and ordering.
+
 ### 6.3 Choose a city (`/cities`)
 
 Use my location (browser geolocation, then the nearest city). A filterable list of cities with place counts; the current city is ticked. Picking one sets the `city` cookie and goes to `/city/[slug]`.
