@@ -144,6 +144,11 @@ export function registerScoutTools(server: McpServer, context: ScoutContext) {
       description:
         "Match first (Google place id, then the find_place ranking within 300 m and the city); a match at same_place_score or above " +
         "returns result: matched and only fills the place's empty columns. Otherwise lists a new place at once as Not checked yet. " +
+        "force_new: true skips matching (a stall inside a food hall that matched the hall); an identical city + name + street address, " +
+        "or a Google id already listed, returns error: duplicate_place with existing_place_id. " +
+        "lat/lng are optional: without them the place is geocoded once from address, city and country (or its google_place_id) with " +
+        "halalfood.world's Google key and daily cap, and stored without coordinates when that isn't confident (no map pin until fixed; " +
+        "never a guessed point). location says provided, geocoded, existing (a matched place kept its own) or null, with geocode giving the reason. " +
         "Optional sourced attributes halal_certified (with certifier_name), muslim_owned, no_pork and no_alcohol, each " +
         "{ value: yes | no | unknown, source_url: https URL, required for yes/no }, are stored as web claims: they fill facts nobody has answered " +
         "and replace Scout's own earlier claims, never override community checks or approved certificates and menus, and \"unknown\" withdraws Scout's earlier claim. " +

@@ -32,3 +32,8 @@ INSERT OR IGNORE INTO place_claims (id, place_id, source, fact, value, source_ur
 INSERT OR IGNORE INTO places (id, name, city_slug, street_address, address_locality, address_country, lat, lng, created_at, updated_at) VALUES ('00000000-0000-4000-8000-000000000008', 'Seed Falafel Stop', 'london', '3 Wentworth Street, London', 'London', 'GB', 51.5168, -0.0745, 1790000000000, 1790000000000);
 INSERT OR IGNORE INTO place_status (place_id, alcohol_value, alcohol_sources, updated_at) VALUES ('00000000-0000-4000-8000-000000000008', 'no', 'scout', 1790000000000);
 INSERT OR IGNORE INTO place_claims (id, place_id, source, fact, value, source_url, certifier, created_at, updated_at) VALUES ('00000000-0000-4000-8000-0000000d0004', '00000000-0000-4000-8000-000000000008', 'scout', 'alcohol', 'no', 'https://example.com/seed-falafel-stop/drinks', NULL, 1790000000000, 1790000000000);
+
+-- A place Halal Food Scout listed without coordinates (no lat/lng sent and no confident geocode): listed on its city
+-- page and in search, no map pin, "Location pending" on its page.
+INSERT OR IGNORE INTO places (id, name, city_slug, street_address, address_locality, address_country, maps_url, lat, lng, created_at, updated_at) VALUES ('00000000-0000-4000-8000-000000000009', 'Seed Pending Pin Cafe', 'london', '5 Old Montague Street, London', 'London', 'GB', 'https://www.google.com/maps/search/?api=1&query=Seed%20Pending%20Pin%20Cafe%2C%205%20Old%20Montague%20Street%2C%20London', NULL, NULL, 1790000000000, 1790000000000);
+INSERT OR IGNORE INTO place_status (place_id, updated_at) VALUES ('00000000-0000-4000-8000-000000000009', 1790000000000);

@@ -172,6 +172,9 @@ export default async function PlacePage({ params }: Props) {
             <div className="grid gap-1.5 max-lg:order-1">
               <h1 className="text-[28px] leading-tight font-black tracking-tight md:text-[38px]">{place.name}</h1>
               <p className="text-[15px] font-semibold text-muted-foreground md:text-base">{where}</p>
+              {(place.lat === null || place.lng === null) && (
+                <p className="text-[13px] font-semibold text-muted-foreground">Location pending: this place isn’t on the map yet.</p>
+              )}
             </div>
 
             <section aria-labelledby="facts" className="grid gap-3 max-lg:order-3">

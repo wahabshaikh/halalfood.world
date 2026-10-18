@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { recomputePlaceStatus } from "@/lib/checks-repository";
-import { explorePlaces, getPlaceById } from "@/lib/places";
+import { explorePlaces, getPlaceById, searchPlaces } from "@/lib/places";
 import { addPlace, addProfile, addUser, createTestDatabase, DAY } from "@/lib/testing/sqlite-d1";
 import { readWranglerConfig } from "@/lib/wrangler-config";
 import { ADMIN_SECRET_MIN, adminSecret, checkAdminToken, timingSafeEqualString } from "./auth";
@@ -889,4 +889,130 @@ test("the seed's Scout-claimed places carry the status recomputePlaceStatus give
     await recomputePlaceStatus(id, deps.db, NOW);
     assert.deepEqual({ ...(sqlite.prepare(`SELECT ${columns} FROM place_status WHERE place_id = ?`).get(id) as object) }, seeded, id);
   }
+});
+
+/* ------------------------------------------------ coordinates and force_new */
+
+const noCoords = (over: Partial<UpsertPlaceInput> = {}): UpsertPlaceInput => {
+  const { lat: _lat, lng: _lng, ...rest } = place(over);
+  return { ...rest, ...over };
+};
+
+function googleDeps(s: ReturnType<typeof setup>, respond: () => Response | Promise<Response>) {
+  const calls: string[] = [];
+  vi.stubGlobal("fetch", async (url: string) => {
+    calls.push(String(url));
+    return respond();
+  });
+  return { deps: { ...s.deps, google: { apiKey: "test-key", searchCap: 10, detailsCap: 10 } } satisfies ScoutDeps, calls };
+}
+const googleJson = (value: unknown) => new Response(JSON.stringify(value), { status: 200 });
+const DISHOOM_RESULT = { places: [{ id: "ChIJdishoom1", displayName: { text: "Dishoom" }, formattedAddress: "7 Boundary St, London E2 7JE, UK", location: { latitude: 51.5245, longitude: -0.0768 } }] };
+
+test("without lat/lng and without a Google key, a place is listed with no coordinates, never guessed ones", async () => {
+  const { deps, sqlite } = setup();
+  const result = await upsertPlace(deps, noCoords());
+  assert.ok(result.ok && result.result === "created");
+  assert.equal(result.location, "null");
+  assert.equal(result.geocode, "not_configured");
+  const row = sqlite.prepare(`SELECT lat, lng, maps_url, listing_status FROM places WHERE id = ?`).get(result.place.id) as Record<string, unknown>;
+  assert.deepEqual([row.lat, row.lng, row.listing_status], [null, null, "listed"]);
+  assert.match(String(row.maps_url), /query=Dishoom%20Shoreditch%2C%207%20Boundary%20St/);
+  // Still on its city page, in search and on the place page; never on the map or among nearby places.
+  assert.deepEqual((await explorePlaces({ citySlug: "london" }, deps.db)).places.map((p) => p.id), [result.place.id]);
+  assert.deepEqual((await searchPlaces("dishoom", {}, deps.db)).map((p) => p.id), [result.place.id]);
+  assert.equal((await explorePlaces({ bbox: { west: -1, south: 51, east: 1, north: 52 } }, deps.db)).total, 0);
+  const near = await explorePlaces({ citySlug: "london", near: LONDON }, deps.db);
+  assert.equal(near.places[0]?.distanceKm, null);
+  const detail = await getPlaceById(result.place.id, deps.db);
+  assert.deepEqual([detail?.lat, detail?.lng], [null, null]);
+
+  // Matching without coordinates falls back to the city and street address.
+  const again = await upsertPlace(deps, noCoords({ name: "Dishoom" }));
+  assert.ok(again.ok && again.result === "matched");
+  assert.equal(again.matched_by, "name_and_address");
+  assert.equal(again.location, "null");
+  // Sending coordinates later fills the blank.
+  const later = await upsertPlace(deps, place());
+  assert.ok(later.ok && later.result === "matched");
+  assert.equal(later.location, "provided");
+  assert.ok(later.filled.includes("lat"));
+  assert.equal(later.place.lat, LONDON.lat);
+  const kept = await upsertPlace(deps, noCoords());
+  assert.ok(kept.ok && kept.result === "matched");
+  assert.equal(kept.location, "existing");
+});
+
+test("without lat/lng, a confident geocode sets the coordinates; a low-confidence one leaves them empty", async () => {
+  const s = setup();
+  const good = googleDeps(s, () => googleJson(DISHOOM_RESULT));
+  const created = await upsertPlace(good.deps, noCoords());
+  assert.ok(created.ok && created.result === "created");
+  assert.equal(created.location, "geocoded");
+  assert.deepEqual([created.place.lat, created.place.lng], [51.5245, -0.0768]);
+  assert.equal(good.calls.length, 1);
+  // Sent coordinates are used as they are, without a Google call.
+  const provided = await upsertPlace(good.deps, place({ name: "Tayyabs", address: "83-89 Fieldgate St, London E1 1JU", lat: 51.5172, lng: -0.0635 }));
+  assert.ok(provided.ok && provided.location === "provided");
+  assert.equal(good.calls.length, 1);
+
+  const wrong = googleDeps(s, () => googleJson({ places: [{ ...DISHOOM_RESULT.places[0], formattedAddress: "7 Boundary Rd, Portsmouth PO6 1AB, UK" }] }));
+  const lost = await upsertPlace(wrong.deps, noCoords({ name: "Lahore Kebab House", address: "2-10 Umberston St, London E1 1PY" }));
+  assert.ok(lost.ok && lost.result === "created");
+  assert.deepEqual([lost.location, lost.geocode, lost.place.lat], ["null", "wrong_city", null]);
+
+  // A matched place with no coordinates is geocoded once to fill them.
+  const old = addPlace(s.sqlite, { name: "Needoo Grill", city: "london", lat: null, lng: null });
+  s.sqlite.prepare(`UPDATE places SET street_address = '87 New Rd, London E1 1HH' WHERE id = ?`).run(old);
+  const fill = googleDeps(s, () => googleJson({ places: [{ ...DISHOOM_RESULT.places[0], formattedAddress: "87 New Rd, London E1 1HH, UK", location: { latitude: 51.5166, longitude: -0.0647 } }] }));
+  const matched = await upsertPlace(fill.deps, noCoords({ name: "Needoo Grill", address: "87 New Rd, London E1 1HH" }));
+  assert.ok(matched.ok && matched.result === "matched");
+  assert.equal(matched.place.id, old);
+  assert.equal(matched.location, "geocoded");
+  assert.deepEqual(matched.filled.filter((f) => f === "lat" || f === "lng"), ["lat", "lng"]);
+  vi.unstubAllGlobals();
+});
+
+test("lat without lng is refused at the boundary", async () => {
+  const { environment } = mcpEnv();
+  const out = await call(environment, "upsert_place", { ...noCoords(), lat: 51.5 });
+  assert.equal(out.isError, true);
+  assert.match(out.text, /lat and lng together/);
+  const ok = await call(environment, "upsert_place", noCoords());
+  assert.equal(ok.body.location, "null");
+});
+
+test("force_new lists a stall at its food hall's address instead of matching the hall", async () => {
+  const { deps, sqlite } = setup();
+  const hall = await upsertPlace(deps, place({ name: "Kingsbridge Food Hall", address: "1 Kingsbridge Rd, London" }));
+  assert.ok(hall.ok && hall.result === "created");
+  // Without force_new a near-identical name at the same spot matches, as it should for the same venue.
+  const same = await upsertPlace(deps, place({ name: "Kingsbridge Food Hall London", address: "1 Kingsbridge Rd, London" }));
+  assert.ok(same.ok && same.result === "matched");
+  // The stall named after its host no longer matches it, even without force_new (the Oklahoma Burgers case).
+  const stall = await upsertPlace(deps, place({ name: "Oklahoma Burgers - Kingsbridge Food Hall", address: "1 Kingsbridge Rd, London" }));
+  assert.ok(stall.ok && stall.result === "created");
+  const forced = await upsertPlace(deps, place({ name: "Kingsbridge Food Hall Grill", address: "1 Kingsbridge Rd, London", force_new: true }));
+  assert.ok(forced.ok && forced.result === "created");
+  assert.notEqual(forced.place.id, hall.place.id);
+  assert.equal(count(sqlite, "SELECT count(*) AS n FROM places"), 3);
+
+  // force_new can't duplicate a row: same city, name and street, or the same Google id.
+  const twin = await upsertPlace(deps, place({ name: "Kingsbridge Food Hall", address: "1 Kingsbridge Rd, London", force_new: true }));
+  assert.deepEqual(twin.ok ? null : { error: twin.error, id: (twin as { existing_place_id?: string }).existing_place_id }, { error: "duplicate_place", id: hall.place.id });
+  const google = await upsertPlace(deps, place({ name: "Burger Stall", address: "1 Kingsbridge Rd, London", google_place_id: "ChIJhall00001" }));
+  assert.ok(google.ok);
+  const googleTwin = await upsertPlace(deps, place({ name: "Another name", address: "9 Elsewhere St, London", google_place_id: "ChIJhall00001", force_new: true }));
+  assert.equal(googleTwin.ok, false);
+  assert.equal((googleTwin as { error: string }).error, "duplicate_place");
+  assert.equal(count(sqlite, "SELECT count(*) AS n FROM places"), 4);
+});
+
+test("force_new is per item in a batch", async () => {
+  const { environment, sqlite } = mcpEnv();
+  const out = await call(environment, "upsert_places", {
+    places: [place({ name: "Kingsbridge Food Hall" }), place({ name: "Kingsbridge Food Hall", force_new: true }), place({ name: "Kingsbridge Food Hall" })],
+  });
+  assert.deepEqual(out.body.results.map((r: { result?: string; error?: string }) => r.result ?? r.error), ["created", "duplicate_place", "matched"]);
+  assert.equal(count(sqlite, "SELECT count(*) AS n FROM places"), 1);
 });
