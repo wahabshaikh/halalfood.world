@@ -142,22 +142,41 @@ Other numberless addresses can be false negatives: send confirmed coordinates in
 `location: "null", geocode: "no_street_address"` without a Google call or budget reservation.
 
 Otherwise [`lib/scout/geocode.ts`](../lib/scout/geocode.ts) uses the existing Google key and daily caps.
-A `google_place_id` uses Place Details (`formattedAddress,location,types`, `details:` cap); otherwise the address,
-city and country use Text Search (`places.id,places.displayName,places.formattedAddress,places.location,places.types`,
-search cap). Each request reserves one unit first. Adding types keeps Details at Essentials and Text Search at its
-existing Pro tier; no contact/hours/Enterprise fields are requested
+A `google_place_id` uses Place Details (`formattedAddress,location,types,addressComponents`, `details:` cap); otherwise the address,
+city and country use Text Search (`places.id,places.displayName,places.formattedAddress,places.location,places.types,places.addressComponents`,
+search cap). Each request reserves one unit first. Types and address components keep Details at Essentials and Text Search at its
+existing Pro tier (Text Search formattedAddress/types already require Pro); no contact/hours/Enterprise fields are requested
 ([Google field/SKU table](https://developers.google.com/maps/documentation/places/web-service/data-fields), checked 2026-10-18).
 The top usable result must have types with venue/street precision. Any locality, sublocality*, administrative_area_level_*,
 postal_code*, postal_town, country, political, colloquial_area or neighborhood type rejects it as `not_street_level`.
 All route results are rejected, even with a number in the formatted address: a road centre is not a venue pin.
 Missing/empty types and generic point_of_interest/geocode alone also fail. Street_address, premise,
 establishment and venue types (such as restaurant) qualify. The existing checks still apply: valid coordinates,
-no other usable result more than 1 km away, whole-word city match, and a matching country when supplied.
+no other usable result more than 1 km away, a matching city, and a matching country when supplied.
+City matching accepts any locality, postal_town, administrative_area_level_1–3, sublocality*, neighborhood or
+colloquial_area component's longText/shortText (case/accents ignored; City, -ku, -shi and Ward suffixes stripped;
+Tokyo aliases 東京/東京都), or the existing whole-word formatted-address match. A result within **40 km** of the
+city centre in `lib/data/city_coords.json` also qualifies, using the same `slugifyCity(city)` key as Scout's city
+slug. This deliberately includes nearby metro districts such as Don Mills and Edgware; nearby separate municipalities
+can qualify too. Unknown centres require a text/component match. The centre is only a trust check, never a returned pin.
+Country matching uses the country component's ISO alpha-2 shortText or longText, English ISO region names via
+`Intl.DisplayNames`, and common aliases (including Japan/JP/日本). Explicit alias groups remain a fallback if Intl
+region names are unavailable. Without a country component, all comma, Japanese-comma and hyphen address
+parts are checked, supporting both country-first Japanese and country-last Western addresses. A mismatching country
+component cannot be overridden by formatted text or proximity.
 
 Failures on new/unlocated places store null coordinates: listed in city/search, without map pin, distance or Nearby,
 with name/address Directions and "Location pending". Reasons are `no_street_address`, `not_street_level`,
 `not_configured`, `budget_exhausted`, `provider_error`, `no_result`, `ambiguous`, `wrong_city`, `wrong_country`.
 Failures when correcting a located place keep its pin and return `existing` with the failure reason.
+A confirmed street address can still be saved independently of geocoding for Scout/geocoded sources, wholly null
+coordinates with unknown source, or an explicitly relocated legacy unknown-source place with Scout creation proof
+(as below). Protected sources' addresses are never overwritten, even with null coordinates. An address repair
+returns `address_updated: true`, `address_change: {previous, current}` and `filled` including `street_address`;
+it bumps the listing cache version. With no pin or Google id, Directions becomes a name/address search. Existing
+pins and Google-id Directions stay intact. Duplicate city/name/street addresses return
+`address_refused: "duplicate_place"`; concurrent location/address changes return `address_refused: "location_changed"`.
+These refusals do not fail the whole upsert or erase coordinates.
 
 `places.location_source` records `scout` (explicit Scout coordinates), `geocoded` (Scout server geocode),
 `google` (Google add-a-place), or `import` (seed/coordinate backfills). `community` and `listing` are valid protected
