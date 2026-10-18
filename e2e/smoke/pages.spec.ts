@@ -19,6 +19,7 @@ for (const path of pages) {
     const response = await page.goto(path);
     expect(response?.status(), path).toBe(200);
     await expect(page.locator("body")).toBeVisible();
+    if (path === "/") await expect(page.locator("h1")).toHaveCount(1);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     expect(overflow, `${path} scrolls sideways`).toBe(false);
     expect(errors, `${path} threw in the browser`).toEqual([]);
