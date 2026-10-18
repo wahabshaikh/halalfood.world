@@ -12,6 +12,11 @@ declare module "cloudflare:workers" {
     GOOGLE_SEARCH_USER?: {
       limit(options: { key: string }): Promise<{ success: boolean }>;
     };
+    /** Halal Food Scout's bearer secret for /api/mcp. Unset or under 32 characters: the endpoint is off. */
+    MCP_ADMIN_SECRET?: string;
+    MCP_WRITE_LIMITER?: {
+      limit(options: { key: string }): Promise<{ success: boolean }>;
+    };
     [name: string]: unknown;
   };
 }
