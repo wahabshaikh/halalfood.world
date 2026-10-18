@@ -666,3 +666,41 @@ test("deleting a creator's account removes their creator rows and verifications"
   assert.equal(count(sqlite, "SELECT count(*) AS n FROM creator_profiles"), 0);
   assert.equal(count(sqlite, "SELECT count(*) AS n FROM creator_verifications"), 0);
 });
+
+/* ------------------------------------------------------------ the route */
+
+test("the route reads the secret, limiter, database and origin from the Worker", async () => {
+  const { env } = await import("cloudflare:workers");
+  const bindings = env as Record<string, unknown>;
+  const { binding } = createTestDatabase();
+  const keys: string[] = [];
+  Object.assign(bindings, {
+    DB: binding,
+    MCP_ADMIN_SECRET: SECRET,
+    MCP_WRITE_LIMITER: { async limit({ key }: { key: string }) { keys.push(key); return { success: true }; } },
+  });
+  try {
+    const { POST, GET, DELETE } = await import("@/app/api/mcp/route");
+    const { scoutEnvironment } = await import("./environment");
+    const local = await scoutEnvironment(new Request("http://127.0.0.1:5173/api/mcp"));
+    assert.equal((await local.deps()).origin, "http://127.0.0.1:5173");
+    const response = await POST(
+      new Request("http://127.0.0.1:5173/api/mcp", {
+        method: "POST",
+        headers: { authorization: `Bearer ${SECRET}`, accept: "application/json, text/event-stream", "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "upsert_creator", arguments: creator() } }),
+      }),
+    );
+    const text = await response.text();
+    assert.match(text, /\\"result\\": \\"created\\"/);
+    assert.match(text, /http:\/\/127\.0\.0\.1:5173\/u\/halalfoodie/);
+    assert.equal(keys.length, 1);
+    assert.equal(GET().status, 405);
+    assert.equal(DELETE().status, 405);
+    delete bindings.MCP_ADMIN_SECRET;
+    const off = await POST(new Request("http://127.0.0.1:5173/api/mcp", { method: "POST", headers: { authorization: `Bearer ${SECRET}` }, body: "{}" }));
+    assert.equal(off.status, 503);
+  } finally {
+    for (const key of ["DB", "MCP_ADMIN_SECRET", "MCP_WRITE_LIMITER"]) delete bindings[key];
+  }
+});

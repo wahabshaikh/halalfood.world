@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { LockIcon } from "@hugeicons/core-free-icons";
+import { formatSubscriberCount, formatVideoTimestamp } from "@/lib/core/creators";
 import { normalizeHandle } from "@/lib/core/people";
 import { AppShell } from "@/components/hf/app-shell";
-import { Avatar, Icon, Page, PlaceArt, TopBar } from "@/components/hf/kit";
+import { Avatar, Icon, Page, PlaceArt, StatusPill, TopBar } from "@/components/hf/kit";
 import { VisitCard } from "@/components/hf/visit-card";
 import { getViewerId } from "@/lib/auth-session";
+import { creatorVerifiedPlaces, getCreatorChannel, videoMonth } from "@/lib/creator-profiles";
 import { KIND_LABEL } from "@/lib/lists";
 import { listConnections } from "@/lib/people";
 import { cityName, photoUrl } from "@/lib/place-view";
@@ -25,12 +27,22 @@ async function load(raw: string, viewerId: string | null) {
   return handle ? loadPublicProfile(handle, viewerId) : null;
 }
 
+/** Where someone who runs the channel asks to claim the profile, until claiming is self-serve. */
+function claimHref(handle: string) {
+  const subject = `Claim @${handle} on halalfood.world`;
+  const body = `Salam! I run the YouTube channel behind https://halalfood.world/u/${handle} and would like to claim it.`;
+  return `mailto:salam@halalfood.world?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const data = await load((await params).handle, null).catch(() => null);
   if (!data) return { title: "Not found", robots: { index: false } };
+  const channel = await getCreatorChannel(data.profile.userId).catch(() => null);
   return {
     title: `${data.profile.displayName} (@${data.profile.handle})`,
-    description: data.profile.bio ?? `Where ${data.profile.displayName} eats, on halalfood.world.`,
+    description:
+      data.profile.bio ??
+      (channel ? `Halal places ${data.profile.displayName} has shown on YouTube, on halalfood.world.` : `Where ${data.profile.displayName} eats, on halalfood.world.`),
     alternates: { canonical: `/u/${data.profile.handle}` },
     robots: data.profile.isPrivate ? { index: false } : undefined,
   };
@@ -45,6 +57,9 @@ export default async function ProfilePage({ params, searchParams }: Props) {
   const city = profile.homeCitySlug ? cityName(profile.homeCitySlug) : null;
   const connections =
     data.canView && (tab === "followers" || tab === "following") ? await listConnections(profile.userId, tab) : null;
+  const channel = await getCreatorChannel(profile.userId).catch(() => null);
+  const verified = channel && data.canView ? await creatorVerifiedPlaces(profile.userId).catch(() => []) : [];
+  const unclaimed = channel !== null && !channel.claimed;
 
   return (
     <AppShell active={relation === "self" ? "you" : "friends"}>
@@ -62,6 +77,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
                   name: profile.displayName,
                   alternateName: `@${profile.handle}`,
                   ...(profile.bio ? { description: profile.bio } : {}),
+                  ...(channel ? { sameAs: [channel.channelUrl] } : {}),
                 },
               },
             ]),
@@ -74,8 +90,11 @@ export default async function ProfilePage({ params, searchParams }: Props) {
         </TopBar>
         <div className="lg:grid lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start lg:gap-x-12">
           <section className="grid gap-4 lg:sticky lg:top-24">
+            {channel?.bannerUrl && (
+              <img src={channel.bannerUrl} alt="" referrerPolicy="no-referrer" className="aspect-[6/1] w-full rounded-2xl object-cover" />
+            )}
             <div className="flex items-center gap-4">
-              <Avatar name={profile.displayName} seed={profile.userId} src={avatarUrl(profile.avatarKey, profile.handle)} size={76} />
+              <Avatar name={profile.displayName} seed={profile.userId} src={avatarUrl(profile.avatarKey, profile.handle) ?? channel?.avatarUrl} size={76} />
               <div className="grid min-w-0 gap-0.5">
                 <h1 className="line-clamp-2 text-[24px] leading-tight font-black break-words md:text-[28px]">{profile.displayName}</h1>
                 <p className="truncate text-sm font-semibold text-muted-foreground">
@@ -85,6 +104,19 @@ export default async function ProfilePage({ params, searchParams }: Props) {
               </div>
             </div>
             {profile.bio && data.canView && <p className="text-[15px] leading-relaxed">{profile.bio}</p>}
+            {channel && (
+              <a
+                href={channel.channelUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 w-fit items-center gap-2 rounded-full border border-input px-4 text-sm font-extrabold text-foreground"
+              >
+                YouTube
+                {channel.subscriberCount !== null && (
+                  <span className="font-semibold text-muted-foreground">· {formatSubscriberCount(channel.subscriberCount)} subscribers</span>
+                )}
+              </a>
+            )}
             <div className="flex gap-5 text-sm">
               <a href={`/u/${profile.handle}?tab=followers`} className="text-foreground">
                 <strong className="font-black">{data.followers}</strong> <span className="font-semibold text-muted-foreground">followers</span>
@@ -98,7 +130,17 @@ export default async function ProfilePage({ params, searchParams }: Props) {
                 </a>
               )}
             </div>
-            {relation === "self" ? (
+            {unclaimed ? (
+              <div className="grid gap-1 rounded-2xl bg-muted px-4 py-3">
+                <p className="text-[15px] font-extrabold">Unclaimed. Is this you?</p>
+                <p className="text-[13px] font-semibold text-subtle-foreground">
+                  This profile was made from @{channel.channelHandle}’s public YouTube channel.{" "}
+                  <a href={claimHref(profile.handle)} className="font-extrabold text-primary underline-offset-2 hover:underline">
+                    Claim it
+                  </a>
+                </p>
+              </div>
+            ) : relation === "self" ? (
               <a href="/me/settings" className="inline-flex min-h-11 items-center justify-center rounded-full border border-input text-[15px] font-extrabold text-foreground">
                 Edit profile
               </a>
@@ -139,19 +181,46 @@ export default async function ProfilePage({ params, searchParams }: Props) {
             </section>
           ) : (
             <div className="grid gap-7 pt-6 lg:pt-0">
-              <div className="grid grid-cols-4 gap-2">
-                {[
-                  [data.stats.places, "Places"],
-                  [data.stats.checks, "Checks"],
-                  [data.stats.cities, "Cities"],
-                  [data.stats.cuisines, "Cuisines"],
-                ].map(([value, label]) => (
-                  <div key={label} className="grid gap-0.5 rounded-2xl bg-muted px-2 py-3 text-center">
-                    <strong className="text-xl font-black">{value}</strong>
-                    <span className="text-xs font-bold text-muted-foreground">{label}</span>
+              {verified.length > 0 && (
+                <section aria-labelledby="verified-in-videos" className="grid gap-3">
+                  <h2 id="verified-in-videos" className="text-[17px] font-black md:text-xl">
+                    Verified in videos
+                  </h2>
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+                    {verified.map((item) => (
+                      <div key={item.id} className="grid content-start gap-1.5">
+                        <a href={`/place/${item.placeId}`} className="grid gap-1.5 text-foreground">
+                          <PlaceArt name={item.placeName} seed={item.placeId} className="h-24 w-full" rounded="rounded-[14px]" />
+                          <strong className="truncate text-[15px] font-extrabold">{item.placeName}</strong>
+                        </a>
+                        <span className="truncate text-xs font-bold text-muted-foreground">
+                          {[item.addressLocality ?? cityName(item.citySlug), videoMonth(item.videoDate)].filter(Boolean).join(" · ")}
+                        </span>
+                        <StatusPill status={item.status} short className="w-fit" />
+                        <a href={item.videoUrl} target="_blank" rel="noopener noreferrer nofollow" className="text-[13px] font-extrabold text-primary">
+                          Watch{item.timestampSeconds ? ` at ${formatVideoTimestamp(item.timestampSeconds)}` : ""}
+                        </a>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                  <p className="text-[13px] font-semibold text-muted-foreground">A video is taste, not a halal check. Each place’s status comes from people who eat there.</p>
+                </section>
+              )}
+              {!(channel && data.stats.checks === 0) && (
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    [data.stats.places, "Places"],
+                    [data.stats.checks, "Checks"],
+                    [data.stats.cities, "Cities"],
+                    [data.stats.cuisines, "Cuisines"],
+                  ].map(([value, label]) => (
+                    <div key={label} className="grid gap-0.5 rounded-2xl bg-muted px-2 py-3 text-center">
+                      <strong className="text-xl font-black">{value}</strong>
+                      <span className="text-xs font-bold text-muted-foreground">{label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {data.lists.length > 0 && (
                 <section className="grid gap-2.5">
                   <h2 className="text-[17px] font-black">Lists</h2>
@@ -168,14 +237,16 @@ export default async function ProfilePage({ params, searchParams }: Props) {
                   </div>
                 </section>
               )}
-              <section className="grid gap-1 md:gap-4">
-                <h2 className="text-[17px] font-black md:text-xl">Recent visits</h2>
-                {data.visits.length ? (
-                  data.visits.map((visit) => <VisitCard key={visit.checkId} visit={visitJson(visit)} />)
-                ) : (
-                  <p className="py-4 text-sm font-semibold text-muted-foreground">No visits yet.</p>
-                )}
-              </section>
+              {!(channel && data.visits.length === 0) && (
+                <section className="grid gap-1 md:gap-4">
+                  <h2 className="text-[17px] font-black md:text-xl">Recent visits</h2>
+                  {data.visits.length ? (
+                    data.visits.map((visit) => <VisitCard key={visit.checkId} visit={visitJson(visit)} />)
+                  ) : (
+                    <p className="py-4 text-sm font-semibold text-muted-foreground">No visits yet.</p>
+                  )}
+                </section>
+              )}
             </div>
           )}
         </div>

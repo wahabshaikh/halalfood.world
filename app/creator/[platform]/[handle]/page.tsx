@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/hf/app-shell";
 import { Avatar, Page, StatusPill, TopBar } from "@/components/hf/kit";
+import { profileHandleForChannel } from "@/lib/creator-profiles";
 import { MEDIA_PLATFORM_LABELS, getCreatorProfile, isMediaPlatform, normalizeHandle } from "@/lib/media-links";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 export default async function CreatorPage(props: Props) {
   const creator = await load(props);
   if (!creator) notFound();
+  const profileHandle = await profileHandleForChannel(creator.platform, creator.handle).catch(() => null);
   return (
     <AppShell active="explore">
       <Page>
@@ -42,6 +44,11 @@ export default async function CreatorPage(props: Props) {
               </p>
             </div>
           </div>
+          {profileHandle && (
+            <a href={`/u/${profileHandle}`} className="inline-flex min-h-11 w-fit items-center rounded-full border border-input px-4 text-sm font-extrabold text-foreground">
+              See @{profileHandle}’s profile
+            </a>
+          )}
           <p className="rounded-2xl bg-muted px-4 py-3 text-[13px] font-semibold text-subtle-foreground md:max-w-2xl">
             A video is taste, not a halal check. Each place’s status comes from people who eat there.
           </p>
