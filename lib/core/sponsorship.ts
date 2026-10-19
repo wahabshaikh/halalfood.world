@@ -154,7 +154,12 @@ function time(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-/** Read a verified Whop webhook body. Anything unexpected becomes `ignored`, never an error Whop retries. */
+/**
+ * Read a verified Whop webhook body. Anything unexpected becomes `ignored`, never an error Whop retries.
+ * Handles both payload shapes: unpinned (dashboard-created) webhooks send the legacy objects with nested
+ * `membership: {id}` / `payment: {id, membership}`; webhooks pinned to 2026-10-15-1 send flat `membership_id` /
+ * `payment_id`. Fields read by both (`id`, `status`, `metadata`, `paid_at`, `cancel_at_period_end`) are named alike.
+ */
 export function parseWhopEvent(body: unknown, now: number): WhopEvent {
   const event = obj(body);
   const name = str(event.type) ?? "unknown";
