@@ -1,6 +1,6 @@
 /**
  * "I ate here" vouches (spec §2.2, §2.6, §4, §5.2): the one service behind the
- * web route and, later, the member MCP.
+ * web route and the member MCP.
  *
  * A vouch is upserted (one per member and place, the latest counts), logged
  * as a `contributions` row and followed by `recomputeTrust` in the same
@@ -11,7 +11,7 @@
  * per place per member, ever, within the 100 points a day cap.
  */
 import { sql } from "drizzle-orm";
-import { VOUCHES_PER_DAY, ipNetwork, pointsToGrant, type Channel, type VouchInput } from "@/lib/core/contributions";
+import { VOUCHES_PER_DAY, ipNetwork, pointsToGrant, type Channel, type VouchRating, type VouchInput } from "@/lib/core/contributions";
 import { database } from "@/lib/db";
 import { recomputeTrust, type TrustResult } from "@/lib/trust";
 
@@ -201,4 +201,30 @@ export async function placeVouchers(
       avatarKey: (row.avatar_key as string | null) ?? null,
     }));
   return { total: rows.length, people };
+}
+
+/** Update only an existing vouch's rating; ratings never award points or recompute trust. */
+export async function rateVouch(
+  userId: string,
+  placeId: string,
+  rating: VouchRating,
+  source: VouchSource,
+  client: Client = database(),
+  now = Date.now(),
+) {
+  const db = await client;
+  const rows = await db.all<{ place_id: string }>(sql`
+    UPDATE vouches SET rating = ${rating}
+    WHERE user_id = ${userId} AND place_id = ${placeId}
+      AND EXISTS (SELECT 1 FROM places WHERE id = ${placeId} AND listing_status = 'listed')
+    RETURNING place_id
+  `);
+  if (!rows.length) return { ok: false as const, error: "Vouch for this place before rating it." };
+  const contributionId = crypto.randomUUID();
+  await db.run(sql`
+    INSERT INTO contributions (id, user_id, kind, place_id, ref_table, ref_id, channel, status, weight, ip_hash, api_key_id, created_at)
+    VALUES (${contributionId}, ${userId}, 'rating', ${placeId}, 'vouches', ${`${userId}:${placeId}`}, ${source.channel},
+      'accepted', 0, ${await hashNetwork(source.ip)}, ${source.apiKeyId ?? null}, ${now})
+  `);
+  return { ok: true as const, contributionId, rating, points: 0 };
 }

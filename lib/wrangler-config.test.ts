@@ -54,3 +54,16 @@ test("previews cannot send mail, enqueue jobs, take routes or run crons", () => 
 test("parseJsonc keeps // inside strings and drops trailing commas", () => {
   assert.deepEqual(parseJsonc('{\n  // note\n  "url": "https://a.b/c", /* x */ "list": [1, 2,],\n}'), { url: "https://a.b/c", list: [1, 2] });
 });
+
+
+test("member MCP writes get an independent 60/60s key budget in each environment", () => {
+  for (const [environment, namespace] of [[config, "81004"], [previews, "81104"]] as const) {
+    const write = environment.ratelimits?.find((entry) => entry.name === "MEMBER_MCP_WRITE_LIMITER");
+    const read = environment.ratelimits?.find((entry) => entry.name === "MEMBER_MCP_READ_LIMITER");
+    assert.equal(write?.namespace_id, namespace);
+    assert.deepEqual(write?.simple, { limit: 60, period: 60 });
+    assert.notEqual(read?.namespace_id, namespace);
+    const namespaces = environment.ratelimits?.map((entry) => entry.namespace_id) ?? [];
+    assert.equal(new Set(namespaces).size, namespaces.length);
+  }
+});

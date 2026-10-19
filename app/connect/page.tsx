@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AppShell } from "@/components/hf/app-shell";
 import { Page, PageTitle, SectionTitle } from "@/components/hf/kit";
 
@@ -7,7 +8,6 @@ const mcpUrl = "https://halalfood.world/api/mcp/member";
 export const metadata: Metadata = {
   title: "Connect your AI",
   description: "Use halalfood.world from Claude, ChatGPT or Cursor.",
-  robots: { index: false },
   alternates: { canonical: "/connect" },
 };
 
@@ -19,13 +19,15 @@ export default function ConnectPage() {
 
         <section className="grid gap-3">
           <SectionTitle>What you can do today</SectionTitle>
-          <p>Search places and get a place’s halal facts through our public, read-only member MCP endpoint. No account is needed.</p>
+          <p>Search places and get a place’s halal facts without an account. With a member key, your AI can also vouch for places you ate at, update your vouch ratings and see your contributions.</p>
           <code className="break-all rounded-xl bg-secondary p-4 text-sm">{mcpUrl}</code>
         </section>
 
         <section className="grid gap-3">
-          <SectionTitle>Coming next</SectionTitle>
-          <p>Submit places, videos and verifications under your account, using your own AI so we can keep costs low. Submissions through AI are not available yet.</p>
+          <SectionTitle>Contribute with your member key</SectionTitle>
+          <p><Link href="/me/keys" className="underline">Create a member key</Link> with read and write scope once your account is 7 days old. In clients that support custom headers, send <code>Authorization: Bearer &lt;member key&gt;</code>. Keep your key private; you can revoke it at any time.</p>
+          <p>Your AI contributions use the same daily limits, points and review as the website. Vouch ratings earn no points. Place and video submissions through AI are not available yet.</p>
+          <p>Only submit what you saw or data from the restaurant’s own or open public pages. Never scrape Zomato, Swiggy or Google Maps.</p>
         </section>
 
         <section className="grid gap-3">
@@ -36,9 +38,9 @@ export default function ConnectPage() {
 
         <section className="grid gap-3">
           <SectionTitle>Cursor</SectionTitle>
-          <p>Add this to <code>~/.cursor/mcp.json</code>, keeping any existing servers:</p>
+          <p>Add this to <code>~/.cursor/mcp.json</code>, keeping any existing servers. For member tools, replace the placeholder with your key; omit the headers for public reads:</p>
           <pre className="min-w-0 overflow-x-auto rounded-xl bg-secondary p-4 text-sm">
-            <code>{JSON.stringify({ mcpServers: { halalfood: { url: mcpUrl } } }, null, 2)}</code>
+            <code>{JSON.stringify({ mcpServers: { halalfood: { url: mcpUrl, headers: { Authorization: "Bearer <member key>" } } } }, null, 2)}</code>
           </pre>
         </section>
 
