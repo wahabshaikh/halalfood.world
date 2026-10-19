@@ -649,7 +649,7 @@ Unread count = unread notifications + unread recs.
 - `place-added`: **5** points, when a place is created through Add.
 - `helped-verify`: **10** points, awarded to each author of the 3 checks that formed the final streak when a place first becomes `verified`. Not re-awarded if the place drops out of verified and later returns.
 - Excluded checks lose their `check` points: on exclude, delete the ledger rows for that `check_id`.
-- Leaderboard: `SUM(points)` grouped by user for `city_slug` and period. Week = Monday 00:00 in the city's timezone, using the city table's tz, or UTC if unknown. Top 50, then the viewer's own rank via a window function. Ties are broken by earliest reaching the total.
+- Leaderboard: `SUM(points)` grouped by user for `city_slug` and period, over the `points` ledger plus `contribution_points` rows with `status = granted` (points v2; pending and revoked rows never count, and both count by `created_at`). Week = Monday 00:00 in the city's timezone, using the city table's tz, or UTC if unknown. Top 50, then the viewer's own rank via a window function. Ties are broken by earliest reaching the total.
 - "#12 in Mumbai" on profiles uses the all-time rank in the user's `home_city_slug`.
 
 ---

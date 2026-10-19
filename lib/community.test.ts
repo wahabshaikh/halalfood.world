@@ -34,6 +34,56 @@ test("the board ranks by points, hides private and opted-out people, and pins th
   assert.deepEqual(all.me, { kind: "hidden" });
 });
 
+function contributionPoints(sqlite: ReturnType<typeof createTestDatabase>["sqlite"], userId: string, place: string, value: number, status: string, at: number, city = "mumbai") {
+  const contribution = crypto.randomUUID();
+  sqlite
+    .prepare(`INSERT INTO contributions (id, user_id, kind, place_id, channel, status, created_at) VALUES (?, ?, 'vouch', ?, 'web', ?, ?)`)
+    .run(contribution, userId, place, status === "granted" ? "accepted" : status === "pending" ? "pending" : "rejected", at);
+  sqlite
+    .prepare(`INSERT INTO contribution_points (id, user_id, contribution_id, kind, place_id, city_slug, points, status, day, created_at) VALUES (?, ?, ?, 'vouch', ?, ?, ?, ?, ?, ?)`)
+    .run(crypto.randomUUID(), userId, contribution, place, city, value, status, new Date(at).toISOString().slice(0, 10), at);
+}
+
+test("granted contribution points count on the board and add to the old points", async () => {
+  const { sqlite, db } = createTestDatabase();
+  for (const id of ["amal", "bilal", "carys"]) {
+    addUser(sqlite, id);
+    addProfile(sqlite, id, { handle: id });
+  }
+  const place = addPlace(sqlite);
+  const now = Date.now();
+  points(sqlite, "amal", place, 3, now - 1000);
+  contributionPoints(sqlite, "amal", place, 10, "granted", now - 900);
+  contributionPoints(sqlite, "bilal", place, 8, "granted", now - 800);
+  contributionPoints(sqlite, "carys", place, 2, "granted", now - 700);
+  contributionPoints(sqlite, "amal", place, 40, "granted", now - 30 * DAY);
+  contributionPoints(sqlite, "carys", place, 50, "granted", now, "london");
+
+  const week = await leaderboard("mumbai", "week", null, db, now);
+  assert.deepEqual(week.rows.map((row) => [row.handle, row.points, row.rank]), [["amal", 13, 1], ["bilal", 8, 2], ["carys", 2, 3]]);
+  const all = await leaderboard("mumbai", "all", null, db, now);
+  assert.deepEqual(all.rows.map((row) => [row.handle, row.points]), [["amal", 53], ["bilal", 8], ["carys", 2]]);
+});
+
+test("pending and revoked contribution points never show on the board", async () => {
+  const { sqlite, db } = createTestDatabase();
+  for (const id of ["amal", "bilal"]) {
+    addUser(sqlite, id);
+    addProfile(sqlite, id, { handle: id });
+  }
+  const place = addPlace(sqlite);
+  const now = Date.now();
+  points(sqlite, "amal", place, 3, now - 1000);
+  contributionPoints(sqlite, "amal", place, 20, "pending", now - 900);
+  contributionPoints(sqlite, "amal", place, 30, "revoked", now - 800);
+  contributionPoints(sqlite, "bilal", place, 15, "pending", now - 700);
+  contributionPoints(sqlite, "bilal", place, 25, "revoked", now - 600);
+
+  const all = await leaderboard("mumbai", "all", "bilal", db, now);
+  assert.deepEqual(all.rows.map((row) => [row.handle, row.points]), [["amal", 3]]);
+  assert.deepEqual(all.me, { kind: "none" });
+});
+
 test("events list upcoming published events with stall counts and friends going", async () => {
   const { sqlite, db } = createTestDatabase();
   for (const id of ["amal", "bilal"]) {

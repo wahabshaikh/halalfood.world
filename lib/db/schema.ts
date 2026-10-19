@@ -731,16 +731,24 @@ export const memberTrust = sqliteTable("member_trust", {
 });
 
 /** Points v2: pending until the contribution is accepted (lib/core/contributions.ts). */
-export const contributionPoints = sqliteTable("contribution_points", {
-  id: text("id").primaryKey(),
-  userId: userRef("user_id").notNull(),
-  contributionId: text("contribution_id").notNull().references(() => contributions.id, { onDelete: "cascade" }),
-  kind: text("kind").notNull(),
-  placeId: text("place_id").references(() => places.id, { onDelete: "set null", onUpdate: "cascade" }),
-  citySlug: text("city_slug"),
-  points: integer("points").notNull(),
-  status: text("status", { enum: ["pending", "granted", "revoked"] }).notNull(),
-  /** UTC YYYY-MM-DD. */
-  day: text("day").notNull(),
-  createdAt: ms("created_at").notNull(),
-});
+export const contributionPoints = sqliteTable(
+  "contribution_points",
+  {
+    id: text("id").primaryKey(),
+    userId: userRef("user_id").notNull(),
+    contributionId: text("contribution_id").notNull().references(() => contributions.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    placeId: text("place_id").references(() => places.id, { onDelete: "set null", onUpdate: "cascade" }),
+    citySlug: text("city_slug"),
+    points: integer("points").notNull(),
+    status: text("status", { enum: ["pending", "granted", "revoked"] }).notNull(),
+    /** UTC YYYY-MM-DD. */
+    day: text("day").notNull(),
+    createdAt: ms("created_at").notNull(),
+  },
+  (table) => [
+    index("contribution_points_user_day_idx").on(table.userId, table.day, table.status),
+    index("contribution_points_contribution_idx").on(table.contributionId),
+    index("contribution_points_city_idx").on(table.citySlug, table.status, table.createdAt),
+  ],
+);
