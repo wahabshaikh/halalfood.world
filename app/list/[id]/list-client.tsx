@@ -4,7 +4,8 @@ import { useState } from "react";
 import { ArrowDown01Icon, ArrowLeft01Icon, ArrowUp01Icon, Delete02Icon, Search01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import type { PlaceStatus } from "@/lib/core/halal";
 import { cn } from "@/lib/utils";
-import { Icon, PlaceArt, StatusPill, UnverifiedChip, buttonClass } from "@/components/hf/kit";
+import { BadgeRow, Icon, PlaceArt, StatusPill, UnverifiedChip, buttonClass } from "@/components/hf/kit";
+import type { Badge } from "@/lib/core/trust";
 import { ShareAction, Sheet, api, errorText, toast, useSheet } from "@/components/hf/kit-client";
 import { SendSheetButton } from "@/components/hf/send-sheet";
 import { photoUrl } from "@/lib/place-view";
@@ -239,6 +240,7 @@ type Item = {
   been: boolean;
   addedByUserId: string | null;
   unverified?: boolean;
+  badges?: Badge[];
 };
 
 export function ListItems({
@@ -299,6 +301,7 @@ export function ListItems({
                 <StatusPill status={item.status} short />
                 {item.unverified && <UnverifiedChip />}
               </span>
+              <BadgeRow badges={item.badges} />
               {item.note && <span className="text-[13px] font-semibold">“{item.note}”</span>}
             </span>
           </a>

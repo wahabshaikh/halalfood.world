@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import {
   BADGES,
+  cardBadges,
   BAND_LABEL,
   PORK_CAP,
   dampClusters,
@@ -13,7 +14,10 @@ import {
   parseTier,
   placeBadges,
   placeTrust,
+  shownBadges,
   trustBand,
+  verifiedByLine,
+  voucherName,
   vouchWeight,
   type BadgeProof,
   type MemberRecord,
@@ -258,4 +262,33 @@ test("all badges come out in display order and round-trip through place_status.b
   assert.deepEqual(parseBadges("serves_pork,bogus,halal_certified"), ["halal_certified", "serves_pork"]);
   assert.deepEqual(parseBadges(""), []);
   assert.deepEqual(parseBadges(null), []);
+});
+
+test("an Unverified import shows no badges until it earns a proof badge", () => {
+  assert.deepEqual(shownBadges(["serves_alcohol", "serves_pork"], true), []);
+  assert.deepEqual(shownBadges([], true), []);
+  assert.deepEqual(shownBadges(["community_verified", "serves_alcohol"], true), ["community_verified", "serves_alcohol"]);
+  assert.deepEqual(shownBadges(["serves_alcohol"], false), ["serves_alcohol"]);
+});
+
+test("a card doesn't repeat a warning its fact tags already show", () => {
+  const all = ["community_verified", "serves_alcohol", "serves_pork"] as const;
+  assert.deepEqual(cardBadges(all, { pork: "yes", alcohol: "yes" }), ["community_verified"]);
+  assert.deepEqual(cardBadges(all, { pork: null, alcohol: "no" }), [...all], "a menu finding with no settled fact still shows");
+});
+
+test("vouchers are named by @handle, or by name without a profile", () => {
+  assert.equal(voucherName({ handle: "sara", name: "Sara K" }), "@sara");
+  assert.equal(voucherName({ handle: null, name: "Omar" }), "Omar");
+});
+
+test("the Verified by line works for 0, 1, 2 and 100 vouchers", () => {
+  assert.equal(verifiedByLine("@sara", 0), null);
+  assert.equal(verifiedByLine(null, 0), null);
+  assert.equal(verifiedByLine("@sara", 1), "Verified by @sara");
+  assert.equal(verifiedByLine("@sara", 2), "Verified by @sara and 1 more");
+  assert.equal(verifiedByLine("@sara", 100), "Verified by @sara and 99 more");
+  // Nobody the viewer may see: counted, never named.
+  assert.equal(verifiedByLine(null, 1), "Verified by 1 member");
+  assert.equal(verifiedByLine(null, 100), "Verified by 100 members");
 });

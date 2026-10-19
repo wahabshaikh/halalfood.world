@@ -9,6 +9,8 @@ import { SendSheetButton } from "@/components/hf/send-sheet";
 import { SaveHeart, Segmented, ShareAction, Sheet, api, errorText, toast, useSheet } from "@/components/hf/kit-client";
 import { currentReturnPath, loginHref } from "@/lib/signed-out";
 import type { PlaceNote } from "@/lib/checks-repository";
+import { verifiedByLine, voucherName } from "@/lib/core/trust";
+import type { Voucher } from "@/lib/vouches";
 
 export function HeroActions({
   placeId,
@@ -371,6 +373,53 @@ export function VouchButton({ placeId, signedIn }: { placeId: string; signedIn: 
             {busy ? "Sending…" : "Vouch for this place"}
           </button>
         </div>
+      </Sheet>
+    </>
+  );
+}
+
+/** "Verified by @a and N more" (spec §2.4); the sheet lists everyone the viewer may see. Nothing when nobody has vouched. */
+export function VerifiedBy({ total, people }: { total: number; people: Voucher[] }) {
+  const sheet = useSheet("vouchers");
+  const line = verifiedByLine(people[0] ? voucherName(people[0]) : null, total);
+  if (!line) return null;
+  const unnamed = total - people.length;
+  const text = "text-[14px] font-bold text-foreground";
+  if (!people.length) return <p className={text}>{line}</p>;
+  return (
+    <>
+      <button type="button" onClick={sheet.show} className={cn(text, "inline-flex min-h-11 w-fit items-center text-left underline-offset-4 hover:underline")}>
+        {line}
+      </button>
+      <Sheet open={sheet.open} onClose={sheet.hide} title="Verified by">
+        <ul className="grid">
+          {people.map((person) => (
+            <li key={person.userId} className="border-b border-border/70 last:border-b-0">
+              {person.handle ? (
+                <a href={`/u/${person.handle}`} className="flex min-h-14 items-center gap-3 py-2 text-foreground">
+                  <Avatar name={person.name} seed={person.userId} src={person.avatarKey ? `/api/avatars/${person.handle}` : null} size={36} />
+                  <span className="grid min-w-0">
+                    <strong className="truncate text-[15px] font-extrabold">{person.name}</strong>
+                    <span className="truncate text-[13px] font-semibold text-muted-foreground">@{person.handle}</span>
+                  </span>
+                </a>
+              ) : (
+                <span className="flex min-h-14 items-center gap-3 py-2">
+                  <Avatar name={person.name} seed={person.userId} size={36} />
+                  <strong className="truncate text-[15px] font-extrabold">{person.name}</strong>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+        {unnamed > 0 && (
+          <p className="mt-3 text-[13px] font-semibold text-muted-foreground">
+            And {unnamed} {unnamed === 1 ? "other person" : "other people"} you can’t see here.
+          </p>
+        )}
+        <a href="/how-trust-works" className="mt-4 inline-flex min-h-11 items-center text-sm font-extrabold text-foreground underline underline-offset-4">
+          How trust works
+        </a>
       </Sheet>
     </>
   );

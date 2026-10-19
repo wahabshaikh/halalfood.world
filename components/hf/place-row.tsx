@@ -1,7 +1,8 @@
 import { cn } from "@/lib/utils";
+import { cardBadges } from "@/lib/core/trust";
 import type { ExploreItem } from "@/lib/explore";
 import { formatDistance, photoUrl } from "@/lib/place-view";
-import { Avatar, FactTags, PlaceArt, ROW_CARD, StatusPill, UnverifiedChip } from "./kit";
+import { Avatar, BadgeRow, FactTags, PlaceArt, ROW_CARD, StatusPill, UnverifiedChip } from "./kit";
 import { SaveHeart } from "./kit-client";
 
 /** One place in a list: art, name, where, status, facts, a friend line and the heart. */
@@ -27,6 +28,7 @@ export function PlaceRow({ place, signedIn, compact = false }: { place: ExploreI
             {place.unverified && <UnverifiedChip />}
             {!compact && <FactTags facts={place.facts} />}
           </span>
+          {!compact && <BadgeRow badges={cardBadges(place.badges ?? [], place.facts)} />}
           {place.friend && !compact && (
             <span className="flex items-center gap-1.5 text-[13px] font-bold text-foreground/85">
               <Avatar name={place.friend.name} seed={place.friend.userId} size={22} />

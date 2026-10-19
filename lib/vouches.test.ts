@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { env } from "@/lib/testing/cloudflare-workers";
 import { addPlace, addProfile, addUser, createTestDatabase, DAY } from "@/lib/testing/sqlite-d1";
 import { VOUCHES_PER_DAY } from "@/lib/core/contributions";
-import { hashNetwork, vouchForPlace } from "./vouches";
+import { hashNetwork, placeVouchers, vouchForPlace } from "./vouches";
 import { POST } from "@/app/api/places/[id]/vouch/route";
 
 const NOW = Date.parse("2026-10-18T12:00:00Z");
@@ -159,4 +159,46 @@ test("the vouch route records a counted vouch and reports trust and points", asy
   assert.equal(body.points, 3);
   assert.equal(body.trust.communityVouchers, 1);
   assert.match(body.message, /counts/);
+});
+
+test("Verified by: counted vouches, trusted first, private and blocked people counted but not named", async () => {
+  const { db, sqlite, place } = world();
+  const now = Date.now();
+  for (const id of ["trusted", "private", "blocked", "blocker", "suspended", "me"]) {
+    addUser(sqlite, id, id, NOW - 60 * DAY);
+    addProfile(sqlite, id, { isPrivate: id === "private" });
+  }
+  sqlite.prepare(`INSERT INTO member_trust (user_id, tier, weight, updated_at) VALUES ('trusted', 'trusted', 2, ?)`).run(now);
+  for (const [index, id] of ["a", "trusted", "private", "blocked", "blocker", "suspended", "young"].entries()) {
+    // Each from its own network, so cluster damping doesn't zero them.
+    const result = await vouchForPlace(id, place, input(), web(`198.51.${index}.7`), db, NOW);
+    assert.ok(result.ok);
+  }
+  sqlite.prepare(`UPDATE profiles SET suspended_at = ? WHERE user_id = 'suspended'`).run(now);
+  sqlite.prepare(`INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES ('me', 'blocked', ?), ('blocker', 'me', ?)`).run(now, now);
+
+  // Signed out: everyone public is named; the private member, the young (pending) and suspended vouches are not.
+  const out = await placeVouchers(place, null, db);
+  assert.equal(out.total, 5, "pending and suspended vouches never count");
+  assert.deepEqual(out.people.map((person) => person.handle), ["trusted", "a", "blocked", "blocker"]);
+  assert.equal(out.people[0].handle, "trusted", "trusted members come first");
+
+  // A viewer never sees across a block, either way.
+  const me = await placeVouchers(place, "me", db);
+  assert.equal(me.total, 5);
+  assert.deepEqual(me.people.map((person) => person.handle), ["trusted", "a"]);
+
+  // An accepted follower sees the private member; a pending follow doesn't.
+  sqlite.prepare(`INSERT INTO follows (follower_id, followee_id, status, created_at, updated_at) VALUES ('me', 'private', 'pending', ?, ?)`).run(now, now);
+  assert.ok(!(await placeVouchers(place, "me", db)).people.some((person) => person.handle === "private"));
+  sqlite.prepare(`UPDATE follows SET status = 'accepted' WHERE follower_id = 'me'`).run();
+  assert.ok((await placeVouchers(place, "me", db)).people.some((person) => person.handle === "private"));
+
+  // The private member always sees their own vouch.
+  assert.ok((await placeVouchers(place, "private", db)).people.some((person) => person.handle === "private"));
+});
+
+test("Verified by: a place nobody has vouched for has no line", async () => {
+  const { db, place } = world();
+  assert.deepEqual(await placeVouchers(place, null, db), { total: 0, people: [] });
 });

@@ -9,7 +9,7 @@ import { AppShell } from "@/components/hf/app-shell";
 import { AddToListButton } from "@/components/hf/list-sheets";
 import { MenuCheckBadge } from "@/components/hf/menu-check-badge";
 import { PlaceMenuSection } from "@/components/hf/place-menu";
-import { Avatar, AvatarStack, FactTile, Icon, LinkButton, Page, PlaceArt, SectionTitle, StatusCard, StatusPill, UnverifiedChip, UnverifiedNotice, buttonClass } from "@/components/hf/kit";
+import { Avatar, AvatarStack, BadgeRow, FactTile, Icon, LinkButton, Page, PlaceArt, SectionTitle, StatusCard, StatusPill, UnverifiedChip, UnverifiedNotice, buttonClass } from "@/components/hf/kit";
 import { getViewerId } from "@/lib/auth-session";
 import { listPlaceNotes, topDishes } from "@/lib/checks-repository";
 import { decoratePlaces } from "@/lib/explore";
@@ -20,8 +20,10 @@ import { d1PlacePhotoRepository } from "@/lib/place-photos";
 import { cityName, photoUrl } from "@/lib/place-view";
 import { getPlaceMenu } from "@/lib/menus";
 import { getPlaceById, nearbyPlaces } from "@/lib/places";
+import { BAND_LABEL } from "@/lib/core/trust";
+import { placeVouchers } from "@/lib/vouches";
 import { breadcrumbJsonLd, jsonLdScript, placeDescription, placeJsonLd, placeShareText, placeTitle } from "@/lib/seo";
-import { AddEvidence, AddPhoto, HeroActions, HowItWorks, Notes, ReportPlace, VouchButton } from "./place-client";
+import { AddEvidence, AddPhoto, HeroActions, HowItWorks, Notes, ReportPlace, VerifiedBy, VouchButton } from "./place-client";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +73,7 @@ export default async function PlacePage({ params }: Props) {
   if (!place) notFound();
   const viewerId = await getViewerId();
   const status = place.card.status;
-  const [[card], dishes, photos, videos, notes, nearby, creators, { menu, check: menuCheck }] = await Promise.all([
+  const [[card], dishes, photos, videos, notes, nearby, creators, { menu, check: menuCheck }, vouchers] = await Promise.all([
     decoratePlaces(viewerId, [place.card]),
     topDishes(place.id).catch(() => []),
     d1PlacePhotoRepository().list(place.id, viewerId).catch(() => []),
@@ -82,6 +84,7 @@ export default async function PlacePage({ params }: Props) {
       : Promise.resolve([]),
     placeCreatorVerifications(place.id).catch(() => []),
     getPlaceMenu(place.id).catch(() => ({ menu: null, check: null })),
+    placeVouchers(place.id, viewerId).catch(() => ({ total: 0, people: [] })),
   ]);
   const city = cityName(place.city_slug);
   const where = [place.card.cuisine, place.street_address].filter(Boolean).join(" · ");
@@ -189,6 +192,18 @@ export default async function PlacePage({ params }: Props) {
                 <h1 className="min-w-0 text-[28px] leading-tight font-black tracking-tight md:text-[38px]">{place.name}</h1>
               </div>
               <p className="text-[15px] font-semibold text-muted-foreground md:text-base">{where}</p>
+              {/* Proof before praise (spec §6): badges, the trust band as a word and who verified, above photos and ratings. */}
+              <div className="flex flex-wrap items-center gap-x-1.5">
+                <BadgeRow badges={place.card.badges} linked />
+                <a
+                  href="/how-trust-works"
+                  title="Trust comes from certificates, creator videos, vouches from people who ate here, settled facts and menus. How trust works"
+                  className="inline-flex min-h-11 items-center text-[13px] font-extrabold text-subtle-foreground underline-offset-4 hover:underline"
+                >
+                  Trust: {BAND_LABEL[place.card.trustBand ?? "unverified"]}
+                </a>
+              </div>
+              <VerifiedBy total={vouchers.total} people={vouchers.people} />
               {(place.lat === null || place.lng === null) && (
                 <p className="text-[13px] font-semibold text-muted-foreground">Location pending: this place isn’t on the map yet.</p>
               )}
