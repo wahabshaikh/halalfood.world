@@ -390,7 +390,7 @@ Top to bottom:
 2. Name, then `cuisine · street address, city`.
 3. **Status card**: tone by status, title, subline (`verified`: "3 people checked separately and agree · latest {date}"; `checking`: "One more matching check makes this Community verified" when progress is 2, otherwise "{3−progress} more matching checks to verify"; `unchecked`: "Nobody has checked this place. That doesn't mean it isn't halal."), a 3-segment meter, and "How verification works" → sheet.
 4. **Halal facts**: 4 tiles. Each shows the question, the answer (`Yes`/`No`; `Served`/`Not served` for pork and alcohol; `Not known yet` when `value` is null) and an icon tone from [§2.4](#24-favourable-values).
-5. Actions: Directions (`maps_url`), Call (when there's a telephone), Website (when there's a website).
+5. Actions: Directions in Google Maps or Apple Maps, with an adjacent app selector saved on this device (`hf:maps-app`). Default to Apple on iPhone/iPad/iPod, Google elsewhere; render Google before hydration. Use coordinates, then the address, then `maps_url`; hide when none exist. Call (when there's a telephone), Website (when there's a website).
 6. **Friends who've been** (signed in, at least one followee with a shared check): an avatar stack, one line, and the newest note → that check's visit page.
 7. **Eaten here?** card → `/place/[id]/check`. The copy varies by status, as in the design.
 8. **What people order**: the top 3 dishes with counts ([§4.2](#42-tables)). Hidden when there are none.
