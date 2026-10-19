@@ -137,6 +137,7 @@ export type GooglePlaceSearchSuggestion = {
   formattedAddress: string;
   location: GooglePlaceLocation | null;
   types?: string[];
+  addressComponents?: GoogleAddressComponent[];
 };
 
 export type GooglePlaceSearchResult =
@@ -272,6 +273,14 @@ function parsePlace(value: unknown): GooglePlaceDetails | null {
     ...(stringValue(payload.formattedAddress)
       ? { formattedAddress: payload.formattedAddress as string }
       : {}),
+    ...(Array.isArray(payload.addressComponents) ? { addressComponents: payload.addressComponents.flatMap((value) => {
+      const component = record(value);
+      return component ? [{
+        ...(stringValue(component.longText) ? { longText: component.longText as string } : {}),
+        ...(stringValue(component.shortText) ? { shortText: component.shortText as string } : {}),
+        ...(Array.isArray(component.types) ? { types: component.types.filter((type): type is string => typeof type === "string") } : {}),
+      }] : [];
+    }) } : {}),
     ...(location ? { location } : {}),
     ...(stringValue(payload.nationalPhoneNumber)
       ? { nationalPhoneNumber: payload.nationalPhoneNumber as string }
@@ -298,6 +307,7 @@ function parseSearchSuggestion(
     formattedAddress,
     location: place?.location ?? null,
     ...(place?.types ? { types: place.types } : {}),
+    ...(place?.addressComponents ? { addressComponents: place.addressComponents } : {}),
   };
 }
 
@@ -407,6 +417,8 @@ export type GoogleSearchArea = {
   bbox?: { west: number; south: number; east: number; north: number } | null;
   /** The key to use instead of the Worker's, for callers that already read it. */
   apiKey?: string | null;
+  /** Scout adds structured addresses without changing the add-a-place mask. */
+  fieldMask?: string;
 };
 
 /** Bias actually sent to Google. A bbox rectangle wins over a point. */
@@ -475,7 +487,7 @@ export async function searchGooglePlaces(
         Accept: "application/json",
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK,
+        "X-Goog-FieldMask": options.fieldMask ?? GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK,
       },
       body: JSON.stringify({
         textQuery: normalizedQuery,
