@@ -36,19 +36,34 @@ type Evidence = {
 
 type EventRow = { id: string; title: string; citySlug: string; venue: string; startsAt: number; status: "draft" | "published" | "cancelled"; stalls: number };
 type City = { slug: string; name: string };
+type SponsorRow = {
+  id: string;
+  citySlug: string;
+  cityLabel: string;
+  name: string;
+  tagline: string | null;
+  linkUrl: string;
+  status: "pending" | "active" | "refunded" | "removed";
+  renews: boolean;
+  activeUntil: number | null;
+  buyer: string | null;
+  live: boolean;
+};
 
 export function AdminConsole({
   reports,
   evidence,
   events,
   cities,
+  sponsors,
 }: {
   reports: Report[];
   evidence: Evidence[];
   events: EventRow[];
   cities: City[];
+  sponsors: SponsorRow[];
 }) {
-  const [tab, setTab] = useState<"reports" | "evidence" | "events">("reports");
+  const [tab, setTab] = useState<"reports" | "evidence" | "events" | "sponsors">("reports");
   return (
     <div className="grid gap-5">
       <div className="max-w-sm">
@@ -60,6 +75,7 @@ export function AdminConsole({
             { value: "reports", label: `Reports${reports.length ? ` · ${reports.length}` : ""}` },
             { value: "evidence", label: `Evidence${evidence.length ? ` · ${evidence.length}` : ""}` },
             { value: "events", label: "Events" },
+            { value: "sponsors", label: "Sponsors" },
           ]}
         />
       </div>
@@ -67,9 +83,72 @@ export function AdminConsole({
         <Reports initial={reports} />
       ) : tab === "evidence" ? (
         <EvidenceQueue initial={evidence} />
-      ) : (
+      ) : tab === "events" ? (
         <Events initial={events} cities={cities} />
+      ) : (
+        <Sponsors initial={sponsors} />
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+/* Sponsors                                                                  */
+/* ------------------------------------------------------------------------ */
+
+const SPONSOR_STATUS: Record<SponsorRow["status"], string> = { pending: "Pending", active: "Paid", refunded: "Refunded", removed: "Removed" };
+
+function Sponsors({ initial }: { initial: SponsorRow[] }) {
+  const [items, setItems] = useState(initial);
+  const [busy, setBusy] = useState<string | null>(null);
+  if (!items.length) return <p className="py-10 text-center text-sm font-semibold text-muted-foreground">No sponsors yet.</p>;
+  const act = async (item: SponsorRow, action: "remove" | "restore") => {
+    setBusy(item.id);
+    try {
+      await api(`/api/admin/sponsorships/${item.id}`, { method: "POST", json: { action } });
+      toast(action === "remove" ? "Taken down. Refund in Whop if it's owed." : "Restored");
+      setItems((current) =>
+        current.map((each) => (each.id === item.id ? { ...each, status: action === "remove" ? "removed" : "active", live: action === "restore" && each.live } : each)),
+      );
+    } catch (error) {
+      toast(errorText(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {items.map((item) => (
+        <article key={item.id} className="grid gap-2 rounded-2xl border border-border p-4">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-black">{item.live && item.status === "active" ? "Live" : SPONSOR_STATUS[item.status]}</span>
+            <a href={`/city/${item.citySlug}`} className="text-sm font-extrabold underline-offset-4 hover:underline">
+              {item.cityLabel}
+            </a>
+            {item.activeUntil && (
+              <span className="ml-auto text-xs font-bold text-muted-foreground">
+                {item.renews ? "Renews" : "Ends"} {new Date(item.activeUntil).toISOString().slice(0, 10)}
+              </span>
+            )}
+          </div>
+          <span className="text-[15px] font-black">{item.name}</span>
+          {item.tagline && <span className="text-sm font-semibold text-subtle-foreground">{item.tagline}</span>}
+          <a href={item.linkUrl} target="_blank" rel="noreferrer nofollow" className="truncate text-sm font-bold text-muted-foreground underline underline-offset-2">
+            {item.linkUrl}
+          </a>
+          <span className="text-xs font-bold text-muted-foreground">Bought by {item.buyer ? `@${item.buyer}` : "a deleted account"}</span>
+          {item.status === "active" && (
+            <button type="button" onClick={() => act(item, "remove")} disabled={busy === item.id} className={buttonClass("outline", "md")}>
+              Take down
+            </button>
+          )}
+          {item.status === "removed" && (
+            <button type="button" onClick={() => act(item, "restore")} disabled={busy === item.id} className={buttonClass("outline", "md")}>
+              Restore
+            </button>
+          )}
+        </article>
+      ))}
     </div>
   );
 }

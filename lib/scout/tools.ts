@@ -11,6 +11,8 @@ import { slugifyCity } from "@/lib/core/place-submission";
 import { upsertCreator, upsertCreatorInput, type UpsertCreatorInput } from "./creators";
 import type { ScoutDeps } from "./deps";
 import { allowWrites, WRITE_LIMIT, WRITE_PERIOD_SECONDS, type WriteLimiter } from "./limits";
+import { MAX_MENU_ITEMS } from "@/lib/core/menus";
+import { setMenuCheck, setMenuCheckInput, setPlaceLogo, setPlaceLogoInput, upsertMenu, upsertMenuInput, type SetMenuCheckInput, type UpsertMenuInput } from "./menus";
 import { findPlace, findPlaceInput, upsertPlace, upsertPlaceInput, type UpsertPlaceInput } from "./places";
 import { addVerification, addVerificationInput, removeVerification, removeVerificationInput, type AddVerificationInput } from "./verifications";
 
@@ -52,6 +54,11 @@ export const TOOL_NAMES = [
   "add_verification",
   "add_verifications",
   "remove_verification",
+  "upsert_menu",
+  "upsert_menus",
+  "set_menu_check",
+  "set_menu_checks",
+  "set_place_logo",
 ] as const;
 
 export function registerScoutTools(server: McpServer, context: ScoutContext) {
@@ -93,6 +100,8 @@ export function registerScoutTools(server: McpServer, context: ScoutContext) {
   // Same city, one at a time: a batch can't list the same place twice.
   const placeKeys = (item: UpsertPlaceInput) => [...(item.place_id ? [`p:${item.place_id}`] : []), `city:${slugifyCity(item.city)}`, ...(item.google_place_id ? [`g:${item.google_place_id}`] : [])];
   const verificationKeys = (item: AddVerificationInput) => [`cr:${item.creator.trim().replace(/^@/, "").toLowerCase()}`];
+  // A menu check reads the stored menu, so a place's menu and check never run at once.
+  const menuKeys = (item: UpsertMenuInput | SetMenuCheckInput) => [`menu:${item.place_id.trim().toLowerCase()}`];
 
   server.registerTool(
     "find_place",
@@ -211,5 +220,74 @@ export function registerScoutTools(server: McpServer, context: ScoutContext) {
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async (input) => single((deps) => removeVerification(deps, input)),
+  );
+
+  server.registerTool(
+    "upsert_menu",
+    {
+      title: "Store a place's menu",
+      description:
+        `Store the menu a place publishes (its website or a delivery listing), as data: up to ${MAX_MENU_ITEMS} items in published order, each with name, ` +
+        "price (>= 0, in the currency's major unit: 12.5 for £12.50), currency (ISO 4217, or the menu's currency), optional section and description, " +
+        "plus 1–10 https sources { url, type: website | zomato | swiggy | ubereats | deliveroo | doordash | google | other } and captured_at (ISO, default now). " +
+        "One menu per place: a call replaces all its items and sources at once (result created or updated); the same menu again is unchanged and only moves captured_at forward. " +
+        "The place page shows it by section with prices and cites the sources and date. A menu is a web source, context only: it never changes halal status or any fact. " +
+        "Then call set_menu_check with what the menu says about alcohol and pork.",
+      inputSchema: upsertMenuInput,
+      annotations: WRITE,
+    },
+    async (input) => single((deps) => upsertMenu(deps, input)),
+  );
+
+  server.registerTool(
+    "upsert_menus",
+    {
+      title: "Store menus (batch)",
+      description: `Batch upsert_menu: up to ${MAX_BATCH} menus, one result per item in input order, plus a summary. The request body is capped at 256 KB, so send long menus a few at a time.`,
+      inputSchema: z.object({ menus: z.array(upsertMenuInput).min(1).max(MAX_BATCH) }),
+      annotations: WRITE,
+    },
+    async ({ menus }) => batch(menus, menuKeys, upsertMenu),
+  );
+
+  server.registerTool(
+    "set_menu_check",
+    {
+      title: "Record a menu check",
+      description:
+        "Record Scout's automated read of a place's published menu for alcohol and pork: status clean (neither on the menu), flagged (with flags) or no_menu (no menu online). " +
+        "Each flag is { item: the name of an item on the stored menu, or name: anything else (e.g. Wine list), reason: alcohol | pork | other, note? }. " +
+        "clean shows the badge \"Menu checked: no alcohol · no pork\" on the place page and does nothing else: it never sets, settles or clears a fact and never changes status. " +
+        "flagged with an alcohol or pork flag writes a web claim alcohol = yes / pork = yes citing source_url (default: the stored menu's first source), under upsert_place's claim rule: " +
+        "never over community checks or approved documents (kept_existing), and it replaces Scout's older claim. claims in the result says what happened per fact. " +
+        "One check per place; a newer one replaces it.",
+      inputSchema: setMenuCheckInput,
+      annotations: WRITE,
+    },
+    async (input) => single((deps) => setMenuCheck(deps, input)),
+  );
+
+  server.registerTool(
+    "set_menu_checks",
+    {
+      title: "Record menu checks (batch)",
+      description: `Batch set_menu_check: up to ${MAX_BATCH} checks, one result per item in input order, plus a summary.`,
+      inputSchema: z.object({ checks: z.array(setMenuCheckInput).min(1).max(MAX_BATCH) }),
+      annotations: WRITE,
+    },
+    async ({ checks }) => batch(checks, menuKeys, setMenuCheck),
+  );
+
+  server.registerTool(
+    "set_place_logo",
+    {
+      title: "Set a place's logo",
+      description:
+        "Set the logo shown on a place's page and cards: logo_url is the https image on the restaurant's own website, source_url the https page it was found on. " +
+        "http is refused. The image is linked, never copied or proxied. logo_url: null removes it. Result set, updated, unchanged or cleared.",
+      inputSchema: setPlaceLogoInput,
+      annotations: WRITE,
+    },
+    async (input) => single((deps) => setPlaceLogo(deps, input)),
   );
 }

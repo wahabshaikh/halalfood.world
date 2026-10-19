@@ -9,10 +9,12 @@ import {
   ArrowLeft01Icon,
   Cancel01Icon,
   HelpCircleIcon,
+  InformationCircleIcon,
   Tick02Icon,
   Clock01Icon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
+import { httpsLogoUrl } from "@/lib/core/menus";
 import {
   factAnswerLabel,
   factTags,
@@ -25,6 +27,7 @@ import {
   type FactTone,
   type PlaceStatus,
 } from "@/lib/core/halal";
+import { UNVERIFIED_EXPLAINER, UNVERIFIED_LABEL } from "@/lib/core/provenance";
 import { placeInitials } from "./place-photo";
 
 export function Icon({
@@ -213,6 +216,44 @@ export function StatusPill({ status, short = false, className }: { status: Place
     >
       {statusLabel(status, short)}
     </span>
+  );
+}
+
+/**
+ * An imported place nobody has verified yet (lib/core/provenance.ts). About where the listing came from, not halal
+ * status, so it sits beside the status pill in a quieter outline style. The explainer is its tooltip.
+ */
+export function UnverifiedChip({ className }: { className?: string }) {
+  return (
+    <span
+      title={UNVERIFIED_EXPLAINER}
+      data-testid="unverified-chip"
+      className={cn(
+        "inline-flex h-[22px] shrink-0 items-center rounded-full border border-dashed border-foreground/30 px-2.5 text-xs font-extrabold whitespace-nowrap text-subtle-foreground",
+        className,
+      )}
+    >
+      {UNVERIFIED_LABEL}
+    </span>
+  );
+}
+
+/** The place page's "Unverified" note, with the explainer and what lifts it. */
+export function UnverifiedNotice({ className }: { className?: string }) {
+  return (
+    <section aria-labelledby="unverified-title" data-testid="unverified-notice" className={cn("flex gap-3 rounded-[20px] border border-dashed border-foreground/25 p-4", className)}>
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-subtle-foreground">
+        <Icon icon={InformationCircleIcon} size={20} />
+      </span>
+      <div className="grid gap-0.5">
+        <h2 id="unverified-title" className="text-[15px] font-black">
+          {UNVERIFIED_LABEL}
+        </h2>
+        <p className="text-[13px] leading-relaxed font-semibold text-subtle-foreground">
+          {UNVERIFIED_EXPLAINER} Been here? Your check confirms it.
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -444,11 +485,12 @@ export function AvatarStack({ people, size = 32 }: { people: { name: string; see
   );
 }
 
-/** A place's photo, or its initials on a stable colour. */
+/** A place's photo, else its logo, else its initials on a stable colour. */
 export function PlaceArt({
   name,
   seed,
   src,
+  logo,
   className,
   rounded = "rounded-2xl",
   textSize = "text-xl",
@@ -456,11 +498,21 @@ export function PlaceArt({
   name: string;
   seed: string;
   src?: string | null;
+  /** The restaurant's own logo, an external https image. Anything else is ignored. */
+  logo?: string | null;
   className?: string;
   rounded?: string;
   textSize?: string;
 }) {
   const [bg, ink] = artPair(seed);
+  const logoUrl = src ? null : httpsLogoUrl(logo);
+  if (logoUrl)
+    return (
+      <span className={cn("flex shrink-0 items-center justify-center overflow-hidden border border-border bg-white p-1.5", rounded, className)} aria-hidden="true">
+        {/* Linked from the restaurant's site, never fetched by us; no referrer leaves the page. */}
+        <img src={logoUrl} alt="" loading="lazy" referrerPolicy="no-referrer" data-place-logo="" className="size-full object-contain" />
+      </span>
+    );
   return (
     <span
       className={cn("flex shrink-0 items-center justify-center overflow-hidden font-black", rounded, textSize, className)}

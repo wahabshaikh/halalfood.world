@@ -884,11 +884,29 @@ test("the seed's Scout-claimed places carry the status recomputePlaceStatus give
   const { deps, sqlite } = setup();
   sqlite.exec(readFileSync(join(import.meta.dirname, "../../seed/local.sql"), "utf8"));
   const columns = "status, progress, owned_value, certified_value, pork_value, alcohol_value, owned_settled, certified_settled, pork_settled, alcohol_settled, owned_sources, certified_sources, pork_sources, alcohol_sources";
-  for (const id of ["00000000-0000-4000-8000-000000000007", "00000000-0000-4000-8000-000000000008"]) {
+  // 0003 is Seed Shawarma Bar, whose flagged menu check wrote a Scout alcohol claim.
+  for (const id of ["00000000-0000-4000-8000-000000000003", "00000000-0000-4000-8000-000000000007", "00000000-0000-4000-8000-000000000008", "00000000-0000-4000-8000-000000000011"]) {
     const seeded = { ...(sqlite.prepare(`SELECT ${columns} FROM place_status WHERE place_id = ?`).get(id) as object) };
     await recomputePlaceStatus(id, deps.db, NOW);
     assert.deepEqual({ ...(sqlite.prepare(`SELECT ${columns} FROM place_status WHERE place_id = ?`).get(id) as object) }, seeded, id);
   }
+});
+
+test("the seed's imported places carry the provenance migration 0007 and recomputes give them", async () => {
+  const { deps, sqlite } = setup();
+  sqlite.exec(readFileSync(join(import.meta.dirname, "../../seed/local.sql"), "utf8"));
+  const provenance = () =>
+    sqlite.prepare(`SELECT id, import_source, import_verified_at FROM places WHERE import_source IS NOT NULL ORDER BY id`).all().map((row) => ({ ...row }));
+  const seeded = provenance();
+  assert.deepEqual(seeded, [
+    { id: "00000000-0000-4000-8000-000000000010", import_source: "halalfoodnear.me", import_verified_at: null },
+    { id: "00000000-0000-4000-8000-000000000011", import_source: "halalfoodnear.me", import_verified_at: 1790000000000 },
+  ]);
+  // The seed's created_at and submitter match the import predicate, and nothing else does.
+  const matches = sqlite.prepare(`SELECT id FROM places WHERE created_at = 1789282699475 AND submitted_by_user_id IS NULL ORDER BY id`).all();
+  assert.deepEqual(matches.map((row) => row.id), seeded.map((row) => row.id));
+  for (const { id } of seeded) await recomputePlaceStatus(String(id), deps.db, NOW);
+  assert.deepEqual(provenance(), seeded);
 });
 
 /* ------------------------------------------------ coordinates and force_new */
@@ -898,11 +916,11 @@ const noCoords = (over: Partial<UpsertPlaceInput> = {}): UpsertPlaceInput => {
   return { ...rest, ...over };
 };
 
-function googleDeps(s: ReturnType<typeof setup>, respond: () => Response | Promise<Response>) {
+function googleDeps(s: ReturnType<typeof setup>, respond: (init?: RequestInit) => Response | Promise<Response>) {
   const calls: string[] = [];
-  vi.stubGlobal("fetch", async (url: string) => {
+  vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
     calls.push(String(url));
-    return respond();
+    return respond(init);
   });
   return { deps: { ...s.deps, google: { apiKey: "test-key", searchCap: 10, detailsCap: 10 } } satisfies ScoutDeps, calls };
 }
@@ -956,7 +974,7 @@ test("without lat/lng, a confident geocode sets the coordinates; a low-confidenc
   assert.ok(provided.ok && provided.location === "provided");
   assert.equal(good.calls.length, 1);
 
-  const wrong = googleDeps(s, () => googleJson({ places: [{ ...DISHOOM_RESULT.places[0], formattedAddress: "7 Boundary Rd, Portsmouth PO6 1AB, UK" }] }));
+  const wrong = googleDeps(s, () => googleJson({ places: [{ ...DISHOOM_RESULT.places[0], formattedAddress: "7 Boundary Rd, Portsmouth PO6 1AB, UK", location: { latitude: 50.84, longitude: -1.07 } }] }));
   const lost = await upsertPlace(wrong.deps, noCoords({ name: "Lahore Kebab House", address: "2-10 Umberston St, London E1 1PY" }));
   assert.ok(lost.ok && lost.result === "created");
   assert.deepEqual([lost.location, lost.geocode, lost.place.lat], ["null", "wrong_city", null]);
@@ -1153,4 +1171,134 @@ test("partial protected coordinate pairs keep their existing coordinate and sour
     assert.equal(out.relocate_refused, "protected_source");
     assert.deepEqual({ ...s.sqlite.prepare("SELECT lat, lng, location_source FROM places WHERE id = ?").get(id) }, { lat: null, lng: 72.83, location_source: source });
   }
+});
+
+const component = (longText: string, shortText: string, type: string) => ({ longText, shortText, types: [type, "political"] });
+const CITY_MATCH_CASES = [
+  { name: "Chachu's", city: "Toronto", country: "Canada", address: "16-747 Don Mills Rd, North York, ON M3C 1T2, Canada", lat: 43.71, lng: -79.333,
+    components: [component("North York", "North York", "sublocality_level_1"), component("Ontario", "ON", "administrative_area_level_1"), component("Canada", "CA", "country")] },
+  { name: "Yaki Ya Edgware", city: "London", country: "GB", address: "25 Station Rd, Edgware HA8 7AB, UK", lat: 51.611, lng: -0.275,
+    components: [component("Edgware", "Edgware", "postal_town"), component("Greater London", "Greater London", "administrative_area_level_2"), component("United Kingdom", "GB", "country")] },
+  { name: "GYUMON Shibuya", city: "Tokyo", country: "Japan", address: "Japan, 〒150-0043 Tokyo, Shibuya City, Dogenzaka, 2 Chome−29−8", lat: 35.659, lng: 139.698,
+    components: [component("Shibuya City", "Shibuya", "locality"), component("Tokyo", "Tokyo", "administrative_area_level_1"), component("Japan", "JP", "country")] },
+  { name: "PANGA Asakusa", city: "Tokyo", country: "JP", address: "日本、〒111-0032 東京都台東区浅草１丁目", lat: 35.712, lng: 139.794,
+    components: [component("台東区", "台東区", "locality"), component("東京都", "東京都", "administrative_area_level_1"), component("日本", "JP", "country")] },
+];
+
+for (const venue of CITY_MATCH_CASES) {
+  for (const details of [false, true]) test(`trusts ${venue.name} via ${details ? "Details" : "Text Search"} structured address`, async () => {
+    const s = setup();
+    const response = { id: "ChIJcitymatch1", displayName: { text: venue.name }, types: ["restaurant", "food", "point_of_interest", "establishment"],
+      location: { latitude: venue.lat, longitude: venue.lng }, formattedAddress: venue.address, addressComponents: venue.components };
+    let mask = "";
+    const google = googleDeps(s, (init) => {
+      mask = new Headers(init?.headers).get("X-Goog-FieldMask") ?? "";
+      return googleJson(details ? response : { places: [response] });
+    });
+    try {
+      const out = await call({ secret: SECRET, deps: async () => google.deps }, "upsert_place", noCoords({ name: venue.name, address: venue.name === "PANGA Asakusa" ? "1 Chome Asakusa, Taito City, Tokyo" : venue.address, city: venue.city, country: venue.country, ...(details ? { google_place_id: response.id } : {}) }));
+      assert.equal(out.body.location, "geocoded", out.body.geocode);
+      assert.ok(mask.split(",").includes(details ? "addressComponents" : "places.addressComponents"));
+      assert.deepEqual([out.body.place.lat, out.body.place.lng], [venue.lat, venue.lng]);
+    } finally { vi.unstubAllGlobals(); }
+  });
+}
+
+for (const wrongCountry of [false, true]) test(`structured geocode rejects a true wrong ${wrongCountry ? "country" : "city"}`, async () => {
+  const s = setup();
+  const response = { id: "ChIJwrongcity1", displayName: { text: "Example Cafe" }, types: ["restaurant"],
+    location: { latitude: wrongCountry ? 42.98 : 53.48, longitude: wrongCountry ? -81.24 : -2.24 },
+    formattedAddress: wrongCountry ? "7 Boundary St, London, ON, Canada" : "7 Boundary St, Manchester, UK",
+    addressComponents: [component(wrongCountry ? "London" : "Manchester", wrongCountry ? "London" : "Manchester", "locality"), component(wrongCountry ? "Canada" : "United Kingdom", wrongCountry ? "CA" : "GB", "country")] };
+  const google = googleDeps(s, () => googleJson({ places: [response] }));
+  try {
+    const out = await call({ secret: SECRET, deps: async () => google.deps }, "upsert_place", noCoords());
+    assert.equal(out.body.geocode, wrongCountry ? "wrong_country" : "wrong_city");
+    assert.equal(out.body.place.lat, null);
+  } finally { vi.unstubAllGlobals(); }
+});
+
+for (const source of ["scout", "geocoded", "google", "import", "community", "listing", null]) {
+  for (const missing of [false, true]) test(`failed geocode address repair: source ${source}, missing coordinates ${missing}`, async () => {
+    const s = setup();
+    const created = await upsertPlace(s.deps, place({ address: "London" }));
+    assert.ok(created.ok);
+    s.sqlite.prepare("UPDATE places SET location_source = ?, lat = ?, lng = ? WHERE id = ?").run(source, missing ? null : LONDON.lat, missing ? null : LONDON.lng, created.place.id);
+    if (source === null) s.sqlite.prepare("DELETE FROM audit_log").run();
+    const google = googleDeps(s, () => googleJson({ places: [] }));
+    try {
+      const out = await call({ secret: SECRET, deps: async () => google.deps }, "upsert_place", noCoords({ place_id: created.place.id, relocate: true }));
+      const allowed = source === "scout" || source === "geocoded" || (missing && source === null);
+      assert.equal(out.body.place.address, allowed ? place().address : "London");
+      assert.deepEqual([out.body.place.lat, out.body.place.lng], missing ? [null, null] : [LONDON.lat, LONDON.lng]);
+      if (allowed) {
+        assert.equal(out.body.address_updated, true);
+        assert.deepEqual(out.body.address_change, { previous: "London", current: place().address });
+        assert.ok(out.body.filled.includes("street_address"));
+        if (missing) assert.ok(String((s.sqlite.prepare("SELECT maps_url FROM places WHERE id = ?").get(created.place.id) as { maps_url: string }).maps_url).includes(encodeURIComponent(place().address)));
+      }
+    } finally { vi.unstubAllGlobals(); }
+  });
+}
+
+test("address repair collision returns a refusal without changing either place", async () => {
+  const s = setup();
+  const first = await upsertPlace(s.deps, place({ address: "London" }));
+  const second = await upsertPlace(s.deps, place({ force_new: true }));
+  assert.ok(first.ok && second.ok);
+  const google = googleDeps(s, () => googleJson({ places: [] }));
+  try {
+    const out = await call({ secret: SECRET, deps: async () => google.deps }, "upsert_place", noCoords({ place_id: first.place.id, relocate: true }));
+    assert.equal(out.isError, false);
+    assert.equal(out.body.address_refused, "duplicate_place");
+    assert.equal(out.body.place.address, "London");
+    assert.equal(count(s.sqlite, "SELECT count(*) AS n FROM places"), 2);
+  } finally { vi.unstubAllGlobals(); }
+});
+
+test("a failed geocode repairs a legacy Scout address with creation proof and publishes a cache version", async () => {
+  const s = setup();
+  const first = await upsertPlace(s.deps, place({ address: "London" }));
+  assert.ok(first.ok);
+  s.sqlite.prepare("UPDATE places SET location_source = NULL WHERE id = ?").run(first.place.id);
+  const before = count(s.sqlite, "SELECT count(*) AS n FROM audit_log WHERE action = 'listing.changed'");
+  const google = googleDeps(s, () => googleJson({ places: [{ ...DISHOOM_RESULT.places[0], types: ["locality"] }] }));
+  try {
+    const out = await call({ secret: SECRET, deps: async () => google.deps }, "upsert_place", noCoords({ place_id: first.place.id, relocate: true }));
+    assert.equal(out.body.geocode, "not_street_level");
+    assert.equal(out.body.address_updated, true);
+    assert.equal(out.body.place.address, place().address);
+    assert.deepEqual([out.body.place.lat, out.body.place.lng], [LONDON.lat, LONDON.lng]);
+    assert.equal(count(s.sqlite, "SELECT count(*) AS n FROM audit_log WHERE action = 'listing.changed'"), before + 1);
+  } finally { vi.unstubAllGlobals(); }
+});
+
+test("a concurrent protected edit wins even when geocoding fails", async () => {
+  const s = setup();
+  const first = await upsertPlace(s.deps, place({ address: "London" }));
+  assert.ok(first.ok);
+  const google = googleDeps(s, () => {
+    s.sqlite.prepare("UPDATE places SET street_address = '9 Community Road', location_source = 'community' WHERE id = ?").run(first.place.id);
+    return googleJson({ places: [] });
+  });
+  try {
+    const out = await call({ secret: SECRET, deps: async () => google.deps }, "upsert_place", noCoords({ place_id: first.place.id, relocate: true }));
+    assert.equal(out.body.address_refused, "location_changed");
+    assert.equal(out.body.place.address, "9 Community Road");
+  } finally { vi.unstubAllGlobals(); }
+});
+
+test("address collision also stays safe when relocation obtains trusted coordinates", async () => {
+  const s = setup();
+  const first = await upsertPlace(s.deps, place({ address: "London" }));
+  const second = await upsertPlace(s.deps, place({ force_new: true }));
+  assert.ok(first.ok && second.ok);
+  const google = googleDeps(s, () => googleJson(DISHOOM_RESULT));
+  try {
+    const out = await call({ secret: SECRET, deps: async () => google.deps }, "upsert_place", noCoords({ place_id: first.place.id, relocate: true }));
+    assert.equal(out.isError, false);
+    assert.equal(out.body.address_refused, "duplicate_place");
+    assert.equal(out.body.place.address, "London");
+    assert.equal(out.body.location, "relocated");
+  } finally { vi.unstubAllGlobals(); }
 });

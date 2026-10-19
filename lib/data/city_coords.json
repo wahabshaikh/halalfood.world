@@ -814,5 +814,17 @@
     "lng": -112.074141,
     "query": "Phoenix",
     "source": "nominatim"
+  },
+  "tokyo": {
+    "lat": 35.6762,
+    "lng": 139.6503,
+    "query": "Tokyo, Japan",
+    "source": "reference"
+  },
+  "toronto": {
+    "lat": 43.6532,
+    "lng": -79.3832,
+    "query": "Toronto, Canada",
+    "source": "reference"
   }
 }
