@@ -97,6 +97,10 @@ export function SettingsView({
             <Icon icon={ArrowRight01Icon} size={18} />
           </span>
         </a>
+        <a href="/me/keys" className={rowClass}>
+          API keys
+          <Icon icon={ArrowRight01Icon} size={18} />
+        </a>
         <button type="button" onClick={filtersSheet.show} className={rowClass}>
           Default filters
           <span className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">

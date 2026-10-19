@@ -681,6 +681,22 @@ export const whopMemberships = sqliteTable("whop_memberships", {
   updatedAt: ms("updated_at").notNull(),
 });
 
+export const memberApiKeys = sqliteTable(
+  "member_api_keys",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => authUser.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    prefix: text("prefix").notNull(),
+    keyHash: text("key_hash").notNull().unique("member_api_keys_hash_idx"),
+    scopes: text("scopes").notNull(),
+    lastUsedAt: ms("last_used_at"),
+    createdAt: ms("created_at").notNull(),
+    revokedAt: ms("revoked_at"),
+  },
+  (table) => [index("member_api_keys_user_idx").on(table.userId, table.createdAt)],
+);
+
 /** Every piece of community work: the audit and points source (migrations/0010_community_trust.sql, lib/core/contributions.ts). */
 export const contributions = sqliteTable("contributions", {
   id: text("id").primaryKey(),

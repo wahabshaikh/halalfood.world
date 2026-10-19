@@ -47,7 +47,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/community` | – | The points leaderboard per city, this week or all time: the old `points` ledger plus granted `contribution_points` (pending and revoked never count). |
 | `/events`, `/event/[id]` | – | Halal food events and their stalls. |
 | `/creator/[platform]/[handle]` | – | Places from a creator's videos; links to `/u/<handle>` when the channel has a creator profile. |
-| `/me`, `/me/settings`, `/me/privacy` | ✓ | You (Passport, Checks, Lists), Settings, Privacy & people. |
+| `/me`, `/me/settings`, `/me/privacy`, `/me/keys` | ✓ | You (Passport, Checks, Lists), Settings, Privacy & people, API keys. |
 | `/admin` | moderator | Reports, Evidence, Events and Sponsors. |
 | `/how-trust-works` | – | Plain-words explainer: the four halal facts and Confirmed, place badges, trust bands and points. Linked from the footer. |
 | `/newsletter` | – | City picks, new places and sponsor slots; subscribe and manage a Whop newsletter membership. |
@@ -66,7 +66,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `POST/DELETE /api/places/[id]/saved`, `GET /api/places/saved` | Saves. |
 | `GET/POST /api/places/[id]/media`, `POST /api/media/match` | Video links and matching a pasted link to a place. |
 | `GET /api/search`, `GET /api/cities/nearest` | Search; nearest city. |
-| `GET/PUT/DELETE /api/me`, `POST/DELETE /api/me/avatar`, `POST /api/me/onboarding`, `GET /api/handles/check`, `GET /api/avatars/[handle]` | Profile, settings, account deletion, photo, onboarding and handles. |
+| `GET/PUT/DELETE /api/me`, `POST/DELETE /api/me/avatar`, `POST /api/me/onboarding`, `GET/POST /api/me/keys`, `DELETE /api/me/keys/[id]`, `GET /api/handles/check`, `GET /api/avatars/[handle]` | Profile, settings, account deletion, photo, onboarding, member API keys and handles. |
 | `PUT/DELETE /api/follows/[handle]`, `POST/DELETE /api/follow-requests/[handle]`, `PUT/DELETE /api/blocks/[handle]`, `GET /api/people/suggested`, `GET /api/u/[handle]` | People. |
 | `GET /api/feed`, `GET /api/checks/[id]`, `PUT/DELETE /api/checks/[id]/like`, `GET/POST /api/checks/[id]/comments`, `DELETE /api/comments/[id]` | Feed, visits, likes and comments. |
 | `GET /api/inbox`, `POST /api/inbox/read`, `GET /api/inbox/summary`, `GET /api/recs/recipients`, `POST /api/recs`, `POST /api/recs/[id]/reply` | Inbox and recs. |
@@ -94,6 +94,14 @@ streamed bodies), and all responses use `Cache-Control: no-store`. Halal status 
 and reviewed documents; bulk scraping is prohibited. Reads are limited per client IP by the `MEMBER_MCP_READ_LIMITER`
 binding (60 a minute, namespaces 81004 / preview 81104); over it the endpoint answers 429.
 See [member-mcp.md](member-mcp.md) for client setup.
+
+Member API keys (`lib/member-keys.ts`, `member_api_keys` in `0012_member_api_keys.sql`) are made, listed and revoked
+on `/me/keys` through `/api/me/keys`. A key is `hfw_` plus 32 random bytes (base64url), returned once by the create
+call and never stored: the table keeps its SHA-256 (hex, unique) and first 8 characters. Accounts must be 7 days old,
+a member has at most 3 active keys, and scopes are `read` or `read,write`. `verifyMemberKey(bearer)` hashes the
+presented key, looks the hash up among unrevoked keys, stamps `last_used_at` and returns the user id and scopes;
+revoking takes effect on the next request. Deleting the account deletes its keys. The member MCP does not accept
+keys yet: its write tools will.
 
 ## Halal Food Scout (admin MCP)
 
