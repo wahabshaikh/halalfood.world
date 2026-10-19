@@ -149,3 +149,14 @@ test("the per-IP read limiter answers 429 once it is exhausted", async () => {
   assert.equal(response.headers.get("Retry-After"), "60");
   assert.deepEqual(keys, ["member-mcp:203.0.113.9"]);
 });
+
+// Production regression: the route's request was not a native Request, and `new Request(request, …)` stringified it
+// ("Invalid URL: [object Request]"), so every call answered 500.
+test("a request-like object that is not a native Request still works", async () => {
+  const native = request({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+  const requestLike = { url: native.url, method: native.method, headers: native.headers, body: native.body } as unknown as Request;
+  const response = await handleMemberRequest(requestLike);
+  assert.equal(response.status, 200);
+  const text = await response.text();
+  assert.match(text, /search_places/);
+});
