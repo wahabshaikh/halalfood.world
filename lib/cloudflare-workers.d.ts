@@ -17,6 +17,13 @@ declare module "cloudflare:workers" {
     GOOGLE_MAPS_API_KEY?: string;
     /** Halal Food Scout's bearer secret for /api/mcp. Unset or under 32 characters: the endpoint is off. */
     MCP_ADMIN_SECRET?: string;
+    /** Hosted Whop checkouts and signed billing webhooks. */
+    WHOP_API_KEY?: string;
+    WHOP_COMPANY_ID?: string;
+    WHOP_WEBHOOK_SECRET?: string;
+    WHOP_SPONSOR_PRODUCT_ID?: string;
+    WHOP_NEWSLETTER_PLAN_ID?: string;
+    WHOP_NEWSLETTER_PRODUCT_ID?: string;
     MCP_WRITE_LIMITER?: {
       limit(options: { key: string }): Promise<{ success: boolean }>;
     };

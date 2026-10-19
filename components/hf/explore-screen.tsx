@@ -16,6 +16,8 @@ import { avatarUrl, getProfile } from "@/lib/profiles";
 import { getVisitorLocation } from "@/lib/visitor-location";
 import { breadcrumbJsonLd, canonical, jsonLdScript } from "@/lib/seo";
 import { ExploreExtras } from "./explore-extras";
+import { SponsorCard } from "./sponsor-card";
+import { liveSponsor } from "@/lib/sponsorships";
 
 export type ExploreSearchParams = Record<string, string | string[] | undefined>;
 
@@ -43,6 +45,8 @@ export async function ExploreScreen({ city, searchParams }: { city: City; search
   const visitorCity = location ? await nearestCity(location).catch(() => null) : null;
   const near = location && visitorCity?.city_slug === city.city_slug ? { lat: location.lat, lng: location.lng } : null;
 
+  // A sponsor is optional decoration: if the lookup fails, the page renders without it.
+  const sponsor = await liveSponsor(city.city_slug).catch(() => null);
   const result = await loadExplore(viewerId, {
     citySlug: city.city_slug,
     bbox: null,
@@ -87,6 +91,7 @@ export async function ExploreScreen({ city, searchParams }: { city: City; search
       {rawFilters === undefined && !viewerId && <RestoreFilters hasParam={false} />}
       <Page className="pt-[18px] md:pt-8">
         <header className="grid gap-3.5 pb-3 md:pb-6">
+          <h1 className="sr-only">Halal food in {cityName(city.city_slug)}</h1>
           <div className="flex items-center justify-between gap-3">
             <a href="/cities" className="inline-flex min-h-11 items-center gap-1.5 text-foreground">
               <BrandMark size={26} className="md:hidden" />
@@ -121,6 +126,7 @@ export async function ExploreScreen({ city, searchParams }: { city: City; search
 
         <div className="grid gap-[26px] pt-1 md:gap-10 md:pt-0">
           <ExploreExtras citySlug={city.city_slug} cityLabel={name} viewerId={viewerId} />
+          {sponsor && <SponsorCard sponsor={sponsor} cityLabel={name} />}
           <section aria-labelledby="places-title" className="grid gap-2.5 md:gap-4">
             <SectionTitle id="places-title">{near ? "Places near you" : `Places in ${name}`}</SectionTitle>
             <FilterChips

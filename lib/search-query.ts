@@ -13,3 +13,16 @@ export function normalizeSearchQuery(raw: string, maxChars = SEARCH_QUERY_MAX_CH
   const chars = Array.from(collapsed);
   return chars.length > maxChars ? chars.slice(0, maxChars).join("").trimEnd() : collapsed;
 }
+
+/** Split off the longest known city name at either end of a query. */
+export function splitCityQuery(q: string, citySlugs: readonly string[]): { citySlug: string | null; rest: string } {
+  const words = normalizeSearchQuery(q).split(" ");
+  const cities = new Map(citySlugs.map((slug) => [slug.toLowerCase(), slug]));
+  for (let length = words.length; length > 0; length--) {
+    const leading = cities.get(words.slice(0, length).join("-").toLowerCase());
+    if (leading) return { citySlug: leading, rest: words.slice(length).join(" ") };
+    const trailing = cities.get(words.slice(-length).join("-").toLowerCase());
+    if (trailing) return { citySlug: trailing, rest: words.slice(0, -length).join(" ") };
+  }
+  return { citySlug: null, rest: words.join(" ") };
+}
