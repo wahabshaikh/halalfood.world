@@ -80,6 +80,11 @@ function memberTier(member: MemberRecord, now: number): Tier {
   return "new";
 }
 
+/** New and Restricted members' new places wait for a moderator (spec §2.6, §5.2). */
+export function placeAddNeedsReview(tier: Tier): boolean {
+  return tier === "new" || tier === "restricted";
+}
+
 /** Facts about one vouch that change how much it counts. */
 export type VouchContext = {
   /** The voucher's account age when they vouched. */

@@ -184,6 +184,8 @@ export type CreatePlaceInput = {
   lng: number | null;
   /** Null for places the Scout importer lists (lib/scout/places.ts). */
   submittedByUserId: string | null;
+  /** Hidden while a New-tier member's place waits for review (lib/contributions.ts). Default listed. */
+  listingStatus?: "listed" | "hidden";
 };
 
 /** Statements that list a new place and its unchecked status row. */
@@ -198,7 +200,7 @@ export function createPlaceStatements(input: CreatePlaceInput, id: string, now: 
       ${input.addressCountry}, ${input.mapsUrl}, ${input.googlePlaceId},
       ${JSON.stringify(input.servesCuisine)}, ${input.lat}, ${input.lng},
       ${input.lat !== null && input.lng !== null ? locationSource(input.locationSource) : null},
-      ${input.submittedByUserId}, 'listed', ${now}, ${now}
+      ${input.submittedByUserId}, ${input.listingStatus ?? "listed"}, ${now}, ${now}
     )`,
     sql`INSERT INTO place_status (place_id, status, progress, eligible_checks, updated_at)
       VALUES (${id}, 'unchecked', 0, 0, ${now})`,

@@ -2,7 +2,7 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 import { addPlaceFromGoogle, cityFromFormattedAddress } from "@/lib/google-place-submission";
 import type { GooglePlaceDetailsResult } from "@/lib/google-places";
-import { addPlace, addProfile, addUser, createTestDatabase } from "@/lib/testing/sqlite-d1";
+import { DAY, addPlace, addProfile, addUser, createTestDatabase } from "@/lib/testing/sqlite-d1";
 
 function details(id = "ChIJnew"): GooglePlaceDetailsResult {
   return {
@@ -17,10 +17,16 @@ function details(id = "ChIJnew"): GooglePlaceDetailsResult {
   } as unknown as GooglePlaceDetailsResult;
 }
 
+/** The adder is a Member: 30 days old with 3 accepted contributions at 2 places. */
 function world() {
   const { sqlite, db } = createTestDatabase();
   addUser(sqlite, "adder");
   addProfile(sqlite, "adder");
+  const places = [addPlace(sqlite), addPlace(sqlite)];
+  for (const [index, placeId] of [places[0], places[0], places[1]].entries())
+    sqlite
+      .prepare(`INSERT INTO contributions (id, user_id, kind, place_id, channel, status, created_at) VALUES (?, 'adder', 'vouch', ?, 'web', 'accepted', ?)`)
+      .run(`earlier-${index}`, placeId, Date.now());
   return { sqlite, db };
 }
 
@@ -50,6 +56,46 @@ test("a new place goes live at once, and answers count as check 1", async () => 
   assert.equal(place.location_source, "google");
   const points = sqlite.prepare(`SELECT kind FROM points WHERE user_id = 'adder' ORDER BY kind`).all() as { kind: string }[];
   assert.deepEqual(points.map((row) => row.kind), ["check", "place-added"]);
+  const contribution = sqlite.prepare(`SELECT status, weight FROM contributions WHERE kind = 'place_add' AND place_id = ?`).get(result.id) as Record<string, unknown>;
+  assert.deepEqual({ ...contribution }, { status: "accepted", weight: 1 });
+  assert.equal((sqlite.prepare(`SELECT count(*) AS n FROM contribution_points`).get() as { n: number }).n, 0);
+});
+
+test("a New-tier member's place is hidden and waits for review", async () => {
+  const { sqlite, db } = createTestDatabase();
+  addUser(sqlite, "newbie", "newbie", Date.now() - 3 * DAY);
+  addProfile(sqlite, "newbie");
+  const result = await addPlaceFromGoogle(
+    "newbie",
+    { googlePlaceId: "ChIJnew", ...base, answers: { owned: "yes", certified: null, pork: "no", alcohol: "no" } },
+    "addkey-000005",
+    { client: db, reserve: async () => true, hasApiKey: () => true, fetchDetails: async () => details() },
+  );
+  assert.ok(result.ok);
+  if (!result.ok) return;
+  assert.equal(result.status, "pending");
+  const place = sqlite.prepare(`SELECT listing_status FROM places WHERE id = ?`).get(result.id) as Record<string, unknown>;
+  assert.equal(place.listing_status, "hidden");
+  const contribution = sqlite.prepare(`SELECT kind, status, channel, weight FROM contributions WHERE place_id = ?`).get(result.id) as Record<string, unknown>;
+  assert.deepEqual({ ...contribution }, { kind: "place_add", status: "pending", channel: "web", weight: 0.5 });
+  const pending = sqlite.prepare(`SELECT points, status FROM contribution_points WHERE place_id = ?`).get(result.id) as Record<string, unknown>;
+  assert.deepEqual({ ...pending }, { points: 5, status: "pending" });
+  const points = sqlite.prepare(`SELECT kind FROM points WHERE user_id = 'newbie'`).all() as { kind: string }[];
+  assert.deepEqual(points.map((row) => row.kind), ["check"]);
+});
+
+test("a Restricted account's place waits for review too", async () => {
+  const { sqlite, db } = createTestDatabase();
+  addUser(sqlite, "fresh", "fresh", Date.now() - 60 * 60 * 1000);
+  const result = await addPlaceFromGoogle("fresh", { googlePlaceId: "ChIJnew", ...base, answers: null }, "addkey-000006", {
+    client: db,
+    reserve: async () => true,
+    hasApiKey: () => true,
+    fetchDetails: async () => details(),
+  });
+  assert.ok(result.ok && result.status === "pending");
+  const contribution = sqlite.prepare(`SELECT status, weight FROM contributions WHERE kind = 'place_add'`).get() as Record<string, unknown>;
+  assert.deepEqual({ ...contribution }, { status: "pending", weight: 0 });
 });
 
 test("without answers the place starts unchecked", async () => {

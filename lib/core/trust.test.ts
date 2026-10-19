@@ -4,6 +4,7 @@ import {
   BADGES,
   BAND_LABEL,
   PORK_CAP,
+  TIERS,
   dampClusters,
   formatBadges,
   isBurst,
@@ -11,6 +12,7 @@ import {
   parseBadges,
   parseBand,
   parseTier,
+  placeAddNeedsReview,
   placeBadges,
   placeTrust,
   trustBand,
@@ -258,4 +260,11 @@ test("all badges come out in display order and round-trip through place_status.b
   assert.deepEqual(parseBadges("serves_pork,bogus,halal_certified"), ["halal_certified", "serves_pork"]);
   assert.deepEqual(parseBadges(""), []);
   assert.deepEqual(parseBadges(null), []);
+});
+
+test("New and Restricted members' places wait for review; Member and above go live", () => {
+  assert.deepEqual(
+    TIERS.filter((tier) => placeAddNeedsReview(tier)),
+    ["restricted", "new"],
+  );
 });

@@ -426,6 +426,9 @@ Five radio reasons, an optional detail field, and Send report → `POST /api/rep
 1. **Search**: Google results. "Already listed" results link to the place. A card links to "Saw it in a video?" (`/add/video`). Footer note.
 2. **Confirm**: mini map with a pin, name and address, the 4 compact questions (`Yes` / `No` / `?`), and Add place. The hint "It goes live straight away as '1 of 3 checks' / 'Not checked yet'" updates live.
 3. **Done**: success copy, a meter at 1 of 3 (or none), Share the place, See the place.
+   A New or Restricted member (account under 7 days or fewer than 3 accepted contributions, `lib/core/trust.ts`) sees
+   "{Place} is waiting for review" instead: the place stays hidden until a moderator approves it in `/admin` → Places,
+   and its 5 points arrive on approval. Member tier and above go live at once.
 
 Signed out: search works; Add place goes to `/login?returnTo=/add?g={googlePlaceId}`, which then resumes at Confirm.
 

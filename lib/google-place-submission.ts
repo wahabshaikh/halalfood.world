@@ -1,11 +1,13 @@
 /**
  * Add a place from a Google Maps result (spec §6.9). It goes live at once as
  * "Not checked yet", or "1 of 3" when the adder answered the questions, which
- * are stored as the place's first check.
+ * are stored as the place's first check. A New or Restricted member's place
+ * is hidden until a moderator approves it (lib/contributions.ts).
  */
 import { slugifyCity, type ValidatedPlaceSubmission } from "@/lib/core/place-submission";
 import { validateCheck } from "@/lib/core/check";
 import { hiddenListingReason } from "@/lib/core/listing-visibility";
+import { placeAddNeedsReview, type Tier } from "@/lib/core/trust";
 import { database } from "@/lib/db";
 import {
   GOOGLE_PLACES_ADD_FIELD_MASK,
@@ -18,6 +20,7 @@ import {
 import { reserveGoogleDetailsCall } from "./google-search-budget";
 import { createPlaceStatements, findPlaceByGoogleId, type CreatePlaceInput } from "./places";
 import { awardPoints, checkStatements, recomputePlaceStatus, runBatch } from "./checks-repository";
+import { memberTier, placeAddStatements } from "./contributions";
 
 const POSTCODE_AT_END = /(?:\s|^)(?:[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}|\d{5}(?:-\d{4})?)$/i;
 
@@ -43,10 +46,11 @@ export type AddPlaceDeps = {
   fetchDetails?: (placeId: string, options?: { fieldMask?: string }) => Promise<GooglePlaceDetailsResult>;
   hasApiKey?: () => boolean;
   client?: DatabaseClient | Promise<DatabaseClient>;
+  tier?: (userId: string) => Promise<Tier>;
 };
 
 export type AddPlaceResult =
-  | { ok: true; id: string; status: "unchecked" | "checking" }
+  | { ok: true; id: string; status: "unchecked" | "checking" | "pending" }
   | { ok: false; status: number; error: string; existingId?: string };
 
 const UNAVAILABLE = "Adding places is paused right now. Please try again later.";
@@ -149,11 +153,19 @@ export async function addPlaceFromGoogle(
   if (hiddenListingReason({ name: listing.name }))
     return { ok: false, status: 422, error: "This looks like a bar, so it can’t be listed here." };
 
+  const tier = await (deps.tier ?? ((member) => memberTier(member, client, now)))(userId);
+  const pending = placeAddNeedsReview(tier);
   const id = crypto.randomUUID();
   const statements = [
-    ...createPlaceStatements({ ...listing, locationSource: "google", submittedByUserId: userId }, id, now),
-    awardPoints(userId, "place-added", id, listing.citySlug, null, now),
+    ...createPlaceStatements(
+      { ...listing, locationSource: "google", submittedByUserId: userId, listingStatus: pending ? "hidden" : "listed" },
+      id,
+      now,
+    ),
+    ...placeAddStatements(userId, id, listing.citySlug, tier, pending, now),
   ];
+  // A reviewed add is paid through contribution_points once approved.
+  if (!pending) statements.push(awardPoints(userId, "place-added", id, listing.citySlug, null, now));
   let hasCheck = false;
   if (input.answers) {
     const check = validateCheck({ ...input.answers, idempotencyKey, shared: true });
@@ -173,7 +185,8 @@ export async function addPlaceFromGoogle(
     }
     throw error;
   }
-  if (!hasCheck) return { ok: true, id, status: "unchecked" };
+  if (!hasCheck) return { ok: true, id, status: pending ? "pending" : "unchecked" };
   const recompute = await recomputePlaceStatus(id, db, now);
+  if (pending) return { ok: true, id, status: "pending" };
   return { ok: true, id, status: recompute.after.kind === "unchecked" ? "unchecked" : "checking" };
 }

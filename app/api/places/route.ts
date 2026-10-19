@@ -42,8 +42,9 @@ export async function POST(request: Request) {
     const result = await addPlaceFromGoogle(outcome.auth.userId, validation.data, key);
     if (!result.ok)
       return json({ error: result.error, ...(result.existingId ? { id: result.existingId } : {}) }, { status: result.status });
-    // New places change city counts and sitemaps; never fail the add over it.
-    await publishListingChange({ actorUserId: outcome.auth.userId, change: "place-added", placeId: result.id, citySlug: null }).catch(() => null);
+    // New places change city counts and sitemaps; never fail the add over it. A place waiting for review is not public yet.
+    if (result.status !== "pending")
+      await publishListingChange({ actorUserId: outcome.auth.userId, change: "place-added", placeId: result.id, citySlug: null }).catch(() => null);
     return json({ id: result.id, status: result.status }, { status: 201 });
   } catch {
     return unavailable("Adding places is temporarily unavailable. Please try again.");

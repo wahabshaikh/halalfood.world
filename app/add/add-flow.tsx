@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft01Icon, ArrowRight01Icon, Location01Icon, Search01Icon, Tick02Icon, Video01Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft01Icon, ArrowRight01Icon, Clock01Icon, Location01Icon, Search01Icon, Tick02Icon, Video01Icon } from "@hugeicons/core-free-icons";
 import { FACTS, type Answer, type Fact } from "@/lib/core/halal";
 import { cn } from "@/lib/utils";
 import { FormCard, Icon, Meter, PageTitle, buttonClass } from "@/components/hf/kit";
@@ -12,7 +12,7 @@ import { signedOutLoginPath } from "@/lib/signed-out";
 
 type Picked = { id: string; name: string; address: string };
 type Result = Picked & { existing: { placeId: string; url: string } | null };
-type Added = { id: string; status: "unchecked" | "checking" };
+type Added = { id: string; status: "unchecked" | "checking" | "pending" };
 
 const DRAFT_KEY = "halalfood:add-draft";
 
@@ -281,7 +281,33 @@ function AddConfirm({
   );
 }
 
+/** New accounts' places wait for a moderator before they go live (spec §5.2). */
+function AddPending({ picked }: { picked: Picked }) {
+  return (
+    <FormCard fill className="max-md:pt-12">
+      <div className="flex flex-col items-center gap-3.5 text-center">
+        <span className="flex size-[76px] items-center justify-center rounded-full bg-warning-muted text-warning-strong">
+          <Icon icon={Clock01Icon} size={38} strokeWidth={2.4} />
+        </span>
+        <h1 className="text-[28px] leading-tight font-black tracking-tight">{picked.name} is waiting for review</h1>
+        <p className="max-w-[320px] text-[15px] font-semibold text-subtle-foreground">
+          Thanks for adding it. Places from new accounts go live once a moderator has had a look, usually within two days. Your points arrive when it’s approved.
+        </p>
+      </div>
+      <div className="mt-auto grid gap-2.5 pt-10">
+        <a href="/add" className={buttonClass("dark", "lg")}>
+          Add another place
+        </a>
+        <a href="/" className={buttonClass("outline", "lg")}>
+          Back to explore
+        </a>
+      </div>
+    </FormCard>
+  );
+}
+
 function AddDone({ picked, added }: { picked: Picked; added: Added }) {
+  if (added.status === "pending") return <AddPending picked={picked} />;
   const checking = added.status === "checking";
   return (
     <FormCard fill className="max-md:pt-12">
