@@ -477,7 +477,7 @@ When an imported place is verified (or loses its last evidence), `recomputePlace
 
 ## Data and bounded APIs
 
-- Every list endpoint is limit-clamped and parameterized; search escapes wildcard characters and caps `q` at 64 characters.
+- Every list endpoint is limit-clamped and parameterized; search uses literal `instr()` matching and caps `q` at 64 characters. Place search splits a leading or trailing known city using the cached city directory, then ANDs up to four words across searchable fields (under 100 bound parameters).
 - Status is computed in TypeScript and written to `place_status` in the same D1 batch as the check, so Explore, the map and search filter with plain SQL. Filters match the fact's current value, settled or not; Verified needs all four settled.
 - A status flip writes `place_status_changes` and tells everyone who saved the place.
 - Points (3 a check, 5 for adding a place, 10 for helping verify one) are an append-only ledger with one award per kind, place and person per day. They rank the Community board and never touch status.
