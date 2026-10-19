@@ -143,6 +143,8 @@ pnpm deploy                # build + production (prefer Workers Builds, which al
 | `EMAIL` (Email Service) | `salam@halalfood.world` | none |
 | `GOOGLE_SEARCH_ANON`, `GOOGLE_SEARCH_USER` | namespaces 81001, 81002 | 81101, 81102 |
 | `MCP_WRITE_LIMITER` (Scout writes, 300 per 60 s per token) | namespace 81003 | 81103 |
+| `MEMBER_MCP_WRITE_LIMITER` (member writes, 60 per 60 s per key) | namespace 81004 | 81104 |
+| `MEMBER_MCP_READ_LIMITER` (member endpoint, 60 per 60 s per IP) | namespace 81005 | 81105 |
 | `ASSETS` | static files | same |
 
 The pre-cutover database `halalfood-world` is kept untouched for rollback and is bound by nothing.

@@ -824,3 +824,32 @@ export async function consumeSponsorCheckoutLimits(
     now,
   );
 }
+
+/** Vouch ratings: 30 a day per member and 90 per IP; separate from halal fact ratings. */
+export async function consumeVouchRatingLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([identifierKey("vouch-rating:mutate:user", userId), identifierKey("vouch-rating:mutate:ip", ip)]);
+  return consumePair([
+    { key: userKey, rule: { windowMs: 86400000, maxCount: 30, cooldownMs: 1000 } },
+    { key: ipKey, rule: { windowMs: 86400000, maxCount: 90, cooldownMs: 250 } },
+  ], store, now);
+}
+
+/** Daily user budgets shared by web vouches and member MCP, excluding IP budgets and cooldowns. */
+export async function memberContributionLimits(userId: string, client: DatabaseClient | Promise<DatabaseClient> = database(), now = Date.now()) {
+  const db = await client;
+  const remaining = async (scope: string, max: number) => {
+    const key = await identifierKey(scope, userId);
+    const [row] = await db.all<StoredOtpRateLimitRow>(sql`SELECT window_started_at, window_count, last_action_at FROM auth_otp_rate_limit WHERE key = ${key}`);
+    return Math.max(0, max - (row && Number(row.window_started_at) > now - 86400000 ? Number(row.window_count) : 0));
+  };
+  const [recent] = await db.all<{ n: number }>(sql`SELECT count(*) AS n FROM contributions WHERE user_id = ${userId} AND kind = 'vouch' AND created_at > ${now - 86400000}`);
+  return {
+    vouches: Math.min(await remaining("vouch:mutate:user", 20), Math.max(0, 20 - Number(recent?.n ?? 0))),
+    ratings: await remaining("vouch-rating:mutate:user", 30),
+  };
+}

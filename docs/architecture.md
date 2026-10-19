@@ -30,7 +30,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | --- | --- | --- |
 | `/`, `/city/[slug]` | – | Explore: city switcher, search, This week in {city}, Guides & lists, filter chips and places. |
 | `/cities` | – | Choose a city. |
-| `/connect` | – | Connect Claude, ChatGPT or Cursor to the public read-only member MCP endpoint. Noindex until write tools ship. |
+| `/connect` | – | Connect Claude, ChatGPT or Cursor to public member MCP reads and member-key vouches, ratings and contribution history. |
 | `/search` | – | Places, people, lists and cities. |
 | `/map` | – | The map, with the same filters as Explore. |
 | `/place/[id]` | – | A place: badges, the trust band as a word, "Verified by @a and N more" (a sheet lists everyone the viewer may see; `placeVouchers` in `lib/vouches.ts` counts accepted vouches with weight > 0, trusted first, and names people under the check visibility rule), status, the four facts, actions, friends, dishes, photos, videos, notes, nearby. An unverified imported place adds the "Unverified" notice and is `noindex` ([SEO](#seo-aeo-and-geo)). |
@@ -82,17 +82,17 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 
 Every write needs a session and spends a per-user and per-IP budget (checks 20 a day, vouches 20 (60 per IP, plus a D1 count in `lib/vouches.ts`), places 10, recs 30, reports 10, comments 100). Reads that show checks apply one visibility rule: unshared checks are the author's alone, nothing crosses a block, and a private account's checks show only to accepted followers. `tests/check-visibility-audit.test.ts` fails if a query over `checks` doesn't say which audience it serves.
 
-#### Member MCP (public, read-only)
+#### Member MCP (public reads and member writes)
 
 `POST /api/mcp/member` is the public member MCP endpoint (`halalfood-world`), separate from Scout.
-It needs no session or admin token and exposes only `search_places` (query 1–64 characters, optional city slug,
+Without a member key it exposes only `search_places` (query 1–64 characters, optional city slug,
 limit 1–10, default 10) and `get_place` (place id). Both reuse the public listed-place read paths and return only
 id, name, city slug, area, cuisine, halal status, the four facts and a canonical place URL. City prioritizes
 results rather than filtering them. No people, check authors, emails or Google snapshots are exposed.
 The transport is stateless JSON-RPC over POST; GET/DELETE return 405, bodies over 64 KB return 413 (including
 streamed bodies), and all responses use `Cache-Control: no-store`. Halal status comes from community checks
 and reviewed documents; bulk scraping is prohibited. Reads are limited per client IP by the `MEMBER_MCP_READ_LIMITER`
-binding (60 a minute, namespaces 81004 / preview 81104); over it the endpoint answers 429.
+binding (60 a minute, namespaces 81005 / preview 81105); over it the endpoint answers 429.
 See [member-mcp.md](member-mcp.md) for client setup.
 
 Member API keys (`lib/member-keys.ts`, `member_api_keys` in `0012_member_api_keys.sql`) are made, listed and revoked
@@ -100,8 +100,13 @@ on `/me/keys` through `/api/me/keys`. A key is `hfw_` plus 32 random bytes (base
 call and never stored: the table keeps its SHA-256 (hex, unique) and first 8 characters. Accounts must be 7 days old,
 a member has at most 3 active keys, and scopes are `read` or `read,write`. `verifyMemberKey(bearer)` hashes the
 presented key, looks the hash up among unrevoked keys, stamps `last_used_at` and returns the user id and scopes;
-revoking takes effect on the next request. Deleting the account deletes its keys. The member MCP does not accept
-keys yet: its write tools will.
+revoking takes effect on the next request. Deleting the account deletes its keys. The member MCP accepts only Bearer keys with write scope for `whoami`, `my_contributions`, `verify_place`
+and `rate_place`. Anonymous/read-only keys discover only public tools and direct member calls return an auth error.
+Vouches share `vouchForPlace` and the web user/IP budgets, points and review behavior, with MCP/key attribution.
+Ratings update an existing vouch only, through `rateVouch`, with 30/90 daily user/IP limits and no points or trust changes.
+Member tools return daily user `limits_remaining`. Writes also require `MEMBER_MCP_WRITE_LIMITER` (60/60 s per key,
+81004 / preview 81104), failing closed on binding errors. No Google or LLM calls; place/video submissions are omitted
+until suitable web contribution services exist. See [member-mcp.md](member-mcp.md) for the tool contracts.
 
 ## Halal Food Scout (admin MCP)
 
