@@ -315,8 +315,8 @@ export function statusSubline(status: PlaceStatus, latest: string | null, people
   }
   if (status.kind === "checking")
     return status.progress === 2
-      ? "One more matching check makes this Verified"
-      : "Two more matching checks to verify";
+      ? "One more matching check makes this Confirmed"
+      : "Two more matching checks to confirm";
   return "Nobody has checked this place. That doesn’t mean it isn’t halal.";
 }
 
@@ -348,7 +348,7 @@ export function StatusCard({
   }[status.kind];
   const icon = status.kind === "verified" ? Tick02Icon : status.kind === "checking" ? Clock01Icon : HelpCircleIcon;
   const title =
-    status.kind === "verified" ? "Verified" : status.kind === "checking" ? `${status.progress} of 3 checks` : "Not checked yet";
+    status.kind === "verified" ? "Confirmed" : status.kind === "checking" ? `${status.progress} of 3 checks` : "Not checked yet";
   return (
     <section aria-label="Halal status" className={cn("grid gap-3 rounded-[20px] p-4 lg:p-5", tone, className)}>
       <div className="flex items-center gap-2.5">

@@ -344,7 +344,7 @@ export default function MapView({
           <div className="flex gap-2.5 rounded-full bg-background/92 px-2.5 py-1.5 text-xs font-extrabold" aria-label="Legend">
             <span className="inline-flex items-center gap-1.5">
               <span className="size-2.5 rounded-full bg-success" />
-              Verified
+              Confirmed
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="size-2.5 rounded-full border-2 border-warning-strong bg-white" />
