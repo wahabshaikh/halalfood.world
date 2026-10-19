@@ -1,5 +1,6 @@
 "use client";
 
+import type { FlagView } from "@/lib/contribution-flags";
 import { useState } from "react";
 import { ArrowDown01Icon, ArrowUp01Icon, Delete02Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
@@ -52,37 +53,44 @@ type SponsorRow = {
 
 export function AdminConsole({
   reports,
+  flags,
   evidence,
   events,
   cities,
   sponsors,
 }: {
   reports: Report[];
+  flags: FlagView[];
   evidence: Evidence[];
   events: EventRow[];
   cities: City[];
   sponsors: SponsorRow[];
 }) {
-  const [tab, setTab] = useState<"reports" | "evidence" | "events" | "sponsors">("reports");
+  const [tab, setTab] = useState<"reports" | "evidence" | "events" | "sponsors" | "flags">("reports");
   return (
     <div className="grid gap-5">
-      <div className="max-w-sm">
-        <Segmented
-          label="Moderation"
-          value={tab}
-          onChange={setTab}
-          options={[
-            { value: "reports", label: `Reports${reports.length ? ` · ${reports.length}` : ""}` },
-            { value: "evidence", label: `Evidence${evidence.length ? ` · ${evidence.length}` : ""}` },
-            { value: "events", label: "Events" },
-            { value: "sponsors", label: "Sponsors" },
-          ]}
-        />
+      <div className="overflow-x-auto">
+        <div className="min-w-[28rem] max-w-2xl">
+          <Segmented
+            label="Moderation"
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: "reports", label: `Reports${reports.length ? ` · ${reports.length}` : ""}` },
+              { value: "evidence", label: `Evidence${evidence.length ? ` · ${evidence.length}` : ""}` },
+              { value: "flags", label: `Flags${flags.length ? ` · ${flags.length}` : ""}` },
+              { value: "events", label: "Events" },
+              { value: "sponsors", label: "Sponsors" },
+            ]}
+          />
+        </div>
       </div>
       {tab === "reports" ? (
         <Reports initial={reports} />
       ) : tab === "evidence" ? (
         <EvidenceQueue initial={evidence} />
+      ) : tab === "flags" ? (
+        <Flags initial={flags} />
       ) : tab === "events" ? (
         <Events initial={events} cities={cities} />
       ) : (
@@ -621,5 +629,51 @@ function EventForm({ draft: initial, cities, onClose, onSaved }: { draft: Draft;
         )}
       </div>
     </div>
+  );
+}
+
+function Flags({ initial }: { initial: FlagView[] }) {
+  const [items, setItems] = useState(initial);
+  if (!items.length) return <p className="py-10 text-center text-sm font-semibold text-muted-foreground">No flags to review.</p>;
+  return <div className="grid gap-4">{items.map((item) => (
+    <FlagCard key={item.id} item={item} onDone={() => setItems((current) => current.filter((each) => each.id !== item.id))} />
+  ))}</div>;
+}
+
+function FlagCard({ item, onDone }: { item: FlagView; onDone: () => void }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const decide = async (action: "dismiss" | "uphold") => {
+    setBusy(true);
+    try {
+      await api(`/api/admin/flags/${item.id}`, { method: "POST", json: { action, reason } });
+      toast(action === "uphold" ? "Contributions rejected and points revoked" : "Flag dismissed");
+      onDone();
+    } catch (error) {
+      toast(errorText(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <article className="grid gap-3 rounded-2xl border border-border p-4">
+      <h2 className="text-base font-black">{item.label}</h2>
+      <p className="text-sm font-semibold">@{item.user} · {timeAgo(item.createdAt)} · {item.placeId ? <a className="underline" href={`/place/${item.placeId}`}>{item.placeName}</a> : item.placeName}</p>
+      <ul className="grid gap-2 text-sm text-muted-foreground">
+        {item.contributions.map((contribution) => <li key={contribution.id}>
+          @{contribution.user} · {contribution.place} · {new Date(contribution.createdAt).toISOString()} · {contribution.status}
+        </li>)}
+      </ul>
+      <p className="text-sm text-muted-foreground">Uphold rejects these {item.contributions.length} contributions and revokes their points. Dismiss leaves them intact.</p>
+      <label className="grid gap-1 text-sm font-bold">
+        Reason
+        <textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={300} required disabled={busy}
+          className="min-h-20 w-full rounded-xl border border-border bg-background p-3 font-normal" />
+      </label>
+      <div className="flex gap-2">
+        <button type="button" className={buttonClass("outline", "md")} disabled={busy || !reason.trim()} onClick={() => decide("dismiss")}>Dismiss</button>
+        <button type="button" className={buttonClass("outline", "md")} disabled={busy || !reason.trim()} onClick={() => decide("uphold")}>Uphold</button>
+      </div>
+    </article>
   );
 }

@@ -494,6 +494,7 @@ Avatar, name, handle and city, bio, followers, following, rank in their city. Fo
 Moderators only (403 page otherwise). Reachable from You.
 
 - **Reports**: open reports, oldest first. Each card has the target link, reason pill, detail, reporter and date, a primary action that depends on the reason (`wrong-answers` → Reset checks; `closed` → Mark closed; `duplicate` → Merge, with a place picker; `wrong-details` → Fix details, with an inline form; comment `harassment`/`spam` → Remove comment; check → Exclude check; user → Suspend), and Dismiss.
+- **Flags** (community MVP P1-10): advisory velocity (>5 vouches/10 minutes), distance (>100 km/1 hour), New-tier self-vouch and hashed-network cluster snapshots. Show the affected contributions. Dismiss preserves them; Uphold rejects them, revokes their points and recomputes place trust. Both require a reason (1–300 characters), record reviewer/time and write `audit_log`. Flags never block a vouch or affect halal status.
 - **Events**: a list with Live/Draft pills, and New event / edit (title, city, venue, address, start, end, description, vendors: search a place or type a name, reorder; Save draft or Publish).
 
 ### 6.22 Community (`/community`)

@@ -4,6 +4,7 @@ import { AppShell } from "@/components/hf/app-shell";
 import { EmptyState, Page, TopBar } from "@/components/hf/kit";
 import { getViewerId } from "@/lib/auth-session";
 import { listAllEvents } from "@/lib/events";
+import { listOpenFlags } from "@/lib/contribution-flags";
 import { listOpenReports } from "@/lib/moderation";
 import { listPendingEvidence } from "@/lib/place-evidence";
 import { isModerator } from "@/lib/moderators";
@@ -31,12 +32,13 @@ export default async function AdminPage() {
       </AppShell>
     );
   }
-  const [reports, evidence, events, cities, sponsors] = await Promise.all([
+  const [reports, evidence, events, cities, sponsors, flags] = await Promise.all([
     listOpenReports(),
     listPendingEvidence(),
     listAllEvents(),
     listCities({ limit: 2000 }),
     listSponsorshipsForAdmin(),
+    listOpenFlags(),
   ]);
   return (
     <AppShell active="you">
@@ -44,6 +46,7 @@ export default async function AdminPage() {
         <TopBar back="/me" title="Moderation" />
         <AdminConsole
           reports={reports.map((report) => ({ ...report, reasonLabel: REASON_LABEL[report.reason] ?? report.reason }))}
+          flags={flags}
           evidence={evidence}
           events={events}
           cities={cities.map((city) => ({ slug: city.city_slug, name: cityName(city.city_slug) }))}

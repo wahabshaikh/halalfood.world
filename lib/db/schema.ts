@@ -744,3 +744,17 @@ export const contributionPoints = sqliteTable("contribution_points", {
   day: text("day").notNull(),
   createdAt: ms("created_at").notNull(),
 });
+
+/** Suspicious contribution snapshots awaiting moderator review. */
+export const contributionFlags = sqliteTable("contribution_flags", {
+  id: text("id").primaryKey(),
+  kind: text("kind", { enum: ["velocity", "distance", "self_vouch", "ip_cluster"] }).notNull(),
+  userId: userRef("user_id").notNull(),
+  placeId: text("place_id").references(() => places.id, { onDelete: "set null", onUpdate: "cascade" }),
+  contributionIds: text("contribution_ids").notNull(),
+  status: text("status", { enum: ["open", "dismissed", "upheld"] }).notNull().default("open"),
+  createdAt: ms("created_at").notNull(),
+  reviewedBy: text("reviewed_by").references(() => authUser.id, { onDelete: "set null" }),
+  reviewedAt: ms("reviewed_at"),
+  reason: text("reason"),
+});
