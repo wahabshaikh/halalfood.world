@@ -7,7 +7,8 @@
  * media link it added. A verification is context, never evidence: it does not
  * touch checks, place_signals or place_status (docs/spec/halal-model.md). It
  * does show the place exists, so both writes recompute an imported place's
- * "Unverified" label (lib/provenance.ts).
+ * "Unverified" label (lib/provenance.ts), and it earns Creator verified, so
+ * both recompute the place's trust (lib/trust.ts).
  */
 import { sql } from "drizzle-orm";
 import { z } from "zod";
@@ -22,6 +23,7 @@ import {
 import { placeIdParam } from "@/lib/core/params";
 import { runBatch } from "@/lib/checks-repository";
 import { recomputePlaceVerification } from "@/lib/provenance";
+import { recomputeTrust } from "@/lib/trust";
 import { findCreator, isClaimedCreator } from "./creators";
 import type { ScoutDeps } from "./deps";
 import { targetPlace, type PlaceFailure } from "./places";
@@ -165,6 +167,7 @@ export async function addVerification(deps: ScoutDeps, input: AddVerificationInp
   const row = await verificationByKey(deps, creator.user_id, placeId, videoId);
   if (!row) throw new Error("creator verification was not written");
   await recomputePlaceVerification(placeId, deps.db, now);
+  await recomputeTrust(placeId, deps.db, now);
   return { ok: true, result: row.id === id ? "created" : "matched", verification: summary(deps, creator.handle, row) };
 }
 
@@ -197,5 +200,6 @@ export async function removeVerification(deps: ScoutDeps, input: RemoveVerificat
     ...(row.media_link_id ? [sql`DELETE FROM place_media_links WHERE id = ${row.media_link_id}`] : []),
   ]);
   await recomputePlaceVerification(row.place_id, deps.db, deps.now());
+  await recomputeTrust(row.place_id, deps.db, deps.now());
   return { ok: true, removed: true, id: row.id };
 }

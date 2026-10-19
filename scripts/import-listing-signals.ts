@@ -26,28 +26,9 @@ import {
   type PlaceForMatch,
 } from "@/lib/listing-signals";
 import { upsertListingSignal } from "@/lib/place-evidence";
-import { queryD1 } from "./d1-rest-client";
+import { queryD1, restBinding } from "./d1-rest-client";
 
 const OVERPASS_URL = process.env.OVERPASS_URL?.trim() || "https://overpass-api.de/api/interpreter";
-
-/** Just enough of the D1 binding for drizzle, over the REST API. */
-function restBinding() {
-  const statement = (text: string, params: unknown[] = []) => ({
-    bind: (...next: unknown[]) => statement(text, next),
-    all: async () => ({ results: await queryD1(text, params), success: true, meta: {} }),
-    run: async () => ({ results: await queryD1(text, params), success: true, meta: {} }),
-    first: async () => (await queryD1(text, params))[0] ?? null,
-    raw: async () => (await queryD1(text, params)).map((row) => Object.values(row)),
-  });
-  return {
-    prepare: (text: string) => statement(text),
-    async batch(statements: ReturnType<typeof statement>[]) {
-      const out = [];
-      for (const each of statements) out.push(await each.all());
-      return out;
-    },
-  };
-}
 
 async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(url, init);

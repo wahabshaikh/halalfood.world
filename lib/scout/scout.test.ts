@@ -593,7 +593,11 @@ test("add_verification records the video once, adds it to the place's videos, an
   assert.equal(count(sqlite, "SELECT count(*) AS n FROM creator_verifications"), 1);
   assert.equal(count(sqlite, "SELECT count(*) AS n FROM place_media_links"), 1);
 
-  assert.deepEqual(sqlite.prepare(`SELECT * FROM place_status WHERE place_id = ?`).get(placeId), statusBefore);
+  // Halal status stays as it was; only the trust columns move (lib/trust.ts).
+  const { trust_score, trust_band, creator_count, badges, ...statusAfter } = sqlite.prepare(`SELECT * FROM place_status WHERE place_id = ?`).get(placeId) as Record<string, unknown>;
+  const { trust_score: _score, trust_band: _band, creator_count: _creators, badges: _badges, ...halalBefore } = statusBefore as Record<string, unknown>;
+  assert.deepEqual(statusAfter, halalBefore);
+  assert.deepEqual({ trust_score, trust_band, creator_count, badges }, { trust_score: 15, trust_band: "some_proof", creator_count: 1, badges: "creator_verified" });
   assert.equal(count(sqlite, "SELECT count(*) AS n FROM checks"), 0);
   assert.equal(count(sqlite, "SELECT count(*) AS n FROM place_signals"), 0);
 });
