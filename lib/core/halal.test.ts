@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   ACCOUNT_AGE_MS,
   deriveStatus,
+  FILTER_LABEL,
   factAnswerLabel,
   factEvidence,
   factState,
@@ -135,7 +136,8 @@ test("filters match on value; unknown never matches", () => {
 });
 
 test("labels and tones", () => {
-  assert.equal(statusLabel({ kind: "verified" }), "✓ Verified");
+  assert.equal(statusLabel({ kind: "verified" }), "✓ Confirmed");
+  assert.equal(FILTER_LABEL.verified, "Confirmed");
   assert.equal(statusLabel({ kind: "checking", progress: 2 }), "2 of 3 checks");
   assert.equal(statusLabel({ kind: "unchecked" }), "Not checked yet");
   assert.equal(factAnswerLabel("pork", "no"), "Not served");

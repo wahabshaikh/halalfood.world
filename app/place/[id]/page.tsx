@@ -95,7 +95,7 @@ export default async function PlacePage({ params }: Props) {
       : status.kind === "checking"
         ? status.progress === 2
           ? "Answer 4 quick questions. Yours could be the one that verifies it."
-          : "Answer 4 quick questions. Two more matching checks verify it."
+          : "Answer 4 quick questions. Two more matching checks confirm it."
         : "Be the first. It takes about 20 seconds.";
   const hero = photos[0] ? photoUrl(photos[0].r2Key) : null;
   const signedIn = Boolean(viewerId);

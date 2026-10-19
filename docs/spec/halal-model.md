@@ -94,11 +94,11 @@ it is known: "7 people · Halal certificate", or "Sources disagree".
 
 A place is:
 
-- **Verified** when all four facts are settled;
+- **Confirmed** (status value `verified`) when all four facts are settled;
 - **n of 3 checks** when anyone has checked it or a document settled a fact: n is the lowest streak among facts that have a value (a settled fact counts as 3), no more than the number of people who checked, clamped to 1–2;
 - **Not checked yet** otherwise. A map listing or web source alone never moves a place off this. It never means "not halal".
 
-Filters match a fact's current value, settled or not; a place with no value for that fact is left out. The Verified filter needs all four settled.
+Filters match a fact's current value, settled or not; a place with no value for that fact is left out. The Confirmed filter (`filters=verified`) needs all four settled.
 
 ## What can't change a status
 
