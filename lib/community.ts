@@ -1,7 +1,9 @@
 /**
  * The Community leaderboard (spec §10, §6.22): points per city, this week or
- * all time. Private accounts, people who opted out, and suspended accounts
- * are never listed. Ties go to whoever reached the total first.
+ * all time. A member's total is the old points ledger plus their granted
+ * contribution_points; pending and revoked rows never count. Private accounts,
+ * people who opted out, and suspended accounts are never listed. Ties go to
+ * whoever reached the total first.
  */
 import { sql } from "drizzle-orm";
 import { weekStart } from "@/lib/core/points";
@@ -24,12 +26,18 @@ export async function leaderboard(citySlug: string, period: Period, viewerId: st
   const db = await client;
   const since = period === "week" ? weekStart(now) : 0;
   const rows = await db.all<Record<string, unknown>>(sql`
-    WITH totals AS (
-      SELECT pt.user_id, SUM(pt.points) AS points, MAX(pt.created_at) AS reached
-      FROM points pt JOIN profiles pr ON pr.user_id = pt.user_id
-      WHERE pt.city_slug = ${citySlug} AND pt.created_at >= ${since}
-        AND pr.is_private = 0 AND pr.show_on_leaderboards = 1 AND pr.suspended_at IS NULL
-      GROUP BY pt.user_id
+    WITH earned AS (
+      SELECT user_id, points, created_at FROM points
+      WHERE city_slug = ${citySlug} AND created_at >= ${since}
+      UNION ALL
+      SELECT user_id, points, created_at FROM contribution_points
+      WHERE city_slug = ${citySlug} AND status = 'granted' AND created_at >= ${since}
+    ),
+    totals AS (
+      SELECT e.user_id, SUM(e.points) AS points, MAX(e.created_at) AS reached
+      FROM earned e JOIN profiles pr ON pr.user_id = e.user_id
+      WHERE pr.is_private = 0 AND pr.show_on_leaderboards = 1 AND pr.suspended_at IS NULL
+      GROUP BY e.user_id
     ),
     ranked AS (
       SELECT user_id, points, ROW_NUMBER() OVER (ORDER BY points DESC, reached ASC) AS rank FROM totals

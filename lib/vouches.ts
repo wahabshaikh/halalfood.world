@@ -157,3 +157,53 @@ async function settlePoints(
   }
   return points;
 }
+
+export type Voucher = { userId: string; handle: string | null; name: string; avatarKey: string | null };
+
+/**
+ * Who verified a place: every counted vouch (accepted, weight above 0, not suspended), most trusted first. `total`
+ * counts them all; `people` names only those the viewer may see, the same rule as `visibleAuthor`: nothing across a
+ * block, private accounts only to accepted followers, and always the viewer themselves.
+ */
+export async function placeVouchers(
+  placeId: string,
+  viewerId: string | null,
+  client: Client = database(),
+): Promise<{ total: number; people: Voucher[] }> {
+  const db = await client;
+  const visible = viewerId
+    ? sql`(
+        v.user_id = ${viewerId}
+        OR (
+          NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ${viewerId} AND b.blocked_id = v.user_id)
+            OR (b.blocker_id = v.user_id AND b.blocked_id = ${viewerId}))
+          AND (
+            COALESCE(pr.is_private, 0) = 0
+            OR EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ${viewerId} AND f.followee_id = v.user_id AND f.status = 'accepted')
+          )
+        )
+      )`
+    : sql`COALESCE(pr.is_private, 0) = 0`;
+  const rows = await db.all<Record<string, unknown>>(sql`
+    SELECT v.user_id, pr.handle, pr.display_name, pr.avatar_key, u.name, ${visible} AS visible
+    FROM vouches v
+    JOIN "user" u ON u.id = v.user_id
+    LEFT JOIN profiles pr ON pr.user_id = v.user_id
+    JOIN contributions c ON c.id = (
+      SELECT id FROM contributions
+      WHERE kind = 'vouch' AND ref_table = 'vouches' AND ref_id = v.user_id || ':' || v.place_id
+      ORDER BY created_at DESC LIMIT 1
+    )
+    WHERE v.place_id = ${placeId} AND c.status = 'accepted' AND c.weight > 0 AND pr.suspended_at IS NULL
+    ORDER BY c.weight DESC, v.updated_at DESC
+  `);
+  const people = rows
+    .filter((row) => Number(row.visible) === 1)
+    .map((row) => ({
+      userId: String(row.user_id),
+      handle: (row.handle as string | null) ?? null,
+      name: String(row.display_name ?? row.name ?? "Someone"),
+      avatarKey: (row.avatar_key as string | null) ?? null,
+    }));
+  return { total: rows.length, people };
+}

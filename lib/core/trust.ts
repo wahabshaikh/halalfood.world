@@ -268,3 +268,40 @@ export function parseBadges(value: unknown): Badge[] {
   const wanted = new Set(value.split(","));
   return BADGES.filter((badge) => wanted.has(badge));
 }
+
+const PROOF_BADGES: ReadonlySet<Badge> = new Set(["halal_certified", "community_verified", "creator_verified", "muslim_owned"]);
+
+/** Proof about the place itself; Serves alcohol and Serves pork are warnings, not proof. */
+export function isProofBadge(badge: Badge): boolean {
+  return PROOF_BADGES.has(badge);
+}
+
+/**
+ * The badges a card or place page shows. An imported place nobody has verified to exist (the "Unverified" label,
+ * lib/core/provenance.ts) shows none until it earns a proof badge (spec §2.4).
+ */
+export function shownBadges(badges: readonly Badge[], unverified: boolean): Badge[] {
+  return unverified && !badges.some(isProofBadge) ? [] : [...badges];
+}
+
+/** Badges a card shows beside its fact tags: a warning the settled fact already says ("Serves pork") isn't repeated. */
+export function cardBadges(badges: readonly Badge[], facts: { pork: "yes" | "no" | null; alcohol: "yes" | "no" | null }): Badge[] {
+  return badges.filter(
+    (badge) => !(badge === "serves_pork" && facts.pork === "yes") && !(badge === "serves_alcohol" && facts.alcohol === "yes"),
+  );
+}
+
+/** How a voucher is named: their @handle, or their name when they have no profile yet. */
+export function voucherName(person: { handle: string | null; name: string }): string {
+  return person.handle ? `@${person.handle}` : person.name;
+}
+
+/**
+ * "Verified by @a and 2 more" (spec §2.4). `first` is the first voucher the viewer may see, `total` every counted
+ * vouch, so people the viewer can't see are counted but never named. Null when nobody has vouched.
+ */
+export function verifiedByLine(first: string | null, total: number): string | null {
+  if (total <= 0) return null;
+  if (!first) return `Verified by ${total} ${total === 1 ? "member" : "members"}`;
+  return total === 1 ? `Verified by ${first}` : `Verified by ${first} and ${total - 1} more`;
+}

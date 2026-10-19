@@ -5,6 +5,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import { displayCuisines } from "@/lib/core/listing-visibility";
 import { httpsLogoUrl } from "@/lib/core/menus";
+import { parseBadges, parseBand, shownBadges, type Badge, type Band } from "@/lib/core/trust";
 import {
   FACTS,
   parseDefinite,
@@ -33,13 +34,17 @@ export type PlaceCard = {
   logoUrl?: string | null;
   /** Imported from a public directory and not yet verified to exist: shows the "Unverified" label (lib/core/provenance.ts). */
   unverified: boolean;
+  /** Earned badges from `place_status.badges`, none on an Unverified import without proof (`shownBadges`). Absent in older cached reads. */
+  badges?: Badge[];
+  /** The trust band, shown as a word on the place page. Absent in older cached reads. */
+  trustBand?: Band;
 };
 
 /** Columns for `SELECT … FROM places p JOIN place_status s ON s.place_id = p.id`. */
 export const PLACE_CARD_COLUMNS = sql.raw(`
   p.id, p.name, p.city_slug, p.serves_cuisine, p.address_locality, p.street_address,
   p.lat, p.lng, s.status, s.progress, s.owned_value, s.certified_value, s.pork_value,
-  s.alcohol_value, p.logo_url, (p.import_source IS NOT NULL AND p.import_verified_at IS NULL) AS unverified,
+  s.alcohol_value, s.badges, s.trust_band, p.logo_url, (p.import_source IS NOT NULL AND p.import_verified_at IS NULL) AS unverified,
   (SELECT ph.r2_key FROM place_photos ph WHERE ph.place_id = p.id ORDER BY ph.created_at DESC LIMIT 1) AS photo_key
 `);
 
@@ -90,6 +95,7 @@ function num(value: unknown): number | null {
 }
 
 export function toPlaceCard(row: Record<string, unknown>): PlaceCard {
+  const unverified = Number(row.unverified) === 1;
   const facts = Object.fromEntries(
     FACTS.map((fact) => [fact, parseDefinite(row[`${fact}_value`])]),
   ) as FactValues;
@@ -106,7 +112,9 @@ export function toPlaceCard(row: Record<string, unknown>): PlaceCard {
     facts,
     photoKey: typeof row.photo_key === "string" ? row.photo_key : null,
     logoUrl: httpsLogoUrl(row.logo_url),
-    unverified: Number(row.unverified) === 1,
+    unverified,
+    badges: shownBadges(parseBadges(row.badges), unverified),
+    trustBand: parseBand(row.trust_band) ?? "unverified",
   };
 }
 
