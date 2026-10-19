@@ -4,12 +4,16 @@
  */
 import { factAnswerLabel, FACTS, FACT_QUESTION, type Definite, type Fact, type PlaceStatus } from "@/lib/core/halal";
 import { displayCuisines } from "@/lib/core/listing-visibility";
+import { UNVERIFIED_EXPLAINER, UNVERIFIED_LABEL } from "@/lib/core/provenance";
 
 export const SITE_URL = "https://halalfood.world";
 export const SITE_NAME = "halalfood.world";
 export const OG_IMAGE = "/og.png";
 export const ADD_OG_IMAGE = "/add-og.png";
 export const TWITTER_SITE = "@iwahabshaikh";
+/** Public support inbox (email only; Email Routing forwards it to the maintainer). */
+export const SUPPORT_EMAIL = "support@halalfood.world";
+export const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}`;
 
 
 export function canonical(path = "/") {
@@ -147,7 +151,7 @@ type JsonLdPlace = PlaceLike & {
 /** Schema.org `Restaurant`, with the community status as properties, never as a rating. */
 export function placeJsonLd(
   place: JsonLdPlace,
-  options: { mapsUrl?: string | null; status: PlaceStatus; facts: Record<Fact, Definite | null> },
+  options: { mapsUrl?: string | null; status: PlaceStatus; facts: Record<Fact, Definite | null>; unverified?: boolean },
 ) {
   const url = canonical(`/place/${place.id}`);
   const hasGeo =
@@ -158,6 +162,8 @@ export function placeJsonLd(
   const cuisines = displayCuisines(place.serves_cuisine);
   const properties = [
     { "@type": "PropertyValue", name: "communityStatus", value: statusSharePhrase(options.status) },
+    // Same words as the page's label, so structured data never reads as more certain than the page.
+    ...(options.unverified ? [{ "@type": "PropertyValue", name: "listingStatus", value: `${UNVERIFIED_LABEL}: ${UNVERIFIED_EXPLAINER}` }] : []),
     ...FACTS.filter((fact) => options.facts[fact] !== null).map((fact) => ({
       "@type": "PropertyValue",
       name: FACT_QUESTION[fact],

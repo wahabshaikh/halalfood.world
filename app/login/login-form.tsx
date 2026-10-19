@@ -224,7 +224,7 @@ export default function LoginForm({
   return (
     <FormCard className="pb-6 md:pb-8">
       <section aria-labelledby="login-title" className="flex w-full flex-col">
-        <IconLink href={returnTo} label="Close" icon={Cancel01Icon} className="-ml-2.5" />
+        <IconLink href="/" label="Close" icon={Cancel01Icon} className="-ml-2.5" />
         {step === "email" ? (
           <form className="mt-10 grid gap-4" onSubmit={requestCode}>
             <div className="grid gap-3">

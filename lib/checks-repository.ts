@@ -24,6 +24,7 @@ import type { CheckInput, Verdict } from "@/lib/core/check";
 import { parseStoredClaim } from "@/lib/core/place-claims";
 import { POINTS, pointDay } from "@/lib/core/points";
 import { database } from "@/lib/db";
+import { recomputePlaceVerification } from "./provenance";
 
 type DatabaseClient = Awaited<ReturnType<typeof database>>;
 type Client = DatabaseClient | Promise<DatabaseClient>;
@@ -151,7 +152,8 @@ export async function loadSignalsForStatus(db: DatabaseClient, placeId: string):
 
 /**
  * Rebuild one place's status projection from its checks and other signals. Writes the row, any
- * status changes, and helped-verify points the first time the place verifies.
+ * status changes, and helped-verify points the first time the place verifies, then recomputes
+ * whether an imported place is verified to exist.
  */
 export async function recomputePlaceStatus(
   placeId: string,
@@ -220,6 +222,8 @@ export async function recomputePlaceStatus(
       statements.push(awardPoints(userId, "helped-verify", placeId, place?.city_slug ?? "", null, now));
   }
   await runBatch(db, statements);
+  // Every write that can change status can also show an imported place exists (lib/provenance.ts).
+  await recomputePlaceVerification(placeId, db, now, derived.eligibleChecks);
   const previousValues = Object.fromEntries(FACTS.map((fact) => [fact, current?.[`${fact}_value`] ?? null])) as Recompute["previousValues"];
   return { before, after, derived, changes, firstVerifiedBy, previousValues };
 }

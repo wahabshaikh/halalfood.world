@@ -28,7 +28,7 @@ config conventions). When you change one of these here, make the same change in 
 | Framework | vinext (Next.js App Router API on Vite 8), React 19, `proxy.ts` for request handling |
 | Data | D1 + Drizzle ORM (hand-written SQL migrations), R2 for media |
 | Auth | Better Auth email one-time codes, Turnstile, Workers Rate Limiting |
-| Email | Cloudflare Email Service `send_email` binding from `salam@<domain>`; Email Routing forwards `salam@` to the maintainer; non-production hosts write to an email sink instead |
+| Email | Cloudflare Email Service `send_email` binding from `salam@<domain>`; Email Routing forwards `salam@` and `support@` to the maintainer; support is email-only (no chat widget); non-production hosts write to an email sink instead |
 | UI | Tailwind CSS 4 (`@tailwindcss/vite`), shadcn/ui on `radix-ui`, self-hosted Fontsource fonts, MapLibre GL 6 |
 | Observability | Sentry (`@sentry/cloudflare`), DataFast analytics |
 | Environments | Local (Miniflare), Worker Previews per branch (`previews` block, own D1/R2/rate limits, no email binding), production; `lib/environment.ts` decides |
@@ -37,7 +37,7 @@ config conventions). When you change one of these here, make the same change in 
 | Release | No feature flags: what merges to `main` is live |
 
 Product-specific on purpose: mosques.world adds KV, Queues, Images, Workers AI, prayer-time and i18n libraries and
-lucide icons; halalfood.world adds Crisp chat, Hugeicons and Google Places search.
+lucide icons; halalfood.world adds Hugeicons and Google Places search.
 
 ## Commands
 

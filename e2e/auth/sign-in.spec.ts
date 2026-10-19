@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { identity, latestOtp, newUser, stubTurnstile } from "../support/helpers";
 
+test("the close control on sign-in goes home, not returnTo", async ({ page }) => {
+  await page.goto("/login?returnTo=%2Fsaved");
+  await page.getByRole("link", { name: "Close" }).click();
+  await expect(page).toHaveURL("/");
+});
+
 test("sign in with an emailed code, then reach a signed-in page", async ({ page }) => {
   const person = identity("signin");
   await page.setExtraHTTPHeaders({ "cf-connecting-ip": person.ip });
