@@ -136,3 +136,9 @@ export function videoMonth(date: string | null): string | null {
   const month = match ? MONTHS[Number(match[2]) - 1] : undefined;
   return match && month ? `${month} ${match[1]}` : null;
 }
+
+/** Public social links collected from a creator's channel description. */
+export async function getCreatorLinks(userId: string, client: Client = database()): Promise<{ kind: string; url: string }[]> {
+  const db = await client;
+  return db.all<{ kind: string; url: string }>(sql`SELECT kind, url FROM creator_links WHERE creator_user_id = ${userId} AND kind != 'youtube' ORDER BY kind`);
+}

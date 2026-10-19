@@ -7,7 +7,7 @@ import { AppShell } from "@/components/hf/app-shell";
 import { Avatar, Icon, Page, PlaceArt, StatusPill, TopBar } from "@/components/hf/kit";
 import { VisitCard } from "@/components/hf/visit-card";
 import { getViewerId } from "@/lib/auth-session";
-import { creatorVerifiedPlaces, getCreatorChannel, videoMonth } from "@/lib/creator-profiles";
+import { creatorVerifiedPlaces, getCreatorChannel, getCreatorLinks, videoMonth } from "@/lib/creator-profiles";
 import { KIND_LABEL } from "@/lib/lists";
 import { listConnections } from "@/lib/people";
 import { cityName, photoUrl } from "@/lib/place-view";
@@ -59,6 +59,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     data.canView && (tab === "followers" || tab === "following") ? await listConnections(profile.userId, tab) : null;
   const channel = await getCreatorChannel(profile.userId).catch(() => null);
   const verified = channel && data.canView ? await creatorVerifiedPlaces(profile.userId).catch(() => []) : [];
+  const socials = channel && data.canView ? await getCreatorLinks(profile.userId) : [];
   const unclaimed = channel !== null && !channel.claimed;
 
   return (
@@ -116,6 +117,11 @@ export default async function ProfilePage({ params, searchParams }: Props) {
                   <span className="font-semibold text-muted-foreground">· {formatSubscriberCount(channel.subscriberCount)} subscribers</span>
                 )}
               </a>
+            )}
+            {socials.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {socials.map((link) => <a key={link.kind} href={link.url} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex min-h-11 items-center rounded-full border border-input px-4 text-sm font-extrabold capitalize">{link.kind}</a>)}
+              </div>
             )}
             <div className="flex gap-5 text-sm">
               <a href={`/u/${profile.handle}?tab=followers`} className="text-foreground">

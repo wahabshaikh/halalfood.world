@@ -12,6 +12,7 @@ import { listCities } from "@/lib/places";
 import { listSponsorshipsForAdmin } from "@/lib/sponsorships";
 import { REASON_LABEL } from "@/lib/core/moderation";
 import { loginHref } from "@/lib/signed-out";
+import { listVideoQueue } from "@/lib/videos";
 import { AdminConsole } from "./admin-console";
 
 export const dynamic = "force-dynamic";
@@ -31,12 +32,13 @@ export default async function AdminPage() {
       </AppShell>
     );
   }
-  const [reports, evidence, events, cities, sponsors] = await Promise.all([
+  const [reports, evidence, events, cities, sponsors, videos] = await Promise.all([
     listOpenReports(),
     listPendingEvidence(),
     listAllEvents(),
     listCities({ limit: 2000 }),
     listSponsorshipsForAdmin(),
+    listVideoQueue(),
   ]);
   return (
     <AppShell active="you">
@@ -45,6 +47,7 @@ export default async function AdminPage() {
         <AdminConsole
           reports={reports.map((report) => ({ ...report, reasonLabel: REASON_LABEL[report.reason] ?? report.reason }))}
           evidence={evidence}
+          videos={videos}
           events={events}
           cities={cities.map((city) => ({ slug: city.city_slug, name: cityName(city.city_slug) }))}
           sponsors={sponsors.map((item) => ({ ...item, cityLabel: cityName(item.citySlug) }))}

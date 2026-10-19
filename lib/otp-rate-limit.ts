@@ -824,3 +824,20 @@ export async function consumeSponsorCheckoutLimits(
     now,
   );
 }
+
+/** Video paste has a daily budget before any YouTube request is made. */
+export async function consumeVideoPasteLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("video:paste:user", userId),
+    identifierKey("video:paste:ip", ip),
+  ]);
+  return consumePair([
+    { key: userKey, rule: { windowMs: 24 * 60 * 60 * 1000, maxCount: 10, cooldownMs: 0 } },
+    { key: ipKey, rule: { windowMs: 24 * 60 * 60 * 1000, maxCount: 100, cooldownMs: 0 } },
+  ], store, now);
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { VideoQueueItem } from "@/lib/videos";
 import { ArrowDown01Icon, ArrowUp01Icon, Delete02Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { Icon, buttonClass } from "@/components/hf/kit";
@@ -56,14 +57,16 @@ export function AdminConsole({
   events,
   cities,
   sponsors,
+  videos,
 }: {
   reports: Report[];
   evidence: Evidence[];
   events: EventRow[];
   cities: City[];
   sponsors: SponsorRow[];
+  videos: VideoQueueItem[];
 }) {
-  const [tab, setTab] = useState<"reports" | "evidence" | "events" | "sponsors">("reports");
+  const [tab, setTab] = useState<"reports" | "evidence" | "events" | "sponsors" | "videos">("reports");
   return (
     <div className="grid gap-5">
       <div className="max-w-sm">
@@ -74,6 +77,7 @@ export function AdminConsole({
           options={[
             { value: "reports", label: `Reports${reports.length ? ` · ${reports.length}` : ""}` },
             { value: "evidence", label: `Evidence${evidence.length ? ` · ${evidence.length}` : ""}` },
+            { value: "videos", label: `Videos${videos.length ? ` · ${videos.length}` : ""}` },
             { value: "events", label: "Events" },
             { value: "sponsors", label: "Sponsors" },
           ]}
@@ -83,6 +87,8 @@ export function AdminConsole({
         <Reports initial={reports} />
       ) : tab === "evidence" ? (
         <EvidenceQueue initial={evidence} />
+      ) : tab === "videos" ? (
+        <VideoQueue initial={videos} />
       ) : tab === "events" ? (
         <Events initial={events} cities={cities} />
       ) : (
@@ -620,6 +626,39 @@ function EventForm({ draft: initial, cities, onClose, onSaved }: { draft: Draft;
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function VideoQueue({ initial }: { initial: VideoQueueItem[] }) {
+  const [items, setItems] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const review = async (item: VideoQueueItem, decision: "approve" | "reject") => {
+    setBusy(true);
+    try {
+      await api(`/api/admin/videos/${item.submissionId}`, { method: "POST", json: { userId: item.userId, decision } });
+      setItems((current) => current.filter((row) => row !== item));
+      toast(decision === "approve" ? "Video reviewed" : "Video rejected");
+    } catch (error) {
+      toast(errorText(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="grid gap-3">
+      {!items.length && <p className="py-10 text-center text-sm font-semibold text-muted-foreground">No videos waiting for review.</p>}
+      {items.map((item) => (
+        <article key={`${item.submissionId}:${item.userId}`} className="grid gap-3 rounded-2xl border border-border p-4">
+          <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-extrabold underline">{item.title ?? "Watch video"}</a>
+          <p className="text-sm">From @{item.handle ?? "deleted member"} · Creator @{item.creatorHandle ?? "unknown"}</p>
+          <ul className="grid gap-2">{item.places.map((place) => <li key={place.id}><a href={`/place/${place.id}`} className="text-sm font-bold underline">{place.name}</a></li>)}</ul>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} onClick={() => review(item, "approve")} className={buttonClass("primary", "md", "px-5")}>Approve</button>
+            <button type="button" disabled={busy} onClick={() => review(item, "reject")} className={buttonClass("outline", "md", "px-5")}>Reject</button>
+          </div>
+        </article>
+      ))}
     </div>
   );
 }

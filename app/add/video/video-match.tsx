@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { youtubeVideoId } from "@/lib/core/creators";
+import { VideoPlaces, type PastedVideo } from "./video-places";
 import { ArrowLeft01Icon, Search01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import type { PlaceStatus } from "@/lib/core/halal";
 import { FormCard, Icon, PageTitle, PlaceArt, StatusPill, buttonClass } from "@/components/hf/kit";
@@ -19,6 +21,7 @@ type Found = { link: Link; readable: boolean; matches: Match[] };
 
 export function VideoMatch() {
   const [url, setUrl] = useState("");
+  const [video, setVideo] = useState<PastedVideo | null>(null);
   const [found, setFound] = useState<Found | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<Match | null>(null);
@@ -28,7 +31,13 @@ export function VideoMatch() {
     if (!url.trim() || busy) return;
     setBusy(true);
     try {
-      setFound(await api<Found>("/api/media/match", { method: "POST", json: { url: url.trim() } }));
+      if (youtubeVideoId(url.trim())) {
+        setVideo(await api<PastedVideo>("/api/videos", { method: "POST", json: { url: url.trim() } }));
+        setFound(null);
+      } else {
+        setVideo(null);
+        setFound(await api<Found>("/api/media/match", { method: "POST", json: { url: url.trim() } }));
+      }
     } catch (caught) {
       toast(errorText(caught));
     } finally {
@@ -94,6 +103,8 @@ export function VideoMatch() {
           {busy && !found ? "Finding…" : "Find"}
         </button>
       </form>
+
+      {video && <VideoPlaces key={video.id} video={video} />}
 
       {found && (
         <section className="flex items-center gap-3 rounded-2xl border border-border p-3">

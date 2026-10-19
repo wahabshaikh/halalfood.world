@@ -111,7 +111,12 @@ async function verificationByKey(deps: ScoutDeps, creatorUserId: string, placeId
   return row ?? null;
 }
 
-export async function addVerification(deps: ScoutDeps, input: AddVerificationInput): Promise<AddVerificationResult> {
+/** `source` records who added it: Scout, or a member's video paste (lib/videos.ts). */
+export async function addVerification(
+  deps: ScoutDeps,
+  input: AddVerificationInput,
+  source: "scout" | "member" = "scout",
+): Promise<AddVerificationResult> {
   const placeId = placeIdParam(input.place_id);
   if (!placeId) return { ok: false, error: "invalid_place_id", message: "place_id is the id from find_place or upsert_place." };
   const videoId = youtubeVideoId(input.video_url);
@@ -123,7 +128,7 @@ export async function addVerification(deps: ScoutDeps, input: AddVerificationInp
 
   const creator = await findCreator(deps, input.creator);
   if (!creator) return { ok: false, error: "creator_not_found", message: "No creator profile has that handle or channel id. Run upsert_creator first." };
-  if (isClaimedCreator(creator))
+  if (source === "scout" && isClaimedCreator(creator))
     return { ok: false, error: "creator_claimed", message: `@${creator.handle} claimed their profile; Scout no longer adds to it.` };
 
   const target = await targetPlace(deps, placeId);
@@ -161,7 +166,7 @@ export async function addVerification(deps: ScoutDeps, input: AddVerificationInp
     sql`INSERT INTO creator_verifications (id, creator_user_id, place_id, platform, video_id, video_url, timestamp_seconds, video_date,
           media_link_id, source, created_at, updated_at)
         VALUES (${id}, ${creator.user_id}, ${placeId}, 'youtube', ${videoId}, ${url}, ${timestamp.seconds}, ${date.date},
-          ${mediaLinkId ? sql`(SELECT id FROM place_media_links WHERE id = ${mediaLinkId})` : null}, 'scout', ${now}, ${now})
+          ${mediaLinkId ? sql`(SELECT id FROM place_media_links WHERE id = ${mediaLinkId})` : null}, ${source}, ${now}, ${now})
         ON CONFLICT (creator_user_id, place_id, video_id) DO NOTHING`,
   ]);
   const row = await verificationByKey(deps, creator.user_id, placeId, videoId);

@@ -431,6 +431,14 @@ Signed out: search works; Add place goes to `/login?returnTo=/add?g={googlePlace
 
 ### 6.10 Save from a video (`/add/video`)
 
+YouTube links now use community video paste v1: cached oEmbed and optional Data API metadata, creator upsert,
+then member-selected existing places. New-tier submissions wait in the moderator Videos queue; other members
+publish creator verifications and recompute trust. Points arrive only on publish (5 per video + 2 per newly
+published place), capped at 100 per UTC day; paste attempts are capped at 10 per member per rolling day.
+No server-side LLM or transcripts. See [architecture](../architecture.md#member-video-paste) for endpoints,
+cache limits, and behavior without the optional key. The TikTok/Reel flow below is preserved.
+
+
 Paste a URL → Find → shows the media card (oEmbed author and title) and the top candidate ("We think it's …") with status → Save to Want to try (saves the place and links the media). "Not this place? Search" → `/search`. No candidate: "Couldn't match this video", Search, and Add it from Google Maps. Instagram links have no caption, so they skip straight to the search state.
 
 ### 6.11 Sign in (`/login`)
