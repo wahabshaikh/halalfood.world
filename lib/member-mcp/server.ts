@@ -118,7 +118,10 @@ export async function handleMemberRequest(request: Request, client = database, l
     });
     return server;
   });
-  const response = await handler.fetch(new Request(request, { body: body.slice(0, size) }));
+  // Build the forwarded request from plain fields: in production the route's request is not a native Request,
+  // and `new Request(request, …)` stringified it ("Invalid URL: [object Request]", a 500 on every call).
+  const forwarded = new Request(request.url, { method: "POST", headers: request.headers, body: body.slice(0, size) });
+  const response = await handler.fetch(forwarded);
   const headers = new Headers(response.headers);
   headers.set("Cache-Control", "no-store");
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
