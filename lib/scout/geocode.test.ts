@@ -46,7 +46,7 @@ test("a Google place id uses Place Details for address and location, on the deta
   const calls = mockFetch(() => json({ types: ["street_address"], formattedAddress: "7 Boundary St, London E2 7JE, UK", location: { latitude: 51.5245, longitude: -0.0768 } }));
   assert.deepEqual(await geocodePlace(deps, { ...INPUT, googlePlaceId: "ChIJdishoom1" }), { ok: true, lat: 51.5245, lng: -0.0768, via: "google_place_id" });
   assert.match(calls[0]!.url, /places\/ChIJdishoom1$/);
-  assert.equal(calls[0]!.headers["X-Goog-FieldMask"], "formattedAddress,location,types");
+  assert.equal(calls[0]!.headers["X-Goog-FieldMask"], "formattedAddress,location,types,addressComponents");
   assert.equal(spent(sqlite, "details:2026-10-18"), 1);
   assert.equal(spent(sqlite, "2026-10-18"), 0);
 });

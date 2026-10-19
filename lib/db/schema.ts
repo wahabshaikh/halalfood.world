@@ -175,10 +175,17 @@ export const places = sqliteTable("places", {
   lat: real("lat"),
   lng: real("lng"),
   locationSource: text("location_source", { enum: ["scout", "geocoded", "google", "community", "import", "listing"] }),
+  /** External https logo on the place's own site, and the page it was found on (migrations/0008_menus.sql). */
+  logoUrl: text("logo_url"),
+  logoSourceUrl: text("logo_source_url"),
   submittedByUserId: text("submitted_by_user_id"),
   listingStatus: text("listing_status", { enum: ["listed", "hidden", "closed"] }).notNull().default("listed"),
   googleDetailsSnapshot: text("google_details_snapshot"),
   googleDetailsCachedAt: ms("google_details_cached_at"),
+  /** Where an imported place came from (lib/core/provenance.ts IMPORT_SOURCES); null for places people or Scout added. */
+  importSource: text("import_source", { enum: ["halalfoodnear.me"] }),
+  /** When an imported place was first found verified to exist; null while it is "Unverified". */
+  importVerifiedAt: ms("import_verified_at"),
   createdAt: ms("created_at").notNull(),
   updatedAt: ms("updated_at").notNull(),
 });
@@ -321,6 +328,72 @@ export const placeClaims = sqliteTable("place_claims", {
   createdAt: ms("created_at").notNull(),
   updatedAt: ms("updated_at").notNull(),
 });
+
+/** One published menu per place, read by Halal Food Scout (migrations/0008_menus.sql). A web source, never a document. */
+export const placeMenus = sqliteTable("place_menus", {
+  placeId: text("place_id").primaryKey().references(() => places.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  source: text("source", { enum: ["scout"] }).notNull().default("scout"),
+  capturedAt: ms("captured_at").notNull(),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});
+
+export const placeMenuItems = sqliteTable(
+  "place_menu_items",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id").notNull().references(() => placeMenus.placeId, { onDelete: "cascade", onUpdate: "cascade" }),
+    position: integer("position").notNull(),
+    section: text("section"),
+    name: text("name").notNull(),
+    description: text("description"),
+    /** Major units, as published. */
+    price: real("price").notNull(),
+    /** ISO 4217. */
+    currency: text("currency").notNull(),
+  },
+  (table) => [index("place_menu_items_place_idx").on(table.placeId, table.position)],
+);
+
+export const placeMenuSources = sqliteTable(
+  "place_menu_sources",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id").notNull().references(() => placeMenus.placeId, { onDelete: "cascade", onUpdate: "cascade" }),
+    position: integer("position").notNull(),
+    url: text("url").notNull(),
+    type: text("type", { enum: ["website", "zomato", "swiggy", "ubereats", "deliveroo", "doordash", "google", "other"] }).notNull(),
+  },
+  (table) => [index("place_menu_sources_place_idx").on(table.placeId, table.position)],
+);
+
+/** Scout's automated read of the published menu for alcohol and pork, one per place. */
+export const placeMenuChecks = sqliteTable("place_menu_checks", {
+  placeId: text("place_id").primaryKey().references(() => places.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  status: text("status", { enum: ["clean", "flagged", "no_menu"] }).notNull(),
+  source: text("source", { enum: ["scout"] }).notNull().default("scout"),
+  sourceUrl: text("source_url"),
+  checkedAt: ms("checked_at").notNull(),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});
+
+export const placeMenuCheckFlags = sqliteTable(
+  "place_menu_check_flags",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id").notNull().references(() => placeMenuChecks.placeId, { onDelete: "cascade", onUpdate: "cascade" }),
+    position: integer("position").notNull(),
+    itemId: text("item_id").references(() => placeMenuItems.id, { onDelete: "set null" }),
+    itemName: text("item_name").notNull(),
+    reason: text("reason", { enum: ["alcohol", "pork", "other"] }).notNull(),
+    note: text("note"),
+  },
+  (table) => [
+    index("place_menu_check_flags_place_idx").on(table.placeId, table.position),
+    index("place_menu_check_flags_item_idx").on(table.itemId),
+  ],
+);
 
 export const profiles = sqliteTable("profiles", {
   userId: userRef("user_id").primaryKey(),
@@ -558,6 +631,45 @@ export const reports = sqliteTable("reports", {
   status: text("status", { enum: ["open", "actioned", "dismissed"] }).notNull(),
   action: text("action"),
   reviewedBy: text("reviewed_by"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});
+
+export const citySponsorships = sqliteTable("city_sponsorships", {
+  id: text("id").primaryKey(),
+  citySlug: text("city_slug").notNull(),
+  userId: text("user_id").references(() => authUser.id, { onDelete: "set null" }),
+  sponsorName: text("sponsor_name").notNull(),
+  tagline: text("tagline"),
+  linkUrl: text("link_url").notNull(),
+  status: text("status", { enum: ["pending", "active", "refunded", "removed"] }).notNull(),
+  renews: integer("renews", { mode: "boolean" }).notNull(),
+  whopCheckoutId: text("whop_checkout_id"),
+  whopMembershipId: text("whop_membership_id"),
+  whopPaymentId: text("whop_payment_id"),
+  startsAt: ms("starts_at"),
+  activeUntil: ms("active_until"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});
+
+export const whopWebhookEvents = sqliteTable("whop_webhook_events", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  receivedAt: ms("received_at").notNull(),
+});
+
+export const whopMemberships = sqliteTable("whop_memberships", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => authUser.id, { onDelete: "set null" }),
+  whopUserId: text("whop_user_id"),
+  productId: text("product_id"),
+  planId: text("plan_id"),
+  status: text("status").notNull(),
+  cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" }).notNull(),
+  currentPeriodEnd: ms("current_period_end"),
+  manageUrl: text("manage_url"),
+  eventAt: ms("event_at").notNull(),
   createdAt: ms("created_at").notNull(),
   updatedAt: ms("updated_at").notNull(),
 });

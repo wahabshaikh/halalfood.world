@@ -47,7 +47,7 @@ These are the rules the code must enforce. Each one gets a test (see [§13](#13-
 6. **"Not checked yet" never means "not halal".** This line appears once, in the How verification works sheet.
 7. **New places go live at once.** Places can only be added from a Google Maps result. The adder's answers count as check 1.
 8. **Reports are the safety net.** Moderators act on reports and nothing else.
-9. **Nobody can pay to change a status or a ranking.** There are no sponsored placements.
+9. **Nobody can pay to change a status or a ranking.** There are no sponsored placements. A city can have one paid sponsor at a time (`/sponsor`, through Whop): a card labelled "Sponsor" on that city's Explore page, kept apart from the place list, linking out with `rel="sponsored"`. It is not a place, never reaches `lib/core/halal.ts`, and never moves, adds or hides a place.
 
 ---
 
@@ -371,6 +371,8 @@ The design canvas is the reference for each screen. This section adds the data s
 ### 6.2 Search (`/search`)
 
 A live query, debounced 200 ms. Blank shows the suggestions `biryani`, `shawarma`, `@{a followee}`, `{a city}`. Sections in order: Places, People, Lists & guides, Cities, each shown only if non-empty. With no results: "Nothing listed yet" plus Add a place.
+
+Place search recognises the longest known city name at the start or end of the query and restricts results to that city. A city alone returns its places. The remaining query (or the whole query when no city matches) requires each of its first four words to match a place's name, cuisine, address or checked dish names, using literal `instr()` matching. Single-word searches without a city keep their existing matching and ordering.
 
 ### 6.3 Choose a city (`/cities`)
 

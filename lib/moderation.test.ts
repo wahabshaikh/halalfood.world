@@ -79,6 +79,36 @@ test("merging moves checks into the kept place and deletes the duplicate", async
   assert.ok(sqlite.prepare(`SELECT 1 FROM creator_verifications WHERE id = 'cv1' AND place_id = ?`).get(keep));
 });
 
+test("merging moves the menu, menu check and logo with the place, unless the kept place has its own", async () => {
+  const { sqlite, db, place } = await verified();
+  const keep = addPlace(sqlite, { name: "Noor Grill House" });
+  const other = addPlace(sqlite, { name: "Noor Grill Too" });
+  const menu = (placeId: string, item: string) => {
+    sqlite.prepare(`INSERT INTO place_menus (place_id, captured_at, created_at, updated_at) VALUES (?, 1, 1, 1)`).run(placeId);
+    sqlite.prepare(`INSERT INTO place_menu_items (id, place_id, position, name, price, currency) VALUES (?, ?, 0, ?, 5, 'GBP')`).run(crypto.randomUUID(), placeId, item);
+    sqlite.prepare(`INSERT INTO place_menu_sources (id, place_id, position, url, type) VALUES (?, ?, 0, 'https://example.com/menu', 'website')`).run(crypto.randomUUID(), placeId);
+  };
+  menu(place, "Lamb karahi");
+  sqlite.prepare(`INSERT INTO place_menu_checks (place_id, status, checked_at, created_at, updated_at) VALUES (?, 'flagged', 1, 1, 1)`).run(place);
+  sqlite.prepare(`INSERT INTO place_menu_check_flags (id, place_id, position, item_name, reason) VALUES ('f1', ?, 0, 'Beer', 'alcohol')`).run(place);
+  sqlite.prepare(`UPDATE places SET logo_url = 'https://example.com/logo.png', logo_source_url = 'https://example.com' WHERE id = ?`).run(place);
+  const id = report(sqlite, "place", place, "duplicate");
+  assert.deepEqual(await actOnReport(id, "mod", { action: "merge", intoPlaceId: keep }, db), { ok: true });
+  assert.deepEqual({ ...(sqlite.prepare(`SELECT name FROM place_menu_items WHERE place_id = ?`).get(keep) as object) }, { name: "Lamb karahi" });
+  assert.ok(sqlite.prepare(`SELECT 1 FROM place_menu_sources WHERE place_id = ?`).get(keep));
+  assert.ok(sqlite.prepare(`SELECT 1 FROM place_menu_check_flags WHERE id = 'f1' AND place_id = ?`).get(keep));
+  assert.equal((await getPlaceById(keep, db))?.card.logoUrl, "https://example.com/logo.png");
+
+  // The kept place's own menu wins; the duplicate's goes with it.
+  menu(other, "Chicken tikka");
+  const again = report(sqlite, "place", other, "duplicate");
+  assert.deepEqual(await actOnReport(again, "mod", { action: "merge", intoPlaceId: keep }, db), { ok: true });
+  assert.deepEqual(
+    sqlite.prepare(`SELECT name FROM place_menu_items ORDER BY name`).all().map((row) => ({ ...row })),
+    [{ name: "Lamb karahi" }],
+  );
+});
+
 test("fix details and mark closed edit the place", async () => {
   const { sqlite, db, place } = await verified();
   const fix = report(sqlite, "place", place, "wrong-details");
