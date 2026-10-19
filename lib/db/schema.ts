@@ -218,6 +218,13 @@ export const placeStatus = sqliteTable("place_status", {
   lastCheckedAt: ms("last_checked_at"),
   verifiedAt: ms("verified_at"),
   updatedAt: ms("updated_at").notNull(),
+  /** Place trust (lib/core/trust.ts placeTrust, migrations/0010_community_trust.sql). Never changes `status`. */
+  trustScore: integer("trust_score").notNull().default(0),
+  trustBand: text("trust_band", { enum: ["unverified", "some_proof", "trusted", "highly_trusted"] }).notNull().default("unverified"),
+  communityVouchers: integer("community_vouchers").notNull().default(0),
+  creatorCount: integer("creator_count").notNull().default(0),
+  /** Comma-separated lib/core/trust.ts BADGES. */
+  badges: text("badges").notNull().default(""),
 });
 
 export const placeStatusChanges = sqliteTable("place_status_changes", {
@@ -672,4 +679,68 @@ export const whopMemberships = sqliteTable("whop_memberships", {
   eventAt: ms("event_at").notNull(),
   createdAt: ms("created_at").notNull(),
   updatedAt: ms("updated_at").notNull(),
+});
+
+/** Every piece of community work: the audit and points source (migrations/0010_community_trust.sql, lib/core/contributions.ts). */
+export const contributions = sqliteTable("contributions", {
+  id: text("id").primaryKey(),
+  userId: userRef("user_id").notNull(),
+  kind: text("kind", {
+    enum: ["vouch", "place_add", "video", "photo", "menu", "certificate", "owner_claim", "edit", "rating", "amenity", "hours", "link"],
+  }).notNull(),
+  placeId: text("place_id").references(() => places.id, { onDelete: "set null", onUpdate: "cascade" }),
+  refTable: text("ref_table"),
+  refId: text("ref_id"),
+  channel: text("channel", { enum: ["web", "mcp", "scout"] }).notNull(),
+  status: text("status", { enum: ["pending", "accepted", "rejected", "reverted"] }).notNull(),
+  weight: real("weight").notNull().default(0),
+  ipHash: text("ip_hash"),
+  apiKeyId: text("api_key_id"),
+  createdAt: ms("created_at").notNull(),
+  reviewedBy: text("reviewed_by").references(() => authUser.id, { onDelete: "set null" }),
+  reviewedAt: ms("reviewed_at"),
+  reason: text("reason"),
+});
+
+/** "I ate here and it's halal": one per member and place. */
+export const vouches = sqliteTable(
+  "vouches",
+  {
+    userId: userRef("user_id").notNull(),
+    placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    /** YYYY-MM. */
+    ateAt: text("ate_at").notNull(),
+    rating: text("rating", { enum: ["disliked", "liked", "loved"] }),
+    note: text("note"),
+    checkId: text("check_id"),
+    createdAt: ms("created_at").notNull(),
+    updatedAt: ms("updated_at").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.placeId] })],
+);
+
+/** Each member's tier and weight (lib/core/trust.ts memberTrust). */
+export const memberTrust = sqliteTable("member_trust", {
+  userId: userRef("user_id").primaryKey(),
+  tier: text("tier", { enum: ["restricted", "new", "member", "trusted", "moderator"] }).notNull(),
+  weight: real("weight").notNull(),
+  accepted: integer("accepted").notNull().default(0),
+  rejected: integer("rejected").notNull().default(0),
+  upheldReports90d: integer("upheld_reports_90d").notNull().default(0),
+  updatedAt: ms("updated_at").notNull(),
+});
+
+/** Points v2: pending until the contribution is accepted (lib/core/contributions.ts). */
+export const contributionPoints = sqliteTable("contribution_points", {
+  id: text("id").primaryKey(),
+  userId: userRef("user_id").notNull(),
+  contributionId: text("contribution_id").notNull().references(() => contributions.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  placeId: text("place_id").references(() => places.id, { onDelete: "set null", onUpdate: "cascade" }),
+  citySlug: text("city_slug"),
+  points: integer("points").notNull(),
+  status: text("status", { enum: ["pending", "granted", "revoked"] }).notNull(),
+  /** UTC YYYY-MM-DD. */
+  day: text("day").notNull(),
+  createdAt: ms("created_at").notNull(),
 });
