@@ -184,7 +184,7 @@ export type CheckForStatus = {
   authorSuspended: boolean;
 } & Record<Fact, Answer>;
 
-export function isEligible(check: CheckForStatus): boolean {
+export function isEligible(check: Pick<CheckForStatus, "createdAt" | "authorCreatedAt" | "excluded" | "authorSuspended">): boolean {
   return (
     !check.excluded &&
     !check.authorSuspended &&

@@ -82,6 +82,35 @@ Filters match a fact's current value, settled or not; a place with no value for 
 Likes, follows, lists, recs, RSVPs, points, creator videos, creator verifications ("Verified by <creator> in a
 video", recorded by Halal Food Scout), "How was it?" verdicts and dishes are context. They help people choose where to eat and never touch the status. Nobody can pay to change a status or a ranking.
 
+## Provenance
+
+Where a listing came from is separate from its halal status. About 7.7k places were imported from the public
+directory halalfoodnear.me (scraped Sep 13, 2026, carried into production at the Oct 5 cutover). They are marked
+`places.import_source = 'halalfoodnear.me'` by migration 0007, which identifies them by the bulk insert's exact
+`created_at` (1789282699475, 2026-09-13T06:58:19.475Z) and no submitter. Every other place has no import source and is
+never labelled. The rule is [`lib/core/provenance.ts`](../../lib/core/provenance.ts).
+
+An imported place counts as **seen and verified to exist** while any of these exists:
+
+| Evidence | Counts when |
+| --- | --- |
+| A community check | it counts toward status (the same rule as [Which checks count](#which-checks-count)) |
+| A certificate or menu | a moderator approved it (an expired certificate still shows the place exists) |
+| A creator video verification | Halal Food Scout recorded it (`creator_verifications`) |
+| A web source | a Scout claim of Halal certified = yes, with its source page |
+
+A map listing never counts: it comes from a directory too. Until a place has evidence it shows **Unverified**
+("Imported from a public directory and not yet checked by our community or a certifier."), its page is `noindex`
+and it is left out of the sitemap. It stays listed on its city page, in search and on the map.
+
+`places.import_verified_at` is recomputed from the evidence after every status recompute and every creator
+verification write, so it goes back to unverified when the last piece is removed (a check excluded, a verification
+removed, a claim withdrawn). Certifier data from PR #112 will count once it lands.
+
+This never feeds the status. A creator video verification is context and still can't change a status ([What can't
+change a status](#what-cant-change-a-status)), but it does show the place is real, so it lifts the Unverified label.
+A place can be verified to exist and still be "Not checked yet"; "Unverified" is never a halal verdict.
+
 ## The safety net
 
 People report places, checks, comments, people and lists. Moderators act on reports: reset a place's checks, mark it closed, merge a duplicate, fix its details, exclude a check, remove a comment, suspend an account, or dismiss the report. They also review certificates and menus before those count. Every action is audited, and any action that touches checks or evidence recomputes the place.

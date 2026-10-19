@@ -6,7 +6,7 @@ import { placeIdParam } from "@/lib/core/params";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/hf/app-shell";
 import { AddToListButton } from "@/components/hf/list-sheets";
-import { Avatar, AvatarStack, FactTile, Icon, LinkButton, Page, PlaceArt, SectionTitle, StatusCard, StatusPill, buttonClass } from "@/components/hf/kit";
+import { Avatar, AvatarStack, FactTile, Icon, LinkButton, Page, PlaceArt, SectionTitle, StatusCard, StatusPill, UnverifiedChip, UnverifiedNotice, buttonClass } from "@/components/hf/kit";
 import { getViewerId } from "@/lib/auth-session";
 import { listPlaceNotes, topDishes } from "@/lib/checks-repository";
 import { decoratePlaces } from "@/lib/explore";
@@ -42,6 +42,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: placeTitle(place),
     description: placeDescription(place, place.card.status, place.card.facts),
     alternates: { canonical: `/place/${place.id}` },
+    // Imported and not yet verified to exist: kept out of search until it is (lib/core/provenance.ts). The Worker
+    // also sends X-Robots-Tag (lib/robots-header.ts), and the sitemap leaves it out.
+    ...(place.card.unverified ? { robots: { index: false, follow: true } } : {}),
   };
 }
 
@@ -105,7 +108,7 @@ export default async function PlacePage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: jsonLdScript([
-            placeJsonLd({ ...place, serves_cuisine: place.serves_cuisine }, { mapsUrl: directions, status, facts: place.card.facts }),
+            placeJsonLd({ ...place, serves_cuisine: place.serves_cuisine }, { mapsUrl: directions, status, facts: place.card.facts, unverified: place.card.unverified }),
             breadcrumbJsonLd([
               { name: "halalfood.world", path: "/" },
               { name: city, path: `/city/${place.city_slug}` },
@@ -301,7 +304,10 @@ export default async function PlacePage({ params }: Props) {
                     <a key={other.id} href={`/place/${other.id}`} className="grid gap-1.5 text-foreground">
                       <PlaceArt name={other.name} seed={other.id} src={photoUrl(other.photoKey)} className="h-24 w-full md:h-28" rounded="rounded-[14px]" />
                       <strong className="truncate text-[15px] font-extrabold">{other.name}</strong>
-                      <StatusPill status={other.status} short className="w-fit" />
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <StatusPill status={other.status} short />
+                        {other.unverified && <UnverifiedChip />}
+                      </span>
                     </a>
                   ))}
                 </div>
@@ -310,6 +316,7 @@ export default async function PlacePage({ params }: Props) {
           </div>
 
           <aside aria-label="Check this place" className="contents lg:sticky lg:top-24 lg:grid lg:gap-5">
+            {place.card.unverified && <UnverifiedNotice className="max-lg:order-2" />}
             <StatusCard
               status={status}
               latest={shortDate(place.last_checked_at)}

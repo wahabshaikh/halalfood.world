@@ -179,6 +179,10 @@ export const places = sqliteTable("places", {
   listingStatus: text("listing_status", { enum: ["listed", "hidden", "closed"] }).notNull().default("listed"),
   googleDetailsSnapshot: text("google_details_snapshot"),
   googleDetailsCachedAt: ms("google_details_cached_at"),
+  /** Where an imported place came from (lib/core/provenance.ts IMPORT_SOURCES); null for places people or Scout added. */
+  importSource: text("import_source", { enum: ["halalfoodnear.me"] }),
+  /** When an imported place was first found verified to exist; null while it is "Unverified". */
+  importVerifiedAt: ms("import_verified_at"),
   createdAt: ms("created_at").notNull(),
   updatedAt: ms("updated_at").notNull(),
 });
