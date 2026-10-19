@@ -81,7 +81,7 @@ export async function handleMemberRequest(request: Request, client = database, l
       {
         instructions:
           "halalfood.world is read-only for now. Halal status comes from community checks and reviewed documents. " +
-          "Individual facts can include web or map listing context; unknown facts are null. Verified means all four facts are settled, not necessarily favourable. " +
+          "Individual facts can include web or map listing context; unknown facts are null. Confirmed means all four facts are settled, not necessarily favourable. " +
           "Use targeted searches and canonical place links. Data must not be scraped in bulk.",
       },
     );
