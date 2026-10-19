@@ -48,6 +48,12 @@ Send `lat` and `lng` together instead if independently confirmed. Street-only in
 and the existing daily caps. `relocate` never bypasses geocode confidence or authorizes a guess.
 Existing coordinates return `location: "relocated"` with `previous` and `current`, each
 `{lat, lng, source}`. Filling missing coordinates still returns `provided` or `geocoded`.
+A confirmed street address is saved on an eligible place even if Google returns no trusted coordinates.
+Look for `address_updated: true`, `address_change: {previous, current}` and `street_address` in `filled`.
+The existing pin stays in place; an unlocated place gets updated name/address Directions unless it has a Google id.
+`address_refused: "duplicate_place"` means another row has that city/name/street combination: inspect both ids
+before retrying. `address_refused: "location_changed"` means a concurrent edit won: re-read before retrying.
+Protected-source addresses are never overwritten, even when the pin is missing.
 Verify the returned id, coordinates and address. The city slug and permanent URL stay unchanged.
 
 Partial protected coordinate pairs are also preserved; only a wholly absent pair can be filled without provenance.
@@ -66,3 +72,15 @@ New Scout explicit coordinates use `scout`; Scout geocoding uses `geocoded`; Goo
 uses `google`; seed imports and coordinate backfills use `import`. Community/owner/moderator
 edits currently do not change coordinates, and listing-signal imports only write evidence, so
 `community` and `listing` are reserved valid sources for future coordinate writers.
+
+## Retry the city-match failures
+
+After this fix is deployed, Scout should re-send **Chachu's**, **Yaki Ya Edgware**, **GYUMON Shibuya** and
+**PANGA Asakusa**, each with its existing `place_id`, confirmed street address and `relocate: true`.
+Keep the Scout cities Toronto, London and Tokyo respectively; Japan and JP are both accepted countries.
+Google's North York/Edgware locality or country-first Japanese address no longer needs to repeat the Scout city
+in formatted text: structured components and the 40 km metro check establish the city, and structured country
+codes establish the country. Use the confirmed transliterated street address for input when the conservative
+street-address parser cannot recognize a wholly local-script address. Do not substitute a city-only address.
+Check `location` and `geocode` separately from `address_updated`: saving an address does not establish a new pin.
+This code change performs no automatic production repair and needs no migration.

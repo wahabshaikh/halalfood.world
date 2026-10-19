@@ -17,6 +17,7 @@ import { listingCachedRead } from "./listing-cache";
 import { loadOrDegrade, type Loaded } from "./load";
 import { containsText, normalizeSearchQuery } from "./text-search";
 import {
+  INDEXABLE,
   LISTED,
   PLACE_CARD_COLUMNS,
   PLACE_CARD_FROM,
@@ -416,21 +417,23 @@ export async function nearestCity(point: { lat: number; lng: number }, client?: 
 /* Sitemaps and ops                                                          */
 /* ------------------------------------------------------------------------ */
 
+/** Places in the sitemap: listed, and not an unverified import. */
 export async function countPlaces(): Promise<number> {
-  return listingCachedRead("places:count:v3", DIRECTORY_TTL_SECONDS, async () => {
+  return listingCachedRead("places:count:v4", DIRECTORY_TTL_SECONDS, async () => {
     const db = await database();
-    const rows = await db.all<{ total: number }>(sql`SELECT count(*) AS total FROM places p WHERE ${LISTED}`);
+    const rows = await db.all<{ total: number }>(sql`SELECT count(*) AS total FROM places p WHERE ${INDEXABLE}`);
     return rows[0]?.total ?? 0;
   });
 }
 
+/** One sitemap chunk. Unverified imports stay out until they are verified (lib/core/provenance.ts). */
 export async function listPlaceRefs(options: { limit: number; offset: number }) {
   const limit = clamp(options.limit, 1, 25000);
   const offset = clamp(options.offset, 0, 1000000);
-  return listingCachedRead(`places:sitemap:v3:${limit}:${offset}`, SITEMAP_TTL_SECONDS, async () => {
+  return listingCachedRead(`places:sitemap:v4:${limit}:${offset}`, SITEMAP_TTL_SECONDS, async () => {
     const db = await database();
     return db.all<{ id: string; updated_at: number | null }>(sql`
-      SELECT p.id, p.updated_at FROM places p WHERE ${LISTED}
+      SELECT p.id, p.updated_at FROM places p WHERE ${INDEXABLE}
       ORDER BY p.id LIMIT ${limit} OFFSET ${offset}
     `);
   });

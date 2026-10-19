@@ -53,7 +53,8 @@ export async function handleScoutRequest(request: Request, environment: ScoutEnv
         instructions:
           "Halal Food Scout: record halal food YouTube creators and the places they verify in their videos. " +
           "Typical flow: upsert_creator, then find_place / upsert_place, then add_verification with the place id. " +
-          "Creator verifications are context and never change a place's halal status.",
+          "For menus: upsert_menu with the place id, then set_menu_check; set_place_logo for its logo. " +
+          "Creator verifications, menus and logos are context and never change a place's halal status.",
       },
     );
     registerScoutTools(server, { deps: environment.deps, tokenId: auth.tokenId, limiter: environment.limiter });

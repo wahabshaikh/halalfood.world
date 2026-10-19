@@ -1,4 +1,4 @@
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import assert from "node:assert/strict";
 import { AMBIGUOUS_SPREAD_METERS, geocodeQuery, hasStreetAddress, judgeGeocode } from "./geocode-confidence";
 
@@ -71,4 +71,37 @@ test("city/postcode inputs are not house numbers across postal formats", () => {
     { address: "London 123", city: "London", country: "UK" },
     { address: "1012 AB Amsterdam", city: "Amsterdam", country: "Netherlands" },
   ]) assert.equal(hasStreetAddress(input), false, input.address);
+});
+
+test("city components accept normalized suffixes and local Tokyo names independently of proximity", () => {
+  for (const [city, text, type] of [
+    ["London", "Greater London", "administrative_area_level_2"],
+    ["Tokyo", "東京都", "administrative_area_level_1"],
+    ["Shibuya", "Shibuya City", "locality"],
+    ["Shibuya-ku", "Shibuya", "sublocality_level_1"],
+    ["Kyoto-shi", "Kyoto City", "postal_town"],
+    ["Montreal", "Montréal Ward", "neighborhood"],
+  ]) {
+    const candidate = { ...dishoom, formattedAddress: "1 Example Road, UK", addressComponents: [{ longText: text, types: [type] }] };
+    assert.equal(judgeGeocode([candidate], { city }).ok, true, `${city}: ${text}`);
+  }
+});
+
+test("country components override address text, support ISO names, and fallback scans either end", () => {
+  for (const [country, shortText, longText] of [["Canada", "CA", "Canada"], ["Japan", "JP", "日本"], ["JP", "JP", "日本"], ["Germany", "DE", "Deutschland"]]) {
+    assert.equal(judgeGeocode([{ ...dishoom, addressComponents: [{ shortText, longText, types: ["country"] }] }], { city: "London", country }).ok, true);
+  }
+  assert.deepEqual(judgeGeocode([{ ...dishoom, addressComponents: [{ shortText: "CA", types: ["country"] }] }], LONDON), { ok: false, reason: "wrong_country" });
+  for (const address of ["Japan, 1 Example Road, Tokyo", "日本、東京都、1 Example Road", "Japan - Tokyo - 1 Example Road", "Japan-Tokyo-1 Example Road"]) {
+    assert.equal(judgeGeocode([{ ...dishoom, formattedAddress: address, lat: 35.68, lng: 139.76 }], { city: "Tokyo", country: "JP" }).ok, true, address);
+  }
+});
+
+
+test("country aliases remain usable without Intl region names", () => {
+  const displayNames = vi.spyOn(Intl, "DisplayNames").mockImplementation(() => { throw new Error("unavailable"); });
+  try {
+    assert.equal(judgeGeocode([{ ...dishoom, addressComponents: [{ shortText: "JP", types: ["country"] }] }], { city: "London", country: "Japan" }).ok, true);
+    assert.deepEqual(judgeGeocode([{ ...dishoom, addressComponents: [{ types: ["country"] }] }], LONDON), { ok: false, reason: "wrong_country" });
+  } finally { displayNames.mockRestore(); }
 });

@@ -200,6 +200,11 @@ export async function actOnReport(reportId: string, moderatorId: string, input: 
           sql`UPDATE recs SET place_id = ${into} WHERE place_id = ${targetId}`,
           sql`UPDATE OR IGNORE place_signals SET place_id = ${into} WHERE place_id = ${targetId}`,
           sql`UPDATE OR IGNORE place_claims SET place_id = ${into} WHERE place_id = ${targetId}`,
+          // One menu and one menu check per place: the kept place's own win; their items, sources and flags follow (ON UPDATE CASCADE).
+          sql`UPDATE OR IGNORE place_menus SET place_id = ${into} WHERE place_id = ${targetId}`,
+          sql`UPDATE OR IGNORE place_menu_checks SET place_id = ${into} WHERE place_id = ${targetId}`,
+          sql`UPDATE places SET logo_url = (SELECT logo_url FROM places WHERE id = ${targetId}), logo_source_url = (SELECT logo_source_url FROM places WHERE id = ${targetId})
+              WHERE id = ${into} AND logo_url IS NULL`,
           sql`UPDATE OR IGNORE creator_verifications SET place_id = ${into} WHERE place_id = ${targetId}`,
           close("actioned"),
           log({ place: targetId, name: place.name }, { into }),
