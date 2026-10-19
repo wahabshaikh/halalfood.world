@@ -291,7 +291,7 @@ function AddDone({ picked, added }: { picked: Picked; added: Added }) {
         </span>
         <h1 className="text-[28px] leading-tight font-black tracking-tight">{picked.name} is live</h1>
         <p className="max-w-[300px] text-[15px] font-semibold text-subtle-foreground">
-          {checking ? "Your answers count as the first check. Two more that match verify it." : "Anyone who eats there can now check it."}
+          {checking ? "Your answers count as the first check. Two more that match confirm it." : "Anyone who eats there can now check it."}
         </p>
       </div>
       <section className={cn("mt-9 grid gap-3 rounded-[20px] p-[18px]", checking ? "bg-warning-muted text-warning-strong" : "bg-neutral-pill")}>
