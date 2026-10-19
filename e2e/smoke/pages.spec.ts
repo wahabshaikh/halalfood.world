@@ -10,7 +10,7 @@ async function seriousViolations(page: Page) {
   return results.violations.filter((item) => item.impact === "serious" || item.impact === "critical").map((item) => `${item.id}: ${item.help}`);
 }
 
-const pages = ["/", "/cities", "/map", "/search?q=seed", "/community", "/events", "/login"];
+const pages = ["/", "/cities", "/map", "/search?q=seed", "/community", "/events", "/how-trust-works", "/login"];
 
 test("/connect shows the member MCP URL @smoke", async ({ page }) => {
   const response = await page.goto("/connect");
@@ -25,7 +25,7 @@ for (const path of pages) {
     const response = await page.goto(path);
     expect(response?.status(), path).toBe(200);
     await expect(page.locator("body")).toBeVisible();
-    if (path === "/") await expect(page.locator("h1")).toHaveCount(1);
+    if (path === "/" || path === "/how-trust-works") await expect(page.locator("h1")).toHaveCount(1);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     expect(overflow, `${path} scrolls sideways`).toBe(false);
     expect(errors, `${path} threw in the browser`).toEqual([]);

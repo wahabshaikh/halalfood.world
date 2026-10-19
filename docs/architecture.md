@@ -48,6 +48,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/creator/[platform]/[handle]` | – | Places from a creator's videos; links to `/u/<handle>` when the channel has a creator profile. |
 | `/me`, `/me/settings`, `/me/privacy` | ✓ | You (Passport, Checks, Lists), Settings, Privacy & people. |
 | `/admin` | moderator | Reports, Evidence, Events and Sponsors. |
+| `/how-trust-works` | – | Plain-words explainer: the four halal facts and Confirmed, place badges, trust bands and points. Linked from the footer. |
 | `/newsletter` | – | City picks, new places and sponsor slots; subscribe and manage a Whop newsletter membership. |
 | `/sponsor`, `/sponsor/[citySlug]`, `/sponsor/thanks` | – / form ✓ / ✓ | Sponsor a city: the offer and which cities are open; one city's form, card preview and Whop checkout; the return page after paying. |
 
@@ -478,7 +479,7 @@ City and place pages distinguish a missing row (a real 404) from an unreachable 
 
 | Child | Contents |
 | --- | --- |
-| `/sitemaps/core/sitemap.xml` | Home, the city directory, events, community, Sponsor a city and Newsletter. |
+| `/sitemaps/core/sitemap.xml` | Home, the city directory, events, community, How trust works, Sponsor a city and Newsletter. |
 | `/sitemaps/cities/sitemap.xml` | One entry per distinct `city_slug`, capped at 2,000. |
 | `/sitemaps/places/sitemap/N.xml` | Indexable places (`INDEXABLE` in `lib/place-view.ts`: listed, and not an unverified import), 5,000 per file, from an id-ordered scan on `places_indexable_idx` so chunk boundaries stay stable. |
 | `/sitemaps/social/sitemap.xml` | Public lists, public profiles with a shared check, and upcoming events. |
