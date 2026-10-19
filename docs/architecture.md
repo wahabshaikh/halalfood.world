@@ -47,7 +47,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/events`, `/event/[id]` | – | Halal food events and their stalls. |
 | `/creator/[platform]/[handle]` | – | Places from a creator's videos; links to `/u/<handle>` when the channel has a creator profile. |
 | `/me`, `/me/settings`, `/me/privacy` | ✓ | You (Passport, Checks, Lists), Settings, Privacy & people. |
-| `/admin` | moderator | Reports, Evidence, Events and Sponsors. |
+| `/admin` | moderator | Reports, Places (new places waiting for review), Evidence, Events and Sponsors. |
 | `/how-trust-works` | – | Plain-words explainer: the four halal facts and Confirmed, place badges, trust bands and points. Linked from the footer. |
 | `/newsletter` | – | City picks, new places and sponsor slots; subscribe and manage a Whop newsletter membership. |
 | `/sponsor`, `/sponsor/[citySlug]`, `/sponsor/thanks` | – / form ✓ / ✓ | Sponsor a city: the offer and which cities are open; one city's form, card preview and Whop checkout; the return page after paying. |
@@ -57,7 +57,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | Method & path | Purpose |
 | --- | --- |
 | `GET /api/places` | Explore and map: `city`, `bbox`, `near`, `filters`, `friends`, `offset`, `limit`. Every place (here, in `GET /api/places/[id]`, search, saved, lists and the feed) carries `unverified: boolean`: true for an imported place not yet verified to exist. Added Oct 2026; older clients can ignore it. |
-| `POST /api/places` | Add a place from a Google result with optional answers. 409 with the id for a duplicate. |
+| `POST /api/places` | Add a place from a Google result with optional answers. 409 with the id for a duplicate. Returns `{id, status}`; `status` is `unchecked`, `checking`, or (added Oct 2026) `pending` when the adder is New or Restricted tier (`lib/core/trust.ts`): the place stays `hidden` with a pending `place_add` contribution until a moderator approves it. Member tier and above list at once and their contribution is accepted. |
 | `GET /api/places/google-search` | Google Places text search for Add, rate-limited and capped per day; marks results already listed. |
 | `GET /api/places/[id]`, `GET/POST /api/places/[id]/checks`, `GET /api/places/[id]/notes` | A place, its checks, and its shared notes. |
 | `GET/POST /api/places/[id]/photos`, `DELETE …/photos/[photoId]`, `GET /api/photos/[...key]` | Photos (JPEG, PNG or WebP, 8 MB) and the R2 proxy. |
@@ -71,6 +71,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `GET/POST /api/lists`, `GET /api/lists/mine`, `GET/PUT/DELETE /api/lists/[id]`, `PUT /api/lists/[id]/items`, `POST/DELETE /api/lists/[id]/items/[placeId]`, `POST /api/lists/[id]/members`, `POST …/members/accept`, `DELETE …/members/[handle]`, `PUT/DELETE /api/lists/[id]/save` | Lists. |
 | `GET /api/community`, `GET /api/events`, `GET /api/events/[id]`, `PUT/DELETE /api/events/[id]/going`, `GET /api/creators/[platform]/[handle]` | Community and events. |
 | `POST /api/reports` | Report a place, check, comment, person or list. |
+| `GET /api/admin/places`, `POST /api/admin/places/[id]` | Pending places from New and Restricted members. `{decision: "approve" \| "reject", reason?}`; a rejection needs a reason. Approve lists the place, accepts the contribution and grants its 5 points in `contribution_points` under the daily caps (`lib/core/contributions.ts`); reject keeps it hidden, revokes the points and excludes the adder's answers. Both write `audit_log`. |
 | `GET /api/admin/reports`, `POST /api/admin/reports/[id]`, `GET/POST /api/admin/events`, `GET/PUT/DELETE /api/admin/events/[id]` | Moderation. Every action writes `audit_log`. |
 | `POST /api/newsletter/checkout` | Signed-in newsletter checkout, JSON object body (no fields required), returns `{url}`. 503 when unconfigured; shares the sponsor checkout budget (10/day per user, 30/day per IP). |
 | `GET/POST /api/sponsorships` | Mine; start a city sponsorship (`{citySlug, name, tagline?, linkUrl}`) and get the Whop `checkoutUrl`. 409 when the city is sponsored or held, 503 without Whop keys. 10 a day per person. |

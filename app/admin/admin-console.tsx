@@ -34,6 +34,16 @@ type Evidence = {
   createdAt: number;
 };
 
+type PendingPlace = {
+  placeId: string;
+  name: string;
+  address: string | null;
+  cityLabel: string;
+  mapsUrl: string | null;
+  submittedBy: string | null;
+  createdAt: number;
+};
+
 type EventRow = { id: string; title: string; citySlug: string; venue: string; startsAt: number; status: "draft" | "published" | "cancelled"; stalls: number };
 type City = { slug: string; name: string };
 type SponsorRow = {
@@ -52,18 +62,20 @@ type SponsorRow = {
 
 export function AdminConsole({
   reports,
+  places,
   evidence,
   events,
   cities,
   sponsors,
 }: {
   reports: Report[];
+  places: PendingPlace[];
   evidence: Evidence[];
   events: EventRow[];
   cities: City[];
   sponsors: SponsorRow[];
 }) {
-  const [tab, setTab] = useState<"reports" | "evidence" | "events" | "sponsors">("reports");
+  const [tab, setTab] = useState<"reports" | "places" | "evidence" | "events" | "sponsors">("reports");
   return (
     <div className="grid gap-5">
       <div className="max-w-sm">
@@ -73,6 +85,7 @@ export function AdminConsole({
           onChange={setTab}
           options={[
             { value: "reports", label: `Reports${reports.length ? ` · ${reports.length}` : ""}` },
+            { value: "places", label: `Places${places.length ? ` · ${places.length}` : ""}` },
             { value: "evidence", label: `Evidence${evidence.length ? ` · ${evidence.length}` : ""}` },
             { value: "events", label: "Events" },
             { value: "sponsors", label: "Sponsors" },
@@ -81,6 +94,8 @@ export function AdminConsole({
       </div>
       {tab === "reports" ? (
         <Reports initial={reports} />
+      ) : tab === "places" ? (
+        <PlaceQueue initial={places} />
       ) : tab === "evidence" ? (
         <EvidenceQueue initial={evidence} />
       ) : tab === "events" ? (
@@ -150,6 +165,87 @@ function Sponsors({ initial }: { initial: SponsorRow[] }) {
         </article>
       ))}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+/* Places                                                                    */
+/* ------------------------------------------------------------------------ */
+
+function PlaceQueue({ initial }: { initial: PendingPlace[] }) {
+  const [items, setItems] = useState(initial);
+  if (!items.length) return <p className="py-10 text-center text-sm font-semibold text-muted-foreground">No new places to review.</p>;
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {items.map((item) => (
+        <PlaceCard key={item.placeId} item={item} onDone={() => setItems((current) => current.filter((each) => each.placeId !== item.placeId))} />
+      ))}
+    </div>
+  );
+}
+
+function PlaceCard({ item, onDone }: { item: PendingPlace; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState("");
+  const decide = async (decision: "approve" | "reject") => {
+    setBusy(true);
+    try {
+      await api(`/api/admin/places/${item.placeId}`, { method: "POST", json: { decision, ...(decision === "reject" ? { reason } : {}) } });
+      toast(decision === "approve" ? "Listed" : "Rejected");
+      onDone();
+    } catch (error) {
+      toast(errorText(error));
+      setBusy(false);
+    }
+  };
+  return (
+    <article className="grid gap-3 rounded-2xl border border-border p-4">
+      <div className="flex items-center gap-2">
+        <span className="rounded-full bg-warning-muted px-2.5 py-0.5 text-xs font-black text-warning-strong">New place</span>
+        <span className="text-xs font-bold text-muted-foreground">{item.cityLabel}</span>
+        <span className="ml-auto text-xs font-bold text-muted-foreground">{timeAgo(item.createdAt)}</span>
+      </div>
+      <div className="grid gap-0.5">
+        <strong className="text-[15px] font-black">{item.name}</strong>
+        {item.address && <span className="text-[13px] font-semibold text-muted-foreground">{item.address}</span>}
+        {item.mapsUrl && (
+          <a href={item.mapsUrl} target="_blank" rel="noreferrer" className="text-[13px] font-bold underline underline-offset-4">
+            Open in Google Maps
+          </a>
+        )}
+      </div>
+      <span className="text-xs font-bold text-muted-foreground">Added by {item.submittedBy ? `@${item.submittedBy}` : "a deleted account"}</span>
+      {rejecting ? (
+        <div className="grid gap-2">
+          <input
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            maxLength={300}
+            aria-label="Why reject it"
+            placeholder="Why reject it? (not halal food, duplicate, spam…)"
+            className="h-11 rounded-xl border border-input px-3 text-sm font-semibold outline-none focus:border-foreground"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => decide("reject")} disabled={busy || !reason.trim()} className={buttonClass("danger", "md")}>
+              Reject
+            </button>
+            <button type="button" onClick={() => setRejecting(false)} disabled={busy} className={buttonClass("outline", "md")}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => decide("approve")} disabled={busy} className={buttonClass("dark", "md")}>
+            Approve
+          </button>
+          <button type="button" onClick={() => setRejecting(true)} disabled={busy} className={buttonClass("outline", "md")}>
+            Reject
+          </button>
+        </div>
+      )}
+    </article>
   );
 }
 

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/hf/app-shell";
 import { EmptyState, Page, TopBar } from "@/components/hf/kit";
 import { getViewerId } from "@/lib/auth-session";
+import { listPendingPlaces } from "@/lib/contributions";
 import { listAllEvents } from "@/lib/events";
 import { listOpenReports } from "@/lib/moderation";
 import { listPendingEvidence } from "@/lib/place-evidence";
@@ -26,13 +27,14 @@ export default async function AdminPage() {
       <AppShell active="you">
         <Page size="content">
           <TopBar back="/me" />
-          <EmptyState title="Moderators only" body="This page is for the people who review reports and evidence." />
+          <EmptyState title="Moderators only" body="This page is for the people who review reports, new places and evidence." />
         </Page>
       </AppShell>
     );
   }
-  const [reports, evidence, events, cities, sponsors] = await Promise.all([
+  const [reports, places, evidence, events, cities, sponsors] = await Promise.all([
     listOpenReports(),
+    listPendingPlaces(),
     listPendingEvidence(),
     listAllEvents(),
     listCities({ limit: 2000 }),
@@ -44,6 +46,7 @@ export default async function AdminPage() {
         <TopBar back="/me" title="Moderation" />
         <AdminConsole
           reports={reports.map((report) => ({ ...report, reasonLabel: REASON_LABEL[report.reason] ?? report.reason }))}
+          places={places.map((place) => ({ ...place, cityLabel: cityName(place.citySlug) }))}
           evidence={evidence}
           events={events}
           cities={cities.map((city) => ({ slug: city.city_slug, name: cityName(city.city_slug) }))}
