@@ -27,6 +27,10 @@ declare module "cloudflare:workers" {
     MCP_WRITE_LIMITER?: {
       limit(options: { key: string }): Promise<{ success: boolean }>;
     };
+    /** Public member MCP (/api/mcp/member): reads per client IP. */
+    MEMBER_MCP_READ_LIMITER?: {
+      limit(options: { key: string }): Promise<{ success: boolean }>;
+    };
     [name: string]: unknown;
   };
 }

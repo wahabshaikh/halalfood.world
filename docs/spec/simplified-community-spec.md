@@ -372,6 +372,8 @@ The design canvas is the reference for each screen. This section adds the data s
 
 A live query, debounced 200 ms. Blank shows the suggestions `biryani`, `shawarma`, `@{a followee}`, `{a city}`. Sections in order: Places, People, Lists & guides, Cities, each shown only if non-empty. With no results: "Nothing listed yet" plus Add a place.
 
+Place search recognises the longest known city name at the start or end of the query and restricts results to that city. A city alone returns its places. The remaining query (or the whole query when no city matches) requires each of its first four words to match a place's name, cuisine, address or checked dish names, using literal `instr()` matching. Single-word searches without a city keep their existing matching and ordering.
+
 ### 6.3 Choose a city (`/cities`)
 
 Use my location (browser geolocation, then the nearest city). A filterable list of cities with place counts; the current city is ticked. Picking one sets the `city` cookie and goes to `/city/[slug]`.
@@ -388,7 +390,7 @@ Top to bottom:
 2. Name, then `cuisine · street address, city`.
 3. **Status card**: tone by status, title, subline (`verified`: "3 people checked separately and agree · latest {date}"; `checking`: "One more matching check makes this Community verified" when progress is 2, otherwise "{3−progress} more matching checks to verify"; `unchecked`: "Nobody has checked this place. That doesn't mean it isn't halal."), a 3-segment meter, and "How verification works" → sheet.
 4. **Halal facts**: 4 tiles. Each shows the question, the answer (`Yes`/`No`; `Served`/`Not served` for pork and alcohol; `Not known yet` when `value` is null) and an icon tone from [§2.4](#24-favourable-values).
-5. Actions: Directions (`maps_url`), Call (when there's a telephone), Website (when there's a website).
+5. Actions: Directions in Google Maps or Apple Maps, with an adjacent app selector saved on this device (`hf:maps-app`). Default to Apple on iPhone/iPad/iPod, Google elsewhere; render Google before hydration. Use coordinates, then the address, then `maps_url`; hide when none exist. Call (when there's a telephone), Website (when there's a website).
 6. **Friends who've been** (signed in, at least one followee with a shared check): an avatar stack, one line, and the newest note → that check's visit page.
 7. **Eaten here?** card → `/place/[id]/check`. The copy varies by status, as in the design.
 8. **What people order**: the top 3 dishes with counts ([§4.2](#42-tables)). Hidden when there are none.
