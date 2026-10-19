@@ -34,6 +34,7 @@
     "verify": "pnpm lint && pnpm typecheck && pnpm test:coverage",
     "verify:e2e": "pnpm verify && pnpm e2e",
     "backfill:places": "tsx scripts/backfill-place-coordinates.ts",
+    "backfill:trust": "tsx scripts/backfill-trust.ts",
     "signals:listings": "tsx scripts/import-listing-signals.ts",
     "places:export": "tsx scripts/places-seed.ts export",
     "places:import": "tsx scripts/places-seed.ts import"

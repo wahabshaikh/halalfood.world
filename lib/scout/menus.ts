@@ -40,6 +40,7 @@ import {
 import { httpsSourceUrl, type ClaimOutcome } from "@/lib/core/place-claims";
 import { runBatch } from "@/lib/checks-repository";
 import { publishListingChange } from "@/lib/listing-cache";
+import { recomputeTrust } from "@/lib/trust";
 import { applyClaims } from "./claims";
 import type { ScoutDeps } from "./deps";
 import { targetPlace, type PlaceFailure } from "./places";
@@ -204,6 +205,8 @@ export async function upsertMenu(deps: ScoutDeps, input: UpsertMenuInput): Promi
   const sourceRows = menu.sources.map((source) => sql`(${crypto.randomUUID()}, ${placeId}, ${source.position}, ${source.url}, ${source.type})`);
   statements.push(sql`INSERT INTO place_menu_sources (id, place_id, position, url, type) VALUES ${sql.join(sourceRows, sql`, `)}`);
   await runBatch(deps.db, statements);
+  // A menu adds to trust (lib/trust.ts); it never touches halal status.
+  if (!existing) await recomputeTrust(placeId, deps.db, now);
   return reply(existing ? "updated" : "created", captured.value);
 }
 
@@ -269,6 +272,8 @@ export async function setMenuCheck(deps: ScoutDeps, input: SetMenuCheckInput): P
     if (applied.changed)
       await publishListingChange({ actorUserId: "mcp:scout", change: "place-claims", placeId, citySlug: target.place.citySlug }, deps.db).catch(() => null);
   }
+  // Pork on the menu caps trust and alcohol earns a badge, even when the claims were kept (lib/trust.ts).
+  if (!same) await recomputeTrust(placeId, deps.db, now);
   return {
     ok: true,
     result: same ? "unchanged" : existing ? "updated" : "created",

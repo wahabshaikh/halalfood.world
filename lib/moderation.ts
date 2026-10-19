@@ -206,6 +206,11 @@ export async function actOnReport(reportId: string, moderatorId: string, input: 
           sql`UPDATE places SET logo_url = (SELECT logo_url FROM places WHERE id = ${targetId}), logo_source_url = (SELECT logo_source_url FROM places WHERE id = ${targetId})
               WHERE id = ${into} AND logo_url IS NULL`,
           sql`UPDATE OR IGNORE creator_verifications SET place_id = ${into} WHERE place_id = ${targetId}`,
+          // One vouch per member and place: the kept place's own win. Their contributions follow, so trust still finds them.
+          sql`UPDATE OR IGNORE vouches SET place_id = ${into} WHERE place_id = ${targetId}`,
+          sql`UPDATE contributions SET place_id = ${into},
+              ref_id = CASE WHEN ref_table = 'vouches' THEN user_id || ':' || ${into} ELSE ref_id END
+              WHERE place_id = ${targetId}`,
           close("actioned"),
           log({ place: targetId, name: place.name }, { into }),
           sql`DELETE FROM places WHERE id = ${targetId}`,
