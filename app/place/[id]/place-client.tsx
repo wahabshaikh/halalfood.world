@@ -276,3 +276,102 @@ export function AddEvidence({ placeId, signedIn }: { placeId: string; signedIn: 
     </>
   );
 }
+
+type Rating = "" | "disliked" | "liked" | "loved";
+
+/** The last 12 months, newest first, as `{value: YYYY-MM, label}`. */
+function recentMonths(now = new Date()) {
+  return Array.from({ length: 12 }, (_, index) => {
+    const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - index, 1));
+    return { value: month.toISOString().slice(0, 7), label: month.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }) };
+  });
+}
+
+/** "I ate here" (spec §5.2): a one-tap vouch with an optional month, rating and note. */
+export function VouchButton({ placeId, signedIn }: { placeId: string; signedIn: boolean }) {
+  const sheet = useSheet("vouch");
+  const [months, setMonths] = useState<{ value: string; label: string }[]>([]);
+  const [ateAt, setAteAt] = useState("");
+  const [rating, setRating] = useState<Rating>("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const field = "h-11 w-full rounded-xl border border-input bg-background px-3 text-sm font-semibold outline-none focus:border-foreground";
+
+  const open = () => {
+    if (!signedIn) return window.location.assign(loginHref(currentReturnPath()));
+    const next = recentMonths();
+    setMonths(next);
+    setAteAt((current) => current || next[0].value);
+    sheet.show();
+  };
+  const send = async () => {
+    setBusy(true);
+    try {
+      const { message } = await api<{ message: string }>(`/api/places/${placeId}/vouch`, {
+        method: "POST",
+        json: { ateAt, ...(rating ? { rating } : {}), ...(note.trim() ? { note } : {}) },
+      });
+      toast(message);
+      sheet.hide();
+      window.location.reload();
+    } catch (error) {
+      toast(errorText(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <button type="button" onClick={open} className={buttonClass("dark", "lg", "min-h-[50px] w-full")}>
+        I ate here
+      </button>
+      <Sheet open={sheet.open} onClose={sheet.hide} title="I ate here">
+        <div className="grid gap-4">
+          <label className="grid gap-1.5 text-sm font-extrabold">
+            When?
+            <select value={ateAt} onChange={(event) => setAteAt(event.target.value)} className={field}>
+              {months.map((month) => (
+                <option key={month.value} value={month.value}>
+                  {month.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Segmented
+            label="How was it? (optional)"
+            value={rating}
+            onChange={(value) => setRating(value === rating ? "" : value)}
+            options={[
+              { value: "disliked", label: "Disliked" },
+              { value: "liked", label: "Liked" },
+              { value: "loved", label: "Loved" },
+            ]}
+          />
+          <label className="grid gap-1.5 text-sm font-extrabold">
+            <span>
+              Note <span className="font-semibold text-muted-foreground">(optional)</span>
+            </span>
+            <textarea
+              rows={2}
+              maxLength={280}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="e.g. The lamb biryani was great"
+              className="w-full resize-none rounded-[14px] border border-input px-3.5 py-3 text-[15px] font-semibold"
+            />
+          </label>
+          <p className="text-[13px] leading-relaxed font-semibold text-subtle-foreground">
+            You’re saying you ate here and it’s halal. Want to answer the four questions too?{" "}
+            <a href={`/place/${placeId}/check`} className="font-extrabold text-foreground underline underline-offset-3">
+              Add details
+            </a>
+          </p>
+          <button type="button" disabled={busy || !ateAt} onClick={() => void send()} className={buttonClass("dark", "lg", "w-full")}>
+            {busy ? "Sending…" : "Vouch for this place"}
+          </button>
+        </div>
+      </Sheet>
+    </>
+  );
+}
