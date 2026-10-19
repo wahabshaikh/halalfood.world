@@ -75,8 +75,10 @@ test("createSponsorCheckout sends a monthly plan with the sponsorship id and ret
   assert.equal(body.plan.product, undefined);
   assert.equal(body.plan.visibility, "hidden");
   assert.equal(body.plan.plan_type, "renewal");
-  assert.equal(body.plan.initial_price, SPONSOR_PRICE_USD);
+  // Whop's first charge on a renewing plan is initial_price + renewal_price; it must be exactly $49, not $98.
+  assert.equal(body.plan.initial_price, 0);
   assert.equal(body.plan.renewal_price, SPONSOR_PRICE_USD);
+  assert.equal(body.plan.initial_price + body.plan.renewal_price, 49);
   assert.equal(body.plan.billing_period, SPONSOR_PERIOD_DAYS);
   assert.equal(body.redirect_url, "https://halalfood.world/sponsor/thanks?id=s1");
 });

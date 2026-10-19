@@ -47,7 +47,8 @@ export async function createSponsorCheckout(
         visibility: "hidden",
         plan_type: "renewal",
         currency: "usd",
-        initial_price: SPONSOR_PRICE_USD,
+        // Whop charges initial_price on top of the first renewal_price, so 0 keeps the first charge at $49.
+        initial_price: 0,
         renewal_price: SPONSOR_PRICE_USD,
         billing_period: SPONSOR_PERIOD_DAYS,
         title: `Sponsor ${request.cityLabel}`,
