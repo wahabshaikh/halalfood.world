@@ -16,7 +16,7 @@
  *      published menu Scout reads is not a source here: only a flagged menu
  *      check reaches this module, as a web claim (lib/core/menus.ts).
  * 3. When settling sources disagree the fact is disputed, not settled.
- * 4. A place is Verified when all four facts are settled.
+ * 4. A place is Confirmed when all four facts are settled.
  *
  * Only a person's latest check at a place counts, and only once their account
  * is a day old. Social signals (likes, follows, lists, points) never reach
@@ -278,7 +278,7 @@ export function factTags(facts: Record<Fact, Definite | null>): { text: string; 
 }
 
 export function statusLabel(status: PlaceStatus, short = false): string {
-  if (status.kind === "verified") return "✓ Verified";
+  if (status.kind === "verified") return "✓ Confirmed";
   if (status.kind === "checking")
     return short ? `${status.progress} of 3` : `${status.progress} of 3 checks`;
   return short ? "Not checked" : "Not checked yet";
@@ -302,7 +302,7 @@ export const FILTERS = ["verified", "owned", "certified", "no-pork", "no-alcohol
 export type Filter = (typeof FILTERS)[number];
 
 export const FILTER_LABEL: Record<Filter, string> = {
-  verified: "Verified",
+  verified: "Confirmed",
   owned: "Muslim-owned",
   certified: "Halal certified",
   "no-pork": "No pork",

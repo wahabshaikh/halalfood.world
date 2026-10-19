@@ -11,7 +11,7 @@ test("a place without coordinates renders, says its location is pending and skip
   expect((await page.goto(`/place/${PENDING}`))?.status()).toBe(200);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(NAME);
   await expect(page.getByText("Location pending: this place isn’t on the map yet.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Directions" }).first()).toHaveAttribute("href", /query=Seed%20Pending%20Pin%20Cafe/);
+  await expect(page.getByRole("link", { name: "Directions" }).first()).toHaveAttribute("href", /destination=Seed%20Pending%20Pin%20Cafe/);
   // Nearby needs this place's own coordinates; the seed's London places would otherwise show there.
   await expect(page.getByRole("region", { name: "Nearby" })).toHaveCount(0);
   expect(errors).toEqual([]);

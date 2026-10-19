@@ -20,6 +20,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Exp
     return (
       <AppShell active="explore">
         <Page size="content">
+          <h1 className="sr-only">Halal food near you</h1>
           <EmptyState
             title="No places are listed yet"
             body="If it’s on Google Maps, you can add it."

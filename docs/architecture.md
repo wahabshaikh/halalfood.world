@@ -30,6 +30,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | --- | --- | --- |
 | `/`, `/city/[slug]` | – | Explore: city switcher, search, This week in {city}, Guides & lists, filter chips and places. |
 | `/cities` | – | Choose a city. |
+| `/connect` | – | Connect Claude, ChatGPT or Cursor to the public read-only member MCP endpoint. Noindex until write tools ship. |
 | `/search` | – | Places, people, lists and cities. |
 | `/map` | – | The map, with the same filters as Explore. |
 | `/place/[id]` | – | A place: status, the four facts, actions, friends, dishes, photos, videos, notes, nearby. An unverified imported place adds the "Unverified" notice and is `noindex` ([SEO](#seo-aeo-and-geo)). |
@@ -77,6 +78,19 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `POST /api/mcp` (`GET`/`DELETE` 405) | Halal Food Scout's admin MCP endpoint. Bearer `MCP_ADMIN_SECRET`; see [below](#halal-food-scout-admin-mcp). |
 
 Every write needs a session and spends a per-user and per-IP budget (checks 20 a day, places 10, recs 30, reports 10, comments 100). Reads that show checks apply one visibility rule: unshared checks are the author's alone, nothing crosses a block, and a private account's checks show only to accepted followers. `tests/check-visibility-audit.test.ts` fails if a query over `checks` doesn't say which audience it serves.
+
+#### Member MCP (public, read-only)
+
+`POST /api/mcp/member` is the public member MCP endpoint (`halalfood-world`), separate from Scout.
+It needs no session or admin token and exposes only `search_places` (query 1–64 characters, optional city slug,
+limit 1–10, default 10) and `get_place` (place id). Both reuse the public listed-place read paths and return only
+id, name, city slug, area, cuisine, halal status, the four facts and a canonical place URL. City prioritizes
+results rather than filtering them. No people, check authors, emails or Google snapshots are exposed.
+The transport is stateless JSON-RPC over POST; GET/DELETE return 405, bodies over 64 KB return 413 (including
+streamed bodies), and all responses use `Cache-Control: no-store`. Halal status comes from community checks
+and reviewed documents; bulk scraping is prohibited. Reads are limited per client IP by the `MEMBER_MCP_READ_LIMITER`
+binding (60 a minute, namespaces 81004 / preview 81104); over it the endpoint answers 429.
+See [member-mcp.md](member-mcp.md) for client setup.
 
 ## Halal Food Scout (admin MCP)
 
@@ -436,7 +450,7 @@ The limiter fails closed if D1 is unavailable, so a provider outage cannot turn 
 
 ## Schema
 
-The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. Later migrations add `place_signals` (0002), the email sink (0003), `creator_profiles` / `creator_verifications` (0004, Halal Food Scout), `place_claims` (0005, Scout's sourced web claims), `places.location_source` (0006) and `places.import_source` / `places.import_verified_at` with the `places_indexable_idx` partial index (0007, imported-place provenance; its operator-only rollback is `scripts/rollback/0007_place_provenance_down.sql`, outside `migrations/` so no deploy runs it), the menu tables and logo columns (0008, Scout menus), the Whop sponsorship tables (0009) and the community trust tables `contributions`, `vouches`, `member_trust` and `contribution_points` with the `place_status` trust columns (0010; rules in `lib/core/trust.ts` and `lib/core/contributions.ts`; `recomputeTrust` in `lib/trust.ts` writes the place trust columns after every halal recompute and after creator verification and Scout menu writes, and nothing reads them yet). `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
+The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. Later migrations add `place_signals` (0002), the email sink (0003), `creator_profiles` / `creator_verifications` (0004, Halal Food Scout), `place_claims` (0005, Scout's sourced web claims), `places.location_source` (0006) and `places.import_source` / `places.import_verified_at` with the `places_indexable_idx` partial index (0007, imported-place provenance; its operator-only rollback is `scripts/rollback/0007_place_provenance_down.sql`, outside `migrations/` so no deploy runs it), the menu tables and logo columns (0008, Scout menus), the Whop sponsorship tables (0009) and the community trust tables `contributions`, `vouches`, `member_trust` and `contribution_points` with the `place_status` trust columns (0010; rules in `lib/core/trust.ts` and `lib/core/contributions.ts`, nothing reads or writes them yet). `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
 
 Do not apply production migrations by splitting a file into statements: `wrangler d1 execute --command` treats a leading `--` comment as a flag, and a semicolon inside a comment is not a statement boundary.
 
@@ -477,8 +491,8 @@ When an imported place is verified (or loses its last evidence), `recomputePlace
 
 ## Data and bounded APIs
 
-- Every list endpoint is limit-clamped and parameterized; search escapes wildcard characters and caps `q` at 64 characters.
-- Status is computed in TypeScript and written to `place_status` in the same D1 batch as the check, so Explore, the map and search filter with plain SQL. Filters match the fact's current value, settled or not; Verified needs all four settled.
+- Every list endpoint is limit-clamped and parameterized; search uses literal `instr()` matching and caps `q` at 64 characters. Place search splits a leading or trailing known city using the cached city directory, then ANDs up to four words across searchable fields (under 100 bound parameters).
+- Status is computed in TypeScript and written to `place_status` in the same D1 batch as the check, so Explore, the map and search filter with plain SQL. Filters match the fact's current value, settled or not; Confirmed (`verified`) needs all four settled.
 - A status flip writes `place_status_changes` and tells everyone who saved the place.
 - Points (3 a check, 5 for adding a place, 10 for helping verify one) are an append-only ledger with one award per kind, place and person per day. They rank the Community board and never touch status.
 - Coordinates come from Google Places when a place is added; older rows may carry approximate city-centre coordinates until backfilled.
