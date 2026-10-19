@@ -31,13 +31,15 @@ export type PlaceCard = {
   photoKey: string | null;
   /** The restaurant's own https logo (Halal Food Scout), shown when there is no photo. Absent in older cached reads. */
   logoUrl?: string | null;
+  /** Imported from a public directory and not yet verified to exist: shows the "Unverified" label (lib/core/provenance.ts). */
+  unverified: boolean;
 };
 
 /** Columns for `SELECT … FROM places p JOIN place_status s ON s.place_id = p.id`. */
 export const PLACE_CARD_COLUMNS = sql.raw(`
   p.id, p.name, p.city_slug, p.serves_cuisine, p.address_locality, p.street_address,
   p.lat, p.lng, s.status, s.progress, s.owned_value, s.certified_value, s.pork_value,
-  s.alcohol_value, p.logo_url,
+  s.alcohol_value, p.logo_url, (p.import_source IS NOT NULL AND p.import_verified_at IS NULL) AS unverified,
   (SELECT ph.r2_key FROM place_photos ph WHERE ph.place_id = p.id ORDER BY ph.created_at DESC LIMIT 1) AS photo_key
 `);
 
@@ -45,6 +47,15 @@ export const PLACE_CARD_FROM = sql.raw(`places p JOIN place_status s ON s.place_
 
 /** Public listing rule: everything listed is public. Hidden and closed stay in the table. */
 export const LISTED = sql.raw(`p.listing_status = 'listed'`);
+
+/** Imported and not yet verified to exist: labelled "Unverified" and noindexed (`isUnverifiedImport`). */
+export const UNVERIFIED_SQL = sql.raw(`(p.import_source IS NOT NULL AND p.import_verified_at IS NULL)`);
+
+/**
+ * Listed places search engines may index: the sitemap's rule. Written exactly as
+ * the `places_indexable_idx` partial index (migration 0007) so SQLite uses it.
+ */
+export const INDEXABLE = sql.raw(`p.listing_status = 'listed' AND (p.import_source IS NULL OR p.import_verified_at IS NOT NULL)`);
 
 export function parseCuisines(value: unknown): string[] {
   if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
@@ -95,6 +106,7 @@ export function toPlaceCard(row: Record<string, unknown>): PlaceCard {
     facts,
     photoKey: typeof row.photo_key === "string" ? row.photo_key : null,
     logoUrl: httpsLogoUrl(row.logo_url),
+    unverified: Number(row.unverified) === 1,
   };
 }
 

@@ -108,6 +108,7 @@ export default async function ListPage({ params }: Props) {
                   note: place.note,
                   been: place.been,
                   addedByUserId: place.addedByUserId,
+                  unverified: place.unverified,
                 }))}
               />
             </div>

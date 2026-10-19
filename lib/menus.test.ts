@@ -47,7 +47,7 @@ test("the 0008 rollback drops only what 0008 added, and 0008 applies again after
   sqlite.prepare(`INSERT INTO places (id, name, city_slug, street_address, created_at, updated_at) VALUES ('p1', 'Cafe', 'london', 'London', 1, 1)`).run();
   sqlite.prepare(`INSERT INTO place_claims (id, place_id, source, fact, value, source_url, created_at, updated_at) VALUES ('c1', 'p1', 'scout', 'alcohol', 'yes', 'https://example.com', 1, 1)`).run();
 
-  sqlite.exec(readFileSync(join(MIGRATIONS, "rollback/0008_menus.down.sql"), "utf8"));
+  sqlite.exec(readFileSync(join(MIGRATIONS, "../scripts/rollback/0008_menus_down.sql"), "utf8"));
   assert.deepEqual(tables(), []);
   assert.deepEqual(placeColumns(), before.filter((name) => name !== "logo_url" && name !== "logo_source_url"));
   // Earlier tables and rows are untouched.

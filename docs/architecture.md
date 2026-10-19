@@ -10,6 +10,8 @@ in [spec/](spec/README.md).
 
 **Everything social is context, never evidence.** Follows, the Friends feed, likes, comments, lists, recs, events, points, creator videos and creator verifications help people decide where to eat, but none of them can change a place's status. Places can only be added from a Google Maps result and go live at once, with the adder's answers as the first check. Moderators act on reports and nothing else.
 
+**Imported places are "Unverified" until something shows they exist.** About 7.7k places were imported from halalfoodnear.me (scraped Sep 13, 2026, carried over at the Oct 5 cutover; `places.import_source = 'halalfoodnear.me'`). Until one has a counted check, an approved certificate or menu, a creator video verification, or a Scout certified claim with its source, it carries an "Unverified" chip on cards and the map card, an explainer on its page, `noindex`, and no sitemap entry. This is provenance, not a halal status: it never changes the status, and the status never depends on it ([halal model](spec/halal-model.md#provenance), [runbook](runbooks/unverified-imports.md)).
+
 ## Styling and icons
 
 **Styling.** Pages are composed from shadcn/ui components; there is no hand-written stylesheet. Colours, radii and fonts are theme tokens in `app/globals.css` (primary is the tandoor orange, plus `success`, `warning` and `info` tokens used for halal status tones), and layout uses Tailwind utilities on those components. App-level building blocks shared by several pages live in `components/hf` (`kit` for buttons, pills, meters and art; `kit-client` for sheets, toasts and the save heart; `app-shell` and `nav-tabs` for the five-tab frame). To add a shadcn component (it lands in `components/ui`):
@@ -30,7 +32,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/cities` | – | Choose a city. |
 | `/search` | – | Places, people, lists and cities. |
 | `/map` | – | The map, with the same filters as Explore. |
-| `/place/[id]` | – | A place: status, the four facts, actions, friends, dishes, photos, videos, notes, nearby. |
+| `/place/[id]` | – | A place: status, the four facts, actions, friends, dishes, photos, videos, notes, nearby. An unverified imported place adds the "Unverified" notice and is `noindex` ([SEO](#seo-aeo-and-geo)). |
 | `/place/[id]/check` | ✓ | Check a place: the four questions, how it was, dishes, photos, a note, then Check sent. |
 | `/add`, `/add/video` | search –, submit ✓ | Add a place from Google Maps; save a place from a TikTok, Reel or YouTube link. |
 | `/login` | – | Email code sign-in with Turnstile. A new account goes to `/welcome`. |
@@ -50,7 +52,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 
 | Method & path | Purpose |
 | --- | --- |
-| `GET /api/places` | Explore and map: `city`, `bbox`, `near`, `filters`, `friends`, `offset`, `limit`. |
+| `GET /api/places` | Explore and map: `city`, `bbox`, `near`, `filters`, `friends`, `offset`, `limit`. Every place (here, in `GET /api/places/[id]`, search, saved, lists and the feed) carries `unverified: boolean`: true for an imported place not yet verified to exist. Added Oct 2026; older clients can ignore it. |
 | `POST /api/places` | Add a place from a Google result with optional answers. 409 with the id for a duplicate. |
 | `GET /api/places/google-search` | Google Places text search for Add, rate-limited and capped per day; marks results already listed. |
 | `GET /api/places/[id]`, `GET/POST /api/places/[id]/checks`, `GET /api/places/[id]/notes` | A place, its checks, and its shared notes. |
@@ -242,7 +244,7 @@ plus `places.logo_url` / `places.logo_source_url`.
 - The place page groups items by section (in menu order) with `Intl.NumberFormat` prices, shows the first 10 and
   folds the rest behind "Show all n items" (`<details>`), and cites each source and the read date.
 - A moderator merge moves the menu, menu check (with items, sources and flags, by `ON UPDATE CASCADE`) and logo to
-  the kept place unless it has its own. Rollback for the schema: [`migrations/rollback/0008_menus.down.sql`](../migrations/rollback/0008_menus.down.sql),
+  the kept place unless it has its own. Rollback for the schema: [`scripts/rollback/0008_menus_down.sql`](../scripts/rollback/0008_menus_down.sql),
   only before or together with reverting the code; wrangler ignores that folder.
 
 **Ingest filters.** `upsert_place` refuses, and `add_verification` refuses for an existing place that fails:
@@ -256,7 +258,9 @@ same `hiddenListingReason` rule that hides pubs, bars, breweries and wine bars).
 a person linked it already), so the place's Videos and the creator page show it; removing one deletes only the link
 it added. The place page shows "Verified by <creator> in a video" under **From creators** and the profile shows
 **Verified in videos**. Neither touches checks, `place_signals` or `place_status` (AGENTS.md rule 4,
-[halal model](spec/halal-model.md)). A moderator merge moves verifications to the kept place.
+[halal model](spec/halal-model.md)). A moderator merge moves verifications to the kept place. A verification does
+show the place exists, so adding or removing one recomputes an imported place's "Unverified" label
+([provenance](spec/halal-model.md#provenance)), as does a `halal_certified: yes` attribute with its source URL.
 
 **Volume and limits.** Batch tools take at most 25 items and run 5 at a time; items that share a key (channel or
 handle; city or Google id; creator) run one after another, so a batch can't duplicate itself. Each item returns in
@@ -364,7 +368,7 @@ The limiter fails closed if D1 is unavailable, so a provider outage cannot turn 
 
 ## Schema
 
-The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. Later migrations add `place_signals` (0002), the email sink (0003), `creator_profiles` / `creator_verifications` (0004, Halal Food Scout) and `place_claims` (0005, Scout's sourced web claims), `places.location_source` (0006) and the menu tables and logo columns (0008, Scout menus; there is no 0007 on `main`). `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
+The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. Later migrations add `place_signals` (0002), the email sink (0003), `creator_profiles` / `creator_verifications` (0004, Halal Food Scout), `place_claims` (0005, Scout's sourced web claims), `places.location_source` (0006) and `places.import_source` / `places.import_verified_at` with the `places_indexable_idx` partial index (0007, imported-place provenance; its operator-only rollback is `scripts/rollback/0007_place_provenance_down.sql`, outside `migrations/` so no deploy runs it) and the menu tables and logo columns (0008, Scout menus). `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
 
 Do not apply production migrations by splitting a file into statements: `wrangler d1 execute --command` treats a leading `--` comment as a flag, and a semicolon inside a comment is not a statement boundary.
 
@@ -384,6 +388,7 @@ City and place pages distinguish a missing row (a real 404) from an unreachable 
 - Paginated city views (`?page=2`) canonicalise to page one so ranking signals stay on a single URL.
 - JSON-LD marks coordinates with `additionalProperty: locationPrecision = approximate`, and carries the same disclaimer the UI shows. Do not remove it: the coordinates are city centroids plus jitter, and structured data that implies otherwise would be misleading.
 - `lib/seo.ts` holds the pure title/description/JSON-LD helpers and is unit-tested in `lib/seo.test.ts`.
+- Unverified imported places (`import_source IS NOT NULL AND import_verified_at IS NULL`, `UNVERIFIED_SQL` in `lib/place-view.ts`) are kept out of search until verified: the page sets `robots: noindex, follow`, the Worker adds `X-Robots-Tag: noindex` (`lib/robots-header.ts`, one primary-key read in parallel with the render), JSON-LD carries the same "Unverified" wording as the page, and the place sitemap leaves them out. City pages still list them; their pages are linked and followed, just not indexed.
 
 ### Sitemap strategy
 
@@ -393,10 +398,12 @@ City and place pages distinguish a missing row (a real 404) from an unreachable 
 | --- | --- |
 | `/sitemaps/core/sitemap.xml` | Home, the city directory, events and community. |
 | `/sitemaps/cities/sitemap.xml` | One entry per distinct `city_slug`, capped at 2,000. |
-| `/sitemaps/places/sitemap/N.xml` | Places, 5,000 per file, from an id-ordered scan so chunk boundaries stay stable. |
+| `/sitemaps/places/sitemap/N.xml` | Indexable places (`INDEXABLE` in `lib/place-view.ts`: listed, and not an unverified import), 5,000 per file, from an id-ordered scan on `places_indexable_idx` so chunk boundaries stay stable. |
 | `/sitemaps/social/sitemap.xml` | Public lists, public profiles with a shared check, and upcoming events. |
 
 `robots.txt` disallows `/api/`, `/search` and the signed-in screens (`/me`, `/saved`, `/inbox`, `/friends`, `/admin`, `/welcome`, `/add`, `/login`). Place, city, list and profile pages render the viewer's saves and friends on the server, so only `/cities` and the sitemaps are cached at the edge.
+
+When an imported place is verified (or loses its last evidence), `recomputePlaceVerification` publishes a listing change, which moves cached listing reads to a new key and purges the `sitemaps` cache tag. Without that purge the place still appears within the existing lifetimes: the place sitemap read is cached for 6 hours, the count for 1 hour, and the documents for `s-maxage` 6 hours (plus `stale-while-revalidate`). Place pages are never edge-cached, so their `noindex` follows the data on the next request.
 
 `MAX_PLACE_CHUNKS` in `lib/sitemap.ts` caps the index at 50 chunks if the table ever grows far beyond its current size. If the count query fails, the index still advertises the core and city sitemaps rather than returning nothing.
 

@@ -885,11 +885,28 @@ test("the seed's Scout-claimed places carry the status recomputePlaceStatus give
   sqlite.exec(readFileSync(join(import.meta.dirname, "../../seed/local.sql"), "utf8"));
   const columns = "status, progress, owned_value, certified_value, pork_value, alcohol_value, owned_settled, certified_settled, pork_settled, alcohol_settled, owned_sources, certified_sources, pork_sources, alcohol_sources";
   // 0003 is Seed Shawarma Bar, whose flagged menu check wrote a Scout alcohol claim.
-  for (const id of ["00000000-0000-4000-8000-000000000003", "00000000-0000-4000-8000-000000000007", "00000000-0000-4000-8000-000000000008"]) {
+  for (const id of ["00000000-0000-4000-8000-000000000003", "00000000-0000-4000-8000-000000000007", "00000000-0000-4000-8000-000000000008", "00000000-0000-4000-8000-000000000011"]) {
     const seeded = { ...(sqlite.prepare(`SELECT ${columns} FROM place_status WHERE place_id = ?`).get(id) as object) };
     await recomputePlaceStatus(id, deps.db, NOW);
     assert.deepEqual({ ...(sqlite.prepare(`SELECT ${columns} FROM place_status WHERE place_id = ?`).get(id) as object) }, seeded, id);
   }
+});
+
+test("the seed's imported places carry the provenance migration 0007 and recomputes give them", async () => {
+  const { deps, sqlite } = setup();
+  sqlite.exec(readFileSync(join(import.meta.dirname, "../../seed/local.sql"), "utf8"));
+  const provenance = () =>
+    sqlite.prepare(`SELECT id, import_source, import_verified_at FROM places WHERE import_source IS NOT NULL ORDER BY id`).all().map((row) => ({ ...row }));
+  const seeded = provenance();
+  assert.deepEqual(seeded, [
+    { id: "00000000-0000-4000-8000-000000000010", import_source: "halalfoodnear.me", import_verified_at: null },
+    { id: "00000000-0000-4000-8000-000000000011", import_source: "halalfoodnear.me", import_verified_at: 1790000000000 },
+  ]);
+  // The seed's created_at and submitter match the import predicate, and nothing else does.
+  const matches = sqlite.prepare(`SELECT id FROM places WHERE created_at = 1789282699475 AND submitted_by_user_id IS NULL ORDER BY id`).all();
+  assert.deepEqual(matches.map((row) => row.id), seeded.map((row) => row.id));
+  for (const { id } of seeded) await recomputePlaceStatus(String(id), deps.db, NOW);
+  assert.deepEqual(provenance(), seeded);
 });
 
 /* ------------------------------------------------ coordinates and force_new */

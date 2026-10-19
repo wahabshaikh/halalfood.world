@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { ExploreItem } from "@/lib/explore";
 import { formatDistance, photoUrl } from "@/lib/place-view";
-import { Avatar, FactTags, PlaceArt, ROW_CARD, StatusPill } from "./kit";
+import { Avatar, FactTags, PlaceArt, ROW_CARD, StatusPill, UnverifiedChip } from "./kit";
 import { SaveHeart } from "./kit-client";
 
 /** One place in a list: art, name, where, status, facts, a friend line and the heart. */
@@ -24,6 +24,7 @@ export function PlaceRow({ place, signedIn, compact = false }: { place: ExploreI
           {meta && <span className="truncate text-[13px] font-semibold text-muted-foreground">{meta}</span>}
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <StatusPill status={place.status} />
+            {place.unverified && <UnverifiedChip />}
             {!compact && <FactTags facts={place.facts} />}
           </span>
           {place.friend && !compact && (
