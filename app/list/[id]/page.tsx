@@ -109,6 +109,7 @@ export default async function ListPage({ params }: Props) {
                   been: place.been,
                   addedByUserId: place.addedByUserId,
                   unverified: place.unverified,
+                  badges: place.badges,
                 }))}
               />
             </div>

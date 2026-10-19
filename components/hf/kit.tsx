@@ -28,6 +28,7 @@ import {
   type PlaceStatus,
 } from "@/lib/core/halal";
 import { UNVERIFIED_EXPLAINER, UNVERIFIED_LABEL } from "@/lib/core/provenance";
+import { BADGE_LABEL, isProofBadge, type Badge } from "@/lib/core/trust";
 import { placeInitials } from "./place-photo";
 
 export function Icon({
@@ -238,6 +239,43 @@ export function UnverifiedChip({ className }: { className?: string }) {
   );
 }
 
+/**
+ * A place's earned badges (lib/core/trust.ts), proof first and warnings in amber. `linked` (the place page) makes each
+ * one a 44px link to /how-trust-works; inside a card, which is already a link, they are plain.
+ */
+export function BadgeRow({ badges, linked = false, className }: { badges?: readonly Badge[]; linked?: boolean; className?: string }) {
+  if (!badges?.length) return null;
+  return (
+    <span role="list" aria-label="Badges" data-testid="badges" className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-1", linked && "gap-y-0", className)}>
+      {badges.map((badge) => {
+        const pill = (
+          <span
+            className={cn(
+              "inline-flex h-[22px] shrink-0 items-center gap-1 rounded-full px-2.5 text-xs font-extrabold whitespace-nowrap",
+              isProofBadge(badge) ? "bg-success-muted text-success" : "bg-warning-muted text-warning-strong",
+              linked && "h-[26px] text-[13px]",
+            )}
+          >
+            {isProofBadge(badge) && <Icon icon={Tick02Icon} size={13} strokeWidth={2.5} />}
+            {BADGE_LABEL[badge]}
+          </span>
+        );
+        return (
+          <span role="listitem" key={badge}>
+            {linked ? (
+              <a href="/how-trust-works" aria-label={`${BADGE_LABEL[badge]}: what this badge means`} className="inline-flex min-h-11 items-center">
+                {pill}
+              </a>
+            ) : (
+              pill
+            )}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 /** The place page's "Unverified" note, with the explainer and what lifts it. */
 export function UnverifiedNotice({ className }: { className?: string }) {
   return (
@@ -277,8 +315,8 @@ export function statusSubline(status: PlaceStatus, latest: string | null, people
   }
   if (status.kind === "checking")
     return status.progress === 2
-      ? "One more matching check makes this Verified"
-      : "Two more matching checks to verify";
+      ? "One more matching check makes this Confirmed"
+      : "Two more matching checks to confirm";
   return "Nobody has checked this place. That doesn’t mean it isn’t halal.";
 }
 
@@ -310,7 +348,7 @@ export function StatusCard({
   }[status.kind];
   const icon = status.kind === "verified" ? Tick02Icon : status.kind === "checking" ? Clock01Icon : HelpCircleIcon;
   const title =
-    status.kind === "verified" ? "Verified" : status.kind === "checking" ? `${status.progress} of 3 checks` : "Not checked yet";
+    status.kind === "verified" ? "Confirmed" : status.kind === "checking" ? `${status.progress} of 3 checks` : "Not checked yet";
   return (
     <section aria-label="Halal status" className={cn("grid gap-3 rounded-[20px] p-4 lg:p-5", tone, className)}>
       <div className="flex items-center gap-2.5">

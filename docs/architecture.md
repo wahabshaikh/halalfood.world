@@ -33,7 +33,8 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/connect` | – | Connect Claude, ChatGPT or Cursor to the public read-only member MCP endpoint. Noindex until write tools ship. |
 | `/search` | – | Places, people, lists and cities. |
 | `/map` | – | The map, with the same filters as Explore. |
-| `/place/[id]` | – | A place: status, the four facts, actions, friends, dishes, photos, videos, notes, nearby. An unverified imported place adds the "Unverified" notice and is `noindex` ([SEO](#seo-aeo-and-geo)). |
+| `/place/[id]` | – | A place: badges, the trust band as a word, "Verified by @a and N more" (a sheet lists everyone the viewer may see; `placeVouchers` in `lib/vouches.ts` counts accepted vouches with weight > 0, trusted first, and names people under the check visibility rule), status, the four facts, actions, friends, dishes, photos, videos, notes, nearby. An unverified imported place adds the "Unverified" notice and is `noindex` ([SEO](#seo-aeo-and-geo)). |
+| `/how-trust-works` | – | What each badge and trust band means. Badges on the place page link here. |
 | `/place/[id]/check` | ✓ | Check a place: the four questions, how it was, dishes, photos, a note, then Check sent. |
 | `/add`, `/add/video` | search –, submit ✓ | Add a place from Google Maps; save a place from a TikTok, Reel or YouTube link. |
 | `/login` | – | Email code sign-in with Turnstile. A new account goes to `/welcome`. |
@@ -43,11 +44,12 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/friends`, `/visit/[id]` | ✓ / visibility | The Friends feed and one visit with likes and comments. |
 | `/inbox` | ✓ | Activity and Recs. |
 | `/u/[handle]`, `/invite/[handle]` | visibility / – | Someone's profile; an invite landing. A creator profile adds the YouTube channel, subscribers, banner, "Verified in videos" and, while unclaimed, "Unclaimed. Is this you? Claim it". |
-| `/community` | – | The points leaderboard per city, this week or all time. |
+| `/community` | – | The points leaderboard per city, this week or all time: the old `points` ledger plus granted `contribution_points` (pending and revoked never count). |
 | `/events`, `/event/[id]` | – | Halal food events and their stalls. |
 | `/creator/[platform]/[handle]` | – | Places from a creator's videos; links to `/u/<handle>` when the channel has a creator profile. |
 | `/me`, `/me/settings`, `/me/privacy`, `/me/keys` | ✓ | You (Passport, Checks, Lists), Settings, Privacy & people, API keys. |
 | `/admin` | moderator | Reports, Evidence, Events and Sponsors. |
+| `/how-trust-works` | – | Plain-words explainer: the four halal facts and Confirmed, place badges, trust bands and points. Linked from the footer. |
 | `/newsletter` | – | City picks, new places and sponsor slots; subscribe and manage a Whop newsletter membership. |
 | `/sponsor`, `/sponsor/[citySlug]`, `/sponsor/thanks` | – / form ✓ / ✓ | Sponsor a city: the offer and which cities are open; one city's form, card preview and Whop checkout; the return page after paying. |
 
@@ -59,6 +61,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `POST /api/places` | Add a place from a Google result with optional answers. 409 with the id for a duplicate. |
 | `GET /api/places/google-search` | Google Places text search for Add, rate-limited and capped per day; marks results already listed. |
 | `GET /api/places/[id]`, `GET/POST /api/places/[id]/checks`, `GET /api/places/[id]/notes` | A place, its checks, and its shared notes. |
+| `POST /api/places/[id]/vouch` | "I ate here": `{ateAt?: YYYY-MM, rating?: disliked \| liked \| loved, note?: ≤ 280}`. One vouch per member and place (the latest counts), logged as a `contributions` row (hashed IP /24) and followed by `recomputeTrust`. A vouch with weight > 0 is accepted and pays 3 points once per place, ever, within 100 points a UTC day; a weight-0 vouch (account under 24 hours, suspended, cluster-damped) is kept pending with pending points. Returns `{status, points, trust, message}`. Logic in `lib/vouches.ts` (`vouchForPlace`), shared with the member MCP. |
 | `GET/POST /api/places/[id]/photos`, `DELETE …/photos/[photoId]`, `GET /api/photos/[...key]` | Photos (JPEG, PNG or WebP, 8 MB) and the R2 proxy. |
 | `POST/DELETE /api/places/[id]/saved`, `GET /api/places/saved` | Saves. |
 | `GET/POST /api/places/[id]/media`, `POST /api/media/match` | Video links and matching a pasted link to a place. |
@@ -77,7 +80,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/api/auth/*`, `POST /api/admin/email/healthcheck` | Better Auth; the optional email smoke check. |
 | `POST /api/mcp` (`GET`/`DELETE` 405) | Halal Food Scout's admin MCP endpoint. Bearer `MCP_ADMIN_SECRET`; see [below](#halal-food-scout-admin-mcp). |
 
-Every write needs a session and spends a per-user and per-IP budget (checks 20 a day, places 10, recs 30, reports 10, comments 100). Reads that show checks apply one visibility rule: unshared checks are the author's alone, nothing crosses a block, and a private account's checks show only to accepted followers. `tests/check-visibility-audit.test.ts` fails if a query over `checks` doesn't say which audience it serves.
+Every write needs a session and spends a per-user and per-IP budget (checks 20 a day, vouches 20 (60 per IP, plus a D1 count in `lib/vouches.ts`), places 10, recs 30, reports 10, comments 100). Reads that show checks apply one visibility rule: unshared checks are the author's alone, nothing crosses a block, and a private account's checks show only to accepted followers. `tests/check-visibility-audit.test.ts` fails if a query over `checks` doesn't say which audience it serves.
 
 #### Member MCP (public, read-only)
 
@@ -458,7 +461,7 @@ The limiter fails closed if D1 is unavailable, so a provider outage cannot turn 
 
 ## Schema
 
-The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. Later migrations add `place_signals` (0002), the email sink (0003), `creator_profiles` / `creator_verifications` (0004, Halal Food Scout), `place_claims` (0005, Scout's sourced web claims), `places.location_source` (0006) and `places.import_source` / `places.import_verified_at` with the `places_indexable_idx` partial index (0007, imported-place provenance; its operator-only rollback is `scripts/rollback/0007_place_provenance_down.sql`, outside `migrations/` so no deploy runs it) and the menu tables and logo columns (0008, Scout menus). `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
+The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. Later migrations add `place_signals` (0002), the email sink (0003), `creator_profiles` / `creator_verifications` (0004, Halal Food Scout), `place_claims` (0005, Scout's sourced web claims), `places.location_source` (0006) and `places.import_source` / `places.import_verified_at` with the `places_indexable_idx` partial index (0007, imported-place provenance; its operator-only rollback is `scripts/rollback/0007_place_provenance_down.sql`, outside `migrations/` so no deploy runs it), the menu tables and logo columns (0008, Scout menus), the Whop sponsorship tables (0009) and the community trust tables `contributions`, `vouches`, `member_trust` and `contribution_points` with the `place_status` trust columns (0010, plus `contribution_points_city_idx` in 0011 for the `/community` leaderboard, which counts only granted points; rules in `lib/core/trust.ts` and `lib/core/contributions.ts`; `recomputeTrust` in `lib/trust.ts` writes the place trust columns after every halal recompute and after creator verification, Scout menu and vouch writes; `POST /api/places/[id]/vouch` writes `vouches`, `contributions` and `contribution_points`, and `PLACE_CARD_COLUMNS` / `toPlaceCard` read `badges` and `trust_band` for place cards and the place page, where an Unverified import shows no badges until it earns a proof badge, `shownBadges`). `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
 
 Do not apply production migrations by splitting a file into statements: `wrangler d1 execute --command` treats a leading `--` comment as a flag, and a semicolon inside a comment is not a statement boundary.
 
@@ -486,7 +489,7 @@ City and place pages distinguish a missing row (a real 404) from an unreachable 
 
 | Child | Contents |
 | --- | --- |
-| `/sitemaps/core/sitemap.xml` | Home, the city directory, events, community, Sponsor a city and Newsletter. |
+| `/sitemaps/core/sitemap.xml` | Home, the city directory, events, community, How trust works, Sponsor a city and Newsletter. |
 | `/sitemaps/cities/sitemap.xml` | One entry per distinct `city_slug`, capped at 2,000. |
 | `/sitemaps/places/sitemap/N.xml` | Indexable places (`INDEXABLE` in `lib/place-view.ts`: listed, and not an unverified import), 5,000 per file, from an id-ordered scan on `places_indexable_idx` so chunk boundaries stay stable. |
 | `/sitemaps/social/sitemap.xml` | Public lists, public profiles with a shared check, and upcoming events. |
@@ -500,7 +503,7 @@ When an imported place is verified (or loses its last evidence), `recomputePlace
 ## Data and bounded APIs
 
 - Every list endpoint is limit-clamped and parameterized; search uses literal `instr()` matching and caps `q` at 64 characters. Place search splits a leading or trailing known city using the cached city directory, then ANDs up to four words across searchable fields (under 100 bound parameters).
-- Status is computed in TypeScript and written to `place_status` in the same D1 batch as the check, so Explore, the map and search filter with plain SQL. Filters match the fact's current value, settled or not; Verified needs all four settled.
+- Status is computed in TypeScript and written to `place_status` in the same D1 batch as the check, so Explore, the map and search filter with plain SQL. Filters match the fact's current value, settled or not; Confirmed (`verified`) needs all four settled.
 - A status flip writes `place_status_changes` and tells everyone who saved the place.
 - Points (3 a check, 5 for adding a place, 10 for helping verify one) are an append-only ledger with one award per kind, place and person per day. They rank the Community board and never touch status.
 - Coordinates come from Google Places when a place is added; older rows may carry approximate city-centre coordinates until backfilled.

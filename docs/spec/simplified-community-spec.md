@@ -118,7 +118,7 @@ Each fact has a favourable value, used for colour and filters:
 | pork | no ("Not served") | red ("Served") | No pork → `value = no` |
 | alcohol | no ("Not served") | red ("Served") | No alcohol → `value = no` |
 
-**Filters match on `value`, settled or not.** A place where the only answer is unknown is left out, never assumed. The "Verified" chip requires `status = verified`.
+**Filters match on `value`, settled or not.** A place where the only answer is unknown is left out, never assumed. The "Confirmed" chip requires `status = verified`.
 
 ### 2.5 Projection
 
@@ -363,7 +363,7 @@ The design canvas is the reference for each screen. This section adds the data s
 - Search field → `/search`.
 - "This week in {city}": events in the next 7 days, up to 5, horizontal. Hidden when there are none.
 - "Guides & lists": `guide` lists for the city first, then the most-saved public lists with city items, up to 6. Hidden when there are none.
-- "Places near you": filter chips `Friends' picks` (signed in only), `Verified`, `Muslim-owned`, `Halal certified`, `No pork`, `No alcohol`. Initial state = `profiles.default_filters`, or `localStorage` when signed out. Each change persists back to the same place.
+- "Places near you": filter chips `Friends' picks` (signed in only), `Confirmed`, `Muslim-owned`, `Halal certified`, `No pork`, `No alcohol`. Initial state = `profiles.default_filters`, or `localStorage` when signed out. Each change persists back to the same place.
 - Place row: photo or initials art, name, `cuisine · area · distance`, status pill, fact tags (favourable ones in green, `Serves pork/alcohol` in red, `Not Muslim-owned` in grey), and an optional friend line ("Zaid and 2 friends loved this" when a followee's latest shared check has verdict `loved`/`liked`; "Farah wants to try this" when only a save exists). A heart toggles save. Signed out, the heart goes to `/login?returnTo=`.
 - Floating Map button → `/map` with the same filters.
 - Empty filter result: "No places match all of these" plus Clear filters.
@@ -388,7 +388,7 @@ Top to bottom:
 
 1. Hero photo (latest place photo, else initials art), with Back, Send (→ Send sheet), Share (Web Share API, else copy link) and Save. "1 / n photos" opens the gallery.
 2. Name, then `cuisine · street address, city`.
-3. **Status card**: tone by status, title, subline (`verified`: "3 people checked separately and agree · latest {date}"; `checking`: "One more matching check makes this Community verified" when progress is 2, otherwise "{3−progress} more matching checks to verify"; `unchecked`: "Nobody has checked this place. That doesn't mean it isn't halal."), a 3-segment meter, and "How verification works" → sheet.
+3. **Status card**: tone by status, title, subline (`verified`: "3 people checked separately and agree · latest {date}"; `checking`: "One more matching check makes this Community verified" when progress is 2, otherwise "{3−progress} more matching checks to confirm"; `unchecked`: "Nobody has checked this place. That doesn't mean it isn't halal."), a 3-segment meter, and "How verification works" → sheet.
 4. **Halal facts**: 4 tiles. Each shows the question, the answer (`Yes`/`No`; `Served`/`Not served` for pork and alcohol; `Not known yet` when `value` is null) and an icon tone from [§2.4](#24-favourable-values).
 5. Actions: Directions in Google Maps or Apple Maps, with an adjacent app selector saved on this device (`hf:maps-app`). Default to Apple on iPhone/iPad/iPod, Google elsewhere; render Google before hydration. Use coordinates, then the address, then `maps_url`; hide when none exist. Call (when there's a telephone), Website (when there's a website).
 6. **Friends who've been** (signed in, at least one followee with a shared check): an avatar stack, one line, and the newest note → that check's visit page.
@@ -419,7 +419,7 @@ Five radio reasons, an optional detail field, and Send report → `POST /api/rep
 - "Share with followers" switch, on by default. For a private account, shared means accepted followers only.
 - Send check is disabled until at least one question has Yes or No.
 - The draft is kept in `sessionStorage` (as `check-in-draft.ts` does today) so a sign-in round-trip doesn't lose it.
-- Submit → `POST /api/places/[id]/checks` → **Check sent** screen: before/after meter, outcome copy ("Your answers match the last two checks. {Place} is now Community verified.", "…stays Community verified.", "That's 2 of 3. One more to verify.", or "Your answers differ from recent checks. The place waits for 3 that match."), then Back to the place and Find more places.
+- Submit → `POST /api/places/[id]/checks` → **Check sent** screen: before/after meter, outcome copy ("Your answers match the last two checks. {Place} is now Community verified.", "…stays Community verified.", "That's 2 of 3. One more to confirm.", or "Your answers differ from recent checks. The place waits for 3 that match."), then Back to the place and Find more places.
 
 ### 6.9 Add a place (`/add`)
 
@@ -518,7 +518,7 @@ The inviter's avatar, "{Name} invited you to halalfood.world", one line, and the
 Header with Invite friends (→ copies the invite link) and Settings. Avatar, name, handle and city, followers, following and rank (→ `/community`). Stats: checks, places added, helped verify. A Moderation row with an open-report count (moderators only). Passport / Checks / Lists tabs:
 
 - **Passport**: a mini map of every place you've checked, counts for cities, cuisines, countries and went-back (places with ≥ 2 checks), and milestones (reuse `food-passport.ts`; the milestone set is `first-check`, `first-verify`, `10-cuisines`, `regular` (3 places revisited) and `5-cities`). Locked milestones show progress ("4/5").
-- **Checks**: your checks, newest first, each with date, verdict and a pill (`✓ Verified` when the place is verified; otherwise "Needs n more").
+- **Checks**: your checks, newest first, each with date, verdict and a pill (`✓ Confirmed` when the place is verified; otherwise "Needs n more").
 - **Lists**: your lists.
 
 ### 6.27 Settings (`/me/settings`) and Privacy & people (`/me/privacy`)
@@ -546,7 +546,7 @@ Replace the `:root` values in `packages/ui/src/styles/globals.css`. Keep the Tai
 | `--input` | `#DCD4CB` | `#4A423E` | Unselected chip and button borders |
 | `--primary` | `#C9461D` | `#F0703F` | One primary CTA per screen, active tab, badges |
 | `--brand` | `#E4572E` | `#F0703F` | Logo mark only |
-| `--success` / `--success-muted` | `#1F6B45` / `#E3F2E9` | `#5CC48D` / `#15301F` | Verified |
+| `--success` / `--success-muted` | `#1F6B45` / `#E3F2E9` | `#5CC48D` / `#15301F` | Confirmed |
 | `--warning-strong` / `--warning-muted` | `#74500C` / `#FFF1D6` | `#F2B33D` / `#3A2C0F` | n of 3 checks |
 | `--neutral-pill` / `--neutral-pill-fg` | `#F1EEEA` / `#5F5852` | `#2A2522` / `#C9BFB7` | Not checked yet |
 | `--destructive` / `--destructive-muted` | `#B3261E` / `#FBE5E3` | `#EF6B61` / `#3A1A17` | Serves pork/alcohol, Delete, Block |
@@ -565,7 +565,7 @@ Build these in `packages/ui/src/components` (or `apps/web/src/components` where 
 | --- | --- |
 | `TabBar` | 5 tabs, an active state, and the Friends dot. Becomes the top nav at md. |
 | `TopBar` | Back/close, title, up to 3 icon actions. |
-| `StatusPill` | `verified`, `checking(n)`, `unchecked`; `size: sm \| md`; short form ("✓ Verified", "2 of 3"). |
+| `StatusPill` | `verified`, `checking(n)`, `unchecked`; `size: sm \| md`; short form ("✓ Confirmed", "2 of 3"). |
 | `StatusCard` | Tone, title, subline, `Meter`, link. |
 | `Meter` | 3 segments, tone. |
 | `FactTile` / `FactTags` | From `FactState`. |
@@ -651,7 +651,7 @@ Unread count = unread notifications + unread recs.
 - `place-added`: **5** points, when a place is created through Add.
 - `helped-verify`: **10** points, awarded to each author of the 3 checks that formed the final streak when a place first becomes `verified`. Not re-awarded if the place drops out of verified and later returns.
 - Excluded checks lose their `check` points: on exclude, delete the ledger rows for that `check_id`.
-- Leaderboard: `SUM(points)` grouped by user for `city_slug` and period. Week = Monday 00:00 in the city's timezone, using the city table's tz, or UTC if unknown. Top 50, then the viewer's own rank via a window function. Ties are broken by earliest reaching the total.
+- Leaderboard: `SUM(points)` grouped by user for `city_slug` and period, over the `points` ledger plus `contribution_points` rows with `status = granted` (points v2; pending and revoked rows never count, and both count by `created_at`). Week = Monday 00:00 in the city's timezone, using the city table's tz, or UTC if unknown. Top 50, then the viewer's own rank via a window function. Ties are broken by earliest reaching the total.
 - "#12 in Mumbai" on profiles uses the all-time rank in the user's `home_city_slug`.
 
 ---
@@ -705,7 +705,7 @@ Use the Node test runner with `tsx` (as today), `api-smoke.mjs` and `browser-smo
   - Progress is the minimum streak among facts with a value.
 - `eligibility.test.ts`: the 24 h rule, latest per user, excluded, suspended.
 - `points.test.ts`: one award per day per place, `helped-verify` awarded once, exclusion removes points.
-- `filters.test.ts`: chips map to `value`, unknown values are excluded, Verified requires all settled.
+- `filters.test.ts`: chips map to `value`, unknown values are excluded, Confirmed requires all settled.
 - `visibility.test.ts`: the matrix in [§9](#9-privacy-safety-and-abuse) across shared/private/blocked/follower.
 - `notifications.test.ts`: dedupe, no notification to the actor, none across a block, like collapsing.
 

@@ -46,6 +46,19 @@ Set `OVERPASS_URL` to use a different Overpass instance. Listings never settle
 a fact or verify a place on their own; a "halal only" listing fills in "No pork"
 only until a check or a menu says otherwise.
 
+## Place trust backfill
+
+Place trust (`trust_score`, `trust_band`, `community_vouchers`, `creator_count`, `badges` on `place_status`) is
+recomputed by `recomputeTrust` in `lib/trust.ts` on every write that can change it. Rows written before that, such
+as places with creator verifications, need this one-off backfill. It is a dry run unless you pass `--apply`, lists
+each place whose trust would change, and is safe to run again: a second run finds nothing to change. It uses the same
+D1 REST environment as the backfill below.
+
+```sh
+pnpm backfill:trust --city london
+pnpm backfill:trust --apply
+```
+
 ## Google Places coordinate backfill
 
 The server-side client is in `lib/google-places.ts` and calls Place

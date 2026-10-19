@@ -776,6 +776,29 @@ export async function consumeContributionLimits(
   );
 }
 
+/** Vouches: 20 a day per person and 3× that per IP (spec §2.6). `lib/vouches.ts` keeps the D1 daily count. */
+export const VOUCH_RATE_LIMITS = {
+  mutationUser: { windowMs: 24 * 60 * 60 * 1000, maxCount: 20, cooldownMs: 1000 },
+  mutationIp: { windowMs: 24 * 60 * 60 * 1000, maxCount: 60, cooldownMs: 250 },
+} as const;
+
+export async function consumeVouchLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([identifierKey("vouch:mutate:user", userId), identifierKey("vouch:mutate:ip", ip)]);
+  return consumePair(
+    [
+      { key: userKey, rule: VOUCH_RATE_LIMITS.mutationUser },
+      { key: ipKey, rule: VOUCH_RATE_LIMITS.mutationIp },
+    ],
+    store,
+    now,
+  );
+}
+
 /** Starting a sponsor checkout: each one calls Whop, so a few a day is plenty. */
 export const SPONSOR_CHECKOUT_RATE_LIMITS = {
   mutationUser: { windowMs: 24 * 60 * 60 * 1000, maxCount: 10, cooldownMs: 2000 },

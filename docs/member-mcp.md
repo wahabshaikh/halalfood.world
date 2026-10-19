@@ -14,7 +14,7 @@ Tools return JSON in a text content item. Places include only `id`, `name`, `cit
 `status`, `facts` (`owned`, `certified`, `pork`, `alcohol`) and `url` (the canonical place page).
 Facts are `yes`, `no` or `null` (unknown). Status has a `kind` of `verified`, `checking` (with `progress`), or
 `unchecked`. Halal status comes from community checks and reviewed documents; individual facts can also carry
-web or map listing context. Verified means all four facts are settled, including potentially unfavourable answers.
+web or map listing context. Confirmed (status `verified`) means all four facts are settled, including potentially unfavourable answers.
 See the [halal model](spec/halal-model.md). No personal data or Google snapshot blobs are returned.
 
 Use targeted searches, link to place pages, and do not scrape data in bulk. There is no pagination or bulk export.

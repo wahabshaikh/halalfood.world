@@ -9,6 +9,8 @@ import { SendSheetButton } from "@/components/hf/send-sheet";
 import { SaveHeart, Segmented, ShareAction, Sheet, api, errorText, toast, useSheet } from "@/components/hf/kit-client";
 import { currentReturnPath, loginHref } from "@/lib/signed-out";
 import type { PlaceNote } from "@/lib/checks-repository";
+import { verifiedByLine, voucherName } from "@/lib/core/trust";
+import type { Voucher } from "@/lib/vouches";
 
 export function HeroActions({
   placeId,
@@ -58,10 +60,10 @@ export function HowItWorks() {
       <button type="button" onClick={sheet.show} className="w-fit text-sm font-extrabold text-inherit underline underline-offset-3">
         How verification works
       </button>
-      <Sheet open={sheet.open} onClose={sheet.hide} title="How a place gets verified">
+      <Sheet open={sheet.open} onClose={sheet.hide} title="How a place gets confirmed">
         <ol className="grid gap-[18px]">
           {step(1, "People who eat there answer 4 questions", "Muslim-owned? Halal certified? Serves pork? Serves alcohol?")}
-          {step(2, "3 or more people agree → Verified", "They have to be different accounts, checking on their own. Three is the minimum; every matching check after that counts too.")}
+          {step(2, "3 or more people agree → Confirmed", "They have to be different accounts, checking on their own. Three is the minimum; every matching check after that counts too.")}
           {step(3, "Certificates and menus count too", "A halal certificate or a menu photo, checked by a moderator, confirms the facts it shows. Map listings add context but never verify on their own.")}
           {step(4, "The latest evidence wins", "If a place changes, new answers replace old ones. If sources disagree, the fact waits until they match.")}
         </ol>
@@ -272,6 +274,152 @@ export function AddEvidence({ placeId, signedIn }: { placeId: string; signedIn: 
             {busy ? "Sending…" : "Send for review"}
           </button>
         </div>
+      </Sheet>
+    </>
+  );
+}
+
+type Rating = "" | "disliked" | "liked" | "loved";
+
+/** The last 12 months, newest first, as `{value: YYYY-MM, label}`. */
+function recentMonths(now = new Date()) {
+  return Array.from({ length: 12 }, (_, index) => {
+    const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - index, 1));
+    return { value: month.toISOString().slice(0, 7), label: month.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }) };
+  });
+}
+
+/** "I ate here" (spec §5.2): a one-tap vouch with an optional month, rating and note. */
+export function VouchButton({ placeId, signedIn }: { placeId: string; signedIn: boolean }) {
+  const sheet = useSheet("vouch");
+  const [months, setMonths] = useState<{ value: string; label: string }[]>([]);
+  const [ateAt, setAteAt] = useState("");
+  const [rating, setRating] = useState<Rating>("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const field = "h-11 w-full rounded-xl border border-input bg-background px-3 text-sm font-semibold outline-none focus:border-foreground";
+
+  const open = () => {
+    if (!signedIn) return window.location.assign(loginHref(currentReturnPath()));
+    const next = recentMonths();
+    setMonths(next);
+    setAteAt((current) => current || next[0].value);
+    sheet.show();
+  };
+  const send = async () => {
+    setBusy(true);
+    try {
+      const { message } = await api<{ message: string }>(`/api/places/${placeId}/vouch`, {
+        method: "POST",
+        json: { ateAt, ...(rating ? { rating } : {}), ...(note.trim() ? { note } : {}) },
+      });
+      toast(message);
+      sheet.hide();
+      window.location.reload();
+    } catch (error) {
+      toast(errorText(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <button type="button" onClick={open} className={buttonClass("dark", "lg", "min-h-[50px] w-full")}>
+        I ate here
+      </button>
+      <Sheet open={sheet.open} onClose={sheet.hide} title="I ate here">
+        <div className="grid gap-4">
+          <label className="grid gap-1.5 text-sm font-extrabold">
+            When?
+            <select value={ateAt} onChange={(event) => setAteAt(event.target.value)} className={field}>
+              {months.map((month) => (
+                <option key={month.value} value={month.value}>
+                  {month.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Segmented
+            label="How was it? (optional)"
+            value={rating}
+            onChange={(value) => setRating(value === rating ? "" : value)}
+            options={[
+              { value: "disliked", label: "Disliked" },
+              { value: "liked", label: "Liked" },
+              { value: "loved", label: "Loved" },
+            ]}
+          />
+          <label className="grid gap-1.5 text-sm font-extrabold">
+            <span>
+              Note <span className="font-semibold text-muted-foreground">(optional)</span>
+            </span>
+            <textarea
+              rows={2}
+              maxLength={280}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="e.g. The lamb biryani was great"
+              className="w-full resize-none rounded-[14px] border border-input px-3.5 py-3 text-[15px] font-semibold"
+            />
+          </label>
+          <p className="text-[13px] leading-relaxed font-semibold text-subtle-foreground">
+            You’re saying you ate here and it’s halal. Want to answer the four questions too?{" "}
+            <a href={`/place/${placeId}/check`} className="font-extrabold text-foreground underline underline-offset-3">
+              Add details
+            </a>
+          </p>
+          <button type="button" disabled={busy || !ateAt} onClick={() => void send()} className={buttonClass("dark", "lg", "w-full")}>
+            {busy ? "Sending…" : "Vouch for this place"}
+          </button>
+        </div>
+      </Sheet>
+    </>
+  );
+}
+
+/** "Verified by @a and N more" (spec §2.4); the sheet lists everyone the viewer may see. Nothing when nobody has vouched. */
+export function VerifiedBy({ total, people }: { total: number; people: Voucher[] }) {
+  const sheet = useSheet("vouchers");
+  const line = verifiedByLine(people[0] ? voucherName(people[0]) : null, total);
+  if (!line) return null;
+  const unnamed = total - people.length;
+  const text = "text-[14px] font-bold text-foreground";
+  if (!people.length) return <p className={text}>{line}</p>;
+  return (
+    <>
+      <button type="button" onClick={sheet.show} className={cn(text, "inline-flex min-h-11 w-fit items-center text-left underline-offset-4 hover:underline")}>
+        {line}
+      </button>
+      <Sheet open={sheet.open} onClose={sheet.hide} title="Verified by">
+        <ul className="grid">
+          {people.map((person) => (
+            <li key={person.userId} className="border-b border-border/70 last:border-b-0">
+              {person.handle ? (
+                <a href={`/u/${person.handle}`} className="flex min-h-14 items-center gap-3 py-2 text-foreground">
+                  <Avatar name={person.name} seed={person.userId} src={person.avatarKey ? `/api/avatars/${person.handle}` : null} size={36} />
+                  <span className="grid min-w-0">
+                    <strong className="truncate text-[15px] font-extrabold">{person.name}</strong>
+                    <span className="truncate text-[13px] font-semibold text-muted-foreground">@{person.handle}</span>
+                  </span>
+                </a>
+              ) : (
+                <span className="flex min-h-14 items-center gap-3 py-2">
+                  <Avatar name={person.name} seed={person.userId} size={36} />
+                  <strong className="truncate text-[15px] font-extrabold">{person.name}</strong>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+        {unnamed > 0 && (
+          <p className="mt-3 text-[13px] font-semibold text-muted-foreground">
+            And {unnamed} {unnamed === 1 ? "other person" : "other people"} you can’t see here.
+          </p>
+        )}
+        <a href="/how-trust-works" className="mt-4 inline-flex min-h-11 items-center text-sm font-extrabold text-foreground underline underline-offset-4">
+          How trust works
+        </a>
       </Sheet>
     </>
   );
