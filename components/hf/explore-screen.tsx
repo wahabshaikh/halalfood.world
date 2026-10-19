@@ -91,6 +91,7 @@ export async function ExploreScreen({ city, searchParams }: { city: City; search
       {rawFilters === undefined && !viewerId && <RestoreFilters hasParam={false} />}
       <Page className="pt-[18px] md:pt-8">
         <header className="grid gap-3.5 pb-3 md:pb-6">
+          <h1 className="sr-only">Halal food in {cityName(city.city_slug)}</h1>
           <div className="flex items-center justify-between gap-3">
             <a href="/cities" className="inline-flex min-h-11 items-center gap-1.5 text-foreground">
               <BrandMark size={26} className="md:hidden" />
