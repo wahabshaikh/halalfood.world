@@ -53,7 +53,7 @@ import { slugifyCity } from "@/lib/core/place-submission";
 import { runBatch } from "@/lib/checks-repository";
 import { googlePlaceMapsUrl } from "@/lib/google-places";
 import { publishListingChange } from "@/lib/listing-cache";
-import { cityName } from "@/lib/place-view";
+import { cityName, parseCuisines } from "@/lib/place-view";
 import { createPlaceStatements, findPlaceByGoogleId } from "@/lib/places";
 import { containsText } from "@/lib/text-search";
 import { applyClaims, claimAttributesInput, type ClaimOutcomes } from "./claims";
@@ -115,7 +115,8 @@ export type UpsertPlaceInput = z.infer<typeof upsertPlaceInput>;
  */
 export type LocationOutcome = "provided" | "geocoded" | "existing" | "null" | "relocated";
 type LocationSnapshot = { lat: number | null; lng: number | null; source: LocationSource | null };
-type Located = { location: LocationOutcome; geocode?: GeocodeFailure; previous?: LocationSnapshot; current?: LocationSnapshot; relocate_refused?: "protected_source" | "no_street_address" | "not_more_precise" | "location_changed" | GeocodeFailure };
+type AddressOutcome = { address_updated?: true; address_change?: { previous: string; current: string }; address_refused?: "protected_source" | "location_changed" | "duplicate_place" };
+type Located = AddressOutcome & { location: LocationOutcome; geocode?: GeocodeFailure; previous?: LocationSnapshot; current?: LocationSnapshot; relocate_refused?: "protected_source" | "no_street_address" | "not_more_precise" | "location_changed" | GeocodeFailure };
 
 type PlaceRow = CandidateRow & {
   locationSource: LocationSource | null;
@@ -236,6 +237,28 @@ export function rejectionFor(input: { name: string; description?: string | null;
   return rejection ? { ok: false, error: "rejected", ...rejection, message: rejection.reason } : null;
 }
 
+/** A listed place that Scout attaches something to (a verification, a menu, a logo). */
+export type TargetPlace = { id: string; name: string; citySlug: string };
+
+/**
+ * Resolve a tool's place_id the same way for every tool that attaches to a
+ * place: a valid id, a place that exists, isn't alcohol-led or Ahmadiyya, and
+ * is listed.
+ */
+export async function targetPlace(deps: ScoutDeps, rawId: string): Promise<{ ok: true; place: TargetPlace } | PlaceFailure> {
+  const placeId = placeIdParam(rawId);
+  if (!placeId) return { ok: false, error: "invalid_place_id", message: "place_id is the id from find_place or upsert_place." };
+  const [place] = await deps.db.all<{ id: string; name: string; city_slug: string; serves_cuisine: unknown; listing_status: string }>(sql`
+    SELECT id, name, city_slug, serves_cuisine, listing_status FROM places WHERE id = ${placeId} LIMIT 1
+  `);
+  if (!place) return { ok: false, error: "place_not_found", message: "No place has that id." };
+  const rejected = rejectionFor({ name: place.name, types: parseCuisines(place.serves_cuisine) });
+  if (rejected) return rejected;
+  if (place.listing_status !== "listed")
+    return { ok: false, error: "place_not_listed", message: `That place is ${place.listing_status}, so Scout can't add to it.` };
+  return { ok: true, place: { id: place.id, name: place.name, citySlug: place.city_slug } };
+}
+
 function cuisines(value: UpsertPlaceInput["cuisine"]): string[] {
   const list = value === undefined ? [] : Array.isArray(value) ? value : [value];
   return [...new Set(list.map((item) => item.replace(/\s+/g, " ").trim()).filter(Boolean))].slice(0, 8);
@@ -341,7 +364,6 @@ export async function upsertPlace(deps: ScoutDeps, input: UpsertPlaceInput): Pro
     if (coordinates) {
       const updated = await deps.db.all<{ id: string }>(sql`
         UPDATE places SET lat = ${coordinates.lat}, lng = ${coordinates.lng}, location_source = ${source},
-          street_address = ${hasStreetAddress(input) ? input.address.replace(/\s+/g, " ") : row.streetAddress},
           maps_url = ${row.googlePlaceId ? googlePlaceMapsUrl(row.googlePlaceId) : `https://www.google.com/maps/search/?api=1&query=${coordinates.lat},${coordinates.lng}`}, updated_at = ${deps.now()}
         WHERE id = ${row.id} AND lat IS ${row.lat} AND lng IS ${row.lng} AND location_source IS ${row.locationSource} AND street_address IS ${row.streetAddress}
         RETURNING id
@@ -352,11 +374,39 @@ export async function upsertPlace(deps: ScoutDeps, input: UpsertPlaceInput): Pro
       } else if (missing) filled.push("lat", "lng");
       else located = { location: "relocated", previous: { lat: row.lat, lng: row.lng, source: row.locationSource }, current: { lat: coordinates.lat, lng: coordinates.lng, source } };
     }
+    const addressResult: AddressOutcome = {};
+    const address = input.address.replace(/\s+/g, " ");
+    if (hasStreetAddress(input) && address !== row.streetAddress) {
+      // Missing coordinates allow filling a pin, but never grant ownership of a protected address.
+      if (!permitted || (!owned && row.locationSource !== null)) addressResult.address_refused = "protected_source";
+      else if (located.relocate_refused === "location_changed") addressResult.address_refused = "location_changed";
+      else {
+        try {
+          const updated = await deps.db.all<{ id: string }>(sql`
+            UPDATE places SET street_address = ${address}, updated_at = ${deps.now()}
+              ${!coordinates && row.lat === null && row.lng === null && !row.googlePlaceId && !input.google_place_id
+                ? sql`, maps_url = ${`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${row.name}, ${address}, ${input.city}, ${input.country}`)}`}` : sql``}
+            WHERE id = ${row.id} AND street_address IS ${row.streetAddress}
+              AND lat IS ${coordinates ? coordinates.lat : row.lat} AND lng IS ${coordinates ? coordinates.lng : row.lng}
+              AND location_source IS ${coordinates ? source : row.locationSource}
+            RETURNING id
+          `);
+          if (updated.length) {
+            filled.push("street_address");
+            addressResult.address_updated = true;
+            addressResult.address_change = { previous: row.streetAddress, current: address };
+          } else addressResult.address_refused = "location_changed";
+        } catch (error) {
+          if (!(error instanceof Error && [error.message, error.cause instanceof Error ? error.cause.message : ""].some((message) => /unique/i.test(message)))) throw error;
+          addressResult.address_refused = "duplicate_place";
+        }
+      }
+    }
     const claims = await applyClaims(deps, row.id, input);
-    // Claims move a place in and out of filtered listings.
-    if (claims.changed || coordinates)
+    // Claims and location/address repairs change cached listings.
+    if (claims.changed || coordinates || addressResult.address_updated)
       await publishListingChange({ actorUserId: "mcp:scout", change: "place-claims", placeId: row.id, citySlug: row.citySlug }, deps.db).catch(() => null);
-    return { ok: true, result: "matched", place: placeSummary(deps.origin, (await placeById(deps, row.id)) ?? row), matched_by: by, score, filled, attributes: claims.outcomes, ...located };
+    return { ok: true, result: "matched", place: placeSummary(deps.origin, (await placeById(deps, row.id)) ?? row), matched_by: by, score, filled, attributes: claims.outcomes, ...located, ...addressResult };
   };
 
   const name = input.name.replace(/\s+/g, " ");

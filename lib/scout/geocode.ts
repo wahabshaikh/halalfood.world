@@ -11,7 +11,7 @@
  * coordinates: never a guess.
  */
 import { judgeGeocode, geocodeQuery, hasStreetAddress, type GeocodeCandidate, type GeocodeRejection } from "@/lib/core/geocode-confidence";
-import { getGooglePlaceDetails, searchGooglePlaces } from "@/lib/google-places";
+import { getGooglePlaceDetails, searchGooglePlaces, GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK } from "@/lib/google-places";
 import { d1GoogleSearchBudget } from "@/lib/google-search-budget";
 import type { ScoutDeps } from "./deps";
 
@@ -32,19 +32,19 @@ export async function geocodePlace(deps: ScoutDeps, input: GeocodeInput): Promis
 
   if (input.googlePlaceId) {
     if (!(await budget.tryConsume(deps.google.detailsCap, now, "details").catch(() => false))) return { ok: false, reason: "budget_exhausted" };
-    const details = await getGooglePlaceDetails(input.googlePlaceId, { apiKey, fieldMask: "formattedAddress,location,types" });
+    const details = await getGooglePlaceDetails(input.googlePlaceId, { apiKey, fieldMask: "formattedAddress,location,types,addressComponents" });
     if (!details.ok) return { ok: false, reason: "provider_error" };
     const candidates: GeocodeCandidate[] = details.coordinates
-      ? [{ formattedAddress: details.place.formattedAddress ?? "", types: details.place.types, ...details.coordinates }]
+      ? [{ formattedAddress: details.place.formattedAddress ?? "", types: details.place.types, addressComponents: details.place.addressComponents, ...details.coordinates }]
       : [];
     return verdict(candidates, expected, "google_place_id");
   }
 
   if (!(await budget.tryConsume(deps.google.searchCap, now, "search").catch(() => false))) return { ok: false, reason: "budget_exhausted" };
-  const found = await searchGooglePlaces(geocodeQuery({ address: input.address, city: input.city, country: input.country }), { apiKey });
+  const found = await searchGooglePlaces(geocodeQuery({ address: input.address, city: input.city, country: input.country }), { apiKey, fieldMask: `${GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK},places.addressComponents` });
   if (!found.ok) return { ok: false, reason: "provider_error" };
   const candidates = found.places.flatMap((place) =>
-    place.location ? [{ formattedAddress: place.formattedAddress, types: place.types, lat: place.location.latitude, lng: place.location.longitude }] : [],
+    place.location ? [{ formattedAddress: place.formattedAddress, types: place.types, addressComponents: place.addressComponents, lat: place.location.latitude, lng: place.location.longitude }] : [],
   );
   return verdict(candidates, expected, "text_search");
 }

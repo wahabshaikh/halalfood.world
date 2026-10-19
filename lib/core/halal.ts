@@ -12,7 +12,9 @@
  *      alcohol" for the answers it shows;
  *    - web claims from Halal Food Scout (a value with its source URL) and map
  *      listings (OpenStreetMap through Overpass, Geoapify) supply a value when
- *      no check or document does, but never settle a fact on their own.
+ *      no check or document does, but never settle a fact on their own. A
+ *      published menu Scout reads is not a source here: only a flagged menu
+ *      check reaches this module, as a web claim (lib/core/menus.ts).
  * 3. When settling sources disagree the fact is disputed, not settled.
  * 4. A place is Verified when all four facts are settled.
  *
@@ -184,7 +186,7 @@ export type CheckForStatus = {
   authorSuspended: boolean;
 } & Record<Fact, Answer>;
 
-export function isEligible(check: CheckForStatus): boolean {
+export function isEligible(check: Pick<CheckForStatus, "createdAt" | "authorCreatedAt" | "excluded" | "authorSuspended">): boolean {
   return (
     !check.excluded &&
     !check.authorSuspended &&

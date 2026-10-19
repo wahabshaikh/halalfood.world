@@ -47,7 +47,7 @@ These are the rules the code must enforce. Each one gets a test (see [§13](#13-
 6. **"Not checked yet" never means "not halal".** This line appears once, in the How verification works sheet.
 7. **New places go live at once.** Places can only be added from a Google Maps result. The adder's answers count as check 1.
 8. **Reports are the safety net.** Moderators act on reports and nothing else.
-9. **Nobody can pay to change a status or a ranking.** There are no sponsored placements.
+9. **Nobody can pay to change a status or a ranking.** There are no sponsored placements. A city can have one paid sponsor at a time (`/sponsor`, through Whop): a card labelled "Sponsor" on that city's Explore page, kept apart from the place list, linking out with `rel="sponsored"`. It is not a place, never reaches `lib/core/halal.ts`, and never moves, adds or hides a place.
 
 ---
 
