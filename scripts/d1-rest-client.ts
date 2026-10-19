@@ -50,3 +50,22 @@ export async function queryD1<T extends D1RestRow = D1RestRow>(
   }
   return payload.result?.[0]?.results ?? [];
 }
+
+/** Just enough of the D1 binding for drizzle, over the REST API. A batch runs one statement at a time. */
+export function restBinding() {
+  const statement = (text: string, params: unknown[] = []) => ({
+    bind: (...next: unknown[]) => statement(text, next),
+    all: async () => ({ results: await queryD1(text, params), success: true, meta: {} }),
+    run: async () => ({ results: await queryD1(text, params), success: true, meta: {} }),
+    first: async () => (await queryD1(text, params))[0] ?? null,
+    raw: async () => (await queryD1(text, params)).map((row) => Object.values(row)),
+  });
+  return {
+    prepare: (text: string) => statement(text),
+    async batch(statements: ReturnType<typeof statement>[]) {
+      const out = [];
+      for (const each of statements) out.push(await each.all());
+      return out;
+    },
+  };
+}
