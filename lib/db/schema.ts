@@ -634,3 +634,42 @@ export const reports = sqliteTable("reports", {
   createdAt: ms("created_at").notNull(),
   updatedAt: ms("updated_at").notNull(),
 });
+
+export const citySponsorships = sqliteTable("city_sponsorships", {
+  id: text("id").primaryKey(),
+  citySlug: text("city_slug").notNull(),
+  userId: text("user_id").references(() => authUser.id, { onDelete: "set null" }),
+  sponsorName: text("sponsor_name").notNull(),
+  tagline: text("tagline"),
+  linkUrl: text("link_url").notNull(),
+  status: text("status", { enum: ["pending", "active", "refunded", "removed"] }).notNull(),
+  renews: integer("renews", { mode: "boolean" }).notNull(),
+  whopCheckoutId: text("whop_checkout_id"),
+  whopMembershipId: text("whop_membership_id"),
+  whopPaymentId: text("whop_payment_id"),
+  startsAt: ms("starts_at"),
+  activeUntil: ms("active_until"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});
+
+export const whopWebhookEvents = sqliteTable("whop_webhook_events", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  receivedAt: ms("received_at").notNull(),
+});
+
+export const whopMemberships = sqliteTable("whop_memberships", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => authUser.id, { onDelete: "set null" }),
+  whopUserId: text("whop_user_id"),
+  productId: text("product_id"),
+  planId: text("plan_id"),
+  status: text("status").notNull(),
+  cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" }).notNull(),
+  currentPeriodEnd: ms("current_period_end"),
+  manageUrl: text("manage_url"),
+  eventAt: ms("event_at").notNull(),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});

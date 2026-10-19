@@ -46,7 +46,9 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/events`, `/event/[id]` | – | Halal food events and their stalls. |
 | `/creator/[platform]/[handle]` | – | Places from a creator's videos; links to `/u/<handle>` when the channel has a creator profile. |
 | `/me`, `/me/settings`, `/me/privacy` | ✓ | You (Passport, Checks, Lists), Settings, Privacy & people. |
-| `/admin` | moderator | Reports and Events. |
+| `/admin` | moderator | Reports, Evidence, Events and Sponsors. |
+| `/newsletter` | – | City picks, new places and sponsor slots; subscribe and manage a Whop newsletter membership. |
+| `/sponsor`, `/sponsor/[citySlug]`, `/sponsor/thanks` | – / form ✓ / ✓ | Sponsor a city: the offer and which cities are open; one city's form, card preview and Whop checkout; the return page after paying. |
 
 ### API
 
@@ -68,6 +70,9 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `GET /api/community`, `GET /api/events`, `GET /api/events/[id]`, `PUT/DELETE /api/events/[id]/going`, `GET /api/creators/[platform]/[handle]` | Community and events. |
 | `POST /api/reports` | Report a place, check, comment, person or list. |
 | `GET /api/admin/reports`, `POST /api/admin/reports/[id]`, `GET/POST /api/admin/events`, `GET/PUT/DELETE /api/admin/events/[id]` | Moderation. Every action writes `audit_log`. |
+| `POST /api/newsletter/checkout` | Signed-in newsletter checkout, JSON object body (no fields required), returns `{url}`. 503 when unconfigured; shares the sponsor checkout budget (10/day per user, 30/day per IP). |
+| `GET/POST /api/sponsorships` | Mine; start a city sponsorship (`{citySlug, name, tagline?, linkUrl}`) and get the Whop `checkoutUrl`. 409 when the city is sponsored or held, 503 without Whop keys. 10 a day per person. |
+| `POST /api/webhooks/whop`, `POST /api/admin/sponsorships/[id]` | Whop webhooks (signed with `WHOP_WEBHOOK_SECRET`); a moderator taking a sponsor card down or restoring it (`{action: "remove" \| "restore"}`, audited). |
 | `/api/auth/*`, `POST /api/admin/email/healthcheck` | Better Auth; the optional email smoke check. |
 | `POST /api/mcp` (`GET`/`DELETE` 405) | Halal Food Scout's admin MCP endpoint. Bearer `MCP_ADMIN_SECRET`; see [below](#halal-food-scout-admin-mcp). |
 
@@ -296,6 +301,50 @@ curl -s https://halalfood.world/api/mcp -H "Authorization: Bearer $MCP_ADMIN_SEC
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
+## City sponsorships (Whop)
+
+One sponsor per city at a time, $49 every 30 days, sold through [Whop](https://whop.com). Rules in
+[`lib/core/sponsorship.ts`](../lib/core/sponsorship.ts), D1 in [`lib/sponsorships.ts`](../lib/sponsorships.ts), Whop calls in
+[`lib/whop.ts`](../lib/whop.ts), tables `city_sponsorships` and `whop_webhook_events` (`migrations/0009_whop.sql`).
+
+1. A signed-in buyer writes a card (name ≤ 60, one line ≤ 120, an https link) on `/sponsor/[citySlug]`. `POST /api/sponsorships`
+   stores a `pending` row, which holds the city for an hour, and creates a Whop checkout configuration with an inline monthly
+   hidden plan with `account_id` and optional `WHOP_SPONSOR_PRODUCT_ID`, and metadata `{kind: "sponsorship", sponsorship_id}`. The browser goes to Whop's `purchase_url`; Whop returns it to `/sponsor/thanks?id=`.
+2. Whop's `payment.succeeded` webhook makes the row `active` for 30 days from the payment (or from the end of another paid
+   sponsor's window in the same city, so two cards never show at once). Each renewal payment extends it by 30 days.
+   `membership.updated`, `membership.deactivated` and `membership.cancel_at_period_end_changed` stop renewal when canceled, completed, expired, unresolved or set to cancel at period end. Active/trialing memberships with cancellation disabled resume renewal on active rows. The card stays up until the paid window ends. A succeeded refund
+   (`refund.created`/`refund.updated`) sets `refunded` and hides it at once.
+3. Webhooks are verified (Standard Webhooks HMAC-SHA256, keyed with the literal `ws_…` secret, 5-minute tolerance) and
+   deduplicated by `webhook-id`. Unknown sponsorships are recorded and answered 200 so Whop stops retrying.
+4. The live card (`status = 'active'`, `starts_at <= now < active_until`) shows on `/city/[slug]` after Guides & lists and
+   before the places. Moderators can take one down from `/admin` → Sponsors; refunds are issued in Whop.
+
+The card never touches checks, status, filters or ordering (spec §1 rule 9). Deleting the buyer's account keeps the paid
+sponsorship with `user_id` set to NULL. Whop holds the buyer's billing details; D1 stores only Whop ids.
+
+## Newsletter (Whop)
+
+`/newsletter` offers city picks, new places and sponsor slots. Subscriptions never affect halal status or rankings.
+`POST /api/newsletter/checkout` requires a session, validates a JSON object, spends the checkout budget and creates a
+checkout with `plan_id` and metadata `{kind: "newsletter", user_id}`. The browser returns to `/newsletter` after Whop.
+`WHOP_API_KEY` and `WHOP_NEWSLETTER_PLAN_ID` enable checkout; without them the page
+says "Not available yet" and the API returns a user-facing 503. `WHOP_NEWSLETTER_PRODUCT_ID` enables product matching and live access confirmation. Billing and newsletter delivery are managed in Whop.
+
+The shared signed webhook dispatches `membership.activated`, `membership.updated`, `membership.deactivated` and
+`membership.cancel_at_period_end_changed` to both membership handlers. Newsletter events are recognized by
+`metadata.kind` or the configured product/plan id. `payment.succeeded` with newsletter metadata is ignored by sponsorships.
+`whop_memberships` in `0009_whop.sql` stores provider ids, status, cancellation, period end, a Whop manage link and
+the provider event time. Upserts ignore older/equal events, preserving account ownership when updates omit metadata.
+Account deletion sets the local user reference to NULL. Unknown local accounts are stored without a local reference.
+One `whop_webhook_events` row per delivery is recorded only after both handlers succeed; newsletter upserts are safe
+if a delivery retries after a partial failure. The migration uses `IF NOT EXISTS` because the shared Preview D1
+already has sponsorship tables from the branch's original `0007_city_sponsorships.sql`; 0007/0008 are reserved by other PRs.
+
+`lib/core/newsletter.ts` grants access for `active`, `trialing`, `canceling` and `past_due`. `lib/newsletter.ts` reads the
+account's memberships, then confirms access via `GET /api/v1/users/{user_id}/access/{product_id}` when the Whop user,
+API key and configured product are known. The call has a three-second timeout; errors fall back to the stored status.
+Subscribed readers see "You're subscribed" and their Whop management link when supplied by the provider.
+
 ## Sign-in, Turnstile and limits
 
 The `/login` page renders a Cloudflare Turnstile widget, then uses the Better Auth `emailOTP` plugin to request and verify a 6-digit sign-in code. The client uses `emailOTPClient`; successful verification creates a database-backed Better Auth session and secure, HTTP-only cookie. OTP mail is sent only through `lib/email.ts` (Cloudflare Email Service, from `EMAIL_FROM`), with both text and HTML bodies. On localhost and Worker Previews it goes to the email sink instead (see [testing.md](testing.md)).
@@ -396,7 +445,7 @@ City and place pages distinguish a missing row (a real 404) from an unreachable 
 
 | Child | Contents |
 | --- | --- |
-| `/sitemaps/core/sitemap.xml` | Home, the city directory, events and community. |
+| `/sitemaps/core/sitemap.xml` | Home, the city directory, events, community, Sponsor a city and Newsletter. |
 | `/sitemaps/cities/sitemap.xml` | One entry per distinct `city_slug`, capped at 2,000. |
 | `/sitemaps/places/sitemap/N.xml` | Indexable places (`INDEXABLE` in `lib/place-view.ts`: listed, and not an unverified import), 5,000 per file, from an id-ordered scan on `places_indexable_idx` so chunk boundaries stay stable. |
 | `/sitemaps/social/sitemap.xml` | Public lists, public profiles with a shared check, and upcoming events. |

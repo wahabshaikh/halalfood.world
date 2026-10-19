@@ -775,3 +775,29 @@ export async function consumeContributionLimits(
     now,
   );
 }
+
+/** Starting a sponsor checkout: each one calls Whop, so a few a day is plenty. */
+export const SPONSOR_CHECKOUT_RATE_LIMITS = {
+  mutationUser: { windowMs: 24 * 60 * 60 * 1000, maxCount: 10, cooldownMs: 2000 },
+  mutationIp: { windowMs: 24 * 60 * 60 * 1000, maxCount: 30, cooldownMs: 1000 },
+} as const;
+
+export async function consumeSponsorCheckoutLimits(
+  userId: string,
+  ip: string,
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [userKey, ipKey] = await Promise.all([
+    identifierKey("sponsor:checkout:user", userId),
+    identifierKey("sponsor:checkout:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: userKey, rule: SPONSOR_CHECKOUT_RATE_LIMITS.mutationUser },
+      { key: ipKey, rule: SPONSOR_CHECKOUT_RATE_LIMITS.mutationIp },
+    ],
+    store,
+    now,
+  );
+}
