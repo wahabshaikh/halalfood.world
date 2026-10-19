@@ -8,7 +8,7 @@ in [spec/](spec/README.md).
 
 **How a place gets verified.** People who eat somewhere answer four questions: Is it Muslim-owned? Is it halal certified? Does it serve pork? Does it serve alcohol? Each answer is Yes, No or Not sure. A fact is settled when the three most recent definite answers from different accounts agree, and a place is **Community verified** when all four facts are settled. Until then it shows "n of 3 checks" or "Not checked yet" (which never means "not halal"). A check counts the moment it is sent, a person's latest check at a place is the only one that counts, and an account must be 24 hours old before its checks count. The rules live in [`lib/core/halal.ts`](lib/core/halal.ts) and [`docs/spec/halal-model.md`](spec/halal-model.md); the full design is [`docs/spec/simplified-community-spec.md`](spec/simplified-community-spec.md).
 
-**Everything social is context, never evidence.** Follows, the Friends feed, likes, comments, lists, recs, events, points, creator videos and creator verifications help people decide where to eat, but none of them can change a place's status. Places can only be added from a Google Maps result and go live at once, with the adder's answers as the first check. Moderators act on reports and nothing else.
+**Everything social is context, never evidence.** Follows, the Friends feed, likes, comments, lists, recs, events, points, creator videos and creator verifications help people decide where to eat, but none of them can change a place's status. Places can only be added from a Google Maps result and go live at once, with the adder's answers as the first check. Moderators review reports, evidence, and queued video submissions.
 
 **Imported places are "Unverified" until something shows they exist.** About 7.7k places were imported from halalfoodnear.me (scraped Sep 13, 2026, carried over at the Oct 5 cutover; `places.import_source = 'halalfoodnear.me'`). Until one has a counted check, an approved certificate or menu, a creator video verification, or a Scout certified claim with its source, it carries an "Unverified" chip on cards and the map card, an explainer on its page, `noindex`, and no sitemap entry. This is provenance, not a halal status: it never changes the status, and the status never depends on it ([halal model](spec/halal-model.md#provenance), [runbook](runbooks/unverified-imports.md)).
 
@@ -35,7 +35,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/map` | – | The map, with the same filters as Explore. |
 | `/place/[id]` | – | A place: status, the four facts, actions, friends, dishes, photos, videos, notes, nearby. An unverified imported place adds the "Unverified" notice and is `noindex` ([SEO](#seo-aeo-and-geo)). |
 | `/place/[id]/check` | ✓ | Check a place: the four questions, how it was, dishes, photos, a note, then Check sent. |
-| `/add`, `/add/video` | search –, submit ✓ | Add a place from Google Maps; save a place from a TikTok, Reel or YouTube link. |
+| `/add`, `/add/video` | search –, submit ✓ | Add a place from Google Maps; submit YouTube videos with place picks, or save a place from a TikTok or Reel. |
 | `/login` | – | Email code sign-in with Turnstile. A new account goes to `/welcome`. |
 | `/welcome` | ✓ | First sign-in: profile, what matters, follow a few people. |
 | `/saved` | ✓ | Saved places and lists. |
@@ -92,6 +92,34 @@ streamed bodies), and all responses use `Cache-Control: no-store`. Halal status 
 and reviewed documents; bulk scraping is prohibited. Reads are limited per client IP by the `MEMBER_MCP_READ_LIMITER`
 binding (60 a minute, namespaces 81004 / preview 81104); over it the endpoint answers 429.
 See [member-mcp.md](member-mcp.md) for client setup.
+
+## Member video paste
+
+`/add/video` sends YouTube links to `POST /api/videos` (`{url}`). It parses the id, reserves a unique
+`(platform, video_id)` row, fetches public oEmbed, and optionally enriches it with one Data API `videos.list`
+and one `channels.list` request when `YOUTUBE_API_KEY` is configured (2 units; no search, transcripts, or LLM).
+Metadata, including partial enrichment on API failure, is cached for 30 days. Concurrent first pastes receive
+409 while metadata is fetched. Later submitters reuse the row. Without the key, oEmbed can match an existing
+creator by handle; an unknown channel cannot publish until its stable channel id is known. With enrichment,
+Scout's creator helper upserts an unclaimed creator and `creator_links` stores public socials from the channel
+description, shown on `/u/[handle]`. Existing claimed profiles are preserved.
+
+The member selects 1–10 listed places from existing search and sends `POST /api/videos/[id]/places`
+(`{placeIds}`). Contributions record each member's picks; New and restricted members wait for review,
+while Member and higher tiers publish creator verifications immediately and recompute trust. Videos never
+change halal status. The original TikTok/Reel save flow remains available.
+
+`GET /api/admin/videos` lists pending member/video groups. Moderators use the Videos tab in `/admin`, backed by
+`POST /api/admin/videos/[id]` (`{userId, decision: "approve" | "reject", reason?}`). Approval publishes the
+pending places; rejection grants nothing. Each decision writes the audit log.
+
+Paste attempts have durable budgets of 10/day/member and 100/day/IP, consumed before YouTube is contacted.
+Place picks also have the normal contribution mutation budget and a 10 distinct videos/rolling-day quota.
+Points are granted only for newly published places: 5 once per member/video plus 2 per place, including
+places added later. Duplicate verifications pay nothing. The shared 100 points/UTC-day cap is enforced in
+the award INSERT. Migration `0014_video_submissions.sql` adds `video_submissions`, `creator_links`, and a
+contribution lookup and dedupe indexes; user deletion anonymizes the first submitter and cascades their contributions.
+`YOUTUBE_API_KEY` is an optional Worker secret (and local `.dev.vars` value), never a client key.
 
 ## Halal Food Scout (admin MCP)
 

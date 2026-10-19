@@ -117,7 +117,12 @@ export { isClaimed as isClaimedCreator };
 
 const isUnique = (error: unknown) => /unique/i.test(error instanceof Error ? error.message : String(error));
 
-export async function upsertCreator(deps: ScoutDeps, input: UpsertCreatorInput): Promise<UpsertCreatorResult> {
+/** `source` records who created the row: Scout, or a member's video paste (lib/videos.ts). */
+export async function upsertCreator(
+  deps: ScoutDeps,
+  input: UpsertCreatorInput,
+  source: "scout" | "member" = "scout",
+): Promise<UpsertCreatorResult> {
   const handle = creatorHandle(input.handle);
   if (!handle.ok) return { ok: false, error: "invalid_handle", message: handle.error };
   if (!isChannelId(input.channel_id)) return { ok: false, error: "invalid_channel_id", message: "A YouTube channel id is UC followed by 22 characters." };
@@ -219,7 +224,7 @@ export async function upsertCreator(deps: ScoutDeps, input: UpsertCreatorInput):
       sql`INSERT INTO creator_profiles (user_id, platform, channel_id, channel_handle, channel_url, avatar_url, banner_url,
             subscriber_count, source, claimed_at, created_at, updated_at)
           VALUES (${userId}, 'youtube', ${input.channel_id}, ${handle.handle}, ${link}, ${avatar ?? null}, ${banner ?? null},
-            ${subscribers ?? null}, 'scout', NULL, ${now}, ${now})`,
+            ${subscribers ?? null}, ${source}, NULL, ${now}, ${now})`,
     ]);
   } catch (error) {
     if (!isUnique(error)) throw error;

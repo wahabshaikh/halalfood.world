@@ -97,6 +97,7 @@ pnpm exec wrangler preview secret put GOOGLE_PLACES_API_KEY --name my-branch
 |---|---|---|---|
 | `BETTER_AUTH_SECRET` | required | optional | Non-production hosts fall back to a development secret. At least 32 characters. |
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | required | not used | Secrets even though the site key reaches the browser: a plain var of the same name would replace the secret. Previews use test keys. |
+| `YOUTUBE_API_KEY` | optional | optional | Video paste enrichment: one videos.list and one channels.list call per new video (2 units), cached 30 days. Unset: oEmbed only; publishing needs an existing creator matched by handle. |
 | `GOOGLE_PLACES_API_KEY` (or `GOOGLE_MAPS_API_KEY`) | optional | optional | Add-a-place search, and geocoding Scout places sent without coordinates (Text Search, or Place Details for a Google id). Both spend the same daily caps (`GOOGLE_*_DAILY_CAP`); Previews have their own. Unset: Scout stores such places without coordinates. |
 | `EMAIL_HEALTHCHECK_ENABLED`, `EMAIL_HEALTHCHECK_TOKEN`, `EMAIL_HEALTHCHECK_TO` | optional | not used | See [operations.md](operations.md#email-healthcheck). |
 | `WHOP_SPONSOR_PRODUCT_ID` | optional | optional | Existing `prod_…` for city sponsorships; when unset Whop creates the hidden inline plan without a product id. |

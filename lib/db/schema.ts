@@ -4,6 +4,7 @@ import {
   sqliteTable,
   text,
   index,
+  uniqueIndex,
   primaryKey,
 } from "drizzle-orm/sqlite-core";
 
@@ -744,3 +745,37 @@ export const contributionPoints = sqliteTable("contribution_points", {
   day: text("day").notNull(),
   createdAt: ms("created_at").notNull(),
 });
+
+/** One row per pasted video, with its cached metadata (migrations/0014_video_submissions.sql, lib/videos.ts). */
+export const videoSubmissions = sqliteTable("video_submissions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => authUser.id, { onDelete: "set null" }),
+  platform: text("platform", { enum: ["youtube"] }).notNull().default("youtube"),
+  videoId: text("video_id").notNull(),
+  url: text("url").notNull(),
+  status: text("status", { enum: ["fetched", "needs_review", "published", "rejected"] }).notNull(),
+  creatorUserId: text("creator_user_id").references(() => authUser.id, { onDelete: "set null" }),
+  /** JSON: oEmbed + Data API fields and fetchedAt. */
+  meta: text("meta").notNull().default("{}"),
+  /** JSON array of published place ids. */
+  placeIds: text("place_ids").notNull().default("[]"),
+  channel: text("channel", { enum: ["web", "mcp"] }).notNull().default("web"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("video_submissions_video_idx").on(table.platform, table.videoId),
+  index("video_submissions_status_idx").on(table.status, table.updatedAt),
+]);
+
+/** A creator's socials, one per kind, shown on their page. */
+export const creatorLinks = sqliteTable(
+  "creator_links",
+  {
+    creatorUserId: userRef("creator_user_id").notNull(),
+    kind: text("kind", { enum: ["youtube", "instagram", "tiktok", "x", "website", "facebook"] }).notNull(),
+    url: text("url").notNull(),
+    source: text("source", { enum: ["youtube_about", "member", "scout"] }).notNull(),
+    createdAt: ms("created_at").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.creatorUserId, table.kind] })],
+);

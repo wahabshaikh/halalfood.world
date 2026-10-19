@@ -15,6 +15,8 @@ declare module "cloudflare:workers" {
     /** Places search and Scout geocoding. Unset: neither calls Google. */
     GOOGLE_PLACES_API_KEY?: string;
     GOOGLE_MAPS_API_KEY?: string;
+    /** YouTube Data API key for video paste (lib/videos.ts). Unset: oEmbed only, and only known creators match. */
+    YOUTUBE_API_KEY?: string;
     /** Halal Food Scout's bearer secret for /api/mcp. Unset or under 32 characters: the endpoint is off. */
     MCP_ADMIN_SECRET?: string;
     /** Hosted Whop checkouts and signed billing webhooks. */
