@@ -154,7 +154,7 @@ export default async function MePage() {
                         <span
                           className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-extrabold ${needs === 0 ? "bg-success-muted text-success" : "bg-warning-muted text-warning-strong"}`}
                         >
-                          {needs === 0 ? "✓ Verified" : `Needs ${needs} more`}
+                          {needs === 0 ? "✓ Confirmed" : `Needs ${needs} more`}
                         </span>
                       </a>
                     </li>

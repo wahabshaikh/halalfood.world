@@ -123,11 +123,11 @@ export function checkOutcome(
   if (options.counted === false) return "Thanks. Checks from new accounts start counting after 24 hours.";
   if (after.kind === "verified")
     return before.kind === "verified"
-      ? `Your answers match the last two checks. ${placeName} stays Verified.`
-      : `Your answers match the last two checks. ${placeName} is now Verified.`;
+      ? `Your answers match the last two checks. ${placeName} stays Confirmed.`
+      : `Your answers match the last two checks. ${placeName} is now Confirmed.`;
   if (after.kind === "checking") {
     if (options.disagreed) return "Your answers differ from recent checks. The place waits for 3 that match.";
-    return after.progress === 2 ? "That’s 2 of 3. One more to verify." : "That’s 1 of 3. Two more matching checks verify it.";
+    return after.progress === 2 ? "That’s 2 of 3. One more to confirm." : "That’s 1 of 3. Two more matching checks confirm it.";
   }
   return "Your check is in.";
 }

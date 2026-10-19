@@ -58,10 +58,10 @@ export function HowItWorks() {
       <button type="button" onClick={sheet.show} className="w-fit text-sm font-extrabold text-inherit underline underline-offset-3">
         How verification works
       </button>
-      <Sheet open={sheet.open} onClose={sheet.hide} title="How a place gets verified">
+      <Sheet open={sheet.open} onClose={sheet.hide} title="How a place gets confirmed">
         <ol className="grid gap-[18px]">
           {step(1, "People who eat there answer 4 questions", "Muslim-owned? Halal certified? Serves pork? Serves alcohol?")}
-          {step(2, "3 or more people agree → Verified", "They have to be different accounts, checking on their own. Three is the minimum; every matching check after that counts too.")}
+          {step(2, "3 or more people agree → Confirmed", "They have to be different accounts, checking on their own. Three is the minimum; every matching check after that counts too.")}
           {step(3, "Certificates and menus count too", "A halal certificate or a menu photo, checked by a moderator, confirms the facts it shows. Map listings add context but never verify on their own.")}
           {step(4, "The latest evidence wins", "If a place changes, new answers replace old ones. If sources disagree, the fact waits until they match.")}
         </ol>

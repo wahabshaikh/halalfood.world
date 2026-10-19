@@ -4,9 +4,12 @@
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { test } from "vitest";
+import { beforeEach, test } from "vitest";
 import {
+  dropDuringStaleChunkReload,
   installStaleChunkReload,
+  isStaleChunkReloading,
+  resetStaleChunkReload,
   shouldReloadForStaleChunk,
   STALE_CHUNK_RELOAD_KEY,
 } from "@/lib/stale-chunk-reload";
@@ -37,6 +40,8 @@ function fakeWindow(stored: string | null = null, { storageThrows = false } = {}
   return win;
 }
 
+beforeEach(() => resetStaleChunkReload());
+
 test("a missing chunk reloads the tab once", () => {
   const win = fakeWindow();
   installStaleChunkReload(win, () => 1_000_000);
@@ -63,4 +68,29 @@ test("no storage means no reload", () => {
 test("the client entry installs it", () => {
   const source = readFileSync(new URL("../instrumentation-client.ts", import.meta.url), "utf8");
   assert.match(source, /installStaleChunkReload\(window\)/);
+});
+
+// HALALFOOD-WORLD-4: the cancelled preload resolves to undefined, so the client-reference loader throws
+// "undefined is not an object (evaluating 'e.ExploreList')" while the reload is already under way.
+test("errors raised after the reload starts are not sent to Sentry", () => {
+  const win = fakeWindow();
+  installStaleChunkReload(win, () => 1_000_000);
+  const event = { exception: { values: [{ type: "TypeError", value: "undefined is not an object (evaluating 'e.ExploreList')" }] } };
+  assert.equal(dropDuringStaleChunkReload(event), event);
+  win.fire();
+  assert.equal(isStaleChunkReloading(), true);
+  assert.equal(dropDuringStaleChunkReload(event), null);
+});
+
+test("a failure that does not reload still reaches Sentry", () => {
+  const win = fakeWindow("1000000");
+  installStaleChunkReload(win, () => 1_030_000);
+  win.fire();
+  const event = { message: "Failed to fetch dynamically imported module" };
+  assert.equal(dropDuringStaleChunkReload(event), event);
+});
+
+test("the client entry drops events during the reload", () => {
+  const source = readFileSync(new URL("../instrumentation-client.ts", import.meta.url), "utf8");
+  assert.match(source, /beforeSend: dropDuringStaleChunkReload/);
 });

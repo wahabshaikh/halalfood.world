@@ -34,10 +34,10 @@ test("the four filter chips match places on their web claims; unknown never matc
     await page.waitForLoadState("networkidle");
     await expect(chips.getByRole("button", { name: chip })).toHaveAttribute("aria-pressed", "false");
   }
-  // Web claims never make a place Verified.
-  await chips.getByRole("button", { name: "Verified" }).click();
+  // Web claims never make a place Confirmed.
+  await chips.getByRole("button", { name: "Confirmed" }).click();
   await page.waitForURL((url) => url.searchParams.get("filters") === "verified");
-  await expect(chips.getByRole("button", { name: "Verified" })).toHaveAttribute("aria-pressed", "true");
+  await expect(chips.getByRole("button", { name: "Confirmed" })).toHaveAttribute("aria-pressed", "true");
   const verified = await rowNames(page);
   expect(verified).not.toContain("Seed Scout Kitchen");
   expect(verified).not.toContain("Seed Falafel Stop");
