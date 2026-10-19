@@ -41,6 +41,8 @@ export type TrustResult = PlaceTrustValues & {
   review: boolean;
   /** User ids of each same-network vouch cluster, for the moderation queue. */
   clusters: string[][];
+  /** Each voucher's counted weight after modifiers and cluster damping (0 when not counted). */
+  weights: Record<string, number>;
 };
 
 type VouchRow = {
@@ -180,6 +182,7 @@ export async function computeTrust(placeId: string, client: Client = database(),
     badges: formatBadges(badges),
     review: trust.review,
     clusters,
+    weights: Object.fromEntries(vouches.map((vouch) => [vouch.userId, vouch.weight])),
   };
 }
 

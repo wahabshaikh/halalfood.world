@@ -130,3 +130,55 @@ export function pointsToGrant(
   const points = rule.points + (kind === "video" ? POINTS_PER_VIDEO_PLACE * Math.max(0, options.placesPublished ?? 0) : 0);
   return Math.max(0, Math.min(points, DAILY_POINTS_CAP - today.points));
 }
+
+/** Longest vouch note, in characters. */
+export const VOUCH_NOTE_MAX = 280;
+
+/** Vouches a member can send in 24 hours (spec §2.6). */
+export const VOUCHES_PER_DAY = 20;
+
+export type VouchInput = {
+  /** Month eaten, YYYY-MM. */
+  ateAt: string;
+  rating: VouchRating | null;
+  note: string | null;
+};
+
+const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
+
+/**
+ * Validate "I ate here" `{ateAt?, rating?, note?}`. The month defaults to
+ * this UTC month and can't be in the future or before 2000.
+ */
+export function validateVouch(body: unknown, now = Date.now()): { ok: true; value: VouchInput } | { ok: false; error: string } {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: "Send a valid JSON object." };
+  const raw = body as Record<string, unknown>;
+  const thisMonth = new Date(now).toISOString().slice(0, 7);
+  const ateAt = raw.ateAt === undefined || raw.ateAt === null || raw.ateAt === "" ? thisMonth : raw.ateAt;
+  if (typeof ateAt !== "string" || !MONTH.test(ateAt) || ateAt < "2000-01" || ateAt > thisMonth)
+    return { ok: false, error: "Choose the month you ate here." };
+  const hasRating = raw.rating !== undefined && raw.rating !== null && raw.rating !== "";
+  const rating = hasRating ? parseVouchRating(raw.rating) : null;
+  if (hasRating && !rating)
+    return { ok: false, error: "Choose disliked, liked or loved." };
+  if (raw.note !== undefined && raw.note !== null && typeof raw.note !== "string") return { ok: false, error: "The note must be text." };
+  const note = typeof raw.note === "string" ? raw.note.trim() : "";
+  if (note.length > VOUCH_NOTE_MAX) return { ok: false, error: `Keep the note to ${VOUCH_NOTE_MAX} characters.` };
+  return { ok: true, value: { ateAt, rating, note: note || null } };
+}
+
+/**
+ * The network an IP belongs to, for cluster damping: the /24 of an IPv4
+ * address, the /48 of an IPv6 one, or null when it isn't an address.
+ */
+export function ipNetwork(ip: string): string | null {
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+  if (v4) return v4.slice(1).every((part) => Number(part) <= 255) ? `${v4[1]}.${v4[2]}.${v4[3]}.0/24` : null;
+  if (!ip.includes(":") || !/^[0-9a-f:]+$/i.test(ip)) return null;
+  const [head, tail = ""] = ip.toLowerCase().split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups = ip.includes("::") ? [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right] : left;
+  if (groups.length !== 8 || groups.some((group) => group.length > 4)) return null;
+  return `${groups.slice(0, 3).map((group) => group.replace(/^0+(?=.)/, "")).join(":")}::/48`;
+}

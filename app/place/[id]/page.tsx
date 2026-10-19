@@ -21,7 +21,7 @@ import { cityName, photoUrl } from "@/lib/place-view";
 import { getPlaceMenu } from "@/lib/menus";
 import { getPlaceById, nearbyPlaces } from "@/lib/places";
 import { breadcrumbJsonLd, jsonLdScript, placeDescription, placeJsonLd, placeShareText, placeTitle } from "@/lib/seo";
-import { AddEvidence, AddPhoto, HeroActions, HowItWorks, Notes, ReportPlace } from "./place-client";
+import { AddEvidence, AddPhoto, HeroActions, HowItWorks, Notes, ReportPlace, VouchButton } from "./place-client";
 
 export const dynamic = "force-dynamic";
 
@@ -349,7 +349,8 @@ export default async function PlacePage({ params }: Props) {
                 <h2 className="text-[19px] font-black">Eaten here?</h2>
                 <p className="text-sm font-semibold text-subtle-foreground">{ctaLine}</p>
               </div>
-              <LinkButton href={`/place/${place.id}/check`} variant="dark" className="min-h-[50px]">
+              <VouchButton placeId={place.id} signedIn={signedIn} />
+              <LinkButton href={`/place/${place.id}/check`} variant="outline" className="min-h-[50px]">
                 Check this place
               </LinkButton>
             </section>
