@@ -30,6 +30,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | --- | --- | --- |
 | `/`, `/city/[slug]` | – | Explore: city switcher, search, This week in {city}, Guides & lists, filter chips and places. |
 | `/cities` | – | Choose a city. |
+| `/connect` | – | Connect Claude, ChatGPT or Cursor to the public read-only member MCP endpoint. Noindex until write tools ship. |
 | `/search` | – | Places, people, lists and cities. |
 | `/map` | – | The map, with the same filters as Explore. |
 | `/place/[id]` | – | A place: status, the four facts, actions, friends, dishes, photos, videos, notes, nearby. An unverified imported place adds the "Unverified" notice and is `noindex` ([SEO](#seo-aeo-and-geo)). |
@@ -47,6 +48,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/creator/[platform]/[handle]` | – | Places from a creator's videos; links to `/u/<handle>` when the channel has a creator profile. |
 | `/me`, `/me/settings`, `/me/privacy` | ✓ | You (Passport, Checks, Lists), Settings, Privacy & people. |
 | `/admin` | moderator | Reports, Evidence, Events and Sponsors. |
+| `/how-trust-works` | – | Plain-words explainer: the four halal facts and Confirmed, place badges, trust bands and points. Linked from the footer. |
 | `/newsletter` | – | City picks, new places and sponsor slots; subscribe and manage a Whop newsletter membership. |
 | `/sponsor`, `/sponsor/[citySlug]`, `/sponsor/thanks` | – / form ✓ / ✓ | Sponsor a city: the offer and which cities are open; one city's form, card preview and Whop checkout; the return page after paying. |
 
@@ -77,6 +79,19 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `POST /api/mcp` (`GET`/`DELETE` 405) | Halal Food Scout's admin MCP endpoint. Bearer `MCP_ADMIN_SECRET`; see [below](#halal-food-scout-admin-mcp). |
 
 Every write needs a session and spends a per-user and per-IP budget (checks 20 a day, places 10, recs 30, reports 10, comments 100). Reads that show checks apply one visibility rule: unshared checks are the author's alone, nothing crosses a block, and a private account's checks show only to accepted followers. `tests/check-visibility-audit.test.ts` fails if a query over `checks` doesn't say which audience it serves.
+
+#### Member MCP (public, read-only)
+
+`POST /api/mcp/member` is the public member MCP endpoint (`halalfood-world`), separate from Scout.
+It needs no session or admin token and exposes only `search_places` (query 1–64 characters, optional city slug,
+limit 1–10, default 10) and `get_place` (place id). Both reuse the public listed-place read paths and return only
+id, name, city slug, area, cuisine, halal status, the four facts and a canonical place URL. City prioritizes
+results rather than filtering them. No people, check authors, emails or Google snapshots are exposed.
+The transport is stateless JSON-RPC over POST; GET/DELETE return 405, bodies over 64 KB return 413 (including
+streamed bodies), and all responses use `Cache-Control: no-store`. Halal status comes from community checks
+and reviewed documents; bulk scraping is prohibited. Reads are limited per client IP by the `MEMBER_MCP_READ_LIMITER`
+binding (60 a minute, namespaces 81004 / preview 81104); over it the endpoint answers 429.
+See [member-mcp.md](member-mcp.md) for client setup.
 
 ## Halal Food Scout (admin MCP)
 
@@ -464,7 +479,7 @@ City and place pages distinguish a missing row (a real 404) from an unreachable 
 
 | Child | Contents |
 | --- | --- |
-| `/sitemaps/core/sitemap.xml` | Home, the city directory, events, community, Sponsor a city and Newsletter. |
+| `/sitemaps/core/sitemap.xml` | Home, the city directory, events, community, How trust works, Sponsor a city and Newsletter. |
 | `/sitemaps/cities/sitemap.xml` | One entry per distinct `city_slug`, capped at 2,000. |
 | `/sitemaps/places/sitemap/N.xml` | Indexable places (`INDEXABLE` in `lib/place-view.ts`: listed, and not an unverified import), 5,000 per file, from an id-ordered scan on `places_indexable_idx` so chunk boundaries stay stable. |
 | `/sitemaps/social/sitemap.xml` | Public lists, public profiles with a shared check, and upcoming events. |
@@ -477,8 +492,8 @@ When an imported place is verified (or loses its last evidence), `recomputePlace
 
 ## Data and bounded APIs
 
-- Every list endpoint is limit-clamped and parameterized; search escapes wildcard characters and caps `q` at 64 characters.
-- Status is computed in TypeScript and written to `place_status` in the same D1 batch as the check, so Explore, the map and search filter with plain SQL. Filters match the fact's current value, settled or not; Verified needs all four settled.
+- Every list endpoint is limit-clamped and parameterized; search uses literal `instr()` matching and caps `q` at 64 characters. Place search splits a leading or trailing known city using the cached city directory, then ANDs up to four words across searchable fields (under 100 bound parameters).
+- Status is computed in TypeScript and written to `place_status` in the same D1 batch as the check, so Explore, the map and search filter with plain SQL. Filters match the fact's current value, settled or not; Confirmed (`verified`) needs all four settled.
 - A status flip writes `place_status_changes` and tells everyone who saved the place.
 - Points (3 a check, 5 for adding a place, 10 for helping verify one) are an append-only ledger with one award per kind, place and person per day. They rank the Community board and never touch status.
 - Coordinates come from Google Places when a place is added; older rows may carry approximate city-centre coordinates until backfilled.
