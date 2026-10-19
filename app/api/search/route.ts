@@ -1,7 +1,8 @@
 import { citySlugParam } from "@/lib/core/params";
 import { optionalUser, unavailable } from "@/lib/api";
 import { decoratePlaces } from "@/lib/explore";
-import { searchCities, searchPlaces } from "@/lib/places";
+import { searchCities } from "@/lib/places";
+import { searchPlaces } from "@/lib/search-places";
 import { avatarUrl } from "@/lib/profiles";
 import { normalizeSearchQuery } from "@/lib/search-query";
 import { searchLists, searchPeople } from "@/lib/search-social";

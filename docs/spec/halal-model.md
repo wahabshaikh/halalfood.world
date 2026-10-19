@@ -21,9 +21,10 @@ one source of evidence among several, and "Community verified" is now "Verified"
 | --- | --- | --- | --- |
 | Community checks | all four | the check is eligible (below) | yes, at 3 or more matching answers |
 | Halal certificate | `certified` = yes | a moderator approves the photo, and it hasn't expired | yes |
-| Menu | `pork`, `alcohol` | a moderator approves the photo | yes, for the answers it shows |
+| Menu (photo) | `pork`, `alcohol` | a moderator approves the photo | yes, for the answers it shows |
 | Map listing (OpenStreetMap via Overpass, Geoapify) | `pork` = no when the listing says halal "only" | imported by `pnpm signals:listings` | no, context only |
-| Web source (Halal Food Scout) | any of the four, each with the https page that says it | written by `upsert_place` | no, context only |
+| Web source (Halal Food Scout) | any of the four, each with the https page that says it | written by `upsert_place`, or by a flagged menu check (below) | no, context only |
+| Published menu (Halal Food Scout) | nothing by itself; a flagged menu check can write a web source | written by `upsert_menu` / `set_menu_check` | no, context only |
 
 Certificates and menus live in `place_signals`. People send them from the place
 page: the photo goes through the normal photo upload, then
@@ -35,6 +36,28 @@ certified = yes) and date. Halal Food Scout writes them through `upsert_place`'s
 Scout only writes a claim when no community check or approved document answers the fact, and a newer Scout claim
 replaces its older one ([architecture](../architecture.md#scout-attributes)). The place page links "Web source" on each
 fact a claim backs.
+
+### Published menus and the menu check
+
+Halal Food Scout also stores the menu a restaurant publishes (its website or a delivery listing) as data: items with
+prices by section, the https pages it was read from and the date (`place_menus` and friends,
+[architecture](../architecture.md#scout-menus)). It is the same kind of evidence as a web source, not the menu
+*photo* above: nobody reviews it, it settles nothing, and it never reaches `resolveFact` on its own. The place page
+shows it under **Menu**, citing its sources and read date, with "A menu isn't a halal check."
+
+Scout then records a **menu check**, its automated read of that menu for alcohol and pork, one per place
+([`lib/core/menus.ts`](../../lib/core/menus.ts)):
+
+| Status | What it does |
+| --- | --- |
+| `clean` | Shows the badge **Menu checked: no alcohol · no pork** in Halal facts, with a tooltip: an automated read of the published menu, not halal certification and not a community check. It never changes a status, never sets or settles a fact, never writes a claim (not even "no") and never clears an earlier one. The filters ignore it. |
+| `flagged` | Each flag names a menu item or something else on the menu, with a reason. A flag with reason `alcohol` or `pork` writes a web source (`place_claims`, source `scout`) that the place serves it, `alcohol = yes` / `pork = yes`, citing the menu's source URL, under the usual Scout rule: only when no community check or approved document answers the fact, and a newer Scout claim replaces the older one. Reason `other` writes nothing. No badge. |
+| `no_menu` | Records that Scout looked and found no menu online. Nothing else; no badge. |
+
+Why the asymmetry: a menu that lists beer is good evidence the place serves alcohol, but a menu that doesn't list it
+says little (drinks lists go missing, menus go stale), so a clean read only earns a labelled badge. The badge is
+never shown for flagged or `no_menu`, and the community and moderators still decide every fact and the status.
+Withdrawing a claim a flagged check wrote is `upsert_place` with that attribute `unknown`.
 
 Map listings are imported per city by
 [`scripts/import-listing-signals.ts`](../../scripts/import-listing-signals.ts).
@@ -80,7 +103,36 @@ Filters match a fact's current value, settled or not; a place with no value for 
 ## What can't change a status
 
 Likes, follows, lists, recs, RSVPs, points, creator videos, creator verifications ("Verified by <creator> in a
-video", recorded by Halal Food Scout), "How was it?" verdicts and dishes are context. They help people choose where to eat and never touch the status. Nobody can pay to change a status or a ranking.
+video", recorded by Halal Food Scout), published menus, clean menu checks and logos, "How was it?" verdicts and dishes are context. They help people choose where to eat and never touch the status. Nobody can pay to change a status or a ranking.
+
+## Provenance
+
+Where a listing came from is separate from its halal status. About 7.7k places were imported from the public
+directory halalfoodnear.me (scraped Sep 13, 2026, carried into production at the Oct 5 cutover). They are marked
+`places.import_source = 'halalfoodnear.me'` by migration 0007, which identifies them by the bulk insert's exact
+`created_at` (1789282699475, 2026-09-13T06:58:19.475Z) and no submitter. Every other place has no import source and is
+never labelled. The rule is [`lib/core/provenance.ts`](../../lib/core/provenance.ts).
+
+An imported place counts as **seen and verified to exist** while any of these exists:
+
+| Evidence | Counts when |
+| --- | --- |
+| A community check | it counts toward status (the same rule as [Which checks count](#which-checks-count)) |
+| A certificate or menu | a moderator approved it (an expired certificate still shows the place exists) |
+| A creator video verification | Halal Food Scout recorded it (`creator_verifications`) |
+| A web source | a Scout claim of Halal certified = yes, with its source page |
+
+A map listing never counts: it comes from a directory too. Until a place has evidence it shows **Unverified**
+("Imported from a public directory and not yet checked by our community or a certifier."), its page is `noindex`
+and it is left out of the sitemap. It stays listed on its city page, in search and on the map.
+
+`places.import_verified_at` is recomputed from the evidence after every status recompute and every creator
+verification write, so it goes back to unverified when the last piece is removed (a check excluded, a verification
+removed, a claim withdrawn). Certifier data from PR #112 will count once it lands.
+
+This never feeds the status. A creator video verification is context and still can't change a status ([What can't
+change a status](#what-cant-change-a-status)), but it does show the place is real, so it lifts the Unverified label.
+A place can be verified to exist and still be "Not checked yet"; "Unverified" is never a halal verdict.
 
 ## The safety net
 

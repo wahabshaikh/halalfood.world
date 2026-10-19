@@ -12,6 +12,12 @@ async function seriousViolations(page: Page) {
 
 const pages = ["/", "/cities", "/map", "/search?q=seed", "/community", "/events", "/login"];
 
+test("/connect shows the member MCP URL @smoke", async ({ page }) => {
+  const response = await page.goto("/connect");
+  expect(response?.status()).toBe(200);
+  await expect(page.getByText("https://halalfood.world/api/mcp/member", { exact: true }).first()).toBeVisible();
+});
+
 for (const path of pages) {
   test(`${path} renders without errors or horizontal overflow @smoke`, async ({ page }) => {
     const errors: string[] = [];
@@ -19,6 +25,7 @@ for (const path of pages) {
     const response = await page.goto(path);
     expect(response?.status(), path).toBe(200);
     await expect(page.locator("body")).toBeVisible();
+    if (path === "/") await expect(page.locator("h1")).toHaveCount(1);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     expect(overflow, `${path} scrolls sideways`).toBe(false);
     expect(errors, `${path} threw in the browser`).toEqual([]);
