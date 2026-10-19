@@ -92,7 +92,7 @@ and reviewed documents; bulk scraping is prohibited. Reads are limited per clien
 binding (60 a minute, namespaces 81004 / preview 81104); over it the endpoint answers 429.
 See [member-mcp.md](member-mcp.md) for client setup.
 
-Member API keys (`lib/member-keys.ts`, `member_api_keys` in `0011_member_api_keys.sql`) are made, listed and revoked
+Member API keys (`lib/member-keys.ts`, `member_api_keys` in `0012_member_api_keys.sql`) are made, listed and revoked
 on `/me/keys` through `/api/me/keys`. A key is `hfw_` plus 32 random bytes (base64url), returned once by the create
 call and never stored: the table keeps its SHA-256 (hex, unique) and first 8 characters. Accounts must be 7 days old,
 a member has at most 3 active keys, and scopes are `read` or `read,write`. `verifyMemberKey(bearer)` hashes the
