@@ -280,6 +280,10 @@ export async function deleteAccount(userId: string, client: Client = database(),
     sql`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
         VALUES (${tombstone}, 'Deleted account', ${`${tombstone}@deleted.invalid`}, 0, ${user.created_at}, ${now})`,
     sql`UPDATE checks SET user_id = ${tombstone}, note = NULL, shared = 0, idempotency_key = id WHERE user_id = ${userId}`,
+    sql`DELETE FROM contribution_flags WHERE user_id = ${userId} OR id IN (
+      SELECT f.id FROM contribution_flags f, json_each(f.contribution_ids) ids
+      JOIN contributions c ON c.id = ids.value WHERE c.user_id = ${userId}
+    )`,
     sql`DELETE FROM "user" WHERE id = ${userId}`,
   ]);
   return keys.map((row) => row.key);

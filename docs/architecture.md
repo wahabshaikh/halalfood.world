@@ -48,7 +48,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/events`, `/event/[id]` | – | Halal food events and their stalls. |
 | `/creator/[platform]/[handle]` | – | Places from a creator's videos; links to `/u/<handle>` when the channel has a creator profile. |
 | `/me`, `/me/settings`, `/me/privacy` | ✓ | You (Passport, Checks, Lists), Settings, Privacy & people. |
-| `/admin` | moderator | Reports, Evidence, Events and Sponsors. |
+| `/admin` | moderator | Reports, Evidence, Flags, Events and Sponsors. |
 | `/how-trust-works` | – | Plain-words explainer: the four halal facts and Confirmed, place badges, trust bands and points. Linked from the footer. |
 | `/newsletter` | – | City picks, new places and sponsor slots; subscribe and manage a Whop newsletter membership. |
 | `/sponsor`, `/sponsor/[citySlug]`, `/sponsor/thanks` | – / form ✓ / ✓ | Sponsor a city: the offer and which cities are open; one city's form, card preview and Whop checkout; the return page after paying. |
@@ -73,6 +73,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `GET/POST /api/lists`, `GET /api/lists/mine`, `GET/PUT/DELETE /api/lists/[id]`, `PUT /api/lists/[id]/items`, `POST/DELETE /api/lists/[id]/items/[placeId]`, `POST /api/lists/[id]/members`, `POST …/members/accept`, `DELETE …/members/[handle]`, `PUT/DELETE /api/lists/[id]/save` | Lists. |
 | `GET /api/community`, `GET /api/events`, `GET /api/events/[id]`, `PUT/DELETE /api/events/[id]/going`, `GET /api/creators/[platform]/[handle]` | Community and events. |
 | `POST /api/reports` | Report a place, check, comment, person or list. |
+| `POST /api/admin/flags/[id]` | Moderator review: `{action: "dismiss" \| "uphold", reason: 1–300 characters}`. Uphold rejects the snapshot contributions, revokes pending/granted points and recomputes affected places’ trust; Dismiss preserves contributions and points. Both are audited and only open flags can be reviewed. |
 | `GET /api/admin/reports`, `POST /api/admin/reports/[id]`, `GET/POST /api/admin/events`, `GET/PUT/DELETE /api/admin/events/[id]` | Moderation. Every action writes `audit_log`. |
 | `POST /api/newsletter/checkout` | Signed-in newsletter checkout, JSON object body (no fields required), returns `{url}`. 503 when unconfigured; shares the sponsor checkout budget (10/day per user, 30/day per IP). |
 | `GET/POST /api/sponsorships` | Mine; start a city sponsorship (`{citySlug, name, tagline?, linkUrl}`) and get the Whop `checkoutUrl`. 409 when the city is sponsored or held, 503 without Whop keys. 10 a day per person. |
@@ -510,3 +511,20 @@ pnpm exec wrangler r2 bucket create halalfood-world-evidence
 ```
 
 Place photos and profile photos are uploaded straight to the Worker (multipart, JPEG, PNG or WebP, 8 MB for places and 2 MB for profiles), checked by content type and file signature, and stored under account-hashed keys (`photos/…`, `avatars/…`). They are served through `GET /api/photos/[...key]` and `GET /api/avatars/[handle]`. Deleting an account deletes its photos.
+
+### Contribution flags
+
+Migration `0015_contribution_flags.sql` adds the moderator-only `contribution_flags` queue.
+After saving a vouch, `lib/contribution-flags.ts` snapshots contribution IDs for more than five vouches by a member
+in ten minutes, vouches over 100 km apart within one hour, a New-tier member vouching for a place they submitted,
+and same-network clusters returned by `recomputeTrust` (three or more accounts on a hashed /24 within 24 hours).
+Windows include their boundary; distance needs both places’ coordinates. Pending re-vouches update the existing
+contribution rather than adding another event, as in the vouch service. Identical snapshots are deduplicated,
+including after review. Detection never blocks a saved vouch; queue failures are logged.
+
+The Flags tab shows the involved members, places, contribution timestamps and statuses. Both outcomes require a
+reason and store the reviewer and review time. Uphold rejects only the captured IDs, revokes their points and
+recomputes all affected place trust projections; later contributions are unaffected. Both outcomes write
+`audit_log`. Halal facts and status never change. Review uses the shared personal-write per-user/per-IP budget.
+Account deletion removes flags belonging to or mentioning the deleted member before contributions cascade away;
+reviewer references are cleared when that reviewer is deleted. No raw IPs are stored in flags.

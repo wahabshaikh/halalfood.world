@@ -12,6 +12,7 @@
  */
 import { sql } from "drizzle-orm";
 import { VOUCHES_PER_DAY, ipNetwork, pointsToGrant, type Channel, type VouchInput } from "@/lib/core/contributions";
+import { flagVouches } from "@/lib/contribution-flags";
 import { database } from "@/lib/db";
 import { recomputeTrust, type TrustResult } from "@/lib/trust";
 
@@ -104,6 +105,10 @@ export async function vouchForPlace(
   const status = weight > 0 ? "accepted" : "pending";
   await db.run(sql`UPDATE contributions SET status = ${status}, weight = ${weight} WHERE id = ${contributionId}`);
   const points = await settlePoints(db, { userId, placeId, citySlug: place.city_slug, contributionId, accepted: status === "accepted" }, now);
+  // Detection is advisory: even a queue failure must never undo a saved vouch.
+  await flagVouches(userId, placeId, contributionId, trust, db, now).catch((error: unknown) => {
+    console.error("Could not flag vouch contributions", error);
+  });
   return { ok: true, value: { contributionId, status, weight, points, trust } };
 }
 
