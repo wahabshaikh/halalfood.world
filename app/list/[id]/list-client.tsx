@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ArrowDown01Icon, ArrowLeft01Icon, ArrowUp01Icon, Delete02Icon, Search01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import type { PlaceStatus } from "@/lib/core/halal";
 import { cn } from "@/lib/utils";
-import { Icon, PlaceArt, StatusPill, buttonClass } from "@/components/hf/kit";
+import { Icon, PlaceArt, StatusPill, UnverifiedChip, buttonClass } from "@/components/hf/kit";
 import { ShareAction, Sheet, api, errorText, toast, useSheet } from "@/components/hf/kit-client";
 import { SendSheetButton } from "@/components/hf/send-sheet";
 import { photoUrl } from "@/lib/place-view";
@@ -229,7 +229,17 @@ function AddPlacePicker({ listId }: { listId: string }) {
   );
 }
 
-type Item = { id: string; name: string; area: string; status: PlaceStatus; photoKey: string | null; note: string | null; been: boolean; addedByUserId: string | null };
+type Item = {
+  id: string;
+  name: string;
+  area: string;
+  status: PlaceStatus;
+  photoKey: string | null;
+  note: string | null;
+  been: boolean;
+  addedByUserId: string | null;
+  unverified?: boolean;
+};
 
 export function ListItems({
   listId,
@@ -285,7 +295,10 @@ export function ListItems({
             <span className="grid min-w-0 gap-1">
               <strong className="truncate text-[15px] font-extrabold">{item.name}</strong>
               {item.area && <span className="truncate text-[13px] font-semibold text-muted-foreground">{item.area}</span>}
-              <StatusPill status={item.status} short className="w-fit" />
+              <span className="flex flex-wrap items-center gap-1.5">
+                <StatusPill status={item.status} short />
+                {item.unverified && <UnverifiedChip />}
+              </span>
               {item.note && <span className="text-[13px] font-semibold">“{item.note}”</span>}
             </span>
           </a>

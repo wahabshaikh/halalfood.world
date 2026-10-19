@@ -130,6 +130,9 @@ pnpm deploy                # build + production (prefer Workers Builds, which al
 - Data: migrations are additive, so code rollbacks need no data rollback. For data damage, restore the bookmark the
   deploy printed in its build log: `pnpm exec wrangler d1 time-travel restore DB --bookmark=<bookmark>`.
 - The Oct 5, 2026 database cutover has its own runbook: [runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md).
+- Migration 0007's backfill (unverified imported places) has an operator-only data rollback,
+  `scripts/rollback/0007_place_provenance_down.sql`, kept outside `migrations/` so no deploy runs it:
+  [runbooks/unverified-imports.md](runbooks/unverified-imports.md#rollback).
 
 ## Resources
 
