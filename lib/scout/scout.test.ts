@@ -884,7 +884,8 @@ test("the seed's Scout-claimed places carry the status recomputePlaceStatus give
   const { deps, sqlite } = setup();
   sqlite.exec(readFileSync(join(import.meta.dirname, "../../seed/local.sql"), "utf8"));
   const columns = "status, progress, owned_value, certified_value, pork_value, alcohol_value, owned_settled, certified_settled, pork_settled, alcohol_settled, owned_sources, certified_sources, pork_sources, alcohol_sources";
-  for (const id of ["00000000-0000-4000-8000-000000000007", "00000000-0000-4000-8000-000000000008", "00000000-0000-4000-8000-000000000011"]) {
+  // 0003 is Seed Shawarma Bar, whose flagged menu check wrote a Scout alcohol claim.
+  for (const id of ["00000000-0000-4000-8000-000000000003", "00000000-0000-4000-8000-000000000007", "00000000-0000-4000-8000-000000000008", "00000000-0000-4000-8000-000000000011"]) {
     const seeded = { ...(sqlite.prepare(`SELECT ${columns} FROM place_status WHERE place_id = ?`).get(id) as object) };
     await recomputePlaceStatus(id, deps.db, NOW);
     assert.deepEqual({ ...(sqlite.prepare(`SELECT ${columns} FROM place_status WHERE place_id = ?`).get(id) as object) }, seeded, id);

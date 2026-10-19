@@ -21,11 +21,10 @@ import {
 } from "@/lib/core/creators";
 import { placeIdParam } from "@/lib/core/params";
 import { runBatch } from "@/lib/checks-repository";
-import { parseCuisines } from "@/lib/place-view";
 import { recomputePlaceVerification } from "@/lib/provenance";
 import { findCreator, isClaimedCreator } from "./creators";
 import type { ScoutDeps } from "./deps";
-import { rejectionFor, type Rejection } from "./places";
+import { targetPlace, type PlaceFailure } from "./places";
 
 const creatorRef = z.string().trim().min(1).max(120).describe("The creator's @handle or YouTube channel id (UC…).");
 const placeRef = z.string().trim().min(1).max(64).describe("The place id from find_place or upsert_place.");
@@ -67,7 +66,7 @@ export type VerificationSummary = {
   place_url: string;
 };
 
-export type AddVerificationResult = { ok: true; result: "created" | "matched" | "updated"; verification: VerificationSummary } | Rejection | Failure;
+export type AddVerificationResult = { ok: true; result: "created" | "matched" | "updated"; verification: VerificationSummary } | PlaceFailure;
 export type RemoveVerificationResult = { ok: true; removed: boolean; id: string | null } | Failure;
 
 type VerificationRow = {
@@ -125,14 +124,8 @@ export async function addVerification(deps: ScoutDeps, input: AddVerificationInp
   if (isClaimedCreator(creator))
     return { ok: false, error: "creator_claimed", message: `@${creator.handle} claimed their profile; Scout no longer adds to it.` };
 
-  const [place] = await deps.db.all<{ id: string; name: string; serves_cuisine: unknown; listing_status: string }>(sql`
-    SELECT id, name, serves_cuisine, listing_status FROM places WHERE id = ${placeId} LIMIT 1
-  `);
-  if (!place) return { ok: false, error: "place_not_found", message: "No place has that id." };
-  const rejected = rejectionFor({ name: place.name, types: parseCuisines(place.serves_cuisine) });
-  if (rejected) return rejected;
-  if (place.listing_status !== "listed")
-    return { ok: false, error: "place_not_listed", message: `That place is ${place.listing_status}, so it can't show a verification.` };
+  const target = await targetPlace(deps, placeId);
+  if (!target.ok) return target;
 
   const now = deps.now();
   const existing = await verificationByKey(deps, creator.user_id, placeId, videoId);

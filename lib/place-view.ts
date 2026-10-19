@@ -4,6 +4,7 @@
  */
 import { sql, type SQL } from "drizzle-orm";
 import { displayCuisines } from "@/lib/core/listing-visibility";
+import { httpsLogoUrl } from "@/lib/core/menus";
 import {
   FACTS,
   parseDefinite,
@@ -28,6 +29,8 @@ export type PlaceCard = {
   status: PlaceStatus;
   facts: FactValues;
   photoKey: string | null;
+  /** The restaurant's own https logo (Halal Food Scout), shown when there is no photo. Absent in older cached reads. */
+  logoUrl?: string | null;
   /** Imported from a public directory and not yet verified to exist: shows the "Unverified" label (lib/core/provenance.ts). */
   unverified: boolean;
 };
@@ -36,7 +39,7 @@ export type PlaceCard = {
 export const PLACE_CARD_COLUMNS = sql.raw(`
   p.id, p.name, p.city_slug, p.serves_cuisine, p.address_locality, p.street_address,
   p.lat, p.lng, s.status, s.progress, s.owned_value, s.certified_value, s.pork_value,
-  s.alcohol_value, (p.import_source IS NOT NULL AND p.import_verified_at IS NULL) AS unverified,
+  s.alcohol_value, p.logo_url, (p.import_source IS NOT NULL AND p.import_verified_at IS NULL) AS unverified,
   (SELECT ph.r2_key FROM place_photos ph WHERE ph.place_id = p.id ORDER BY ph.created_at DESC LIMIT 1) AS photo_key
 `);
 
@@ -102,6 +105,7 @@ export function toPlaceCard(row: Record<string, unknown>): PlaceCard {
     status: parseStatus(row.status, row.progress),
     facts,
     photoKey: typeof row.photo_key === "string" ? row.photo_key : null,
+    logoUrl: httpsLogoUrl(row.logo_url),
     unverified: Number(row.unverified) === 1,
   };
 }

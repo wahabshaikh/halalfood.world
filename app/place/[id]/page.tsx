@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowRight01Icon, Call02Icon, Globe02Icon, Navigation03Icon } from "@hugeicons/core-free-icons";
 import { FACTS, type ListingClaim } from "@/lib/core/halal";
+import { httpsLogoUrl, showsMenuBadge } from "@/lib/core/menus";
 import { placeIdParam } from "@/lib/core/params";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/hf/app-shell";
 import { AddToListButton } from "@/components/hf/list-sheets";
+import { MenuCheckBadge } from "@/components/hf/menu-check-badge";
+import { PlaceMenuSection } from "@/components/hf/place-menu";
 import { Avatar, AvatarStack, FactTile, Icon, LinkButton, Page, PlaceArt, SectionTitle, StatusCard, StatusPill, UnverifiedChip, UnverifiedNotice, buttonClass } from "@/components/hf/kit";
 import { getViewerId } from "@/lib/auth-session";
 import { listPlaceNotes, topDishes } from "@/lib/checks-repository";
@@ -15,6 +18,7 @@ import { formatVideoTimestamp } from "@/lib/core/creators";
 import { placeCreatorVerifications, videoMonth } from "@/lib/creator-profiles";
 import { d1PlacePhotoRepository } from "@/lib/place-photos";
 import { cityName, photoUrl } from "@/lib/place-view";
+import { getPlaceMenu } from "@/lib/menus";
 import { getPlaceById, nearbyPlaces } from "@/lib/places";
 import { breadcrumbJsonLd, jsonLdScript, placeDescription, placeJsonLd, placeShareText, placeTitle } from "@/lib/seo";
 import { AddEvidence, AddPhoto, HeroActions, HowItWorks, Notes, ReportPlace } from "./place-client";
@@ -67,7 +71,7 @@ export default async function PlacePage({ params }: Props) {
   if (!place) notFound();
   const viewerId = await getViewerId();
   const status = place.card.status;
-  const [[card], dishes, photos, videos, notes, nearby, creators] = await Promise.all([
+  const [[card], dishes, photos, videos, notes, nearby, creators, { menu, check: menuCheck }] = await Promise.all([
     decoratePlaces(viewerId, [place.card]),
     topDishes(place.id).catch(() => []),
     d1PlacePhotoRepository().list(place.id, viewerId).catch(() => []),
@@ -77,11 +81,13 @@ export default async function PlacePage({ params }: Props) {
       ? nearbyPlaces({ lat: place.lat, lng: place.lng }, { excludeId: place.id, limit: 4 }).catch(() => [])
       : Promise.resolve([]),
     placeCreatorVerifications(place.id).catch(() => []),
+    getPlaceMenu(place.id).catch(() => ({ menu: null, check: null })),
   ]);
   const city = cityName(place.city_slug);
   const where = [place.card.cuisine, place.street_address].filter(Boolean).join(" · ");
   const directions = safeUrl(place.maps_url);
   const website = safeUrl(place.website);
+  const logo = httpsLogoUrl(place.card.logoUrl);
   const phone = place.telephone ? `tel:${place.telephone.replace(/[^+\d]/g, "")}` : null;
   const ctaLine =
     status.kind === "verified"
@@ -173,7 +179,15 @@ export default async function PlacePage({ params }: Props) {
         <div className="flex flex-col gap-6 pt-5 md:pt-7 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-x-12 lg:gap-y-0">
           <div className="contents lg:grid lg:gap-9">
             <div className="grid gap-1.5 max-lg:order-1">
-              <h1 className="text-[28px] leading-tight font-black tracking-tight md:text-[38px]">{place.name}</h1>
+              <div className="flex items-center gap-3">
+                {logo && (
+                  <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-border bg-white p-1 md:size-14">
+                    {/* The restaurant's own logo, linked from its site and never fetched by us; no referrer leaves the page. */}
+                    <img src={logo} alt={`${place.name} logo`} loading="lazy" referrerPolicy="no-referrer" className="size-full object-contain" />
+                  </span>
+                )}
+                <h1 className="min-w-0 text-[28px] leading-tight font-black tracking-tight md:text-[38px]">{place.name}</h1>
+              </div>
               <p className="text-[15px] font-semibold text-muted-foreground md:text-base">{where}</p>
               {(place.lat === null || place.lng === null) && (
                 <p className="text-[13px] font-semibold text-muted-foreground">Location pending: this place isn’t on the map yet.</p>
@@ -195,6 +209,9 @@ export default async function PlacePage({ params }: Props) {
               {place.listing_claim && (
                 <p className="text-[13px] leading-relaxed font-semibold text-muted-foreground">{LISTING_NOTE[place.listing_claim]}</p>
               )}
+              {menuCheck && showsMenuBadge(menuCheck) && (
+                <MenuCheckBadge checkedOn={new Date(menuCheck.checkedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} />
+              )}
               <AddEvidence placeId={place.id} signedIn={signedIn} />
             </section>
 
@@ -210,6 +227,8 @@ export default async function PlacePage({ params }: Props) {
                 </div>
               </section>
             )}
+
+            {menu && <PlaceMenuSection menu={menu} className="max-lg:order-7" />}
 
             <section id="photos" aria-labelledby="photos-title" className="grid scroll-mt-24 gap-3 max-lg:order-8">
               <SectionTitle id="photos-title" action={<AddPhoto placeId={place.id} signedIn={signedIn} />}>
@@ -302,7 +321,7 @@ export default async function PlacePage({ params }: Props) {
                 <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3">
                   {nearby.map((other) => (
                     <a key={other.id} href={`/place/${other.id}`} className="grid gap-1.5 text-foreground">
-                      <PlaceArt name={other.name} seed={other.id} src={photoUrl(other.photoKey)} className="h-24 w-full md:h-28" rounded="rounded-[14px]" />
+                      <PlaceArt name={other.name} seed={other.id} src={photoUrl(other.photoKey)} logo={other.logoUrl} className="h-24 w-full md:h-28" rounded="rounded-[14px]" />
                       <strong className="truncate text-[15px] font-extrabold">{other.name}</strong>
                       <span className="flex flex-wrap items-center gap-1.5">
                         <StatusPill status={other.status} short />

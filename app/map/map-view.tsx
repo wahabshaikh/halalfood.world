@@ -365,7 +365,7 @@ export default function MapView({
 
         {current && (
           <section aria-label="Selected place" aria-live="polite" className="absolute right-3 bottom-3 left-3 z-20 mx-auto flex max-w-md items-center gap-3 rounded-[20px] bg-background p-3 shadow-2xl">
-            <PlaceArt name={current.name} seed={current.id} src={photoUrl(current.photoKey)} className="size-16" rounded="rounded-[14px]" textSize="text-lg" />
+            <PlaceArt name={current.name} seed={current.id} src={photoUrl(current.photoKey)} logo={current.logoUrl} className="size-16" rounded="rounded-[14px]" textSize="text-lg" />
             <a href={`/place/${current.id}`} className="grid min-w-0 flex-1 gap-1 text-foreground">
               <span className="truncate text-base font-extrabold">{current.name}</span>
               <span className="truncate text-[13px] font-semibold text-muted-foreground">

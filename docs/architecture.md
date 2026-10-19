@@ -98,6 +98,9 @@ over 256 KB get 413.
 | `upsert_place` / `upsert_places` | Match first, else list a new place (`name`, `address`, `city`, `country`, optional `lat` + `lng`, `google_place_id`, `website`, `cuisine`, `force_new`, the four [sourced attributes](#scout-attributes), and `google_types` / `description` for the filters only). Returns `location` and, when attributes were sent, `attributes`.  Coordinate repairs: `relocate`, optional `place_id`; returns `relocated` with previous/current or `relocate_refused`. |
 | `add_verification` / `add_verifications` | A creator (`@handle` or channel id) showed `place_id` in a video (`video_url`, `timestamp` as `83` or `"1:23"`, `date` as an ISO date, optional `title`). |
 | `remove_verification` | By `id`, or by `creator` + `place_id` + `video_url`. Removing one that isn't there returns `removed: false`. |
+| `upsert_menu` / `upsert_menus` | Store a place's published menu: `place_id`, `currency` (ISO 4217, default for items), `captured_at`, 1–10 `sources` `{ url, type }`, 1–500 `items` `{ name, price, currency?, section?, description? }`. Replaces items and sources as a whole; returns `result` (`created`, `updated`, `unchanged`), counts and `captured_at`. [Menus](#scout-menus). |
+| `set_menu_check` / `set_menu_checks` | Scout's read of the menu: `place_id`, `status` (`clean`, `flagged`, `no_menu`), `flags` `[{ item \| name, reason: alcohol \| pork \| other, note? }]` (flagged only), `source_url`, `checked_at`. Returns `claims` per fact and `badge`. |
+| `set_place_logo` | `place_id`, `logo_url` (https, or `null` to remove) and `source_url` (the https page it was found on). Returns `set`, `updated`, `unchanged` or `cleared`. |
 
 **Creators.** A creator is an ordinary `user` + `profiles` row plus a `creator_profiles` row (channel id, channel
 handle and URL, avatar and banner URLs, subscribers, `claimed_at`). The profile handle is the YouTube handle,
@@ -209,6 +212,40 @@ Scout must not override. Every write recomputes `place_status` with `recomputePl
 The place page links "Web source" on each fact a claim backs, with the certifier. `no_alcohol: no` (serves alcohol)
 doesn't refuse a restaurant: serving alcohol is a fact, and only alcohol-led places (pubs, bars, …) are refused, by
 name and types.
+
+<a id="scout-menus"></a>**Menus, menu checks and logos.** Code: [`lib/scout/menus.ts`](../lib/scout/menus.ts) (tools),
+[`lib/core/menus.ts`](../lib/core/menus.ts) (validation, grouping, the menu check rule), [`lib/menus.ts`](../lib/menus.ts)
+(the place page read). Tables from [`0008_menus.sql`](../migrations/0008_menus.sql): `place_menus` (one per place,
+`captured_at`, source `scout`), `place_menu_items` (`position`, `section`, `name`, `description`, `price` in the
+currency's major unit, `currency`), `place_menu_sources` (`url`, `type`), `place_menu_checks` (one per place,
+`status`, `source_url`, `checked_at`) and `place_menu_check_flags` (`item_name`, optional `item_id`, `reason`, `note`),
+plus `places.logo_url` / `places.logo_source_url`.
+
+- Places resolve as for `add_verification`: a valid id of a listed place that isn't alcohol-led or Ahmadiyya
+  (`invalid_place_id`, `place_not_found`, `place_not_listed`, `rejected`).
+- `upsert_menu` validates at the boundary (zod) and again in `normalizeMenu`: prices are numbers ≥ 0 (up to 10
+  million, rounded to 3 decimals), currencies are three capital letters that `Intl.supportedValuesOf("currency")`
+  knows, every item has a currency (its own or the menu's), at most 500 items and 10 sources, source URLs are https
+  (http is refused) without credentials, and repeated source URLs collapse. The replacement (upsert the menu row,
+  delete items and sources, insert the new ones 12 rows per statement to stay under D1's 100 bound parameters) is one
+  D1 batch, so readers never see half a menu. The same menu again is `unchanged` and only moves `captured_at`
+  forward. Replacing a menu unlinks flags from the old item rows (`item_id` goes null); `item_name` stays.
+- `set_menu_check`: `flagged` needs at least one flag and the other statuses none. A flag's `item` must name an item
+  on the stored menu (matched without case), else `unknown_item`; `name` is for anything else (a wine list). The rule
+  is in the [halal model](spec/halal-model.md#published-menus-and-the-menu-check): `clean` only shows the badge and
+  writes no claim; `flagged` alcohol/pork flags go through `applyClaims` as `no_alcohol: no` / `no_pork: no` with
+  `source_url` (default: the menu's first source; with neither, `missing_source`), so they get the
+  [attribute](#scout-attributes) outcomes (`set`, `updated`, `unchanged`, `kept_existing`) in `claims`, recompute
+  `place_status` and refresh listings when they wrote anything. `no_menu` writes nothing else.
+- `set_place_logo` stores an external https URL. The place page shows it beside the name and cards show it when the
+  place has no photo, as a plain `<img>` with `referrerPolicy="no-referrer"` and `loading="lazy"`; it is never
+  fetched or proxied. `httpsLogoUrl` checks it again on read and at render, and a `CHECK` keeps non-https values out
+  of the column. Cards read it, so a change refreshes listings.
+- The place page groups items by section (in menu order) with `Intl.NumberFormat` prices, shows the first 10 and
+  folds the rest behind "Show all n items" (`<details>`), and cites each source and the read date.
+- A moderator merge moves the menu, menu check (with items, sources and flags, by `ON UPDATE CASCADE`) and logo to
+  the kept place unless it has its own. Rollback for the schema: [`scripts/rollback/0008_menus_down.sql`](../scripts/rollback/0008_menus_down.sql),
+  only before or together with reverting the code; wrangler ignores that folder.
 
 **Ingest filters.** `upsert_place` refuses, and `add_verification` refuses for an existing place that fails:
 Ahmadiyya places (Ahmadiyya, Qadiani, Lahori Ahmadiyya, Baitul Futuh, Jalsa Salana, …; "Ahmadi" only beside a
@@ -331,7 +368,7 @@ The limiter fails closed if D1 is unavailable, so a provider outage cannot turn 
 
 ## Schema
 
-The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. Later migrations add `place_signals` (0002), the email sink (0003), `creator_profiles` / `creator_verifications` (0004, Halal Food Scout), `place_claims` (0005, Scout's sourced web claims), `places.location_source` (0006) and `places.import_source` / `places.import_verified_at` with the `places_indexable_idx` partial index (0007, imported-place provenance; its operator-only rollback is `scripts/rollback/0007_place_provenance_down.sql`, outside `migrations/` so no deploy runs it). `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
+The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. Later migrations add `place_signals` (0002), the email sink (0003), `creator_profiles` / `creator_verifications` (0004, Halal Food Scout), `place_claims` (0005, Scout's sourced web claims), `places.location_source` (0006) and `places.import_source` / `places.import_verified_at` with the `places_indexable_idx` partial index (0007, imported-place provenance; its operator-only rollback is `scripts/rollback/0007_place_provenance_down.sql`, outside `migrations/` so no deploy runs it) and the menu tables and logo columns (0008, Scout menus). `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
 
 Do not apply production migrations by splitting a file into statements: `wrangler d1 execute --command` treats a leading `--` comment as a flag, and a semicolon inside a comment is not a statement boundary.
 
