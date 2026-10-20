@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
+  <style>
+    body { margin: 0; }
+    .a { font-family: "DM Sans", system-ui, sans-serif; color: #1E2A22; -webkit-font-smoothing: antialiased; }
+    .a-serif { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: -0.01em; }
+    .a-eyebrow { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #7C8A76; }
+    .a-num { font-variant-numeric: tabular-nums; }
+    .a-screen { width: 390px; height: 844px; background: #F2F0E8; overflow: hidden; display: flex; flex-direction: column; }
+    .a-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 12px; flex-shrink: 0; }
+    .a-icobtn { width: 44px; height: 44px; border-radius: 10px; background: #FFFFFF; border: 1px solid #DDDCCF; display: grid; place-items: center; }
+    .a-card { background: #FFFFFF; border: 1px solid #DDDCCF; border-radius: 16px; }
+    .a-cta { height: 52px; border-radius: 13px; background: #31462F; color: #F4F2EA; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15.5px; font-weight: 700; }
+    a { color: #31462F; text-decoration: none; }
+    a:hover { color: #4A6B3F; }
+  </style>
+</helmet>
+<div class="a a-screen">
+
+  <div class="a-top">
+    <div class="a-icobtn">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1E2A22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <div class="a-icobtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1E2A22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v17l-6-4-6 4V4Z"/></svg></div>
+      <div class="a-icobtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1E2A22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M7.5 7.5 12 3l4.5 4.5"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></div>
+    </div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden; padding: 0 20px;">
+
+    <div class="a-eyebrow">Turkish grill · Small Heath</div>
+    <div class="a-serif" style="font-size: 34px; line-height: 1.1; margin: 6px 0 6px;">Zaitoon Grill</div>
+    <div style="font-size: 13.5px; color: #6B7568; line-height: 1.5;">412 Coventry Road, Birmingham B10 0UG</div>
+
+    <!-- trust seal -->
+    <div class="a-card" style="margin-top: 13px; padding: 13px 16px; display: flex; gap: 13px; align-items: flex-start;">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="#31462F" style="flex-shrink: 0;"><path d="m12 2 2.4 1.8 3-.3 1 2.8 2.5 1.6-1 2.9 1 2.9-2.5 1.6-1 2.8-3-.3L12 22l-2.4-1.8-3 .3-1-2.8L3.1 16l1-2.9-1-2.9 2.5-1.6 1-2.8 3 .3Z"/><path d="m8.6 12.2 2.3 2.3 4.4-4.6" stroke="#F2F0E8" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 15px; font-weight: 700;">Zabiha confirmed</div>
+        <div style="font-size: 12.5px; color: #6B7568; line-height: 1.5; margin-top: 3px;">Hand-slaughtered. Three proofs on file, checked by <span class="a-num">9</span> people.</div>
+        <div style="display: flex; align-items: center; gap: 6px; margin-top: 9px;">
+          <div style="display: flex;">
+            <span style="width: 21px; height: 21px; border-radius: 50%; background: #31462F; color: #F2F0E8; font-size: 9px; font-weight: 700; display: grid; place-items: center; border: 1.5px solid #FFFFFF;">YR</span>
+            <span style="width: 21px; height: 21px; border-radius: 50%; background: #9A7B33; color: #FFF; font-size: 9px; font-weight: 700; display: grid; place-items: center; border: 1.5px solid #FFFFFF; margin-left: -7px;">AK</span>
+            <span style="width: 21px; height: 21px; border-radius: 50%; background: #4A6B3F; color: #FFF; font-size: 9px; font-weight: 700; display: grid; place-items: center; border: 1.5px solid #FFFFFF; margin-left: -7px;">BM</span>
+          </div>
+          <span style="font-size: 11.5px; color: #6B7568;">last checked 12 days ago</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- three-way rating -->
+    <div style="margin-top: 14px;">
+      <div class="a-eyebrow" style="margin-bottom: 9px;">How the community rates it</div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+        <div style="border: 1px solid #C9DCCB; background: #EDF4EC; border-radius: 13px; padding: 10px 9px; text-align: center;">
+          <div class="a-serif a-num" style="font-size: 26px; color: #2E6B4A; line-height: 1;">184</div>
+          <div style="font-size: 11px; font-weight: 700; color: #2E6B4A; margin-top: 5px;">Mashallah</div>
+          <div style="font-size: 9.5px; color: #6B7568; margin-top: 2px;">loved it</div>
+        </div>
+        <div style="border: 1px solid #E3D7B9; background: #FAF6EC; border-radius: 13px; padding: 10px 9px; text-align: center;">
+          <div class="a-serif a-num" style="font-size: 26px; color: #9A7B33; line-height: 1;">46</div>
+          <div style="font-size: 11px; font-weight: 700; color: #9A7B33; margin-top: 5px;">Alhamdulillah</div>
+          <div style="font-size: 9.5px; color: #6B7568; margin-top: 2px;">good</div>
+        </div>
+        <div style="border: 1px solid #E6CCC4; background: #FAF0ED; border-radius: 13px; padding: 10px 9px; text-align: center;">
+          <div class="a-serif a-num" style="font-size: 26px; color: #A0503C; line-height: 1;">3</div>
+          <div style="font-size: 11px; font-weight: 700; color: #A0503C; margin-top: 5px;">Astaghfirullah</div>
+          <div style="font-size: 9.5px; color: #6B7568; margin-top: 2px;">avoid</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- proof ledger -->
+    <div style="margin-top: 14px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px;">
+        <div class="a-eyebrow">The proof ledger</div>
+        <div style="font-size: 11.5px; font-weight: 700; color: #31462F;">Add a proof +75</div>
+      </div>
+      <div class="a-card" style="overflow: hidden;">
+        <div style="display: flex; gap: 12px; padding: 10px 15px; align-items: center;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="m9.5 14 1.8 1.8 3.4-3.6"/></svg>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 13.5px; font-weight: 700;">Halal certificate</div>
+            <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;">Photo on file · expires Mar 2027 · by Yusuf R.</div>
+          </div>
+          <div style="font-size: 11px; font-weight: 700; color: #2E6B4A; white-space: nowrap;">6 confirms</div>
+        </div>
+        <div style="height: 1px; background: #EDEBE0;"></div>
+        <div style="display: flex; gap: 12px; padding: 10px 15px; align-items: center;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M3 16V8l5-3 5 3v8"/><path d="M13 11h6l2 3v2h-8z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 13.5px; font-weight: 700;">Meat supplier</div>
+            <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;">Al-Barakah Meats, Bordesley · by Aisha K.</div>
+          </div>
+          <div style="font-size: 11px; font-weight: 700; color: #2E6B4A; white-space: nowrap;">3 confirms</div>
+        </div>
+        <div style="height: 1px; background: #EDEBE0;"></div>
+        <div style="display: flex; gap: 12px; padding: 10px 15px; align-items: center;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#31462F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/></svg>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 13.5px; font-weight: 700;">Menu</div>
+            <div style="font-size: 11.5px; color: #6B7568; margin-top: 2px;">24 photos · updated 3 weeks ago</div>
+          </div>
+          <div style="font-size: 11px; font-weight: 700; color: #6B7568; white-space: nowrap;">Open</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- review -->
+    <div style="margin-top: 14px;">
+      <div class="a-eyebrow" style="margin-bottom: 9px;">Recent note</div>
+      <div style="display: flex; gap: 11px;">
+        <div style="width: 32px; height: 32px; border-radius: 50%; background: #31462F; color: #F2F0E8; font-size: 11px; font-weight: 700; display: grid; place-items: center; flex-shrink: 0;">BM</div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 7px;">
+            <span style="font-size: 13px; font-weight: 700;">Bilal M.</span>
+            <span style="font-size: 10px; font-weight: 700; color: #31462F; background: #E9EFE0; padding: 2px 6px; border-radius: 5px;">GUIDE</span>
+            <span style="font-size: 11.5px; color: #2E6B4A; font-weight: 600;">Mashallah</span>
+          </div>
+          <div class="a-serif" style="font-size: 17px; line-height: 1.45; margin-top: 5px; color: #2C382E;">“Asked at the counter — they showed me the invoice from Al-Barakah without hesitating. Adana is the thing to order.”</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px)); background: #F2F0E8; border-top: 1px solid #E5E3D7; flex-shrink: 0;">
+    <div class="a-cta">
+      Rate this place
+      <span style="font-size: 12px; font-weight: 600; opacity: .75;">+25 barakah</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

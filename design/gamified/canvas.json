@@ -1,0 +1,262 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 980,
+      "h": 880,
+      "title": "Overview",
+      "print": "fixed"
+    },
+    {
+      "file": "AHome.dc.html",
+      "x": 0,
+      "y": 1040,
+      "w": 390,
+      "h": 844,
+      "title": "A \u00b7 Discover"
+    },
+    {
+      "file": "APlace.dc.html",
+      "x": 480,
+      "y": 1040,
+      "w": 390,
+      "h": 844,
+      "title": "A \u00b7 Place detail"
+    },
+    {
+      "file": "ARate.dc.html",
+      "x": 960,
+      "y": 1040,
+      "w": 390,
+      "h": 844,
+      "title": "A \u00b7 Rate & review"
+    },
+    {
+      "file": "AProof.dc.html",
+      "x": 1440,
+      "y": 1040,
+      "w": 390,
+      "h": 844,
+      "title": "A \u00b7 Add a proof"
+    },
+    {
+      "file": "ASubmit.dc.html",
+      "x": 1920,
+      "y": 1040,
+      "w": 390,
+      "h": 844,
+      "title": "A \u00b7 Add a place"
+    },
+    {
+      "file": "ALists.dc.html",
+      "x": 2400,
+      "y": 1040,
+      "w": 390,
+      "h": 844,
+      "title": "A \u00b7 Saved lists"
+    },
+    {
+      "file": "ABoard.dc.html",
+      "x": 2880,
+      "y": 1040,
+      "w": 390,
+      "h": 844,
+      "title": "A \u00b7 Leaderboard"
+    },
+    {
+      "file": "AProfile.dc.html",
+      "x": 3360,
+      "y": 1040,
+      "w": 390,
+      "h": 844,
+      "title": "A \u00b7 Profile"
+    },
+    {
+      "file": "ACity.dc.html",
+      "x": 3840,
+      "y": 1040,
+      "w": 390,
+      "h": 844,
+      "title": "A \u00b7 City page (SEO)"
+    },
+    {
+      "file": "BHome.dc.html",
+      "x": 0,
+      "y": 2044,
+      "w": 390,
+      "h": 844,
+      "title": "B \u00b7 Discover"
+    },
+    {
+      "file": "BPlace.dc.html",
+      "x": 480,
+      "y": 2044,
+      "w": 390,
+      "h": 844,
+      "title": "B \u00b7 Place detail"
+    },
+    {
+      "file": "BRate.dc.html",
+      "x": 960,
+      "y": 2044,
+      "w": 390,
+      "h": 844,
+      "title": "B \u00b7 Rate & review"
+    },
+    {
+      "file": "BProof.dc.html",
+      "x": 1440,
+      "y": 2044,
+      "w": 390,
+      "h": 844,
+      "title": "B \u00b7 Add a proof"
+    },
+    {
+      "file": "BSubmit.dc.html",
+      "x": 1920,
+      "y": 2044,
+      "w": 390,
+      "h": 844,
+      "title": "B \u00b7 Add a place"
+    },
+    {
+      "file": "BLists.dc.html",
+      "x": 2400,
+      "y": 2044,
+      "w": 390,
+      "h": 844,
+      "title": "B \u00b7 Saved lists"
+    },
+    {
+      "file": "BBoard.dc.html",
+      "x": 2880,
+      "y": 2044,
+      "w": 390,
+      "h": 844,
+      "title": "B \u00b7 Leaderboard"
+    },
+    {
+      "file": "BProfile.dc.html",
+      "x": 3360,
+      "y": 2044,
+      "w": 390,
+      "h": 844,
+      "title": "B \u00b7 Profile"
+    },
+    {
+      "file": "BCity.dc.html",
+      "x": 3840,
+      "y": 2044,
+      "w": 390,
+      "h": 844,
+      "title": "B \u00b7 City page (SEO)"
+    },
+    {
+      "file": "CHome.dc.html",
+      "x": 0,
+      "y": 3048,
+      "w": 390,
+      "h": 844,
+      "title": "C \u00b7 Discover"
+    },
+    {
+      "file": "CPlace.dc.html",
+      "x": 480,
+      "y": 3048,
+      "w": 390,
+      "h": 844,
+      "title": "C \u00b7 Place detail"
+    },
+    {
+      "file": "CRate.dc.html",
+      "x": 960,
+      "y": 3048,
+      "w": 390,
+      "h": 844,
+      "title": "C \u00b7 Rate & review"
+    },
+    {
+      "file": "CProof.dc.html",
+      "x": 1440,
+      "y": 3048,
+      "w": 390,
+      "h": 844,
+      "title": "C \u00b7 Add a proof"
+    },
+    {
+      "file": "CSubmit.dc.html",
+      "x": 1920,
+      "y": 3048,
+      "w": 390,
+      "h": 844,
+      "title": "C \u00b7 Add a place"
+    },
+    {
+      "file": "CLists.dc.html",
+      "x": 2400,
+      "y": 3048,
+      "w": 390,
+      "h": 844,
+      "title": "C \u00b7 Saved lists"
+    },
+    {
+      "file": "CBoard.dc.html",
+      "x": 2880,
+      "y": 3048,
+      "w": 390,
+      "h": 844,
+      "title": "C \u00b7 Leaderboard"
+    },
+    {
+      "file": "CProfile.dc.html",
+      "x": 3360,
+      "y": 3048,
+      "w": 390,
+      "h": 844,
+      "title": "C \u00b7 Profile"
+    },
+    {
+      "file": "CCity.dc.html",
+      "x": 3840,
+      "y": 3048,
+      "w": 390,
+      "h": 844,
+      "title": "C \u00b7 City page (SEO)"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "read-me",
+      "x": 1030,
+      "y": 0,
+      "w": 300,
+      "text": "Three directions, same product.\n\nEach row below is one complete direction: nine mobile screens, left to right, in the order someone would meet them.\n\nAll numbers, names and ratings are sample content."
+    },
+    {
+      "id": "dir-a",
+      "x": 0,
+      "y": 940,
+      "w": 420,
+      "text": "A \u00b7 MIZAN \u2014 the ledger\nWarm paper, Instrument Serif, hairline rules. Trust is the hero; the game is kept quiet. Closest to the current halalfood.world."
+    },
+    {
+      "id": "dir-b",
+      "x": 0,
+      "y": 1944,
+      "w": 420,
+      "text": "B \u00b7 SUHOOR \u2014 the night market\nDark, amber and mint, Archivo. Leagues, seasons, streak multipliers, a live city feed. The loudest option."
+    },
+    {
+      "id": "dir-c",
+      "x": 0,
+      "y": 2948,
+      "w": 420,
+      "text": "C \u00b7 ZELLIGE \u2014 the passport\nCream, teal and saffron, Syne, 2px ink borders. Verification is four tiles you turn; contributions collect into city passports."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}
