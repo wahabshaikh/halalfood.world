@@ -59,6 +59,7 @@ export const TOOL_NAMES = [
   "set_menu_check",
   "set_menu_checks",
   "set_place_logo",
+  "set_place_logos",
 ] as const;
 
 export function registerScoutTools(server: McpServer, context: ScoutContext) {
@@ -165,7 +166,7 @@ export function registerScoutTools(server: McpServer, context: ScoutContext) {
         "Refuses Ahmadiyya places and alcohol-led places (pubs, bars, breweries, wine bars) with error: rejected and a reason; " +
         "no_alcohol: no (serves alcohol) alone is not a reason to refuse a restaurant. " +
         "Never settles a fact or changes a place's Verified / n of 3 checks status." +
-        " relocate: true explicitly repairs an eligible Scout pin; place_id targets an existing row when correcting its address would defeat matching. Protected sources cannot be relocated.",
+        " place_id targets an exact existing row without matching; without relocate its existing pin and address stay unchanged, while missing pins can be filled. Cannot combine place_id with force_new. relocate: true explicitly repairs an eligible Scout pin. Protected sources cannot be relocated. Websites accept http or https and upgrade http to https.",
       inputSchema: upsertPlaceInput,
       annotations: WRITE,
     },
@@ -283,11 +284,22 @@ export function registerScoutTools(server: McpServer, context: ScoutContext) {
     {
       title: "Set a place's logo",
       description:
-        "Set the logo shown on a place's page and cards: logo_url is the https image on the restaurant's own website, source_url the https page it was found on. " +
-        "http is refused. The image is linked, never copied or proxied. logo_url: null removes it. Result set, updated, unchanged or cleared.",
+        "Set the logo shown on a place's page and cards: logo_url is the http or https image on the restaurant's own website, source_url the https page it was found on. " +
+        "The logo image accepts http or https and upgrades http to https; source_url requires https. Credentials are refused. The image is linked, never copied or proxied. logo_url: null removes it. Result set, updated, unchanged or cleared.",
       inputSchema: setPlaceLogoInput,
       annotations: WRITE,
     },
     async (input) => single((deps) => setPlaceLogo(deps, input)),
+  );
+
+  server.registerTool(
+    "set_place_logos",
+    {
+      title: "Set place logos (batch)",
+      description: `Batch set_place_logo: up to ${MAX_BATCH} logos, one result per item in input order, plus a summary. Each item counts once against the rate limit; logos for the same place run in order.`,
+      inputSchema: z.object({ logos: z.array(setPlaceLogoInput).min(1).max(MAX_BATCH) }),
+      annotations: WRITE,
+    },
+    async ({ logos }) => batch(logos, (item) => [`logo:${item.place_id.toLowerCase()}`], setPlaceLogo),
   );
 }

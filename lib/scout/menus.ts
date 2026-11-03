@@ -109,9 +109,11 @@ export const setMenuCheckInput = z
   });
 export type SetMenuCheckInput = z.infer<typeof setMenuCheckInput>;
 
+const logoUrl = (value: string) => httpsSourceUrl(value.replace(/^http:/i, "https:"));
+
 export const setPlaceLogoInput = z.object({
   place_id: placeRef,
-  logo_url: httpsUrl("logo_url").nullable().describe("https URL of the logo image on the restaurant's own site, or null to remove it."),
+  logo_url: z.string().trim().min(1).max(500).refine((value) => logoUrl(value) !== null, "logo_url must be an http or https URL without credentials.").nullable().describe("http or https URL of the logo image on the restaurant's own site; http is upgraded to https. Null removes it."),
   source_url: httpsUrl("source_url").optional().describe("The https page the logo was found on. Required with a logo_url."),
 }).refine((value) => value.logo_url === null || value.source_url !== undefined, { message: "Send the source_url the logo was found on.", path: ["source_url"] });
 export type SetPlaceLogoInput = z.infer<typeof setPlaceLogoInput>;
@@ -291,15 +293,15 @@ export async function setPlaceLogo(deps: ScoutDeps, input: SetPlaceLogoInput): P
   const target = await targetPlace(deps, input.place_id);
   if (!target.ok) return target;
   const placeId = target.place.id;
-  const logoUrl = input.logo_url === null ? null : httpsSourceUrl(input.logo_url);
+  const normalizedLogo = input.logo_url === null ? null : logoUrl(input.logo_url);
   const sourceUrl = input.logo_url === null || !input.source_url ? null : httpsSourceUrl(input.source_url);
-  if (input.logo_url !== null && (!logoUrl || !sourceUrl))
-    return { ok: false, error: "invalid_url", message: "logo_url and source_url must be https URLs (http is refused)." };
+  if (input.logo_url !== null && (!normalizedLogo || !sourceUrl))
+    return { ok: false, error: "invalid_url", message: "logo_url must be http or https and source_url must be https, both without credentials." };
   const [row] = await deps.db.all<{ logo_url: string | null; logo_source_url: string | null }>(sql`SELECT logo_url, logo_source_url FROM places WHERE id = ${placeId}`);
-  const result = logoUrl === null ? (row?.logo_url ? "cleared" : "unchanged") : row?.logo_url === logoUrl && row.logo_source_url === sourceUrl ? "unchanged" : row?.logo_url ? "updated" : "set";
+  const result = normalizedLogo === null ? (row?.logo_url ? "cleared" : "unchanged") : row?.logo_url === normalizedLogo && row.logo_source_url === sourceUrl ? "unchanged" : row?.logo_url ? "updated" : "set";
   if (result !== "unchanged") {
-    await deps.db.run(sql`UPDATE places SET logo_url = ${logoUrl}, logo_source_url = ${sourceUrl}, updated_at = ${deps.now()} WHERE id = ${placeId}`);
+    await deps.db.run(sql`UPDATE places SET logo_url = ${normalizedLogo}, logo_source_url = ${sourceUrl}, updated_at = ${deps.now()} WHERE id = ${placeId}`);
     await publishListingChange({ actorUserId: "mcp:scout", change: "place-logo", placeId, citySlug: target.place.citySlug }, deps.db).catch(() => null);
   }
-  return { ok: true, result, place_id: placeId, logo_url: logoUrl };
+  return { ok: true, result, place_id: placeId, logo_url: normalizedLogo };
 }

@@ -29,7 +29,10 @@ The SQL file is the canonical query; no corrective SQL is included or required.
 
 Use the candidate's `id` as `place_id` and send the confirmed street address with `relocate: true`.
 This avoids creating a duplicate when correcting the address prevents name/street matching.
-`place_id` must be an existing UUID, requires `relocate: true`, and excludes `force_new`.
+`place_id` must be an existing UUID and excludes `force_new`; an unknown id returns `place_not_found`.
+Without `relocate: true`, it targets claims and blank fields while preserving an existing pin and street address
+without geocoding or Google spend. A wholly missing pin can still be filled under the usual source protections.
+Use `relocate: true` for the location repairs in this runbook.
 Omitting it preserves normal Google-id/name/address/distance matching.
 
 ```json
@@ -80,7 +83,8 @@ After this fix is deployed, Scout should re-send **Chachu's**, **Yaki Ya Edgware
 Keep the Scout cities Toronto, London and Tokyo respectively; Japan and JP are both accepted countries.
 Google's North York/Edgware locality or country-first Japanese address no longer needs to repeat the Scout city
 in formatted text: structured components and the 40 km metro check establish the city, and structured country
-codes establish the country. Use the confirmed transliterated street address for input when the conservative
-street-address parser cannot recognize a wholly local-script address. Do not substitute a city-only address.
+codes establish the country. Japanese block/building numbers in local script (such as 新橋２丁目１５−３ or 新橋2-15-3) and
+romanized chome addresses are recognized; postal codes alone never qualify. Use confirmed coordinates for
+other addresses the conservative street-address parser cannot recognize. Do not substitute a city-only address.
 Check `location` and `geocode` separately from `address_updated`: saving an address does not establish a new pin.
 This code change performs no automatic production repair and needs no migration.

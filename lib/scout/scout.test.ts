@@ -527,10 +527,15 @@ test("upsert_place refuses alcohol-led and Ahmadiyya places with a reason", asyn
 });
 
 test("upsert_place validates the city and website", async () => {
-  const { deps } = setup();
+  const { deps, sqlite } = setup();
   assert.equal((await upsertPlace(deps, place({ city: "!!!" }))).ok, false);
-  const website = await upsertPlace(deps, place({ website: "http://dishoom.com" }));
-  assert.equal(!website.ok && website.error, "invalid_website");
+  const website = await upsertPlace(deps, place({ website: "http://dishoom.com/shoreditch?menu=1" }));
+  assert.ok(website.ok);
+  assert.equal((sqlite.prepare("SELECT website FROM places").get() as { website: string }).website, "https://dishoom.com/shoreditch?menu=1");
+  for (const website of ["ftp://dishoom.com", "https://user:pass@dishoom.com", "http://user@dishoom.com"]) {
+    const invalid = await upsertPlace(deps, place({ website }));
+    assert.equal(!invalid.ok && invalid.error, "invalid_website");
+  }
   const junk = await upsertPlace(deps, place({ website: "not a url" }));
   assert.equal(!junk.ok && junk.error, "invalid_website");
 });
@@ -1157,11 +1162,15 @@ test("a concurrent protected location change wins over in-flight geocoding", asy
 
 test("repair ids are validated and never create a replacement row", async () => {
   const { environment, sqlite } = mcpEnv();
-  for (const input of [place({ place_id: "invalid", relocate: true }), place({ place_id: crypto.randomUUID() }), place({ place_id: crypto.randomUUID(), relocate: true, force_new: true })]) {
+  for (const input of [place({ place_id: "invalid", relocate: true }), place({ place_id: crypto.randomUUID(), force_new: true }), place({ place_id: crypto.randomUUID(), relocate: true, force_new: true })]) {
     assert.equal((await call(environment, "upsert_place", input)).isError, true);
   }
-  const out = await call(environment, "upsert_place", place({ place_id: crypto.randomUUID(), relocate: true }));
-  assert.equal(out.body.error, "place_not_found");
+  for (const relocate of [undefined, true]) {
+    const out = await call(environment, "upsert_place", place({ place_id: crypto.randomUUID(), relocate }));
+    assert.equal(out.body.error, "place_not_found");
+  }
+  const conflict = await call(environment, "upsert_place", place({ place_id: crypto.randomUUID(), force_new: true }));
+  assert.match(conflict.text, /place_id cannot be combined with force_new\./);
   assert.equal(count(sqlite, "SELECT count(*) AS n FROM places"), 0);
 });
 
@@ -1305,4 +1314,47 @@ test("address collision also stays safe when relocation obtains trusted coordina
     assert.equal(out.body.place.address, "London");
     assert.equal(out.body.location, "relocated");
   } finally { vi.unstubAllGlobals(); }
+});
+
+
+test("place_id alone applies claims and fills blanks while preserving existing pins and addresses", async () => {
+  for (const source of ["community", "import", "scout"]) {
+    const s = setup();
+    const id = addPlace(s.sqlite, { name: "Existing Cafe", city: "london", lat: LONDON.lat, lng: LONDON.lng });
+    s.sqlite.prepare("UPDATE places SET location_source = ?, street_address = '1 Old Road' WHERE id = ?").run(source, id);
+    const google = googleDeps(s, () => { throw new Error("must not fetch"); });
+    try {
+      for (const coords of [false, true]) {
+        const input = { place_id: id, name: "Entirely different name", address: "99 New Street", website: "http://example.com/menu?a=1", no_alcohol: { value: "yes" as const, source_url: "https://example.com/menu" } };
+        const out = await upsertPlace(google.deps, coords ? place({ ...input, lat: 52, lng: 1 }) : noCoords(input));
+        assert.ok(out.ok && out.result === "matched");
+        assert.equal(out.matched_by, "place_id");
+        assert.equal(out.place.id, id);
+        assert.equal(out.location, "existing");
+        assert.equal(out.place.lat, LONDON.lat);
+        assert.equal(out.place.lng, LONDON.lng);
+        assert.equal(out.place.address, "1 Old Road");
+        assert.equal(out.attributes.no_alcohol, coords ? "unchanged" : "set");
+      }
+      assert.equal(google.calls.length, 0);
+      assert.equal(count(s.sqlite, "SELECT count(*) AS n FROM google_search_daily"), 0);
+      assert.equal((s.sqlite.prepare("SELECT website FROM places WHERE id = ?").get(id) as { website: string }).website, "https://example.com/menu?a=1");
+    } finally { vi.unstubAllGlobals(); }
+  }
+});
+
+test("place_id alone fills a missing pin with provided coordinates or geocoding", async () => {
+  for (const provided of [false, true]) {
+    const s = setup();
+    const id = addPlace(s.sqlite, { name: "Existing Cafe", city: "london", lat: null, lng: null });
+    const google = googleDeps(s, () => googleJson(DISHOOM_RESULT));
+    try {
+      const out = await upsertPlace(google.deps, provided ? place({ place_id: id }) : noCoords({ place_id: id }));
+      assert.ok(out.ok && out.result === "matched");
+      assert.equal(out.place.id, id);
+      assert.equal(out.location, provided ? "provided" : "geocoded");
+      assert.ok(out.place.lat !== null && out.place.lng !== null);
+      assert.deepEqual(out.filled.filter((field) => field === "lat" || field === "lng"), ["lat", "lng"]);
+    } finally { vi.unstubAllGlobals(); }
+  }
 });
