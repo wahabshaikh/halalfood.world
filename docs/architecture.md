@@ -117,12 +117,12 @@ over 256 KB get 413.
 | --- | --- |
 | `find_place` | Read-only. Ranked candidates for `name` near `lat`/`lng` (`radius_m`, default 300, max 2000) and/or in `city`, optionally by `google_place_id`. Each has `id`, `name`, `address`, `city`, `country`, `lat`, `lng`, `distance_m`, `url`, `score`, `matched_by` and `listing_status`. |
 | `upsert_creator` / `upsert_creators` | An unclaimed, claimable creator profile at `/u/<handle>` from a YouTube channel (`handle`, `channel_id`, `display_name`, `bio`, `avatar_url`, `banner_url`, `channel_url`, `subscriber_count`). |
-| `upsert_place` / `upsert_places` | Match first, else list a new place (`name`, `address`, `city`, `country`, optional `lat` + `lng`, `google_place_id`, `website`, `cuisine`, `force_new`, the four [sourced attributes](#scout-attributes), and `google_types` / `description` for the filters only). Returns `location` and, when attributes were sent, `attributes`.  Coordinate repairs: `relocate`, optional `place_id`; returns `relocated` with previous/current or `relocate_refused`. |
+| `upsert_place` / `upsert_places` | Match first, else list a new place (`name`, `address`, `city`, `country`, optional `lat` + `lng`, `google_place_id`, `website`, `cuisine`, `force_new`, the four [sourced attributes](#scout-attributes), and `google_types` / `description` for the filters only). Returns `location` and, when attributes were sent, `attributes`.  Exact targeting: optional `place_id` (preserves an existing pin/address unless `relocate: true`). Coordinate repairs: `relocate`; returns `relocated` with previous/current or `relocate_refused`. |
 | `add_verification` / `add_verifications` | A creator (`@handle` or channel id) showed `place_id` in a video (`video_url`, `timestamp` as `83` or `"1:23"`, `date` as an ISO date, optional `title`). |
 | `remove_verification` | By `id`, or by `creator` + `place_id` + `video_url`. Removing one that isn't there returns `removed: false`. |
 | `upsert_menu` / `upsert_menus` | Store a place's published menu: `place_id`, `currency` (ISO 4217, default for items), `captured_at`, 1–10 `sources` `{ url, type }`, 1–500 `items` `{ name, price, currency?, section?, description? }`. Replaces items and sources as a whole; returns `result` (`created`, `updated`, `unchanged`), counts and `captured_at`. [Menus](#scout-menus). |
 | `set_menu_check` / `set_menu_checks` | Scout's read of the menu: `place_id`, `status` (`clean`, `flagged`, `no_menu`), `flags` `[{ item \| name, reason: alcohol \| pork \| other, note? }]` (flagged only), `source_url`, `checked_at`. Returns `claims` per fact and `badge`. |
-| `set_place_logo` | `place_id`, `logo_url` (https, or `null` to remove) and `source_url` (the https page it was found on). Returns `set`, `updated`, `unchanged` or `cleared`. |
+| `set_place_logo` / `set_place_logos` | `place_id`, `logo_url` (http upgraded to https, or `null` to remove) and `source_url` (the https page it was found on). Returns `set`, `updated`, `unchanged` or `cleared`. |
 
 **Creators.** A creator is an ordinary `user` + `profiles` row plus a `creator_profiles` row (channel id, channel
 handle and URL, avatar and banner URLs, subscribers, `claimed_at`). The profile handle is the YouTube handle,
@@ -146,7 +146,7 @@ approximate coordinates). At a score of 0.85 or more a candidate is the same pla
 `result: "matched"` and fills that place's empty columns (country, city, coordinates, website, Google id), with guarded Scout coordinate repairs described below. A
 shared name in the same city without a matching street is never enough (chains). New places go live at once as Not
 checked yet, the same as a person adding one from Google Maps (#58's hold-for-review was retired in the four-fact
-redesign); they have no submitter, no points and no check.
+redesign); they have no submitter, no points and no check. Websites accept http or https URLs without credentials; http is upgraded to https with the same host, path and query.
 
 A match needs a name similarity of at least 0.8 however close the two are: location and street address add at most
 0.25 on top of `0.75 × name`. One name *starting with* the other is a branch suffix and scores 0.9 ("Slam Burger" →
@@ -161,10 +161,14 @@ cases the ranking still gets wrong. It can't create a second row with the same c
 address, or use `existing_place_id`.
 
 **Coordinates.** `lat` and `lng` are optional but must be sent together. Without explicit coordinates,
-[`hasStreetAddress`](../lib/core/geocode-confidence.ts) requires a house number (1–4 digits, optional letter)
+[`hasStreetAddress`](../lib/core/geocode-confidence.ts) requires a house number (1–4 digits, optional letter, or a leading five-digit house number in a US/Canadian address part)
 with a remaining word of at least four letters, or a street word beyond the city, country and postcode.
 UK, Dutch, 5–6 digit and common country-specific four-digit postcodes are stripped. The conservative vocabulary includes street/st,
-road/rd, avenue/ave, lane/ln, drive/dr, boulevard/blvd, way, rue, strasse, calle, jalan and marg.
+road/rd, avenue/ave, lane/ln, drive/dr, boulevard/blvd, way, rue, strasse, calle, jalan and marg, plus US/Canadian
+suffixes freeway/fwy, highway/hwy, parkway/pkwy, expressway/expy, court/ct, place/pl, circle/cir, trail/trl,
+turnpike/tpke, plaza, square/sq and terrace/ter. Japanese or CJK-script addresses are checked before ASCII
+normalization (NFKC): block/building numbers such as 2-15-3 or 2-15, 2丁目15番3号, 2丁目15-3 and
+2-chome 15-3 qualify, including common hyphen variants. Japanese postcodes (105-0004, with or without 〒) do not.
 Other numberless addresses can be false negatives: send confirmed coordinates instead. City-only inputs return
 `location: "null", geocode: "no_street_address"` without a Google call or budget reservation.
 
@@ -182,7 +186,7 @@ establishment and venue types (such as restaurant) qualify. The existing checks 
 no other usable result more than 1 km away, a matching city, and a matching country when supplied.
 City matching accepts any locality, postal_town, administrative_area_level_1–3, sublocality*, neighborhood or
 colloquial_area component's longText/shortText (case/accents ignored; City, -ku, -shi and Ward suffixes stripped;
-Tokyo aliases 東京/東京都), or the existing whole-word formatted-address match. A result within **40 km** of the
+Tokyo aliases 東京/東京都, Minato 港区/港, Shinbashi/Shimbashi/新橋), or the existing whole-word formatted-address match. A result within **40 km** of the
 city centre in `lib/data/city_coords.json` also qualifies, using the same `slugifyCity(city)` key as Scout's city
 slug. This deliberately includes nearby metro districts such as Don Mills and Edgware; nearby separate municipalities
 can qualify too. Unknown centres require a text/component match. The centre is only a trust check, never a returned pin.
@@ -225,8 +229,12 @@ and source again, so a concurrent change wins. Corrections update the street add
 Results use `location: provided | geocoded | existing | null | relocated`. `relocated` includes `previous` and
 `current` (`{lat, lng, source}`); refused corrections return `existing` and `relocate_refused` (`protected_source`,
 `no_street_address`, `not_more_precise`, `location_changed`, or the geocode failure).
-For a precise repair when the new address would defeat normal matching, send `place_id` (existing UUID) with
-`relocate: true`, without `force_new`; an unknown id fails instead of creating a row. Normal matching is unchanged.
+Send `place_id` (existing UUID) to target exactly that row, bypassing matching, for attributes and blank fields.
+Without `relocate: true`, an existing pin and street address are unchanged: no geocode call or Google budget spend,
+even for Scout pins. A missing pin follows the normal blank-filling path and source protections.
+For a precise repair when the new address would defeat normal matching, combine `place_id` with `relocate: true`.
+`place_id` cannot be combined with `force_new`; an unknown id returns `place_not_found` instead of creating a row.
+Normal matching is unchanged. Claims always use the usual community/document protection rules.
 See the [candidate SQL and repair runbook](runbooks/scout-relocate.md).
 
 <a id="scout-attributes"></a>**Attributes.** `upsert_place` takes four optional sourced attributes, each
@@ -278,7 +286,10 @@ plus `places.logo_url` / `places.logo_source_url`.
   `source_url` (default: the menu's first source; with neither, `missing_source`), so they get the
   [attribute](#scout-attributes) outcomes (`set`, `updated`, `unchanged`, `kept_existing`) in `claims`, recompute
   `place_status` and refresh listings when they wrote anything. `no_menu` writes nothing else.
-- `set_place_logo` stores an external https URL. The place page shows it beside the name and cards show it when the
+- `set_place_logo` / `set_place_logos` store external logo URLs. Logo images accept http or https without credentials;
+  http is upgraded to https, preserving host, path and query. Citation `source_url` still requires https.
+  `set_place_logos` accepts 1–25 `logos`, returns ordered per-item results and a summary, and serializes writes
+  for the same place. Each item spends one write-limit unit. The place page shows it beside the name and cards show it when the
   place has no photo, as a plain `<img>` with `referrerPolicy="no-referrer"` and `loading="lazy"`; it is never
   fetched or proxied. `httpsLogoUrl` checks it again on read and at render, and a `CHECK` keeps non-https values out
   of the column. Cards read it, so a change refreshes listings.
@@ -304,7 +315,7 @@ show the place exists, so adding or removing one recomputes an imported place's 
 ([provenance](spec/halal-model.md#provenance)), as does a `halal_certified: yes` attribute with its source URL.
 
 **Volume and limits.** Batch tools take at most 25 items and run 5 at a time; items that share a key (channel or
-handle; city or Google id; creator) run one after another, so a batch can't duplicate itself. Each item returns in
+handle; city or Google id; creator; menu place id; logo place id) run one after another, so a batch can't duplicate itself. Each item returns in
 input order with an `index`, plus a `summary` count. Writes spend the Workers Rate Limiting binding
 `MCP_WRITE_LIMITER` (300 per 60 s per token, keyed `mcp-write:<first 16 hex of the token's SHA-256>`), one unit per
 item; items over it come back `rate_limited`. The binding counts per Cloudflare location, so it guards against a

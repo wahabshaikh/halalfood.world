@@ -98,15 +98,15 @@ export const upsertPlaceInput = z.object({
   lat: z.number().min(-90).max(90).optional().describe("Send with lng. Without both, the place is geocoded from address, city and country."),
   lng: z.number().min(-180).max(180).optional(),
   google_place_id: googlePlaceId.optional(),
-  place_id: z.string().trim().refine((value) => Boolean(placeIdParam(value)), "Send a valid place id.").optional().describe("Exact existing place to repair; requires relocate: true and cannot be combined with force_new."),
+  place_id: z.string().trim().refine((value) => Boolean(placeIdParam(value)), "Send a valid place id.").optional().describe("Target this exact existing place without matching. Existing coordinates and address stay unchanged unless relocate: true; missing pins can be filled. Cannot be combined with force_new."),
   relocate: z.boolean().optional().describe("Explicitly replace a Scout pin, including an unknown-source legacy pin only when its Scout creation audit exists. Protected sources are never overwritten."),
   force_new: z.boolean().optional().describe("Skip matching and always list a new place, e.g. a stall inside a food hall that matched the hall."),
-  website: z.string().trim().max(500).optional().describe("https URL of the place's own site."),
+  website: z.string().trim().max(500).optional().describe("http or https URL of the place's own site; http is upgraded to https."),
   cuisine: z.union([text(60), z.array(text(60)).max(8)]).optional(),
   google_types: z.array(text(60)).max(30).optional().describe("Google place types, if known: used only by the ingest filters (bar, pub, …)."),
   description: z.string().max(2000).optional().describe("Used only by the ingest filters; not stored."),
   ...claimAttributesInput,
-}).refine((value) => (value.lat === undefined) === (value.lng === undefined), { message: "Send lat and lng together, or neither." }).refine((value) => !value.place_id || (value.relocate === true && !value.force_new), { message: "place_id requires relocate: true without force_new." });
+}).refine((value) => (value.lat === undefined) === (value.lng === undefined), { message: "Send lat and lng together, or neither." }).refine((value) => !value.place_id || !value.force_new, { message: "place_id cannot be combined with force_new." });
 export type UpsertPlaceInput = z.infer<typeof upsertPlaceInput>;
 
 /**
@@ -268,6 +268,7 @@ function httpsWebsite(value: string | undefined): string | null | "invalid" {
   if (!value) return null;
   try {
     const url = new URL(value);
+    if (url.protocol === "http:") url.protocol = "https:";
     return url.protocol === "https:" && !url.username && !url.password ? url.href : "invalid";
   } catch {
     return "invalid";
@@ -314,13 +315,14 @@ export async function upsertPlace(deps: ScoutDeps, input: UpsertPlaceInput): Pro
   const citySlug = slugifyCity(input.city);
   if (!citySlug) return { ok: false, error: "invalid_city", message: "That city name has no letters or numbers to make a city page from." };
   const website = httpsWebsite(input.website);
-  if (website === "invalid") return { ok: false, error: "invalid_website", message: "Websites must be https URLs." };
+  if (website === "invalid") return { ok: false, error: "invalid_website", message: "Websites must be http or https URLs without credentials; http is upgraded to https." };
 
   const provided: LatLng | null = input.lat !== undefined && input.lng !== undefined ? { lat: input.lat, lng: input.lng } : null;
   const geocode = () => geocodePlace(deps, { address: input.address, city: input.city, country: input.country, googlePlaceId: input.google_place_id });
 
   const matched = async (row: PlaceRow, by: FoundPlace["matched_by"], score: number): Promise<UpsertPlaceResult> => {
     const missing = row.lat === null || row.lng === null;
+    const keepLocation = by === "place_id" && !input.relocate && !missing;
     const owned = row.locationSource === "scout" || row.locationSource === "geocoded";
     // Claims/verifications can be attached to imported or community places too.
     const [legacy] = input.relocate && row.locationSource === null && !missing
@@ -337,27 +339,30 @@ export async function upsertPlace(deps: ScoutDeps, input: UpsertPlaceInput): Pro
     let located: Located = { location: "existing" };
     let coordinates: LatLng | null = null;
     let source: LocationSource | null = null;
-    if (!permitted) located.relocate_refused = "protected_source";
-    else if (!missing && !precise) located.relocate_refused = "no_street_address";
-    else {
-      if (provided) {
-        coordinates = provided;
-        source = "scout";
-        located = { location: "provided" };
-      } else {
-        const found = await geocode();
-        if (found.ok) {
-          coordinates = found;
-          source = "geocoded";
-          located = { location: "geocoded" };
-        } else located = missing ? { location: "null", geocode: found.reason } : { location: "existing", geocode: found.reason, relocate_refused: found.reason };
-      }
-      // Explicit coordinates establish precision; geocoding repairs a city-only
-      // address or an earlier geocode. Replacing an explicit Scout pin with a
-      // geocode of an already street-level address needs the deliberate override.
-      if (coordinates && !missing && !input.relocate && !provided && row.locationSource === "scout" && hasStreetAddress({ address: row.streetAddress, city: row.addressLocality ?? input.city, country: row.addressCountry })) {
-        coordinates = null;
-        located = { location: "existing", relocate_refused: "not_more_precise" };
+    // An exact-id attribute update must not spend Google budget or alter a pin.
+    if (!keepLocation) {
+      if (!permitted) located.relocate_refused = "protected_source";
+      else if (!missing && !precise) located.relocate_refused = "no_street_address";
+      else {
+        if (provided) {
+          coordinates = provided;
+          source = "scout";
+          located = { location: "provided" };
+        } else {
+          const found = await geocode();
+          if (found.ok) {
+            coordinates = found;
+            source = "geocoded";
+            located = { location: "geocoded" };
+          } else located = missing ? { location: "null", geocode: found.reason } : { location: "existing", geocode: found.reason, relocate_refused: found.reason };
+        }
+        // Explicit coordinates establish precision; geocoding repairs a city-only
+        // address or an earlier geocode. Replacing an explicit Scout pin with a
+        // geocode of an already street-level address needs the deliberate override.
+        if (coordinates && !missing && !input.relocate && !provided && row.locationSource === "scout" && hasStreetAddress({ address: row.streetAddress, city: row.addressLocality ?? input.city, country: row.addressCountry })) {
+          coordinates = null;
+          located = { location: "existing", relocate_refused: "not_more_precise" };
+        }
       }
     }
     const filled = await fillBlanks(deps, row, input, website);
@@ -376,7 +381,7 @@ export async function upsertPlace(deps: ScoutDeps, input: UpsertPlaceInput): Pro
     }
     const addressResult: AddressOutcome = {};
     const address = input.address.replace(/\s+/g, " ");
-    if (hasStreetAddress(input) && address !== row.streetAddress) {
+    if (!keepLocation && hasStreetAddress(input) && address !== row.streetAddress) {
       // Missing coordinates allow filling a pin, but never grant ownership of a protected address.
       if (!permitted || (!owned && row.locationSource !== null)) addressResult.address_refused = "protected_source";
       else if (located.relocate_refused === "location_changed") addressResult.address_refused = "location_changed";

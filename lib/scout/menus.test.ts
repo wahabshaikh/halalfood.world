@@ -74,7 +74,7 @@ function addCheck(s: Setup, userId: string, placeId: string, answers: Partial<Re
 /* ------------------------------------------------------------------ menus */
 
 test("the menu tools are listed", () => {
-  for (const name of ["upsert_menu", "upsert_menus", "set_menu_check", "set_menu_checks", "set_place_logo"]) assert.ok((TOOL_NAMES as readonly string[]).includes(name), name);
+  for (const name of ["upsert_menu", "upsert_menus", "set_menu_check", "set_menu_checks", "set_place_logo", "set_place_logos"]) assert.ok((TOOL_NAMES as readonly string[]).includes(name), name);
 });
 
 test("upsert_menu stores a menu, a repeat is unchanged, and a new one replaces items and sources as a whole", async () => {
@@ -354,11 +354,15 @@ test("set_place_logo stores an https logo that cards and the page read, and clea
   assert.equal(statusOf(s, s.place).status, "unchecked");
 });
 
-test("logos must be https, with the page they came from; the database refuses anything else too", async () => {
+test("logos upgrade http to https, require an https citation and reject unsafe URLs", async () => {
   const s = setup();
-  const http = await call(s.environment, "set_place_logo", { place_id: s.place, logo_url: "http://www.example-biryani.co.uk/logo.png", source_url: MENU_PAGE });
-  assert.equal(http.isError, true);
-  assert.match(http.text, /https URL \(http is refused\)/);
+  const http = await call(s.environment, "set_place_logo", { place_id: s.place, logo_url: "http://www.example-biryani.co.uk/logo.png?v=1", source_url: MENU_PAGE });
+  assert.equal(http.isError, false);
+  assert.equal(http.body.logo_url, `${LOGO}?v=1`);
+  for (const logo_url of ["ftp://example.com/logo.png", "http://user:pass@example.com/logo.png", "https://user@example.com/logo.png"]) {
+    assert.equal((await call(s.environment, "set_place_logo", { place_id: s.place, logo_url, source_url: MENU_PAGE })).isError, true);
+  }
+  assert.equal((await call(s.environment, "set_place_logo", { place_id: s.place, logo_url: LOGO, source_url: "http://example.com" })).isError, true);
   const noSource = await call(s.environment, "set_place_logo", { place_id: s.place, logo_url: LOGO });
   assert.match(noSource.text, /source_url/);
   const script = await call(s.environment, "set_place_logo", { place_id: s.place, logo_url: "javascript:alert(1)", source_url: MENU_PAGE });
@@ -368,4 +372,26 @@ test("logos must be https, with the page they came from; the database refuses an
   s.sqlite.exec(`PRAGMA ignore_check_constraints = ON`);
   s.sqlite.prepare(`UPDATE places SET logo_url = 'javascript:alert(1)' WHERE id = ?`).run(s.place);
   assert.equal((await getPlaceById(s.place, s.db))?.card.logoUrl, null);
+});
+
+
+test("set_place_logos reports ordered outcomes, serializes a place and summarizes failures", async () => {
+  const s = setup();
+  const logo = { place_id: s.place, logo_url: LOGO, source_url: MENU_PAGE };
+  const out = await call(s.environment, "set_place_logos", { logos: [logo, { ...logo, place_id: crypto.randomUUID() }, logo, { ...logo, logo_url: `${LOGO}?v=2` }, { place_id: s.place, logo_url: null }] });
+  assert.deepEqual(out.body.results.map((r: { index: number; result?: string; error?: string }) => [r.index, r.result ?? r.error]), [[0, "set"], [1, "place_not_found"], [2, "unchanged"], [3, "updated"], [4, "cleared"]]);
+  assert.deepEqual(out.body.summary, { failed: 1, set: 1, unchanged: 1, updated: 1, cleared: 1 });
+  assert.equal((await getPlaceById(s.place, s.db))?.card.logoUrl, null);
+});
+
+test("set_place_logos accepts 25 items and rejects empty or 26-item batches before writing", async () => {
+  const s = setup();
+  const logo = { place_id: s.place, logo_url: LOGO, source_url: MENU_PAGE };
+  for (const length of [0, MAX_BATCH + 1]) {
+    assert.equal((await call(s.environment, "set_place_logos", { logos: Array.from({ length }, () => logo) })).isError, true);
+    assert.equal((await getPlaceById(s.place, s.db))?.card.logoUrl, null);
+  }
+  const out = await call(s.environment, "set_place_logos", { logos: Array.from({ length: MAX_BATCH }, () => logo) });
+  assert.equal(out.body.results.length, MAX_BATCH);
+  assert.deepEqual(out.body.summary, { failed: 0, set: 1, unchanged: 24 });
 });
