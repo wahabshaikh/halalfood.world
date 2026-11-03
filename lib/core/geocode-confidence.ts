@@ -73,7 +73,10 @@ function namesCity(address: string, city: string): boolean {
 
 function cityName(value: string): string {
   const normalized = geographicText(value).replace(/ (city|ku|shi|ward)$/, "");
-  return ["東京", "東京都"].includes(normalized) ? "tokyo" : normalized;
+  if (["東京", "東京都"].includes(normalized)) return "tokyo";
+  if (["shinbashi", "shimbashi", "新橋"].includes(normalized)) return "shinbashi";
+  if (["港区", "港"].includes(normalized)) return "minato";
+  return normalized;
 }
 
 function matchesCity(candidate: GeocodeCandidate, city: string): boolean {
@@ -105,6 +108,14 @@ function valid(candidate: GeocodeCandidate): boolean {
 
 /** Conservative address heuristic: a house number or street word beyond city/country/postcode. */
 export function hasStreetAddress(input: { address: string; city: string; country?: string | null }): boolean {
+  const raw = input.address.normalize("NFKC");
+  if (sameCountry(input.country ?? "", "Japan") || /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}/u.test(raw)) {
+    // Strip postal codes before looking for Japanese block/building numbers.
+    const street = raw.replace(/〒?\s*\b\d{3}[-−‐–ー]\d{4}\b/g, " ");
+    if (/(?:^|[^\d])\d{1,3}\s*[-−‐–ー]\s*\d{1,3}(?:\s*[-−‐–ー]\s*\d{1,3})?(?!\d)/u.test(street) ||
+      /\d+丁目\s*\d+(?:番(?:\s*\d+号)?|\s*[-−‐–ー]\s*\d+)/u.test(street) ||
+      /\d+[-\s]*ch[oō]me[-\s]+\d+\s*[-−‐–ー]\s*\d+/iu.test(street)) return true;
+  }
   let address = normalizeText(input.address);
   const areas = [input.city, input.country ?? "", ...COUNTRY_GROUPS.flat()];
   for (const area of areas) {
@@ -117,8 +128,10 @@ export function hasStreetAddress(input: { address: string; city: string; country
   if (["australia", "au", "austria", "at", "new zealand", "nz", "belgium", "denmark", "norway", "switzerland", "south africa"].includes(country))
     address = address.replace(/\b\d{4}\b/g, " ");
   address = address.replace(/\b\d{4}\s*[a-z]{2}\b/gi, " ");
-  const house = /\b\d{1,4}[a-z]?\b/i.test(address) && /\p{L}{4,}/u.test(address);
-  return house || /\b(street|st|road|rd|avenue|ave|lane|ln|drive|dr|boulevard|blvd|way|rue|strasse|calle|jalan|marg)\b/i.test(address);
+  const northAmericanHouse = ["United States", "Canada"].some((country) => sameCountry(input.country ?? "", country)) &&
+    raw.split(/[,、，]/).some((part) => /^\s*\d{5}\s+\p{L}/u.test(part));
+  const house = (/\b\d{1,4}[a-z]?\b/i.test(address) || northAmericanHouse) && /\p{L}{4,}/u.test(address);
+  return house || /\b(street|st|road|rd|avenue|ave|lane|ln|drive|dr|boulevard|blvd|way|rue|strasse|calle|jalan|marg|fwy|freeway|hwy|highway|pkwy|parkway|expy|expressway|ct|court|pl|cir|circle|trl|trail|tpke|turnpike|plaza|sq|square|ter|terrace|place)\b/i.test(address);
 }
 
 /** Area and route results never identify a venue, even with a convincing formatted address. */

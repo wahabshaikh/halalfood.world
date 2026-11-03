@@ -105,3 +105,29 @@ test("country aliases remain usable without Intl region names", () => {
     assert.deepEqual(judgeGeocode([{ ...dishoom, addressComponents: [{ types: ["country"] }] }], LONDON), { ok: false, reason: "wrong_country" });
   } finally { displayNames.mockRestore(); }
 });
+
+
+test("North American house numbers and street suffixes survive postcode filtering", () => {
+  for (const address of ["11201 Southwest Fwy, Houston", "Houston, 11201 Southwest Freeway", "11201 Westheimer, Houston", "Southwest Fwy, Houston"]) {
+    assert.equal(hasStreetAddress({ address, city: "Houston", country: "USA" }), true, address);
+  }
+  for (const suffix of ["fwy", "freeway", "hwy", "highway", "pkwy", "parkway", "expy", "expressway", "ct", "court", "pl", "cir", "circle", "trl", "trail", "tpke", "turnpike", "plaza", "sq", "square", "ter", "terrace", "place"]) {
+    assert.equal(hasStreetAddress({ address: `Southwest ${suffix}, Houston`, city: "Houston", country: "US" }), true, suffix);
+  }
+  assert.equal(hasStreetAddress({ address: "12345 Kingsway, Vancouver", city: "Vancouver", country: "CA" }), true);
+  for (const address of ["Houston, TX 77002", "Houston 77002-1234", "77002", "Houston, USA"]) {
+    assert.equal(hasStreetAddress({ address, city: "Houston", country: "USA" }), false, address);
+  }
+});
+
+test("Japanese block and building numbers are recognized before ASCII normalization, but not postcodes", () => {
+  for (const address of ["東京都港区新橋2-15-3", "東京都港区新橋２丁目１５−３", "〒105-0004 東京都港区新橋2丁目15-3", "新橋2丁目15番3号", "新橋2丁目15番", "新橋2-15", "新橋2‐15‐3", "新橋2–15–3", "新橋2ー15ー3", "2-chome 15-3 Shinbashi", "2 Chome-15-3 Shinbashi"]) {
+    assert.equal(hasStreetAddress({ address, city: "Tokyo", country: "JP" }), true, address);
+  }
+  assert.equal(hasStreetAddress({ address: "東京都港区新橋2-15-3", city: "Tokyo" }), true);
+  assert.equal(hasStreetAddress({ address: "2-15 Shinbashi", city: "Tokyo", country: "日本" }), true);
+  for (const address of ["105-0004", "〒105-0004", "〒１０５−０００４", "東京都港区新橋", "東京都 105-0004", "105-0004 Tokyo", "Tokyo, Japan"]) {
+    assert.equal(hasStreetAddress({ address, city: "Tokyo", country: "Japan" }), false, address);
+  }
+  assert.equal(hasStreetAddress({ address: "2-15", city: "Houston", country: "USA" }), false);
+});

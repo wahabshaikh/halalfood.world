@@ -115,3 +115,43 @@ test("both Google APIs reject area results and accept street-level types", async
     }
   }
 });
+
+
+const component = (longText: string, shortText: string, type: string) => ({ longText, shortText, types: [type] });
+const HOUSTON = {
+  ...place("11201 Southwest Fwy, Houston, TX 77031, USA", 29.657, -95.565),
+  types: ["restaurant", "food", "point_of_interest", "establishment"],
+  addressComponents: [component("11201", "11201", "street_number"), component("Southwest Freeway", "Southwest Fwy", "route"), component("Houston", "Houston", "locality"), component("Harris County", "Harris County", "administrative_area_level_2"), component("Texas", "TX", "administrative_area_level_1"), component("United States", "US", "country"), component("77031", "77031", "postal_code")],
+};
+
+test("realistic Houston restaurant responses pass both Google APIs; route-only results still fail", async () => {
+  const { deps } = setup();
+  for (const googlePlaceId of [undefined, "ChIJhouston"]) {
+    const calls = mockFetch(() => json(googlePlaceId ? HOUSTON : { places: [HOUSTON] }));
+    assert.deepEqual(await geocodePlace(deps, { address: "11201 Southwest Fwy, Houston", city: "Houston", country: "USA", googlePlaceId }), { ok: true, lat: 29.657, lng: -95.565, via: googlePlaceId ? "google_place_id" : "text_search" });
+    assert.equal(calls.length, 1);
+    const route = { ...HOUSTON, types: ["route"] };
+    mockFetch(() => json(googlePlaceId ? route : { places: [route] }));
+    assert.deepEqual(await geocodePlace(deps, { address: "Southwest Fwy, Houston", city: "Houston", country: "USA", googlePlaceId }), { ok: false, reason: "not_street_level" });
+  }
+});
+
+test("Grill Hunter Shimbashi succeeds with English and Japanese Google addresses and district cities", async () => {
+  const { deps } = setup({ apiKey: "test-key", searchCap: 30, detailsCap: 30 });
+  for (const japanese of [false, true]) {
+    const result = {
+      ...place(japanese ? "日本、〒105-0004 東京都港区新橋２丁目１５−３" : "2-chōme-15-3 Shinbashi, Minato City, Tokyo 105-0004, Japan", 35.666, 139.756),
+      types: ["restaurant", "food", "point_of_interest", "establishment"],
+      displayName: { text: "Grill Hunter Shimbashi" },
+      addressComponents: [component("Grill Hunter", "Grill Hunter", "premise"), component("2", "2", "sublocality_level_4"), component("15", "15", "sublocality_level_3"), component(japanese ? "新橋" : "Shinbashi", japanese ? "新橋" : "Shinbashi", "sublocality_level_2"), component(japanese ? "港区" : "Minato City", japanese ? "港区" : "Minato", "locality"), component(japanese ? "東京都" : "Tokyo", japanese ? "東京都" : "Tokyo", "administrative_area_level_1"), component(japanese ? "日本" : "Japan", "JP", "country")],
+    };
+    for (const city of ["Tokyo", "Minato", "Shimbashi"]) {
+      for (const googlePlaceId of [undefined, "ChIJhunter"]) {
+        const calls = mockFetch(() => json(googlePlaceId ? result : { places: [result] }));
+        const out = await geocodePlace(deps, { address: japanese ? "東京都港区新橋２丁目１５−３" : "2-chome 15-3 Shinbashi", city, country: "Japan", googlePlaceId });
+        assert.deepEqual(out, { ok: true, lat: 35.666, lng: 139.756, via: googlePlaceId ? "google_place_id" : "text_search" }, `${city}, Japanese: ${japanese}`);
+        assert.equal(calls.length, 1);
+      }
+    }
+  }
+});
