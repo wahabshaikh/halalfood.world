@@ -54,7 +54,7 @@ Account deletion keeps the paid claim, clears `contact_email`, and drops `user_i
 
 - [ ] Confirm **$29 / 30 days** (or change the constant and the Whop plan together before enabling).
 - [ ] Create the Whop plan at that price. Set `WHOP_OWNER_PLAN_ID` only when it matches the page.
-- [ ] Confirm the public label and the Sponsored block stay **moderator-approved** after payment. Hours, menu and restaurant photos stay off the public page until that approval. Say if you want them public as soon as Whop is paid.
+- [ ] Confirm the public label and the Sponsored block stay **moderator-approved** after payment. The safer default is already what the code does: hours, menu and restaurant photos stay off the public page until that approval. They are not shown just because Whop was paid.
 - [ ] Confirm certificate review stays on the existing Evidence queue (payment never sets Halal certified).
 - [ ] Confirm the Sponsored cap of **4 per city**, labelled, not mixed into ranking.
 - [ ] Confirm view counts are a rough daily total, not a billing meter.
@@ -62,9 +62,18 @@ Account deletion keeps the paid claim, clears `contact_email`, and drops `user_i
 - [ ] Do not merge until those are accepted. Merging deploys and migrates production.
 - [ ] Leave draft PRs #137, #140–#143 and #112 as they are. This branch does not include them.
 
+## Unfinished (stopped before implementation)
+
+A follow-up on this branch was stopped before any of the code below was written. Do not treat it as live.
+
+- **No nonce Content-Security-Policy.** Responses still send the baseline headers above and do not send `Content-Security-Policy` on HTML. MapLibre, Turnstile, Sentry and JSON-LD were not given a nonce, and Chromium was not checked for CSP console violations on home, a city page, a place page, `/claim` or `/admin`.
+- **No owner edits for phone, website or a short description.** Hours and menu are the only listing text the buyer can save. Those stay hidden until a moderator approves the paid claim (`isPublicClaim` in `lib/core/owner-claim.ts`). Phone, website and description were not added, so there is no new table and no new route.
+- **Not re-checked in this stop.** Lint, typecheck, coverage, build and E2E were last run for commit `db634c0`. This note does not re-run them. No new screenshots.
+
 ## Not in this change
 
-- No new payment-provider account, no live charge, no emails.
-- No Google Places calls and no change to Google search rate limits.
+- No new payment-provider account, no live charge, no emails, no Whop plan.
+- No Google Places calls and no change to Google search rate limits or halal-status logic.
 - No strict Content-Security-Policy.
 - No auto-approval of ownership. That remains a moderation decision.
+- No owner phone, website or description fields.
