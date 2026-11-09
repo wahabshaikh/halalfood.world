@@ -10,6 +10,8 @@ export type PlacePhoto = {
   fileName: string;
   createdAt: string;
   isOwn: boolean;
+  /** member, or restaurant when a paid claim added it. Not a halal signal. */
+  listedBy: "member" | "restaurant";
 };
 
 export type PlacePhotoCreateInput = {
@@ -70,6 +72,7 @@ function mapPhoto(row: Record<string, unknown>): PlacePhoto {
     fileName: `halal-photo.${extensionFor(type)}`,
     createdAt: isoDate(row.created_at),
     isOwn: row.is_own === true || row.is_own === 1 || row.is_own === "true",
+    listedBy: row.listed_by === "restaurant" ? "restaurant" : "member",
   };
 }
 
@@ -105,6 +108,7 @@ export function d1PlacePhotoRepository(
           ph.content_type,
           ph.byte_size,
           ph.created_at,
+          ph.listed_by,
           ${ownPhoto} AS is_own
         FROM place_photos AS ph
         INNER JOIN places AS p ON p.id = ph.place_id

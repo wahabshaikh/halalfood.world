@@ -118,6 +118,8 @@ test("current Whop payloads use flat payment ids and exclude newsletter payments
   const refund = parseWhopEvent({ type: "refund.updated", data: { payment_id: "pay_flat", status: "succeeded" } }, NOW);
   assert.deepEqual(refund, { type: "refund", paymentId: "pay_flat", membershipId: null });
   assert.equal(parseWhopEvent({ type: "payment.succeeded", data: { id: "pay_n", metadata: { kind: "newsletter", sponsorship_id: "s1" } } }, NOW).type, "ignored");
+  assert.equal(parseWhopEvent({ type: "payment.succeeded", data: { id: "pay_o", metadata: { kind: "owner_claim", claim_id: "c1" } } }, NOW).type, "ignored");
+  assert.equal(parseWhopEvent({ type: "membership.updated", data: { id: "mem_o", status: "active", cancel_at_period_end: false, metadata: { kind: "owner_claim" } } }, NOW).type, "ignored");
   const paid = parseWhopEvent({ type: "payment.succeeded", data: { id: "pay_s", membership_id: "mem_s" } }, NOW);
   assert.equal(paid.type === "payment.succeeded" && paid.membershipId, "mem_s");
 });

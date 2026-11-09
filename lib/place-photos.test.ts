@@ -100,6 +100,7 @@ class MemoryPhotoRepository implements PlacePhotoRepository {
       fileName: input.fileName,
       createdAt: new Date(Date.UTC(2026, 8, sequence)).toISOString(),
       isOwn: true,
+      listedBy: "member",
     };
     this.photos.set(photo.id, { ownerId: userId, placeId, photo });
     return photo;
@@ -319,6 +320,7 @@ test("place photo deletion rejects another user's photo and does not delete its 
       fileName: "other.png",
       createdAt: "2026-09-14T12:00:00.000Z",
       isOwn: false,
+      listedBy: "member",
     },
   });
   bucket.objects.set(otherKey, PNG_BYTES);

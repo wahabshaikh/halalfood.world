@@ -91,6 +91,7 @@ function photoPayload(photo: PlacePhoto) {
     fileName: photo.fileName,
     createdAt: photo.createdAt,
     isOwn: photo.isOwn,
+    listedBy: photo.listedBy,
   };
 }
 

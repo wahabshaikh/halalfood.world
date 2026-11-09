@@ -98,6 +98,31 @@ export async function readJson(request: Request): Promise<unknown | symbol> {
   }
 }
 
+/** A body that is present but larger than a route is willing to parse. */
+export const BODY_TOO_LARGE = Symbol("body-too-large");
+
+/**
+ * Read a JSON body only when it is within `maxBytes`. Callers answer 400.
+ * `content-length` is checked first, then the bytes actually read, so a short
+ * header cannot hide a large body.
+ */
+export async function readBoundedJson(request: Request, maxBytes = 65_536): Promise<unknown | symbol> {
+  const length = Number(request.headers.get("content-length") ?? 0);
+  if (Number.isFinite(length) && length > maxBytes) return BODY_TOO_LARGE;
+  let text: string;
+  try {
+    text = await request.text();
+  } catch {
+    return INVALID_JSON;
+  }
+  if (text.length > maxBytes) return BODY_TOO_LARGE;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return INVALID_JSON;
+  }
+}
+
 export const INVALID_JSON = Symbol("invalid-json");
 
 /** Spend a rate-limit budget, converting both failure modes to a response. */

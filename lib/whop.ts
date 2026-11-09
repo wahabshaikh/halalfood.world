@@ -129,6 +129,50 @@ export async function newsletterConfig(): Promise<NewsletterConfig | null> {
   return apiKey && planId ? { apiKey, planId, productId: productId || undefined } : null;
 }
 
+export type OwnerClaimConfig = { apiKey: string; planId: string; productId?: string };
+
+/**
+ * Restaurant claims stay off until a plan id is set, even when the sponsorship API key is present.
+ * The plan's price in Whop has to match OWNER_CLAIM_PRICE_USD.
+ */
+export async function ownerClaimConfig(): Promise<OwnerClaimConfig | null> {
+  const [apiKey, planId, productId] = await Promise.all([
+    readWorkerEnv("WHOP_API_KEY"),
+    readWorkerEnv("WHOP_OWNER_PLAN_ID"),
+    readWorkerEnv("WHOP_OWNER_PRODUCT_ID"),
+  ]);
+  return apiKey && planId ? { apiKey, planId, productId: productId || undefined } : null;
+}
+
+export type OwnerCheckoutRequest = { claimId: string; userId: string; placeId: string; redirectUrl: string; planId: string };
+
+/** Hosted checkout for one restaurant claim. Metadata names the claim so the webhook can find it. */
+export async function createOwnerClaimCheckout(
+  config: { apiKey: string },
+  request: OwnerCheckoutRequest,
+  fetcher: typeof fetch = fetch,
+): Promise<{ id: string; purchaseUrl: string }> {
+  const response = await fetcher(`${WHOP_API}/checkout_configurations`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": request.claimId,
+    },
+    body: JSON.stringify({
+      mode: "payment",
+      plan_id: request.planId,
+      metadata: { kind: "owner_claim", claim_id: request.claimId, user_id: request.userId, place_id: request.placeId },
+      redirect_url: request.redirectUrl,
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error(`Whop checkout failed with ${response.status}`);
+  const body = (await response.json()) as { id?: unknown; purchase_url?: unknown };
+  if (typeof body.id !== "string" || typeof body.purchase_url !== "string") throw new Error("Whop checkout response was incomplete");
+  return { id: body.id, purchaseUrl: new URL(body.purchase_url, "https://whop.com").href };
+}
+
 /** Create a hosted checkout against the existing newsletter plan, with local account ownership. */
 export async function createNewsletterCheckout(
   config: { apiKey: string },

@@ -799,6 +799,36 @@ export async function consumeVouchLimits(
   );
 }
 
+/**
+ * One counted view per IP per place per day, and a hourly cap so a script cannot
+ * walk every listing. The counter stores no IP. Restaurant claims share the
+ * sponsor checkout budget below: each checkout calls Whop.
+ */
+export const PLACE_VIEW_RATE_LIMITS = {
+  placeIp: { windowMs: 24 * 60 * 60 * 1000, maxCount: 1, cooldownMs: 0 },
+  ip: { windowMs: 60 * 60 * 1000, maxCount: 60, cooldownMs: 0 },
+} as const;
+
+export async function consumePlaceViewLimits(
+  placeId: string,
+  ip: string,
+  store: OtpRateLimitStore = d1OtpRateLimitStore(),
+  now = new Date(),
+) {
+  const [placeKey, ipKey] = await Promise.all([
+    identifierKey(`view:place:${placeId}`, ip),
+    identifierKey("view:ip", ip),
+  ]);
+  return consumePair(
+    [
+      { key: placeKey, rule: PLACE_VIEW_RATE_LIMITS.placeIp },
+      { key: ipKey, rule: PLACE_VIEW_RATE_LIMITS.ip },
+    ],
+    store,
+    now,
+  );
+}
+
 /** Starting a sponsor checkout: each one calls Whop, so a few a day is plenty. */
 export const SPONSOR_CHECKOUT_RATE_LIMITS = {
   mutationUser: { windowMs: 24 * 60 * 60 * 1000, maxCount: 10, cooldownMs: 2000 },

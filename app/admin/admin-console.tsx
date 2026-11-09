@@ -50,22 +50,38 @@ type SponsorRow = {
   live: boolean;
 };
 
+type ClaimRow = {
+  id: string;
+  placeId: string;
+  placeName: string;
+  cityLabel: string;
+  role: "owner" | "manager";
+  contactEmail: string;
+  status: "pending" | "active" | "refunded" | "removed" | "ended";
+  review: "pending" | "approved" | "rejected";
+  buyer: string | null;
+  public: boolean;
+};
+
 export function AdminConsole({
   reports,
   evidence,
   events,
   cities,
   sponsors,
+  claims,
 }: {
   reports: Report[];
   evidence: Evidence[];
   events: EventRow[];
   cities: City[];
   sponsors: SponsorRow[];
+  claims: ClaimRow[];
 }) {
   const [tab, setTab] = useState<"reports" | "evidence" | "events" | "sponsors">("reports");
   return (
     <div className="grid gap-5">
+      <RestaurantClaims initial={claims} />
       <div className="max-w-sm">
         <Segmented
           label="Moderation"
@@ -89,6 +105,74 @@ export function AdminConsole({
         <Sponsors initial={sponsors} />
       )}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+/* Restaurant claims                                                         */
+/* ------------------------------------------------------------------------ */
+
+function RestaurantClaims({ initial }: { initial: ClaimRow[] }) {
+  const [items, setItems] = useState(initial);
+  const [busy, setBusy] = useState<string | null>(null);
+  const act = async (item: ClaimRow, action: "approve" | "reject" | "remove" | "restore") => {
+    setBusy(item.id);
+    try {
+      await api(`/api/admin/owner-claims/${item.id}`, { method: "POST", json: { action } });
+      toast(action === "approve" ? "Public label approved" : action === "reject" ? "Public label declined" : action === "remove" ? "Taken down" : "Restored");
+      setItems((current) =>
+        current.map((each) => {
+          if (each.id !== item.id) return each;
+          if (action === "approve") return { ...each, review: "approved", public: each.status === "active" };
+          if (action === "reject") return { ...each, review: "rejected", public: false };
+          if (action === "remove") return { ...each, status: "removed", public: false };
+          return { ...each, status: "active" };
+        }),
+      );
+    } catch (error) {
+      toast(errorText(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <section aria-labelledby="claims-title" className="grid gap-3">
+      <h2 id="claims-title" className="text-[15px] font-black">Restaurant claims</h2>
+      <p className="text-sm font-semibold text-muted-foreground">
+        Approving shows “Claimed by the restaurant” and the Sponsored city block. It does not change halal facts. Certificates stay in Evidence.
+      </p>
+      {items.length === 0 ? (
+        <p className="text-sm font-semibold text-muted-foreground">No paid claims yet.</p>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {items.map((item) => (
+            <article key={item.id} className="grid gap-2 rounded-2xl border border-border p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-black">{item.public ? "Public" : item.review}</span>
+                <a href={`/place/${item.placeId}`} className="text-sm font-extrabold underline-offset-4 hover:underline">{item.placeName}</a>
+              </div>
+              <p className="text-sm font-semibold text-muted-foreground">
+                {item.cityLabel} · {item.role} · {item.buyer ?? "deleted account"}
+              </p>
+              {item.contactEmail && <p className="text-sm font-semibold">{item.contactEmail}</p>}
+              <div className="flex flex-wrap gap-2">
+                {item.status === "active" && item.review !== "approved" && (
+                  <button type="button" disabled={busy === item.id} onClick={() => act(item, "approve")} className={buttonClass("primary", "sm")}>Approve</button>
+                )}
+                {item.status === "active" && item.review !== "rejected" && (
+                  <button type="button" disabled={busy === item.id} onClick={() => act(item, "reject")} className={buttonClass("outline", "sm")}>Decline</button>
+                )}
+                {item.status === "active" ? (
+                  <button type="button" disabled={busy === item.id} onClick={() => act(item, "remove")} className={buttonClass("danger", "sm")}>Take down</button>
+                ) : item.status === "removed" ? (
+                  <button type="button" disabled={busy === item.id} onClick={() => act(item, "restore")} className={buttonClass("outline", "sm")}>Restore</button>
+                ) : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

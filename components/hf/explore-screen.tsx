@@ -17,6 +17,8 @@ import { getVisitorLocation } from "@/lib/visitor-location";
 import { breadcrumbJsonLd, canonical, jsonLdScript } from "@/lib/seo";
 import { ExploreExtras } from "./explore-extras";
 import { SponsorCard } from "./sponsor-card";
+import { SponsoredPlaces } from "./sponsored-places";
+import { featuredPlaces } from "@/lib/owner-claims";
 import { liveSponsor } from "@/lib/sponsorships";
 
 export type ExploreSearchParams = Record<string, string | string[] | undefined>;
@@ -47,6 +49,7 @@ export async function ExploreScreen({ city, searchParams }: { city: City; search
 
   // A sponsor is optional decoration: if the lookup fails, the page renders without it.
   const sponsor = await liveSponsor(city.city_slug).catch(() => null);
+  const sponsoredPlaces = await featuredPlaces(city.city_slug).catch(() => []);
   const result = await loadExplore(viewerId, {
     citySlug: city.city_slug,
     bbox: null,
@@ -127,6 +130,7 @@ export async function ExploreScreen({ city, searchParams }: { city: City; search
         <div className="grid gap-[26px] pt-1 md:gap-10 md:pt-0">
           <ExploreExtras citySlug={city.city_slug} cityLabel={name} viewerId={viewerId} />
           {sponsor && <SponsorCard sponsor={sponsor} cityLabel={name} />}
+          <SponsoredPlaces places={sponsoredPlaces} cityLabel={name} />
           <section aria-labelledby="places-title" className="grid gap-2.5 md:gap-4">
             <SectionTitle id="places-title">{near ? "Places near you" : `Places in ${name}`}</SectionTitle>
             <FilterChips
