@@ -3,7 +3,7 @@ import { env } from "@/lib/testing/cloudflare-workers";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { SPONSOR_PERIOD_DAYS, SPONSOR_PRICE_USD } from "@/lib/core/sponsorship";
-import { WEBHOOK_TOLERANCE_MS, checkWhopAccess, createNewsletterCheckout, newsletterConfig, whopConfig, createSponsorCheckout, signWhopWebhook, verifyWhopWebhook } from "./whop";
+import { WEBHOOK_TOLERANCE_MS, checkWhopAccess, createNewsletterCheckout, createOwnerClaimCheckout, newsletterConfig, ownerClaimConfig, whopConfig, createSponsorCheckout, signWhopWebhook, verifyWhopWebhook } from "./whop";
 
 const SECRET = "ws_test_secret_value";
 const NOW = Date.parse("2026-10-18T12:00:00Z");
@@ -106,6 +106,11 @@ test("Whop configuration reads optional sponsor product and requires a newslette
   assert.deepEqual(await newsletterConfig(), { apiKey: "key", planId: "plan_news", productId: undefined });
   env.WHOP_NEWSLETTER_PRODUCT_ID = "prod_news";
   assert.deepEqual(await newsletterConfig(), { apiKey: "key", planId: "plan_news", productId: "prod_news" });
+  assert.equal(await ownerClaimConfig(), null);
+  env.WHOP_OWNER_PLAN_ID = "plan_owner";
+  assert.deepEqual(await ownerClaimConfig(), { apiKey: "key", planId: "plan_owner", productId: undefined });
+  env.WHOP_OWNER_PRODUCT_ID = "prod_owner";
+  assert.deepEqual(await ownerClaimConfig(), { apiKey: "key", planId: "plan_owner", productId: "prod_owner" });
 });
 
 test("sponsor checkout optionally reuses its configured product", async () => {
@@ -132,6 +137,29 @@ test("newsletter checkout uses an existing plan with local ownership and an idem
   assert.deepEqual(result, { id: "ch_news", purchaseUrl: "https://whop.com/checkout/news" });
   for (const response of [new Response("no", { status: 401 }), Response.json({ id: "ch_news" })])
     await assert.rejects(createNewsletterCheckout({ apiKey: "key" }, { userId: "a", planId: "plan_news", redirectUrl: "https://x.test" }, (async () => response) as typeof fetch));
+});
+
+test("restaurant claim checkout uses the configured plan and names the claim", async () => {
+  const result = await createOwnerClaimCheckout(
+    { apiKey: "key" },
+    { claimId: "claim_1", userId: "a", placeId: "place_1", redirectUrl: "https://halalfood.world/claim/place_1?paid=1", planId: "plan_owner" },
+    (async (url, init) => {
+      assert.equal(url, "https://api.whop.com/api/v1/checkout_configurations");
+      const headers = init?.headers as Record<string, string>;
+      assert.equal(headers["Idempotency-Key"], "claim_1");
+      assert.deepEqual(JSON.parse(String(init?.body)), {
+        mode: "payment",
+        plan_id: "plan_owner",
+        metadata: { kind: "owner_claim", claim_id: "claim_1", user_id: "a", place_id: "place_1" },
+        redirect_url: "https://halalfood.world/claim/place_1?paid=1",
+      });
+      return Response.json({ id: "ch_owner", purchase_url: "/checkout/owner" });
+    }) as typeof fetch,
+  );
+  assert.deepEqual(result, { id: "ch_owner", purchaseUrl: "https://whop.com/checkout/owner" });
+  for (const response of [new Response("no", { status: 401 }), Response.json({ id: "ch_owner" })]) {
+    await assert.rejects(createOwnerClaimCheckout({ apiKey: "key" }, { claimId: "c", userId: "a", placeId: "p", planId: "plan_owner", redirectUrl: "https://x.test" }, (async () => response) as typeof fetch));
+  }
 });
 
 test("Whop access calls the user/resource endpoint with a three-second timeout", async () => {

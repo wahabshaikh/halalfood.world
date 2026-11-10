@@ -1,8 +1,10 @@
 import { afterEach, test } from "vitest";
 import assert from "node:assert/strict";
 import { env } from "@/lib/testing/cloudflare-workers";
-import { addProfile, addUser, createTestDatabase } from "@/lib/testing/sqlite-d1";
+import { addPlace, addProfile, addUser, createTestDatabase } from "@/lib/testing/sqlite-d1";
 import { parseSponsorInput } from "@/lib/core/sponsorship";
+import { parseClaimCheckout } from "@/lib/core/owner-claim";
+import { publicOwnerPlace, startOwnerClaim } from "@/lib/owner-claims";
 import { liveSponsor, startSponsorship } from "@/lib/sponsorships";
 import { newsletterStatusForUser } from "@/lib/newsletter";
 import { signWhopWebhook } from "@/lib/whop";
@@ -83,4 +85,27 @@ test("a signed newsletter activation is stored once, updated in order, and never
   assert.equal((await POST(await delivery(payment, "msg_payment"))).status, 200);
   assert.equal((sqlite.prepare("SELECT COUNT(*) AS n FROM city_sponsorships").get() as { n: number }).n, 0);
   assert.equal((await POST(await delivery({ type: "unknown.event" }, "msg_unknown"))).status, 200);
+});
+
+test("a restaurant claim payment activates the claim and does not buy a city sponsorship", async () => {
+  const { sqlite, binding, db } = createTestDatabase();
+  addUser(sqlite, "a");
+  addProfile(sqlite, "a");
+  const place = addPlace(sqlite, { city: "london", name: "Claimed Grill" });
+  env.DB = binding;
+  env.WHOP_WEBHOOK_SECRET = SECRET;
+  const parsed = parseClaimCheckout({ placeId: place, role: "owner", contactEmail: "owner@grill.example" });
+  assert.ok(parsed.ok);
+  const started = await startOwnerClaim("a", parsed.ok ? parsed.value : (null as never), db);
+  assert.ok(started.ok);
+  const id = started.ok ? started.value.id : "";
+  const event = { type: "payment.succeeded", data: { id: "pay_claim", metadata: { kind: "owner_claim", claim_id: id }, membership_id: "mem_claim" } };
+  assert.equal((await POST(await delivery(event, "msg_claim"))).status, 200);
+  assert.equal((await POST(await delivery(event, "msg_claim"))).status, 200);
+  const row = sqlite.prepare("SELECT status, whop_payment_id FROM owner_claims WHERE id = ?").get(id) as { status: string; whop_payment_id: string };
+  assert.equal(row.status, "active");
+  assert.equal(row.whop_payment_id, "pay_claim");
+  assert.equal((await publicOwnerPlace(place, db)).badge, false);
+  assert.equal((sqlite.prepare("SELECT COUNT(*) AS n FROM city_sponsorships").get() as { n: number }).n, 0);
+  assert.equal((sqlite.prepare("SELECT COUNT(*) AS n FROM whop_webhook_events").get() as { n: number }).n, 1);
 });

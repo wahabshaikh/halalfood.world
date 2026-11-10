@@ -280,6 +280,8 @@ export async function deleteAccount(userId: string, client: Client = database(),
     sql`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
         VALUES (${tombstone}, 'Deleted account', ${`${tombstone}@deleted.invalid`}, 0, ${user.created_at}, ${now})`,
     sql`UPDATE checks SET user_id = ${tombstone}, note = NULL, shared = 0, idempotency_key = id WHERE user_id = ${userId}`,
+    // The paid claim stays (like a sponsorship) but the contact email is personal and goes with the account.
+    sql`UPDATE owner_claims SET contact_email = '' WHERE user_id = ${userId}`,
     sql`DELETE FROM "user" WHERE id = ${userId}`,
   ]);
   return keys.map((row) => row.key);

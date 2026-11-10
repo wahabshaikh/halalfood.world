@@ -48,9 +48,10 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `/events`, `/event/[id]` | – | Halal food events and their stalls. |
 | `/creator/[platform]/[handle]` | – | Places from a creator's videos; links to `/u/<handle>` when the channel has a creator profile. |
 | `/me`, `/me/settings`, `/me/privacy` | ✓ | You (Passport, Checks, Lists), Settings, Privacy & people. |
-| `/admin` | moderator | Reports, Evidence, Events and Sponsors. |
+| `/admin` | moderator | Reports, Evidence, Events, Sponsors, and restaurant claims. |
 | `/how-trust-works` | – | Plain-words explainer: the four halal facts and Confirmed, place badges, trust bands and points. Linked from the footer. |
 | `/newsletter` | – | City picks, new places and sponsor slots; subscribe and manage a Whop newsletter membership. |
+| `/claim`, `/claim/[placeId]` | – / form ✓ | Claim a restaurant: the offer, then one place's checkout or the owner's hours, menu, photos, certificate and view counts. |
 | `/sponsor`, `/sponsor/[citySlug]`, `/sponsor/thanks` | – / form ✓ / ✓ | Sponsor a city: the offer and which cities are open; one city's form, card preview and Whop checkout; the return page after paying. |
 
 ### API
@@ -75,6 +76,12 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `POST /api/reports` | Report a place, check, comment, person or list. |
 | `GET /api/admin/reports`, `POST /api/admin/reports/[id]`, `GET/POST /api/admin/events`, `GET/PUT/DELETE /api/admin/events/[id]` | Moderation. Every action writes `audit_log`. |
 | `POST /api/newsletter/checkout` | Signed-in newsletter checkout, JSON object body (no fields required), returns `{url}`. 503 when unconfigured; shares the sponsor checkout budget (10/day per user, 30/day per IP). |
+| `POST /api/owner-claims` | Start a restaurant claim (`{placeId, role: owner\|manager, contactEmail}`) and get the Whop `checkoutUrl`. 409 when the place is claimed or held, 503 without `WHOP_OWNER_PLAN_ID`. Shares the sponsor checkout budget. |
+| `PUT /api/owner-claims/[id]/hours`, `PUT …/menu` | The buyer replaces hours or the restaurant menu while the paid window is open. |
+| `PUT /api/owner-claims/[id]/details` | The paid claim's owner (`role` owner, not manager) replaces `{phone, website, description}`. Blank fields clear. Phone is 7–15 digits; websites are `http` or `https` only; HTML is stripped. 404 for anyone else, 403 before payment or for a manager. |
+| `POST /api/owner-claims/[id]/photos`, `POST …/certificate` | Restaurant photo, or a certificate photo filed as pending evidence. Same image rules as place photos. |
+| `POST /api/places/[id]/view` | Count one page view. No body. One per IP per place per day. Stores no visitor id. 204. |
+| `POST /api/admin/owner-claims/[id]` | Moderator `{action: approve\|reject\|remove\|restore}`. Does not change halal facts. |
 | `GET/POST /api/sponsorships` | Mine; start a city sponsorship (`{citySlug, name, tagline?, linkUrl}`) and get the Whop `checkoutUrl`. 409 when the city is sponsored or held, 503 without Whop keys. 10 a day per person. |
 | `POST /api/webhooks/whop`, `POST /api/admin/sponsorships/[id]` | Whop webhooks (signed with `WHOP_WEBHOOK_SECRET`); a moderator taking a sponsor card down or restoring it (`{action: "remove" \| "restore"}`, audited). |
 | `/api/auth/*`, `POST /api/admin/email/healthcheck` | Better Auth; the optional email smoke check. |
@@ -381,6 +388,45 @@ account's memberships, then confirms access via `GET /api/v1/users/{user_id}/acc
 API key and configured product are known. The call has a three-second timeout; errors fall back to the stored status.
 Subscribed readers see "You're subscribed" and their Whop management link when supplied by the provider.
 
+## Restaurant claims (Whop)
+
+A restaurant pays $29 every 30 days to manage its own listing. Rules in
+[`lib/core/owner-claim.ts`](../lib/core/owner-claim.ts), D1 in [`lib/owner-claims.ts`](../lib/owner-claims.ts),
+checkout in [`lib/whop.ts`](../lib/whop.ts), tables in `migrations/0012_owner_restaurant_claims.sql` and
+`migrations/0013_owner_place_details.sql`.
+
+Checkout stays off until `WHOP_OWNER_PLAN_ID` is set, even when `WHOP_API_KEY` is already set for city
+sponsorships. The plan in Whop has to charge $29. `WHOP_OWNER_PRODUCT_ID` is optional and unused by the page
+today. The shared webhook (`WHOP_WEBHOOK_SECRET`) also delivers `metadata.kind = "owner_claim"`.
+
+1. A signed-in person opens `/claim/[placeId]`, says they own or manage it, and leaves a contact email.
+   `POST /api/owner-claims` stores a `pending` row (one open claim per place, held for an hour) and creates a
+   Whop checkout with metadata `{kind: "owner_claim", claim_id, user_id, place_id}`. Whop returns the browser to
+   `/claim/[placeId]?paid=1`.
+2. `payment.succeeded` makes the row `active` for 30 days. The same payment id does not extend the window twice.
+   A later payment extends it. Membership cancellation stops renewal; a succeeded refund sets `refunded`.
+3. While the paid window is open the buyer can save hours, replace a menu, upload photos and upload a certificate
+   photo. The account that claimed as the owner can also save a phone, website and short description
+   (`owner_place_details`, `PUT /api/owner-claims/[id]/details`). A manager cannot. Those three fields are not
+   written onto `places`. The certificate is a `place_signals` row with `review_status = 'pending'`. A moderator
+   approves it in Evidence before it can settle `certified`. Paying does not approve it.
+4. The public line "Claimed by the restaurant", the city's Sponsored block (at most 4, `rel="sponsored"`,
+   apart from the place list), and the restaurant's phone, website and description appear only when a moderator
+   approves the claim from `/admin`. Decline, take down and restore are audited. None of this writes `place_status`.
+5. Page views are a UTC daily count on `place_view_days`. One IP can add one view per place per day. No IP is stored.
+
+Deleting the buyer's account keeps the paid claim, clears `contact_email`, and sets `user_id` to NULL.
+The phone, website and description stay with the restaurant, the same way hours do.
+
+## Content-Security-Policy
+
+HTML responses send a nonce `Content-Security-Policy` (`lib/csp.ts`, applied in `worker/index.ts`).
+`'strict-dynamic'` trusts that nonce and the scripts it loads, including Turnstile. Analytics calls
+`https://datafa.st`, the map reads Carto tiles, and Sentry reports to `*.ingest.us.sentry.io`.
+Whop checkout is a navigation to `whop.com` (`form-action` and `frame-src` allow it; `navigate-to` is unset).
+Styles stay `'unsafe-inline'` because MapLibre sets element styles. Vite's dev server adds `'unsafe-eval'`
+and a websocket; production builds do not. Photo and avatar responses keep their own `default-src 'none'`.
+
 ## Sign-in, Turnstile and limits
 
 The `/login` page renders a Cloudflare Turnstile widget, then uses the Better Auth `emailOTP` plugin to request and verify a 6-digit sign-in code. The client uses `emailOTPClient`; successful verification creates a database-backed Better Auth session and secure, HTTP-only cookie. OTP mail is sent only through `lib/email.ts` (Cloudflare Email Service, from `EMAIL_FROM`), with both text and HTML bodies. On localhost and Worker Previews it goes to the email sink instead (see [testing.md](testing.md)).
@@ -453,7 +499,7 @@ The limiter fails closed if D1 is unavailable, so a provider outage cannot turn 
 
 ## Schema
 
-The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. Later migrations add `place_signals` (0002), the email sink (0003), `creator_profiles` / `creator_verifications` (0004, Halal Food Scout), `place_claims` (0005, Scout's sourced web claims), `places.location_source` (0006) and `places.import_source` / `places.import_verified_at` with the `places_indexable_idx` partial index (0007, imported-place provenance; its operator-only rollback is `scripts/rollback/0007_place_provenance_down.sql`, outside `migrations/` so no deploy runs it), the menu tables and logo columns (0008, Scout menus), the Whop sponsorship tables (0009) and the community trust tables `contributions`, `vouches`, `member_trust` and `contribution_points` with the `place_status` trust columns (0010, plus `contribution_points_city_idx` in 0011 for the `/community` leaderboard, which counts only granted points; rules in `lib/core/trust.ts` and `lib/core/contributions.ts`; `recomputeTrust` in `lib/trust.ts` writes the place trust columns after every halal recompute and after creator verification, Scout menu and vouch writes; `POST /api/places/[id]/vouch` writes `vouches`, `contributions` and `contribution_points`, and `PLACE_CARD_COLUMNS` / `toPlaceCard` read `badges` and `trust_band` for place cards and the place page, where an Unverified import shows no badges until it earns a proof badge, `shownBadges`). `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
+The schema is one baseline, [`migrations/0001_baseline.sql`](../migrations/0001_baseline.sql) (D1/SQLite: `text` ids, Unix-millisecond timestamps, `0`/`1` booleans, JSON arrays as text). It creates the Better Auth tables, the OTP limiter, places with their `place_status` projection, checks, people, social, lists, events, recs, notifications, points and reports. Later migrations add `place_signals` (0002), the email sink (0003), `creator_profiles` / `creator_verifications` (0004, Halal Food Scout), `place_claims` (0005, Scout's sourced web claims), `places.location_source` (0006) and `places.import_source` / `places.import_verified_at` with the `places_indexable_idx` partial index (0007, imported-place provenance; its operator-only rollback is `scripts/rollback/0007_place_provenance_down.sql`, outside `migrations/` so no deploy runs it), the menu tables and logo columns (0008, Scout menus), the Whop sponsorship tables (0009) and the community trust tables `contributions`, `vouches`, `member_trust` and `contribution_points` with the `place_status` trust columns (0010, plus `contribution_points_city_idx` in 0011 for the `/community` leaderboard, which counts only granted points; restaurant claims, owner hours, owner menu items, daily view counts and `place_photos.listed_by` in 0012; rules in `lib/core/trust.ts` and `lib/core/contributions.ts`; `recomputeTrust` in `lib/trust.ts` writes the place trust columns after every halal recompute and after creator verification, Scout menu and vouch writes; `POST /api/places/[id]/vouch` writes `vouches`, `contributions` and `contribution_points`, and `PLACE_CARD_COLUMNS` / `toPlaceCard` read `badges` and `trust_band` for place cards and the place page, where an Unverified import shows no badges until it earns a proof badge, `shownBadges`). `lib/db/schema.ts` mirrors it. The app is live. Production moved to this baseline on Oct 5, 2026 by cutting over to a new D1 database, `halalfood-world-v2`; the pre-cutover database `halalfood-world` is kept untouched for rollback ([runbooks/d1-cutover-rollback.md](runbooks/d1-cutover-rollback.md)). From here on, schema changes are new numbered, additive migrations; `pnpm cf:deploy` applies them right before each production deploy. Never drop or reset the production database.
 
 Do not apply production migrations by splitting a file into statements: `wrangler d1 execute --command` treats a leading `--` comment as a flag, and a semicolon inside a comment is not a statement boundary.
 

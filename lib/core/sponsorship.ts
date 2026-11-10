@@ -166,7 +166,8 @@ export function parseWhopEvent(body: unknown, now: number): WhopEvent {
   const data = obj(event.data);
   if (name === "payment.succeeded") {
     const paymentId = str(data.id);
-    if (!paymentId || obj(data.metadata).kind === "newsletter") return { type: "ignored", name };
+    const kind = obj(data.metadata).kind;
+    if (!paymentId || kind === "newsletter" || kind === "owner_claim") return { type: "ignored", name };
     return {
       type: name,
       paymentId,
@@ -179,7 +180,8 @@ export function parseWhopEvent(body: unknown, now: number): WhopEvent {
   if (["membership.activated", "membership.updated", "membership.deactivated", "membership.cancel_at_period_end_changed"].includes(name)) {
     const membershipId = str(data.id);
     if (!membershipId) return { type: "ignored", name };
-    if (obj(data.metadata).kind === "newsletter") return { type: "ignored", name };
+    const kind = obj(data.metadata).kind;
+    if (kind === "newsletter" || kind === "owner_claim") return { type: "ignored", name };
     const status = str(data.status);
     const stop = name === "membership.deactivated" || ["canceled", "completed", "expired", "unresolved"].includes(status ?? "") || data.cancel_at_period_end === true;
     const resume = (status === "active" || status === "trialing") && data.cancel_at_period_end === false;

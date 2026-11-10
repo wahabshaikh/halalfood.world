@@ -9,6 +9,7 @@ import { listPendingEvidence } from "@/lib/place-evidence";
 import { isModerator } from "@/lib/moderators";
 import { cityName } from "@/lib/place-view";
 import { listCities } from "@/lib/places";
+import { listClaimsForAdmin } from "@/lib/owner-claims";
 import { listSponsorshipsForAdmin } from "@/lib/sponsorships";
 import { REASON_LABEL } from "@/lib/core/moderation";
 import { loginHref } from "@/lib/signed-out";
@@ -31,12 +32,13 @@ export default async function AdminPage() {
       </AppShell>
     );
   }
-  const [reports, evidence, events, cities, sponsors] = await Promise.all([
+  const [reports, evidence, events, cities, sponsors, claims] = await Promise.all([
     listOpenReports(),
     listPendingEvidence(),
     listAllEvents(),
     listCities({ limit: 2000 }),
     listSponsorshipsForAdmin(),
+    listClaimsForAdmin(),
   ]);
   return (
     <AppShell active="you">
@@ -48,6 +50,7 @@ export default async function AdminPage() {
           events={events}
           cities={cities.map((city) => ({ slug: city.city_slug, name: cityName(city.city_slug) }))}
           sponsors={sponsors.map((item) => ({ ...item, cityLabel: cityName(item.citySlug) }))}
+          claims={claims.map((item) => ({ ...item, cityLabel: cityName(item.citySlug) }))}
         />
       </Page>
     </AppShell>

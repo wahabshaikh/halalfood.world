@@ -298,6 +298,8 @@ export const placePhotos = sqliteTable("place_photos", {
   contentType: text("content_type").notNull(),
   byteSize: integer("byte_size").notNull(),
   createdAt: ms("created_at").notNull(),
+  /** 'member' or 'restaurant' (migrations/0012_owner_restaurant_claims.sql). Not a halal input. */
+  listedBy: text("listed_by").notNull().default("member"),
 });
 
 /** Evidence besides checks: reviewed certificates and menus, and map listings. */
@@ -751,4 +753,65 @@ export const contributionPoints = sqliteTable(
     index("contribution_points_contribution_idx").on(table.contributionId),
     index("contribution_points_city_idx").on(table.citySlug, table.status, table.createdAt),
   ],
+);
+
+/** Paid restaurant claims (migrations/0012_owner_restaurant_claims.sql). Not a halal fact. */
+export const ownerClaims = sqliteTable("owner_claims", {
+  id: text("id").primaryKey(),
+  placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+  userId: text("user_id").references(() => authUser.id, { onDelete: "set null" }),
+  role: text("role", { enum: ["owner", "manager"] }).notNull(),
+  contactEmail: text("contact_email").notNull(),
+  status: text("status", { enum: ["pending", "active", "refunded", "removed", "ended"] }).notNull(),
+  reviewStatus: text("review_status", { enum: ["pending", "approved", "rejected"] }).notNull().default("pending"),
+  renews: integer("renews", { mode: "boolean" }).notNull().default(true),
+  whopCheckoutId: text("whop_checkout_id"),
+  whopMembershipId: text("whop_membership_id"),
+  whopPaymentId: text("whop_payment_id"),
+  startsAt: ms("starts_at"),
+  activeUntil: ms("active_until"),
+  reviewedByUserId: text("reviewed_by_user_id"),
+  reviewedAt: ms("reviewed_at"),
+  createdAt: ms("created_at").notNull(),
+  updatedAt: ms("updated_at").notNull(),
+});
+
+/** Restaurant-typed phone, website and description (migrations/0013_owner_place_details.sql). Not a halal fact. */
+export const ownerPlaceDetails = sqliteTable("owner_place_details", {
+  placeId: text("place_id").primaryKey().references(() => places.id, { onDelete: "cascade" }),
+  claimId: text("claim_id").notNull().references(() => ownerClaims.id, { onDelete: "cascade" }),
+  phone: text("phone"),
+  website: text("website"),
+  description: text("description"),
+  updatedAt: ms("updated_at").notNull(),
+});
+
+export const ownerHours = sqliteTable("owner_hours", {
+  placeId: text("place_id").primaryKey().references(() => places.id, { onDelete: "cascade" }),
+  claimId: text("claim_id").notNull().references(() => ownerClaims.id, { onDelete: "cascade" }),
+  weekJson: text("week_json").notNull(),
+  note: text("note"),
+  updatedAt: ms("updated_at").notNull(),
+});
+
+export const ownerMenuItems = sqliteTable("owner_menu_items", {
+  id: text("id").primaryKey(),
+  placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+  claimId: text("claim_id").notNull().references(() => ownerClaims.id, { onDelete: "cascade" }),
+  position: integer("position").notNull(),
+  section: text("section"),
+  name: text("name").notNull(),
+  description: text("description"),
+  price: real("price"),
+  currency: text("currency").notNull(),
+});
+
+export const placeViewDays = sqliteTable(
+  "place_view_days",
+  {
+    placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    views: integer("views").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.placeId, table.day] })],
 );

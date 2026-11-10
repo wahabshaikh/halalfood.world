@@ -24,6 +24,9 @@ import { getPlaceById, nearbyPlaces } from "@/lib/places";
 import { BAND_LABEL } from "@/lib/core/trust";
 import { placeVouchers } from "@/lib/vouches";
 import { breadcrumbJsonLd, jsonLdScript, placeDescription, placeJsonLd, placeShareText, placeTitle } from "@/lib/seo";
+import { ClaimedLine, OwnerListing } from "@/components/hf/owner-listing";
+import { PlaceViewBeacon } from "@/components/hf/place-view-beacon";
+import { publicOwnerPlace, viewerOwnsOpenClaim } from "@/lib/owner-claims";
 import { AddEvidence, AddPhoto, HeroActions, HowItWorks, Notes, ReportPlace, VerifiedBy, VouchButton } from "./place-client";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +77,7 @@ export default async function PlacePage({ params }: Props) {
   if (!place) notFound();
   const viewerId = await getViewerId();
   const status = place.card.status;
-  const [[card], dishes, photos, videos, notes, nearby, creators, { menu, check: menuCheck }, vouchers] = await Promise.all([
+  const [[card], dishes, photos, videos, notes, nearby, creators, { menu, check: menuCheck }, vouchers, owner, ownsClaim] = await Promise.all([
     decoratePlaces(viewerId, [place.card]),
     topDishes(place.id).catch(() => []),
     d1PlacePhotoRepository().list(place.id, viewerId).catch(() => []),
@@ -86,13 +89,16 @@ export default async function PlacePage({ params }: Props) {
     placeCreatorVerifications(place.id).catch(() => []),
     getPlaceMenu(place.id).catch(() => ({ menu: null, check: null })),
     placeVouchers(place.id, viewerId).catch(() => ({ total: 0, people: [] })),
+    publicOwnerPlace(place.id).catch(() => ({ badge: false, hours: null, hoursNote: null, menu: [], details: null })),
+    viewerOwnsOpenClaim(place.id, viewerId).catch(() => false),
   ]);
   const city = cityName(place.city_slug);
   const where = [place.card.cuisine, place.street_address].filter(Boolean).join(" · ");
   const directions = safeUrl(place.maps_url);
-  const website = safeUrl(place.website);
+  const website = safeUrl(owner.details?.website || place.website);
   const logo = httpsLogoUrl(place.card.logoUrl);
-  const phone = place.telephone ? `tel:${place.telephone.replace(/[^+\d]/g, "")}` : null;
+  const phoneSource = owner.details?.phone || place.telephone;
+  const phone = phoneSource ? `tel:${phoneSource.replace(/[^+\d]/g, "")}` : null;
   const ctaLine =
     status.kind === "verified"
       ? "Answer 4 quick questions. If things have changed, your check helps keep this right."
@@ -101,7 +107,8 @@ export default async function PlacePage({ params }: Props) {
           ? "Answer 4 quick questions. Yours could be the one that verifies it."
           : "Answer 4 quick questions. Two more matching checks confirm it."
         : "Be the first. It takes about 20 seconds.";
-  const hero = photos[0] ? photoUrl(photos[0].r2Key) : null;
+  const gallery = photos.filter((photo) => photo.listedBy !== "restaurant" || owner.badge);
+  const hero = gallery[0] ? photoUrl(gallery[0].r2Key) : null;
   const signedIn = Boolean(viewerId);
   const actions = [
     ((place.lat !== null && place.lng !== null) || place.street_address || directions) && { href: directions ?? "", label: "Directions", icon: Navigation03Icon, primary: true },
@@ -109,7 +116,7 @@ export default async function PlacePage({ params }: Props) {
     website && { href: website, label: "Website", icon: Globe02Icon, primary: false },
   ].filter(Boolean) as { href: string; label: string; icon: typeof Call02Icon; primary: boolean }[];
 
-  const thumbs = photos.slice(1, 3).map((photo) => photoUrl(photo.r2Key));
+  const thumbs = gallery.slice(1, 3).map((photo) => photoUrl(photo.r2Key));
   const primaryAction = actions.find((action) => action.primary);
 
   return (
@@ -118,7 +125,10 @@ export default async function PlacePage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: jsonLdScript([
-            placeJsonLd({ ...place, serves_cuisine: place.serves_cuisine }, { mapsUrl: directions, status, facts: place.card.facts, unverified: place.card.unverified }),
+            placeJsonLd(
+              { ...place, serves_cuisine: place.serves_cuisine, telephone: phoneSource, website },
+              { mapsUrl: directions, status, facts: place.card.facts, unverified: place.card.unverified, description: owner.details?.description },
+            ),
             breadcrumbJsonLd([
               { name: "halalfood.world", path: "/" },
               { name: city, path: `/city/${place.city_slug}` },
@@ -168,13 +178,13 @@ export default async function PlacePage({ params }: Props) {
             signedIn={signedIn}
             backHref={`/city/${place.city_slug}`}
           />
-          {photos.length > 1 && (
+          {gallery.length > 1 && (
             <a
               href="#photos"
               className="absolute right-4 bottom-3.5 rounded-full bg-foreground/80 px-3 py-1.5 text-[13px] font-extrabold text-background md:bg-background md:text-foreground md:shadow-md"
             >
-              <span className="md:hidden">1 / {photos.length} photos</span>
-              <span className="hidden md:inline">Show all {photos.length} photos</span>
+              <span className="md:hidden">1 / {gallery.length} photos</span>
+              <span className="hidden md:inline">Show all {gallery.length} photos</span>
             </a>
           )}
         </div>
@@ -193,6 +203,18 @@ export default async function PlacePage({ params }: Props) {
                 <h1 className="min-w-0 text-[28px] leading-tight font-black tracking-tight md:text-[38px]">{place.name}</h1>
               </div>
               <p className="text-[15px] font-semibold text-muted-foreground md:text-base">{where}</p>
+              {owner.badge && <ClaimedLine />}
+              {ownsClaim ? (
+                <a href={`/claim/${place.id}`} className="w-fit text-[13px] font-extrabold underline underline-offset-4">
+                  Manage this restaurant
+                </a>
+              ) : (
+                !owner.badge && (
+                  <a href={`/claim/${place.id}`} className="w-fit text-[13px] font-extrabold underline underline-offset-4">
+                    Claim this restaurant
+                  </a>
+                )
+              )}
               {/* Proof before praise (spec §6): badges, the trust band as a word and who verified, above photos and ratings. */}
               <div className="flex flex-wrap items-center gap-x-1.5">
                 <BadgeRow badges={place.card.badges} linked />
@@ -244,16 +266,22 @@ export default async function PlacePage({ params }: Props) {
               </section>
             )}
 
+            <OwnerListing hours={owner.hours} hoursNote={owner.hoursNote} menu={owner.menu} details={owner.details} />
             {menu && <PlaceMenuSection menu={menu} className="max-lg:order-7" />}
 
             <section id="photos" aria-labelledby="photos-title" className="grid scroll-mt-24 gap-3 max-lg:order-8">
               <SectionTitle id="photos-title" action={<AddPhoto placeId={place.id} signedIn={signedIn} />}>
                 Photos
               </SectionTitle>
-              {photos.length ? (
+              {gallery.length ? (
                 <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-3">
-                  {photos.slice(0, 8).map((photo) => (
-                    <img key={photo.id} src={photoUrl(photo.r2Key) ?? ""} alt="" loading="lazy" className="aspect-square w-full rounded-[14px] object-cover" />
+                  {gallery.slice(0, 8).map((photo) => (
+                    <span key={photo.id} className="relative">
+                      <img src={photoUrl(photo.r2Key) ?? ""} alt="" loading="lazy" className="aspect-square w-full rounded-[14px] object-cover" />
+                      {photo.listedBy === "restaurant" && (
+                        <span className="absolute bottom-1.5 left-1.5 rounded-full bg-background/90 px-2 py-0.5 text-[11px] font-extrabold">Restaurant</span>
+                      )}
+                    </span>
                   ))}
                 </div>
               ) : (
@@ -413,6 +441,7 @@ export default async function PlacePage({ params }: Props) {
           </aside>
         </div>
       </Page>
+      <PlaceViewBeacon placeId={place.id} />
     </AppShell>
   );
 }

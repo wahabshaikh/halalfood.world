@@ -32,6 +32,11 @@ GOOGLE_PLACES_API_KEY=
 # WHOP_NEWSLETTER_PLAN_ID=
 # WHOP_NEWSLETTER_PRODUCT_ID=
 
+# Restaurant claims on Whop (/claim). Plan id enables checkout. Leave unset to keep checkout off.
+# The plan must charge $29 every 30 days. Product id is optional.
+# WHOP_OWNER_PLAN_ID=
+# WHOP_OWNER_PRODUCT_ID=
+
 # Halal Food Scout's admin MCP endpoint (/api/mcp). At least 32 random characters
 # (`openssl rand -hex 32`). Empty means the endpoint answers 503 to everyone.
 MCP_ADMIN_SECRET=

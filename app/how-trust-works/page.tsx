@@ -51,7 +51,7 @@ export default function HowTrustWorksPage() {
               ))}
             </dl>
             <p>
-              A place is <strong>Confirmed</strong> (shown as Verified on older screens) when three people check it separately and their answers agree, or when a moderator has reviewed documents that settle the facts. Ratings, follows, points and sponsors never change a place’s facts or status.
+              A place is <strong>Confirmed</strong> (shown as Verified on older screens) when three people check it separately and their answers agree, or when a moderator has reviewed documents that settle the facts. Ratings, follows, points, city sponsors and a paid restaurant claim never change a place’s facts or status.
             </p>
           </section>
 
@@ -66,6 +66,13 @@ export default function HowTrustWorksPage() {
                 </div>
               ))}
             </dl>
+          </section>
+
+          <section className="grid gap-3">
+            <SectionTitle>Claimed by the restaurant</SectionTitle>
+            <p>
+              A restaurant can pay to keep its own hours, menu and photos, and to appear in a Sponsored block on its city page. That line is not a halal badge. It is not “Muslim owned” and it is not Community verified. The Sponsored block is labelled and sits apart from the place list. A certificate they upload still waits for a moderator.
+            </p>
           </section>
 
           <section className="grid gap-3">

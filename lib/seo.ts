@@ -151,7 +151,14 @@ type JsonLdPlace = PlaceLike & {
 /** Schema.org `Restaurant`, with the community status as properties, never as a rating. */
 export function placeJsonLd(
   place: JsonLdPlace,
-  options: { mapsUrl?: string | null; status: PlaceStatus; facts: Record<Fact, Definite | null>; unverified?: boolean },
+  options: {
+    mapsUrl?: string | null;
+    status: PlaceStatus;
+    facts: Record<Fact, Definite | null>;
+    unverified?: boolean;
+    /** Restaurant-written text already shown on the page. Not a halal fact. */
+    description?: string | null;
+  },
 ) {
   const url = canonical(`/place/${place.id}`);
   const hasGeo =
@@ -176,6 +183,7 @@ export function placeJsonLd(
     "@id": url,
     url,
     name: place.name,
+    description: options.description || undefined,
     servesCuisine: cuisines.length ? cuisines : undefined,
     address: {
       "@type": "PostalAddress",

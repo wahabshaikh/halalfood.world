@@ -85,6 +85,9 @@ export function AppShell({
             <a href="/sponsor" className="hover:text-foreground">
               Sponsor a city
             </a>
+            <a href="/claim" className="hover:text-foreground">
+              Claim a restaurant
+            </a>
             <a href={SUPPORT_MAILTO} className="hover:text-foreground">
               Support
             </a>
