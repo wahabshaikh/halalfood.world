@@ -1,20 +1,29 @@
 import { CLAIM_BADGE_LABEL, CLAIM_BADGE_NOTE, formatDayHours, type DayHours } from "@/lib/core/owner-claim";
-import type { OwnerMenuItem } from "@/lib/owner-claims";
+import type { OwnerDetails, OwnerMenuItem } from "@/lib/owner-claims";
 import { SectionTitle } from "./kit";
 
-/** Hours and menu the restaurant provided. Shown only after a moderator approves the claim. */
+/** Hours, menu and description the restaurant provided. Shown only after a moderator approves the claim. */
 export function OwnerListing({
   hours,
   hoursNote,
   menu,
+  details,
 }: {
   hours: DayHours[] | null;
   hoursNote: string | null;
   menu: OwnerMenuItem[];
+  details: OwnerDetails | null;
 }) {
-  if (!hours && menu.length === 0) return null;
+  if (!hours && menu.length === 0 && !details?.description) return null;
   return (
     <>
+      {details?.description && (
+        <section aria-labelledby="restaurant-description" className="grid gap-2.5 max-lg:order-5">
+          <SectionTitle id="restaurant-description">From the restaurant</SectionTitle>
+          <p className="max-w-xl text-[15px] font-semibold leading-relaxed">{details.description}</p>
+          <p className="text-[13px] font-semibold text-muted-foreground">Written by the restaurant. Not a halal check.</p>
+        </section>
+      )}
       {hours && (
         <section aria-labelledby="restaurant-hours" className="grid gap-2.5 max-lg:order-6">
           <SectionTitle id="restaurant-hours">Hours from the restaurant</SectionTitle>

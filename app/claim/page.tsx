@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 const POINTS = [
   "A “Claimed by the restaurant” line on your place page, after a moderator checks the claim. It is not Community verified.",
-  "Hours, a menu and photos you keep up to date. They are labelled as coming from the restaurant.",
+  "Hours, a menu, photos, and a phone, website and short description you keep up to date. They are labelled as coming from the restaurant and stay off the public page until a moderator approves the claim.",
   "Upload a photo of your halal certificate. It stays pending until a moderator approves it. Paying does not approve it.",
   "A place in the Sponsored block on your city page, separate from the list, with a Sponsored label. It does not move you up the list.",
   "A simple count of visits to your place page over the last 30 days.",

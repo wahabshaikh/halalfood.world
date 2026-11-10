@@ -89,15 +89,16 @@ export default async function PlacePage({ params }: Props) {
     placeCreatorVerifications(place.id).catch(() => []),
     getPlaceMenu(place.id).catch(() => ({ menu: null, check: null })),
     placeVouchers(place.id, viewerId).catch(() => ({ total: 0, people: [] })),
-    publicOwnerPlace(place.id).catch(() => ({ badge: false, hours: null, hoursNote: null, menu: [] })),
+    publicOwnerPlace(place.id).catch(() => ({ badge: false, hours: null, hoursNote: null, menu: [], details: null })),
     viewerOwnsOpenClaim(place.id, viewerId).catch(() => false),
   ]);
   const city = cityName(place.city_slug);
   const where = [place.card.cuisine, place.street_address].filter(Boolean).join(" · ");
   const directions = safeUrl(place.maps_url);
-  const website = safeUrl(place.website);
+  const website = safeUrl(owner.details?.website || place.website);
   const logo = httpsLogoUrl(place.card.logoUrl);
-  const phone = place.telephone ? `tel:${place.telephone.replace(/[^+\d]/g, "")}` : null;
+  const phoneSource = owner.details?.phone || place.telephone;
+  const phone = phoneSource ? `tel:${phoneSource.replace(/[^+\d]/g, "")}` : null;
   const ctaLine =
     status.kind === "verified"
       ? "Answer 4 quick questions. If things have changed, your check helps keep this right."
@@ -124,7 +125,10 @@ export default async function PlacePage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: jsonLdScript([
-            placeJsonLd({ ...place, serves_cuisine: place.serves_cuisine }, { mapsUrl: directions, status, facts: place.card.facts, unverified: place.card.unverified }),
+            placeJsonLd(
+              { ...place, serves_cuisine: place.serves_cuisine, telephone: phoneSource, website },
+              { mapsUrl: directions, status, facts: place.card.facts, unverified: place.card.unverified, description: owner.details?.description },
+            ),
             breadcrumbJsonLd([
               { name: "halalfood.world", path: "/" },
               { name: city, path: `/city/${place.city_slug}` },
@@ -262,7 +266,7 @@ export default async function PlacePage({ params }: Props) {
               </section>
             )}
 
-            <OwnerListing hours={owner.hours} hoursNote={owner.hoursNote} menu={owner.menu} />
+            <OwnerListing hours={owner.hours} hoursNote={owner.hoursNote} menu={owner.menu} details={owner.details} />
             {menu && <PlaceMenuSection menu={menu} className="max-lg:order-7" />}
 
             <section id="photos" aria-labelledby="photos-title" className="grid scroll-mt-24 gap-3 max-lg:order-8">

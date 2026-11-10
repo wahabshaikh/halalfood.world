@@ -24,6 +24,7 @@ import {
   type DayHours,
   type ModerateClaimAction,
   type OwnerClaimEvent,
+  type OwnerDetailsInput,
   type OwnerMenuItemInput,
   type ViewDay,
 } from "@/lib/core/owner-claim";
@@ -50,11 +51,15 @@ function state(row: Row): ClaimState {
 
 export type OwnerMenuItem = OwnerMenuItemInput & { position: number };
 
+export type OwnerDetails = OwnerDetailsInput;
+
 export type PublicOwnerPlace = {
   badge: boolean;
   hours: DayHours[] | null;
   hoursNote: string | null;
   menu: OwnerMenuItem[];
+  /** Phone, website and description once a moderator has approved the claim. */
+  details: OwnerDetails | null;
 };
 
 export type FeaturedPlace = {
@@ -83,6 +88,7 @@ export type OwnerClaimRecord = {
   hours: DayHours[] | null;
   hoursNote: string | null;
   menu: OwnerMenuItem[];
+  details: OwnerDetails | null;
 };
 
 type Result<T> = { ok: true; value: T } | { ok: false; status: number; error: string };
@@ -201,6 +207,18 @@ async function hoursFor(db: DatabaseClient, placeId: string): Promise<{ week: Da
   return { week: readOwnerHours(parsed), note: (row.note as string | null) ?? null };
 }
 
+const EMPTY_DETAILS: OwnerDetails = { phone: null, website: null, description: null };
+
+async function detailsFor(db: DatabaseClient, placeId: string): Promise<OwnerDetails | null> {
+  const [row] = await db.all<Row>(sql`SELECT phone, website, description FROM owner_place_details WHERE place_id = ${placeId}`);
+  if (!row) return null;
+  return {
+    phone: (row.phone as string | null) ?? null,
+    website: (row.website as string | null) ?? null,
+    description: (row.description as string | null) ?? null,
+  };
+}
+
 async function menuFor(db: DatabaseClient, placeId: string): Promise<OwnerMenuItem[]> {
   const rows = await db.all<Row>(sql`
     SELECT position, section, name, description, price, currency
@@ -214,9 +232,9 @@ export async function publicOwnerPlace(placeId: string, client: Client = databas
   const db = await client;
   const rows = await openRows(db, placeId);
   const live = rows.map(state).find((row) => isPublicClaim(row, now));
-  if (!live) return { badge: false, hours: null, hoursNote: null, menu: [] };
-  const [hours, menu] = await Promise.all([hoursFor(db, placeId), menuFor(db, placeId)]);
-  return { badge: true, hours: hours.week, hoursNote: hours.note, menu };
+  if (!live) return { badge: false, hours: null, hoursNote: null, menu: [], details: null };
+  const [hours, menu, details] = await Promise.all([hoursFor(db, placeId), menuFor(db, placeId), detailsFor(db, placeId)]);
+  return { badge: true, hours: hours.week, hoursNote: hours.note, menu, details };
 }
 
 /** Whether the signed-in person holds the open claim, so the place page can link to it. */
@@ -278,7 +296,7 @@ export async function ownerClaimForViewer(
   `);
   if (!row) return null;
   const current = state(row);
-  const [hours, menu] = await Promise.all([hoursFor(db, placeId), menuFor(db, placeId)]);
+  const [hours, menu, details] = await Promise.all([hoursFor(db, placeId), menuFor(db, placeId), detailsFor(db, placeId)]);
   return {
     id: current.id,
     placeId,
@@ -298,7 +316,35 @@ export async function ownerClaimForViewer(
     hours: hours.week,
     hoursNote: hours.note,
     menu,
+    details: details ?? EMPTY_DETAILS,
   };
+}
+
+/**
+ * Phone, website and description. The paid claim has to belong to this account,
+ * and the account has to have claimed as the owner (a manager cannot).
+ * The public page still waits for a moderator.
+ */
+export async function saveOwnerDetails(
+  claimId: string,
+  userId: string,
+  details: OwnerDetails,
+  client: Client = database(),
+  now = Date.now(),
+): Promise<Result<{ ok: true }>> {
+  const db = await client;
+  const owned = await ownedClaim(db, claimId, userId, now);
+  if (!owned.ok) return owned;
+  if (owned.value.role !== "owner") return fail(403, "Only the restaurant's owner can edit the phone, website and description.");
+  const placeId = String(owned.value.place_id);
+  await runBatch(db, [
+    sql`INSERT INTO owner_place_details (place_id, claim_id, phone, website, description, updated_at)
+        VALUES (${placeId}, ${claimId}, ${details.phone}, ${details.website}, ${details.description}, ${now})
+        ON CONFLICT(place_id) DO UPDATE SET
+          claim_id = excluded.claim_id, phone = excluded.phone, website = excluded.website,
+          description = excluded.description, updated_at = excluded.updated_at`,
+  ]);
+  return { ok: true, value: { ok: true } };
 }
 
 export async function saveOwnerHours(

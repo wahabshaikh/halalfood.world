@@ -22,7 +22,7 @@ function statusLine(claim: OwnerClaimRecord): string {
   if (!claim.paidLive) return "The paid month has ended";
   if (claim.public) return "Live on the place page";
   if (claim.review === "rejected") return "A moderator declined the public label. You can still edit. Email support@halalfood.world if you want it looked at again.";
-  return "Paid. A moderator still has to approve the public label and the Sponsored block. You can prepare hours, the menu and a certificate now.";
+  return "Paid. A moderator still has to approve the public label and the Sponsored block. You can prepare hours, the menu, contact details and a certificate now.";
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -66,9 +66,13 @@ export default async function ClaimPlacePage({ params, searchParams }: Props) {
             <ManagePanel
               claimId={claim.id}
               canEdit={claim.paidLive}
+              canEditDetails={claim.paidLive && claim.role === "owner"}
               statusLine={statusLine(claim)}
               initialHours={claim.hours}
               initialNote={claim.hoursNote ?? ""}
+              initialPhone={claim.details?.phone ?? ""}
+              initialWebsite={claim.details?.website ?? ""}
+              initialDescription={claim.details?.description ?? ""}
               initialMenu={claim.menu.map((item) => ({
                 name: item.name,
                 section: item.section ?? "",

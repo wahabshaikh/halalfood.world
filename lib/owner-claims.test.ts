@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { OWNER_CLAIM_PERIOD_DAYS, type DayHours } from "@/lib/core/owner-claim";
+import { OWNER_CLAIM_PERIOD_DAYS, parseOwnerDetails, type DayHours } from "@/lib/core/owner-claim";
 import { addPlace, addProfile, addUser, createTestDatabase, DAY } from "@/lib/testing/sqlite-d1";
 import { deleteAccount } from "./profiles";
 import {
@@ -16,6 +16,7 @@ import {
   ownerClaimForViewer,
   publicOwnerPlace,
   recordPlaceView,
+  saveOwnerDetails,
   saveOwnerHours,
   saveOwnerMenu,
   startOwnerClaim,
@@ -70,7 +71,7 @@ test("checkout holds the restaurant, payment opens editing, and the public label
 
   assert.equal(await viewerOwnsOpenClaim(place, "a", db, NOW + 2000), true);
   assert.equal(await viewerOwnsOpenClaim(place, null, db, NOW), false);
-  assert.deepEqual(await publicOwnerPlace(place, db, NOW), { badge: false, hours: null, hoursNote: null, menu: [] });
+  assert.deepEqual(await publicOwnerPlace(place, db, NOW), { badge: false, hours: null, hoursNote: null, menu: [], details: null });
 
   assert.equal(await applyOwnerClaimEvent(paid(null, NOW + 5000, { checkoutId: "ch_1" }), db, NOW + 5000), "applied");
   const mine = await ownerClaimForViewer(place, "a", db, NOW + 6000);
@@ -254,6 +255,97 @@ test("an expired claim can be bought again", async () => {
   await applyOwnerClaimEvent({ type: "membership.deactivated", membershipId: "mem_old", claimId: started.value.id }, db, NOW);
   const next = await startOwnerClaim("b", checkout(place, "next@grill.example"), db, NOW + PERIOD + DAY);
   assert.equal(next.ok, true);
+});
+
+test("only the verified owner can edit phone, website and description", async () => {
+  const { db, sqlite, place } = world();
+  const started = await startOwnerClaim("a", checkout(place), db, NOW);
+  if (!started.ok) return;
+  const id = started.value.id;
+  const parsed = parseOwnerDetails({
+    phone: "<b>+1 (415) 555-0134</b>",
+    website: "https://grill.example/menu",
+    description: "<script>alert(1)</script> Family kitchen <!-- note --> on Brick Lane",
+  });
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  const unpaid = await saveOwnerDetails(id, "a", { phone: "+14155550134", website: null, description: null }, db, NOW);
+  assert.equal(unpaid.ok, false);
+  if (unpaid.ok) return;
+  assert.equal(unpaid.status, 403);
+
+  assert.equal(await applyOwnerClaimEvent(paid(id), db, NOW + 1), "applied");
+  const saved = await saveOwnerDetails(id, "a", parsed.value, db, NOW + 2);
+  assert.equal(saved.ok, true);
+  const row = sqlite.prepare("SELECT phone, website, description FROM owner_place_details WHERE place_id = ?").get(place) as {
+    phone: string;
+    website: string;
+    description: string;
+  };
+  assert.equal(row.phone, "+1 (415) 555-0134");
+  assert.equal(row.website, "https://grill.example/menu");
+  assert.equal(row.description, "alert(1) Family kitchen on Brick Lane");
+  assert.equal((await publicOwnerPlace(place, db, NOW + 2)).details, null);
+  assert.equal((sqlite.prepare("SELECT telephone, website FROM places WHERE id = ?").get(place) as { telephone: string | null; website: string | null }).telephone, null);
+  assert.equal((sqlite.prepare("SELECT status FROM place_status WHERE place_id = ?").get(place) as { status: string }).status, "unchecked");
+
+  const stranger = await saveOwnerDetails(id, "b", { phone: "+14155550111", website: null, description: null }, db, NOW + 3);
+  assert.equal(stranger.ok, false);
+  if (stranger.ok) return;
+  assert.equal(stranger.status, 404);
+  const moderator = await saveOwnerDetails(id, "mod", { phone: null, website: null, description: "Nope" }, db, NOW + 3);
+  assert.equal(moderator.ok, false);
+  if (moderator.ok) return;
+  assert.equal(moderator.status, 404);
+
+  assert.equal((await moderateOwnerClaim(id, "mod", "approve", null, db, NOW + 4)).ok, true);
+  assert.deepEqual((await publicOwnerPlace(place, db, NOW + 4)).details, {
+    phone: "+1 (415) 555-0134",
+    website: "https://grill.example/menu",
+    description: "alert(1) Family kitchen on Brick Lane",
+  });
+
+  const clearedInput = parseOwnerDetails({ phone: "", website: "  ", description: "<b></b>" });
+  assert.equal(clearedInput.ok, true);
+  if (!clearedInput.ok) return;
+  const cleared = await saveOwnerDetails(id, "a", clearedInput.value, db, NOW + 5);
+  assert.equal(cleared.ok, true);
+  assert.deepEqual((await publicOwnerPlace(place, db, NOW + 5)).details, { phone: null, website: null, description: null });
+});
+
+test("a manager, a refunded owner and a removed claim cannot edit contact details", async () => {
+  const { db, sqlite, place } = world();
+  const managed = await startOwnerClaim("a", { ...checkout(place), role: "manager" }, db, NOW);
+  if (!managed.ok) return;
+  await applyOwnerClaimEvent(paid(managed.value.id), db, NOW);
+  const manager = await saveOwnerDetails(managed.value.id, "a", { phone: "+14155550134", website: null, description: null }, db, NOW + 1);
+  assert.equal(manager.ok, false);
+  if (manager.ok) return;
+  assert.equal(manager.status, 403);
+  assert.match(manager.error, /owner/);
+  assert.equal((sqlite.prepare("SELECT COUNT(*) AS n FROM owner_place_details").get() as { n: number }).n, 0);
+
+  const other = addPlace(sqlite, { city: "london", name: "Other Grill" });
+  const owned = await startOwnerClaim("a", checkout(other), db, NOW + 2);
+  if (!owned.ok) return;
+  await applyOwnerClaimEvent(paid(owned.value.id, NOW + 2, { membershipId: "mem_other", paymentId: "pay_other" }), db, NOW + 2);
+  assert.equal((await saveOwnerDetails(owned.value.id, "a", { phone: "+442079460958", website: "http://other.example", description: "Open late" }, db, NOW + 3)).ok, true);
+  await applyOwnerClaimEvent({ type: "refund", paymentId: "pay_other", membershipId: "mem_other" }, db, NOW + 4);
+  const refunded = await saveOwnerDetails(owned.value.id, "a", { phone: "+442079460000", website: null, description: null }, db, NOW + 5);
+  assert.equal(refunded.ok, false);
+  if (refunded.ok) return;
+  assert.equal(refunded.status, 403);
+  assert.equal((sqlite.prepare("SELECT phone FROM owner_place_details WHERE place_id = ?").get(other) as { phone: string }).phone, "+442079460958");
+
+  const third = addPlace(sqlite, { city: "london", name: "Third Grill" });
+  const removedClaim = await startOwnerClaim("b", checkout(third, "b@grill.example"), db, NOW + 6);
+  if (!removedClaim.ok) return;
+  await applyOwnerClaimEvent(paid(removedClaim.value.id, NOW + 6, { membershipId: "mem_b", paymentId: "pay_b" }), db, NOW + 6);
+  await moderateOwnerClaim(removedClaim.value.id, "mod", "remove", null, db, NOW + 7);
+  const removed = await saveOwnerDetails(removedClaim.value.id, "b", { phone: "+14155550199", website: null, description: null }, db, NOW + 8);
+  assert.equal(removed.ok, false);
+  if (removed.ok) return;
+  assert.equal(removed.status, 403);
 });
 
 test("broken hours JSON is treated as unset", async () => {

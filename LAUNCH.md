@@ -4,12 +4,12 @@ Paid plan: **Claim your restaurant**, $29 a month, billed by Whop. Checkout is *
 
 ## What changed
 
-- `/claim` explains the plan. `/claim/[placeId]` is checkout, or the owner’s hours, menu, photos, certificate upload and 30-day view count.
+- `/claim` explains the plan. `/claim/[placeId]` is checkout, or the owner’s hours, menu, photos, phone, website, description, certificate upload and 30-day view count. The phone, website and description can be saved by the account that claimed as the owner. They show on the place page only after a moderator approves the claim.
 - A place page links to “Claim this restaurant”. After a moderator approves a paid claim it shows **Claimed by the restaurant**. That line is not Community verified and not the Muslim-owned badge.
 - City pages can show up to four **Sponsored** restaurants in their own block, with `rel="sponsored"`, apart from the place list. They do not change sort order or halal status.
 - Certificate photos are filed as pending evidence. A moderator still approves them in Evidence before `certified` can change. Payment does not approve them.
 - `/admin` lists paid claims: approve, decline, take down, restore. Each action is audited.
-- Responses send `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY`, a locked-down `Permissions-Policy`, and `Strict-Transport-Security` on public https hosts. A full Content-Security-Policy is not set yet (MapLibre, Turnstile, Sentry and JSON-LD need a nonce pass).
+- Responses send `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY`, a locked-down `Permissions-Policy`, and `Strict-Transport-Security` on public https hosts. HTML also sends a nonce `Content-Security-Policy` (`lib/csp.ts`). Scripts need that nonce (`'strict-dynamic'`). Turnstile, DataFast (`https://datafa.st`), Sentry and the Carto map are allowed. Whop checkout is a navigation to `whop.com`. Styles allow inline rules so MapLibre can position the map. Production builds do not allow `'unsafe-eval'`.
 
 Halal status still comes only from checks and reviewed evidence. `lib/core/halal.ts` does not read these tables.
 
@@ -42,7 +42,7 @@ Do not put the values in git. Local names are commented in `.dev.vars.example`.
 
 ## Migration
 
-`migrations/0012_owner_restaurant_claims.sql` adds `owner_claims`, `owner_hours`, `owner_menu_items`, `place_view_days`, and `place_photos.listed_by` (default `member`). Additive. No backfill.
+`migrations/0012_owner_restaurant_claims.sql` adds `owner_claims`, `owner_hours`, `owner_menu_items`, `place_view_days`, and `place_photos.listed_by` (default `member`). `migrations/0013_owner_place_details.sql` adds `owner_place_details` (phone, website, description). Additive. No backfill.
 
 Workers Builds applies it to the shared preview D1 on push, and to production D1 when this merges to `main` (after the Time Travel bookmark). Restore with the bookmark from that deploy log:
 
@@ -62,18 +62,12 @@ Account deletion keeps the paid claim, clears `contact_email`, and drops `user_i
 - [ ] Do not merge until those are accepted. Merging deploys and migrates production.
 - [ ] Leave draft PRs #137, #140–#143 and #112 as they are. This branch does not include them.
 
-## Unfinished (stopped before implementation)
+## Owner contact details
 
-A follow-up on this branch was stopped before any of the code below was written. Do not treat it as live.
-
-- **No nonce Content-Security-Policy.** Responses still send the baseline headers above and do not send `Content-Security-Policy` on HTML. MapLibre, Turnstile, Sentry and JSON-LD were not given a nonce, and Chromium was not checked for CSP console violations on home, a city page, a place page, `/claim` or `/admin`.
-- **No owner edits for phone, website or a short description.** Hours and menu are the only listing text the buyer can save. Those stay hidden until a moderator approves the paid claim (`isPublicClaim` in `lib/core/owner-claim.ts`). Phone, website and description were not added, so there is no new table and no new route.
-- **Not re-checked in this stop.** Lint, typecheck, coverage, build and E2E were last run for commit `db634c0`. This note does not re-run them. No new screenshots.
+The account that paid and claimed as the owner can save a phone, website and short description on `/claim/[placeId]`. A manager cannot. HTML is stripped, websites must be `http` or `https`, and the phone is 7–15 digits. The place page shows them, and uses them for Call and Website, only after a moderator approves the claim. They are stored on `owner_place_details`, not on `places`, and they do not change halal status.
 
 ## Not in this change
 
-- No new payment-provider account, no live charge, no emails, no Whop plan.
+- No new payment-provider account, no live charge, no emails, no Whop plan. `WHOP_OWNER_PLAN_ID` stays unset, so checkout stays off.
 - No Google Places calls and no change to Google search rate limits or halal-status logic.
-- No strict Content-Security-Policy.
 - No auto-approval of ownership. That remains a moderation decision.
-- No owner phone, website or description fields.

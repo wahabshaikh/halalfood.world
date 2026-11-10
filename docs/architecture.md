@@ -78,6 +78,7 @@ The app has five tabs (Explore, Friends, Add, Saved, You), a top bar at ≥ 768 
 | `POST /api/newsletter/checkout` | Signed-in newsletter checkout, JSON object body (no fields required), returns `{url}`. 503 when unconfigured; shares the sponsor checkout budget (10/day per user, 30/day per IP). |
 | `POST /api/owner-claims` | Start a restaurant claim (`{placeId, role: owner\|manager, contactEmail}`) and get the Whop `checkoutUrl`. 409 when the place is claimed or held, 503 without `WHOP_OWNER_PLAN_ID`. Shares the sponsor checkout budget. |
 | `PUT /api/owner-claims/[id]/hours`, `PUT …/menu` | The buyer replaces hours or the restaurant menu while the paid window is open. |
+| `PUT /api/owner-claims/[id]/details` | The paid claim's owner (`role` owner, not manager) replaces `{phone, website, description}`. Blank fields clear. Phone is 7–15 digits; websites are `http` or `https` only; HTML is stripped. 404 for anyone else, 403 before payment or for a manager. |
 | `POST /api/owner-claims/[id]/photos`, `POST …/certificate` | Restaurant photo, or a certificate photo filed as pending evidence. Same image rules as place photos. |
 | `POST /api/places/[id]/view` | Count one page view. No body. One per IP per place per day. Stores no visitor id. 204. |
 | `POST /api/admin/owner-claims/[id]` | Moderator `{action: approve\|reject\|remove\|restore}`. Does not change halal facts. |
@@ -391,7 +392,8 @@ Subscribed readers see "You're subscribed" and their Whop management link when s
 
 A restaurant pays $29 every 30 days to manage its own listing. Rules in
 [`lib/core/owner-claim.ts`](../lib/core/owner-claim.ts), D1 in [`lib/owner-claims.ts`](../lib/owner-claims.ts),
-checkout in [`lib/whop.ts`](../lib/whop.ts), tables in `migrations/0012_owner_restaurant_claims.sql`.
+checkout in [`lib/whop.ts`](../lib/whop.ts), tables in `migrations/0012_owner_restaurant_claims.sql` and
+`migrations/0013_owner_place_details.sql`.
 
 Checkout stays off until `WHOP_OWNER_PLAN_ID` is set, even when `WHOP_API_KEY` is already set for city
 sponsorships. The plan in Whop has to charge $29. `WHOP_OWNER_PRODUCT_ID` is optional and unused by the page
@@ -404,14 +406,26 @@ today. The shared webhook (`WHOP_WEBHOOK_SECRET`) also delivers `metadata.kind =
 2. `payment.succeeded` makes the row `active` for 30 days. The same payment id does not extend the window twice.
    A later payment extends it. Membership cancellation stops renewal; a succeeded refund sets `refunded`.
 3. While the paid window is open the buyer can save hours, replace a menu, upload photos and upload a certificate
-   photo. The certificate is a `place_signals` row with `review_status = 'pending'`. A moderator approves it in
-   Evidence before it can settle `certified`. Paying does not approve it.
-4. The public line "Claimed by the restaurant" and the city's Sponsored block (at most 4, `rel="sponsored"`,
-   apart from the place list) appear only when a moderator approves the claim from `/admin`. Decline, take down
-   and restore are audited. None of this writes `place_status`.
+   photo. The account that claimed as the owner can also save a phone, website and short description
+   (`owner_place_details`, `PUT /api/owner-claims/[id]/details`). A manager cannot. Those three fields are not
+   written onto `places`. The certificate is a `place_signals` row with `review_status = 'pending'`. A moderator
+   approves it in Evidence before it can settle `certified`. Paying does not approve it.
+4. The public line "Claimed by the restaurant", the city's Sponsored block (at most 4, `rel="sponsored"`,
+   apart from the place list), and the restaurant's phone, website and description appear only when a moderator
+   approves the claim from `/admin`. Decline, take down and restore are audited. None of this writes `place_status`.
 5. Page views are a UTC daily count on `place_view_days`. One IP can add one view per place per day. No IP is stored.
 
 Deleting the buyer's account keeps the paid claim, clears `contact_email`, and sets `user_id` to NULL.
+The phone, website and description stay with the restaurant, the same way hours do.
+
+## Content-Security-Policy
+
+HTML responses send a nonce `Content-Security-Policy` (`lib/csp.ts`, applied in `worker/index.ts`).
+`'strict-dynamic'` trusts that nonce and the scripts it loads, including Turnstile. Analytics calls
+`https://datafa.st`, the map reads Carto tiles, and Sentry reports to `*.ingest.us.sentry.io`.
+Whop checkout is a navigation to `whop.com` (`form-action` and `frame-src` allow it; `navigate-to` is unset).
+Styles stay `'unsafe-inline'` because MapLibre sets element styles. Vite's dev server adds `'unsafe-eval'`
+and a websocket; production builds do not. Photo and avatar responses keep their own `default-src 'none'`.
 
 ## Sign-in, Turnstile and limits
 

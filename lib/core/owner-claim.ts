@@ -26,6 +26,11 @@ export const MAX_OWNER_MENU_ITEMS = 80;
 export const MAX_HOURS_NOTE = 160;
 export const MAX_CONTACT_EMAIL = 120;
 export const MAX_CERTIFIER = 120;
+export const MAX_OWNER_PHONE = 32;
+export const MAX_OWNER_WEBSITE = 300;
+export const MAX_OWNER_DESCRIPTION = 400;
+/** Schemes a restaurant website may use. Anything else, including javascript: and data:, is refused. */
+export const OWNER_WEBSITE_SCHEMES = ["http:", "https:"] as const;
 /** Owner analytics window. Counts are approximate, never a bill. */
 export const VIEW_DAYS = 30;
 
@@ -183,6 +188,84 @@ export function parseOwnerMenu(body: unknown): Parsed<OwnerMenuItemInput[]> {
     parsed.push({ section: section || null, name, description: description || null, price, currency });
   }
   return { ok: true, value: parsed };
+}
+
+export type OwnerDetailsInput = {
+  phone: string | null;
+  website: string | null;
+  description: string | null;
+};
+
+/** Drop tags and comments. Tags cannot contain `<`, so a nested `<scr<script>ipt>` is peeled until none remain. */
+export function stripHtml(value: string): string {
+  let text = value.replace(/<!--[\s\S]*?-->/g, " ");
+  let previous = "";
+  while (text !== previous) {
+    previous = text;
+    text = text.replace(/<[^<>]*>/g, " ");
+  }
+  return text.replace(/[<>]/g, " ");
+}
+
+function plain(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return cleanText(stripHtml(value));
+}
+
+/** Empty clears the number. Digits, spaces, dots, hyphens, parentheses, and one leading +. */
+export function parseOwnerPhone(value: unknown): Parsed<string | null> {
+  const text = plain(value);
+  if (!text) return { ok: true, value: null };
+  if (text.length > MAX_OWNER_PHONE) return { ok: false, error: `Keep the phone number under ${MAX_OWNER_PHONE} characters.` };
+  const pluses = text.match(/\+/g)?.length ?? 0;
+  if (!/^\+?[0-9\s().-]+$/.test(text) || pluses > 1 || (pluses === 1 && !text.startsWith("+"))) {
+    return { ok: false, error: "Use digits, spaces and a leading + for the phone number." };
+  }
+  const digits = text.replace(/\D/g, "");
+  if (digits.length < 7 || digits.length > 15) return { ok: false, error: "Enter a phone number with 7 to 15 digits." };
+  return { ok: true, value: text };
+}
+
+/** Empty clears the link. Only http and https, with no username or password in the URL. */
+export function parseOwnerWebsite(value: unknown): Parsed<string | null> {
+  const text = plain(value);
+  if (!text) return { ok: true, value: null };
+  if (text.length > MAX_OWNER_WEBSITE) return { ok: false, error: `Keep the website under ${MAX_OWNER_WEBSITE} characters.` };
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    return { ok: false, error: "Websites start with http:// or https://." };
+  }
+  if (!OWNER_WEBSITE_SCHEMES.includes(url.protocol as (typeof OWNER_WEBSITE_SCHEMES)[number])) {
+    return { ok: false, error: "Websites start with http:// or https://." };
+  }
+  if (url.username || url.password || !url.hostname.includes(".")) {
+    return { ok: false, error: "That website address is not usable." };
+  }
+  if (url.href.length > MAX_OWNER_WEBSITE) return { ok: false, error: `Keep the website under ${MAX_OWNER_WEBSITE} characters.` };
+  return { ok: true, value: url.href };
+}
+
+/** Empty clears the text. Tags are removed; the length limit applies after that. */
+export function parseOwnerDescription(value: unknown): Parsed<string | null> {
+  const text = plain(value);
+  if (!text) return { ok: true, value: null };
+  if (text.length > MAX_OWNER_DESCRIPTION) return { ok: false, error: `Keep the description under ${MAX_OWNER_DESCRIPTION} characters.` };
+  return { ok: true, value: text };
+}
+
+/** Body `{phone, website, description}` from the claim page. Any field may be blank. */
+export function parseOwnerDetails(body: unknown): Parsed<OwnerDetailsInput> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: "Send a valid JSON object." };
+  const raw = body as Record<string, unknown>;
+  const phone = parseOwnerPhone(raw.phone);
+  if (!phone.ok) return phone;
+  const website = parseOwnerWebsite(raw.website);
+  if (!website.ok) return website;
+  const description = parseOwnerDescription(raw.description);
+  if (!description.ok) return description;
+  return { ok: true, value: { phone: phone.value, website: website.value, description: description.value } };
 }
 
 /** "Monday · 11:00–22:00" or "Monday · Closed". */

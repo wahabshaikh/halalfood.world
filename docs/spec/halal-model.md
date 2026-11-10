@@ -25,7 +25,7 @@ one source of evidence among several, and "Community verified" is now "Verified"
 | Map listing (OpenStreetMap via Overpass, Geoapify) | `pork` = no when the listing says halal "only" | imported by `pnpm signals:listings` | no, context only |
 | Web source (Halal Food Scout) | any of the four, each with the https page that says it | written by `upsert_place`, or by a flagged menu check (below) | no, context only |
 | Published menu (Halal Food Scout) | nothing by itself; a flagged menu check can write a web source | written by `upsert_menu` / `set_menu_check` | no, context only |
-| Restaurant claim (paid) | nothing | the restaurant types hours, a menu and photos, and may upload a certificate photo | no. The certificate uses the certificate row above and counts only after a moderator approves it |
+| Restaurant claim (paid) | nothing | the restaurant types hours, a menu, photos, a phone, a website and a short description, and may upload a certificate photo | no. The certificate uses the certificate row above and counts only after a moderator approves it. Phone, website and description are not halal facts |
 
 Certificates and menus live in `place_signals`. People send them from the place
 page: the photo goes through the normal photo upload, then

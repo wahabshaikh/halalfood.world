@@ -776,6 +776,16 @@ export const ownerClaims = sqliteTable("owner_claims", {
   updatedAt: ms("updated_at").notNull(),
 });
 
+/** Restaurant-typed phone, website and description (migrations/0013_owner_place_details.sql). Not a halal fact. */
+export const ownerPlaceDetails = sqliteTable("owner_place_details", {
+  placeId: text("place_id").primaryKey().references(() => places.id, { onDelete: "cascade" }),
+  claimId: text("claim_id").notNull().references(() => ownerClaims.id, { onDelete: "cascade" }),
+  phone: text("phone"),
+  website: text("website"),
+  description: text("description"),
+  updatedAt: ms("updated_at").notNull(),
+});
+
 export const ownerHours = sqliteTable("owner_hours", {
   placeId: text("place_id").primaryKey().references(() => places.id, { onDelete: "cascade" }),
   claimId: text("claim_id").notNull().references(() => ownerClaims.id, { onDelete: "cascade" }),

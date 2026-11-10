@@ -19,9 +19,17 @@ import {
   parseClaimCheckout,
   parseExpiry,
   parseModerateClaimAction,
+  MAX_OWNER_DESCRIPTION,
+  MAX_OWNER_PHONE,
+  MAX_OWNER_WEBSITE,
   parseOwnerClaimEvent,
+  parseOwnerDescription,
+  parseOwnerDetails,
   parseOwnerHours,
   parseOwnerMenu,
+  parseOwnerPhone,
+  parseOwnerWebsite,
+  stripHtml,
   readOwnerHours,
   totalViews,
   utcDay,
@@ -166,6 +174,57 @@ test("the owner menu is a list of dishes and not a halal document", () => {
   assert.equal(parseOwnerMenu({ items: [] }).ok, true);
 });
 
+test("phone, website and description are stripped, limited and scheme-checked", () => {
+  assert.equal(stripHtml("<scr<script>ipt>alert(1)</scr</script>ipt>").replace(/\s+/g, " ").trim(), "alert(1)");
+  assert.equal(stripHtml("<!--<b>hidden</b>--> Hello<br>there").replace(/\s+/g, " ").trim(), "Hello there");
+  const parsed = parseOwnerDetails({
+    phone: "  <b>+44 20 7946 0958</b> ",
+    website: "HTTPS://Grill.Example/menu",
+    description: "<p>Slow cooked</p> <!-- x --> haleem",
+  });
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.value.phone, "+44 20 7946 0958");
+  assert.equal(parsed.value.website, "https://grill.example/menu");
+  assert.equal(parsed.value.description, "Slow cooked haleem");
+  assert.deepEqual(parseOwnerDetails({ phone: "", website: null, description: "   " }), {
+    ok: true,
+    value: { phone: null, website: null, description: null },
+  });
+
+  assert.equal(parseOwnerDetails(null).ok, false);
+  assert.equal(parseOwnerDetails([]).ok, false);
+  assert.match(message(parseOwnerPhone("call me")), /digits/);
+  assert.match(message(parseOwnerPhone("123")), /7 to 15/);
+  assert.match(message(parseOwnerPhone("+1 234")), /7 to 15/);
+  assert.match(message(parseOwnerPhone("1".repeat(16))), /7 to 15/);
+  assert.match(message(parseOwnerPhone(`+${"1".repeat(MAX_OWNER_PHONE)}`)), new RegExp(`under ${MAX_OWNER_PHONE}`));
+  assert.match(message(parseOwnerPhone("1234567+")), /leading/);
+  assert.match(message(parseOwnerPhone("+1+4155550134")), /leading/);
+  const blankPhone = parseOwnerPhone(42);
+  assert.equal(blankPhone.ok && blankPhone.value, null);
+  assert.equal(parseOwnerPhone("(415) 555-0134").ok, true);
+
+  for (const website of ["javascript:alert(1)", "data:text/html,hi", "ftp://grill.example", "grill.example", "not a url"]) {
+    assert.match(message(parseOwnerWebsite(website)), /http/);
+  }
+  for (const website of ["https://user:pw@grill.example", "https://localhost/menu"]) {
+    assert.match(message(parseOwnerWebsite(website)), /not usable/);
+  }
+  assert.match(message(parseOwnerWebsite(`https://grill.example/${"a".repeat(MAX_OWNER_WEBSITE)}`)), new RegExp(`under ${MAX_OWNER_WEBSITE}`));
+  const hostOnly = `https://example.com${"a".repeat(MAX_OWNER_WEBSITE - "https://example.com".length)}`;
+  assert.equal(hostOnly.length, MAX_OWNER_WEBSITE);
+  assert.match(message(parseOwnerWebsite(hostOnly)), new RegExp(`under ${MAX_OWNER_WEBSITE}`));
+  assert.equal(parseOwnerWebsite("http://grill.example").ok && (parseOwnerWebsite("http://grill.example") as { value: string }).value, "http://grill.example/");
+
+  assert.match(message(parseOwnerDescription("d".repeat(MAX_OWNER_DESCRIPTION + 1))), new RegExp(`under ${MAX_OWNER_DESCRIPTION}`));
+  const blankDescription = parseOwnerDescription(false);
+  assert.equal(blankDescription.ok && blankDescription.value, null);
+  assert.match(message(parseOwnerDetails({ phone: "abc", website: "https://grill.example", description: "Hi" })), /digits/);
+  assert.match(message(parseOwnerDetails({ phone: "+14155550134", website: "javascript:alert(1)", description: "Hi" })), /http/);
+  assert.match(message(parseOwnerDetails({ phone: "+14155550134", website: "https://grill.example", description: "d".repeat(MAX_OWNER_DESCRIPTION + 1) })), /description/i);
+});
+
 test("certificate fields and moderator actions stay narrow", () => {
   assert.deepEqual(parseCertifier("  HMC  "), { ok: true, value: "HMC" });
   assert.deepEqual(parseCertifier("   "), { ok: true, value: null });
@@ -240,6 +299,8 @@ test("halal status code does not read restaurant claims", () => {
   const places = readFileSync(new URL("../places.ts", import.meta.url), "utf8");
   assert.equal(halal.includes("owner_claims"), false);
   assert.equal(halal.includes("owner-claim"), false);
+  assert.equal(halal.includes("owner_place_details"), false);
   assert.equal(places.includes("owner_claims"), false);
   assert.equal(places.includes("owner_menu_items"), false);
+  assert.equal(places.includes("owner_place_details"), false);
 });

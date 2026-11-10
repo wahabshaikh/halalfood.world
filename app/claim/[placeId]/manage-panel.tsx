@@ -23,23 +23,34 @@ function startDays(hours: { day: number; closed: boolean; open: string | null; c
 export function ManagePanel({
   claimId,
   canEdit,
+  canEditDetails,
   statusLine,
   initialHours,
   initialNote,
+  initialPhone,
+  initialWebsite,
+  initialDescription,
   initialMenu,
   views,
 }: {
   claimId: string;
   canEdit: boolean;
+  canEditDetails: boolean;
   statusLine: string;
   initialHours: { day: number; closed: boolean; open: string | null; close: string | null }[] | null;
   initialNote: string;
+  initialPhone: string;
+  initialWebsite: string;
+  initialDescription: string;
   initialMenu: Dish[];
   views: View[];
 }) {
   const [days, setDays] = useState<Day[]>(() => startDays(initialHours));
   const [note, setNote] = useState(initialNote);
   const [dishes, setDishes] = useState<Dish[]>(initialMenu.length ? initialMenu : [{ name: "", section: "", description: "", price: "" }]);
+  const [phone, setPhone] = useState(initialPhone);
+  const [website, setWebsite] = useState(initialWebsite);
+  const [description, setDescription] = useState(initialDescription);
   const [certifier, setCertifier] = useState("");
   const [expiresOn, setExpiresOn] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -59,6 +70,18 @@ export function ManagePanel({
         },
       });
       toast("Hours saved");
+    } catch (error) {
+      toast(errorText(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const saveDetails = async () => {
+    setBusy("details");
+    try {
+      await api(`/api/owner-claims/${claimId}/details`, { method: "PUT", json: { phone, website, description } });
+      toast("Contact details saved");
     } catch (error) {
       toast(errorText(error));
     } finally {
@@ -123,6 +146,26 @@ export function ManagePanel({
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="grid gap-3" aria-labelledby="details-title">
+        <h2 id="details-title" className="text-[15px] font-black">
+          Phone, website and description
+        </h2>
+        <p className="text-sm font-semibold text-muted-foreground">
+          Shown on the place page after a moderator approves the claim. They do not change halal facts. Leave a field blank to clear it.
+        </p>
+        {canEdit && !canEditDetails && (
+          <p className="text-sm font-semibold text-muted-foreground">Only the account that claimed as the owner can edit these.</p>
+        )}
+        <fieldset disabled={!canEditDetails || busy !== null} className="grid gap-3 disabled:opacity-60">
+          <TextField label="Phone" value={phone} onChange={setPhone} maxLength={32} placeholder="+1 415 555 0134" />
+          <TextField label="Website" value={website} onChange={setWebsite} maxLength={300} placeholder="https://example.com" />
+          <TextField label="Description" value={description} onChange={setDescription} maxLength={400} multiline placeholder="A short note from the restaurant" />
+          <button type="button" disabled={!canEditDetails || busy !== null} onClick={saveDetails} className={buttonClass("outline", "md")}>
+            {busy === "details" ? "Saving…" : "Save details"}
+          </button>
+        </fieldset>
       </section>
 
       <section className="grid gap-3" aria-labelledby="hours-title">
